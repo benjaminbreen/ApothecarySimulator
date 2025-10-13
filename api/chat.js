@@ -1,12 +1,10 @@
 // Vercel Serverless Function for secure LLM calls
 // This runs server-side, keeping API keys secure
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize Gemini with server-side API key
-const genai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY, // Secure server-side key
-});
+const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export default async function handler(req, res) {
   // CORS headers
@@ -14,7 +12,9 @@ export default async function handler(req, res) {
   const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5173',
-    'https://your-app.vercel.app', // Update with your actual domain
+    'http://localhost:3002',
+    'https://apothecary-simulator.vercel.app',
+    'https://apothecary-simulator-git-main-benjaminbreens-projects.vercel.app',
   ];
 
   if (allowedOrigins.includes(origin)) {
@@ -50,27 +50,26 @@ export default async function handler(req, res) {
       return msg.content;
     }).join('\n\n');
 
-    const config = {
-      temperature,
-      maxOutputTokens: maxTokens,
-    };
-
-    if (responseFormat?.type === 'json_object') {
-      config.responseMimeType = 'application/json';
-    }
-
-    // Call Gemini 2.5 Flash Lite
-    const response = await genai.models.generateContent({
-      model: 'gemini-2.5-flash-lite',
-      contents: prompt,
-      config,
+    // Get the model
+    const model = genai.getGenerativeModel({
+      model: 'gemini-2.0-flash-exp',
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens,
+        responseMimeType: responseFormat?.type === 'json_object' ? 'application/json' : 'text/plain',
+      }
     });
+
+    // Call Gemini
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
     // Return in OpenAI-compatible format
     res.status(200).json({
       choices: [{
         message: {
-          content: response.text,
+          content: text,
           role: 'assistant'
         }
       }]
