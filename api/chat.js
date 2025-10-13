@@ -52,7 +52,7 @@ export default async function handler(req, res) {
 
     // Build config for new @google/genai SDK
     const config = {
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-flash-lite-latest',
       contents: prompt,
       config: {
         temperature,
