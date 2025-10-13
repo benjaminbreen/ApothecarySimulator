@@ -1,10 +1,10 @@
 // Vercel Serverless Function for secure LLM calls
 // This runs server-side, keeping API keys secure
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
-// Initialize Gemini with server-side API key
-const genai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize Gemini with server-side API key (new unified SDK)
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export default async function handler(req, res) {
   // CORS headers
@@ -50,26 +50,29 @@ export default async function handler(req, res) {
       return msg.content;
     }).join('\n\n');
 
-    // Get the model
-    const model = genai.getGenerativeModel({
+    // Build config for new @google/genai SDK
+    const config = {
       model: 'gemini-2.0-flash-exp',
-      generationConfig: {
+      contents: prompt,
+      config: {
         temperature,
         maxOutputTokens: maxTokens,
-        responseMimeType: responseFormat?.type === 'json_object' ? 'application/json' : 'text/plain',
       }
-    });
+    };
 
-    // Call Gemini
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    // Add JSON mode if requested
+    if (responseFormat?.type === 'json_object') {
+      config.config.responseMimeType = 'application/json';
+    }
+
+    // Call Gemini using new unified SDK
+    const response = await ai.models.generateContent(config);
 
     // Return in OpenAI-compatible format
     res.status(200).json({
       choices: [{
         message: {
-          content: text,
+          content: response.text,
           role: 'assistant'
         }
       }]
