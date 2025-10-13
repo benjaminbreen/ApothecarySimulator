@@ -1,12 +1,12 @@
 // Vercel Serverless Function for secure LLM calls
 // This runs server-side, keeping API keys secure
 
-import { GoogleGenAI } from '@google/genai';
+const { GoogleGenAI } = require('@google/genai');
 
 // Initialize Gemini with server-side API key (new unified SDK)
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // CORS headers
   const origin = req.headers.origin;
   const allowedOrigins = [
@@ -35,12 +35,21 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('[API] Request received:', {
+      method: req.method,
+      origin: req.headers.origin,
+      hasBody: !!req.body
+    });
+
     const { messages, temperature = 1.0, maxTokens = 1000, responseFormat } = req.body;
 
     // Validate input
     if (!messages || !Array.isArray(messages)) {
+      console.error('[API] Invalid messages format');
       return res.status(400).json({ error: 'Invalid messages format' });
     }
+
+    console.log('[API] Processing request with', messages.length, 'messages');
 
     // Build prompt (same format as existing code)
     const prompt = messages.map(msg => {
@@ -66,7 +75,13 @@ export default async function handler(req, res) {
     }
 
     // Call Gemini using new unified SDK
+    console.log('[API] Calling Gemini with model:', config.model);
     const response = await ai.models.generateContent(config);
+    console.log('[API] Gemini response received:', {
+      hasText: !!response.text,
+      textType: typeof response.text,
+      textLength: response.text?.length
+    });
 
     // Return in OpenAI-compatible format
     res.status(200).json({
@@ -79,12 +94,17 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('[API] Error:', error);
+    console.error('[API] Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
 
-    // Don't expose internal error details in production
-    res.status(500).json({
+    // Always return JSON, never plain text
+    return res.status(500).json({
       error: 'Internal server error',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Failed to generate response'
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
-}
+};
