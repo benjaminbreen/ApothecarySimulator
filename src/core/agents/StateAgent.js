@@ -168,22 +168,29 @@ Track meaningful interactions that affect NPC relationships. Use these guideline
 - Be conservative - most casual interactions are neutral
 
 ### Contract Offer Detection:
-**CRITICAL**: Detect when an NPC is requesting services or items that require player agreement.
+**CRITICAL**: Only detect contracts when Maria is actively negotiating payment/terms with an NPC.
 
-**Set contractOffer when:**
-- NPC requests treatment for themselves or someone else
-- NPC offers payment for medical services (even if Maria hasn't accepted yet)
-- NPC asks to purchase a specific item or draught
-- NPC describes a sick person who needs help
-- NPC holds out money/payment and waits for Maria's decision
-- Narrative ends with "expecting Maria to accept/refuse" or "waits for response"
+**BE CONSERVATIVE**: Do NOT detect contracts when NPCs first mention needing help. Only detect when the conversation has progressed to discussing terms, payment, or Maria explicitly engaging with the request.
+
+**Set contractOffer ONLY when:**
+- Maria asks "What can you pay?" or "How much?" or similar payment questions
+- NPC explicitly offers a specific amount of payment AND Maria hasn't declined yet
+- NPC holds out money/payment and waits for Maria's decision (after she's engaged)
+- Narrative shows Maria considering the offer or asking details about terms
+- Player action includes negotiation keywords: "negotiate", "payment", "how much", "terms", "contract"
+
+**DO NOT set contractOffer when:**
+- NPC first mentions needing help (too early, player hasn't engaged yet)
+- NPC just describes a problem or sick person (no negotiation yet)
+- Maria hasn't responded or shown interest yet
+- This is the first turn of interaction with an NPC
 
 **DETECTION PATTERNS (look for these phrases):**
-- "I have here [X] reales" + mentions patient = TREATMENT OFFER
-- "holding out the pouch" + "expecting Maria to accept" = TREATMENT OFFER
-- "urgent need of your skill" + mentions payment = TREATMENT OFFER
-- "a soul in distress" / "someone needs treatment" + payment = TREATMENT OFFER
-- "Do you have [medicine]?" + "what is your price?" = SALE OFFER
+- Maria asks "What can you pay?" or "How much?" = TREATMENT OFFER
+- "I have here [X] reales" + Maria engaged in conversation = TREATMENT OFFER
+- "holding out the pouch" + "expecting Maria to accept" = TREATMENT OFFER (only if Maria already asked about it)
+- Player action contains "negotiate" or "payment" = DETECT CONTRACT
+- "Do you have [medicine]?" + Maria responds + "what is your price?" = SALE OFFER
 
 **Type "treatment"**: Someone needs medical treatment
 - offeredBy: The NPC making the request (might be intermediary)
@@ -201,18 +208,21 @@ Track meaningful interactions that affect NPC relationships. Use these guideline
 **Type null**: No offer detected (default)
 
 **EXAMPLES:**
-✓ "I have here fifteen reales... expecting Maria to either accept the coin and prepare to leave, or refuse" → CONTRACT DETECTED (type: treatment)
-✓ "Holding out 10 reales for treatment of her daughter" → CONTRACT DETECTED
-✓ "Do you have a stomach remedy? What is your price?" → CONTRACT DETECTED (type: sale)
+✓ Player action: "What can you pay?" + "I have here fifteen reales" → CONTRACT DETECTED (type: treatment)
+✓ Player action: "negotiate terms" + "Holding out 10 reales for treatment" → CONTRACT DETECTED
+✓ Player action: "How much for the remedy?" + "What is your price?" → CONTRACT DETECTED (type: sale)
+✗ "A sailor urgently requests help for a choking man" → NO CONTRACT (first mention, player hasn't engaged)
+✗ "The NPC describes a sick person needing treatment" → NO CONTRACT (no negotiation yet)
 ✗ "Maria agreed to help and received 15 reales" → NO CONTRACT (already completed)
 ✗ "After Maria accepted, the NPC paid" → NO CONTRACT (already completed)
 
 **IMPORTANT**:
+- **CONSERVATIVE APPROACH**: When in doubt, DO NOT detect a contract
+- Only detect when player action shows clear negotiation intent
+- Do NOT detect on first turn when NPC mentions needing help
 - Do NOT update wealth until player accepts the offer
 - Do NOT assume agreement - offers must be accepted explicitly
-- If money is offered but NOT YET HANDED OVER = contract offer
 - If narrative says "Maria accepted", "Maria agreed", "Maria took the money" = treat as completed transaction (no offer)
-- When in doubt and payment is mentioned + service requested = DETECT CONTRACT
 
 ### Journal Entry Format:
 "**[Date], [Time], [Location]**: [One sentence summary with **NPC names bolded**]"

@@ -15,6 +15,8 @@ export function NarrativeTab({
   activePatient,
   onSwitchToPatientView,
   pendingPrescription,
+  pendingContract = null, // Contract offer
+  onOpenContractModal = null, // Handler to open contract modal
   fontSize = 'text-base',
   isDarkMode = false
 }) {
@@ -31,6 +33,8 @@ export function NarrativeTab({
         activePatient={activePatient}
         onSwitchToPatientView={onSwitchToPatientView}
         pendingPrescription={pendingPrescription}
+        pendingContract={pendingContract}
+        onOpenContractModal={onOpenContractModal}
         fontSize={fontSize}
         isDarkMode={isDarkMode}
       />

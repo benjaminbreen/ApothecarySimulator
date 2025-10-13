@@ -166,6 +166,9 @@ const GameContent = () => {
   const [pendingContract, setPendingContract] = useState(null);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
 
+  // PHASE 1: Primary portrait file (LLM-selected portrait)
+  const [primaryPortraitFile, setPrimaryPortraitFile] = useState(null);
+
   // Narration settings state
   const [narrationFontSize, setNarrationFontSize] = useState('text-base');
   const [narrationDarkMode, setNarrationDarkMode] = useState(false);
@@ -451,6 +454,7 @@ const GameContent = () => {
     setIsPatientRosterOpen,
     setPendingContract,
     setIsContractModalOpen,
+    setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
 
     // State values
     energy: gameState.energy,  // From gameState
@@ -700,6 +704,9 @@ const GameContent = () => {
                 activePatient={activePatient}
                 patientDialogue={patientDialogue}
                 onAskQuestion={handleAskQuestion}
+                // Contract props
+                pendingContract={pendingContract}
+                onOpenContractModal={() => setIsContractModalOpen(true)}
                 onEntityClick={handleEntityClick}
                 playerPortrait={getStatusImage(mariaStatus)}
                 // Prescription props for Patient View
@@ -762,6 +769,7 @@ const GameContent = () => {
                 locationDetails={gameState.location}
                 onActionClick={handleActionClick}
                 recentNPCs={npcTracker.getRecentNPCs()}
+                primaryPortraitFile={primaryPortraitFile} // PHASE 1: LLM-selected portrait
                 currentNarrative={historyOutput}
                 recentNarrativeTurn={historyOutput} // Most recent narrative turn for LLM analysis
                 scenario={scenarioLoader.getScenario(scenarioId || '1680-mexico-city')}

@@ -64,6 +64,9 @@ ${patient.symptoms?.length > 0
 {
   "dialogue": "Your natural language response as the patient",
   "patientDataUpdates": {
+    "name": "patient's full name (only if they tell you their name)",
+    "age": number (only if they mention their age),
+    "birthDate": "date of birth in format 'Month Day, Year' (e.g., 'March 15, 1645') - only if mentioned",
     "symptoms": [
       {
         "name": "symptom name",
@@ -80,6 +83,10 @@ ${patient.symptoms?.length > 0
     "medicalHistory": "past illnesses or treatments if mentioned",
     "occupation": "occupation if mentioned",
     "occupationDetail": "details about occupation if relevant",
+    "humors": {
+      "temperature": "hot | cold | neutral (only if patient describes feeling hot/cold by nature)",
+      "moisture": "dry | moist | neutral (only if patient mentions dry skin, excessive moisture, etc.)"
+    },
     "vitals": {
       "pulse": "slow | normal | rapid (only if examined)",
       "temperature": "cold | normal | hot (only if examined)",

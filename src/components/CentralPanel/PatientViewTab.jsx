@@ -7,6 +7,8 @@ import { getPositionForLocation } from '../../utils/bodyPositionMapper';
 import PrescribePanelIntegrated from '../../features/medical/components/PrescribePanelIntegrated';
 import DiagnosisPanel from '../../features/medical/components/DiagnosisPanel';
 import PrescribeOverviewPanel from '../../features/medical/components/PrescribeOverviewPanel';
+import { getZodiacSymbol } from '../../core/utils/astrologyCalculator';
+import { entityManager } from '../../core/entities/EntityManager';
 
 export function PatientViewTab({
   patient,
@@ -39,6 +41,8 @@ export function PatientViewTab({
   const [showPrescribeBanner, setShowPrescribeBanner] = useState(false);
   const [diagnosisData, setDiagnosisData] = useState(null); // Stores submitted diagnosis
   const [showDiagnoseButton, setShowDiagnoseButton] = useState(false);
+  const [manualHumorTemp, setManualHumorTemp] = useState(null);
+  const [manualHumorMoisture, setManualHumorMoisture] = useState(null);
 
   // Show diagnose button after first question is answered
   useEffect(() => {
@@ -46,6 +50,44 @@ export function PatientViewTab({
       setShowDiagnoseButton(true);
     }
   }, [patientDialogue]);
+
+  // Handler for manual humoral characteristics update
+  const handleHumorUpdate = (humorType, value) => {
+    if (!patient || !patient.id) return;
+
+    // Update local state
+    if (humorType === 'temperature') {
+      setManualHumorTemp(value);
+    } else {
+      setManualHumorMoisture(value);
+    }
+
+    // Update patient entity in EntityManager
+    const updatedPatient = {
+      ...patient,
+      humors: {
+        ...patient.humors,
+        [humorType]: value
+      },
+      lastUpdated: new Date().toISOString()
+    };
+
+    try {
+      entityManager.update(patient.id, updatedPatient);
+      console.log('[PatientViewTab] Updated patient humors:', humorType, value);
+
+      // Also update journal
+      if (addJournalEntry) {
+        addJournalEntry({
+          turnNumber: gameState?.turnNumber || 0,
+          date: gameState?.date || new Date().toLocaleDateString(),
+          entry: `Recorded humoral characteristic for ${patient.name}: ${humorType} = ${value}`
+        });
+      }
+    } catch (error) {
+      console.error('[PatientViewTab] Failed to update patient humors:', error);
+    }
+  };
 
   // Show prescribe banner/button only after diagnosis is submitted
   useEffect(() => {
@@ -126,13 +168,20 @@ export function PatientViewTab({
     : null;
 
   // Extract symptoms from patient data and add SVG positions
-  const symptoms = (patient.symptoms || [
+  // ONLY show discovered symptoms (those with source: 'patient-dialogue')
+  // OR the first symptom (chief complaint)
+  const allSymptoms = patient.symptoms || [];
+  const discoveredSymptoms = allSymptoms.filter((symptom, index) =>
+    index === 0 || symptom.source === 'patient-dialogue' || symptom.discoveredAt
+  );
+
+  const symptoms = (discoveredSymptoms.length > 0 ? discoveredSymptoms : [
     {
       name: "Unknown Ailment",
       severity: "mild",
       type: "other",
       location: "General",
-      description: "Patient complaints not yet recorded"
+      description: "Chief complaint not yet recorded. Ask the patient what troubles them."
     }
   ]).map(symptom => ({
     ...symptom,
@@ -297,7 +346,7 @@ export function PatientViewTab({
             {/* Patient Header - Full Width */}
             <div className="flex items-center gap-4 pb-4 mb-4 border-b border-white/10">
               <div className="text-2xl font-display font-semibold text-white" style={{ textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>
-                {patient.name}
+                {patient.name || 'Unknown Patient'}
               </div>
               <div className="flex gap-3 text-xs font-sans font-semibold">
                 <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded text-ink-300">
@@ -372,25 +421,53 @@ export function PatientViewTab({
 
               {/* Right Info Panel */}
               <div className="flex flex-col gap-4">
-                <div className="bg-white/5 border border-white/10 rounded-lg p-3 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all">
+                <div className="bg-white/5 border border-white/10 rounded-lg p-3">
                   <InfoCardHeader>ASTROLOGY</InfoCardHeader>
-                  <div className="text-3xl text-center my-1">♌</div>
+                  <div className="text-3xl text-center my-1">
+                    {patient.astrology ? getZodiacSymbol(patient.astrology) : '?'}
+                  </div>
                   <div className="text-xs text-center text-emerald-400 font-semibold">
-                    {patient.astrology || 'Leo'}
+                    {patient.astrology || 'Unknown'}
+                  </div>
+                  <div className="text-[9px] text-center text-ink-400 mt-1">
+                    Ask for birth date
                   </div>
                 </div>
 
                 <div className="bg-white/5 border border-white/10 rounded-lg p-3">
                   <InfoCardHeader>HUMORAL</InfoCardHeader>
                   <div className="grid grid-cols-2 gap-1.5 mt-2">
+                    {/* Temperature Dropdown */}
                     <div className="text-center p-1.5 bg-white/5 rounded">
                       <div className="text-[9px] text-ink-400 uppercase tracking-wide mb-0.5">Temp</div>
-                      <div className="text-sm font-bold text-orange-400">Hot</div>
+                      <select
+                        value={manualHumorTemp || patient.humors?.temperature || ''}
+                        onChange={(e) => handleHumorUpdate('temperature', e.target.value)}
+                        className="w-full text-sm font-bold bg-transparent border-none text-center cursor-pointer text-orange-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
+                      >
+                        <option value="" className="bg-slate-800">?</option>
+                        <option value="hot" className="bg-slate-800">Hot</option>
+                        <option value="cold" className="bg-slate-800">Cold</option>
+                        <option value="neutral" className="bg-slate-800">Neutral</option>
+                      </select>
                     </div>
+                    {/* Moisture Dropdown */}
                     <div className="text-center p-1.5 bg-white/5 rounded">
                       <div className="text-[9px] text-ink-400 uppercase tracking-wide mb-0.5">Moisture</div>
-                      <div className="text-sm font-bold text-yellow-400">Dry</div>
+                      <select
+                        value={manualHumorMoisture || patient.humors?.moisture || ''}
+                        onChange={(e) => handleHumorUpdate('moisture', e.target.value)}
+                        className="w-full text-sm font-bold bg-transparent border-none text-center cursor-pointer text-yellow-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
+                      >
+                        <option value="" className="bg-slate-800">?</option>
+                        <option value="dry" className="bg-slate-800">Dry</option>
+                        <option value="moist" className="bg-slate-800">Moist</option>
+                        <option value="neutral" className="bg-slate-800">Neutral</option>
+                      </select>
                     </div>
+                  </div>
+                  <div className="text-[9px] text-center text-ink-400 mt-2">
+                    Ask patient or set manually
                   </div>
 
                   {/* Diagnose Button - Appears after first question */}

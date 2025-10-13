@@ -30,6 +30,10 @@ export function CentralPanel({
   patientDialogue,
   onAskQuestion,
 
+  // Contract props
+  pendingContract,
+  onOpenContractModal,
+
   // Prescription props for Patient View
   gameState,
   updateInventory,
@@ -88,6 +92,8 @@ export function CentralPanel({
               activePatient={activePatient}
               onSwitchToPatientView={() => onTabChange('patient')}
               pendingPrescription={pendingPrescription}
+              pendingContract={pendingContract}
+              onOpenContractModal={onOpenContractModal}
               fontSize={narrationFontSize}
               isDarkMode={narrationDarkMode}
             />

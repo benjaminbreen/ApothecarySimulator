@@ -71,6 +71,7 @@ export function useGameHandlers({
   setIsPatientRosterOpen,
   setPendingContract,
   setIsContractModalOpen,
+  setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
 
   // State values
   energy,
@@ -599,6 +600,58 @@ export function useGameHandlers({
         return;
       }
 
+      // NEW: Handle LLM-provided primary NPC profile (Phase 1)
+      if (result.primaryNPC) {
+        console.log('[Primary NPC] Received from LLM:', result.primaryNPC.name);
+
+        const npcEntity = {
+          ...result.primaryNPC,
+          id: `npc_${result.primaryNPC.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
+          entityType: 'npc',
+          type: 'npc',
+          llmProvided: true, // Flag to prevent procedural override
+          social: {
+            class: result.primaryNPC.class,
+            casta: result.primaryNPC.casta,
+            occupation: result.primaryNPC.occupation
+          },
+          appearance: {
+            gender: result.primaryNPC.gender,
+            age: result.primaryNPC.age,
+            description: result.primaryNPC.appearance
+          },
+          personality: {
+            traits: result.primaryNPC.personality,
+            description: result.primaryNPC.personality
+          },
+          tier: 'recurring' // LLM-generated NPCs are recurring by default
+        };
+
+        // Register or update entity
+        try {
+          const registered = entityManager.register(npcEntity);
+          console.log('[Primary NPC] Registered:', registered.name);
+        } catch (error) {
+          console.error('[Primary NPC] Registration error:', error);
+        }
+      }
+
+      // NEW PHASE 1: Handle LLM-selected portrait (replaces complex portrait resolution)
+      let primaryPortraitFile = null;
+      if (result.primaryPortrait) {
+        console.log('[Portrait Phase 1] LLM selected portrait:', result.primaryPortrait);
+        primaryPortraitFile = result.primaryPortrait;
+
+        // Store in state for ContextPanel to display
+        // We'll pass this directly to ContextPanel instead of using portraitResolver
+        console.log('[Portrait Phase 1] ✓ Using direct LLM selection (bypassing portraitResolver)');
+      } else {
+        console.log('[Portrait Phase 1] No primaryPortrait from LLM, will use fallback system');
+      }
+
+      // Store in state for ContextPanel to use
+      setPrimaryPortraitFile(primaryPortraitFile);
+
       // PATIENT HANDLING: If entity is a patient, validate LLM used them correctly
       if (result.selectedEntity) {
         const entityType = result.selectedEntity.entityType || result.selectedEntity.type;
@@ -674,57 +727,74 @@ export function useGameHandlers({
         });
       }
 
-      // Portrait Selection Logic (RESTORED ORIGINAL):
-      // Portrait selection - prioritize LLM hint, then fallback to heuristics
+      // Portrait Selection Logic (PHASE 1 HYBRID):
+      // NEW: If LLM provided primaryPortrait, skip complex resolution entirely
       let portraitEntity = null;
 
-      // 1. PRIMARY: Trust LLM's portrait hint (knows narrative intent)
-      console.log('[Portrait] LLM hint received:', result.showPortraitFor);
-      if (result.showPortraitFor) {
-        // Search EntityManager (includes all entities, not just new ones this turn)
-        const hintedEntity = entityManager.getByName(result.showPortraitFor);
-        console.log('[Portrait] Entity lookup result for', result.showPortraitFor, ':', hintedEntity ? 'FOUND' : 'NOT FOUND');
+      if (primaryPortraitFile) {
+        // PHASE 1: Direct portrait selection from LLM
+        console.log('[Portrait Phase 1] Skipping fallback system, using LLM portrait:', primaryPortraitFile);
 
-        if (hintedEntity && !isAnimalOrObject(hintedEntity)) {
-          portraitEntity = hintedEntity;
-          console.log('[Portrait] ✓ Using LLM hint:', result.showPortraitFor);
-        } else if (!hintedEntity) {
-          console.warn('[Portrait] ✗ LLM suggested', result.showPortraitFor, 'but entity not found in EntityManager');
-        } else {
-          console.warn('[Portrait] ✗ LLM suggested', result.showPortraitFor, 'but it is an animal/object:', hintedEntity);
+        // If primaryNPC was provided, use that as portraitEntity for tracking
+        if (result.primaryNPC) {
+          const primaryEntity = entityManager.getByName(result.primaryNPC.name);
+          if (primaryEntity) {
+            portraitEntity = primaryEntity;
+            console.log('[Portrait Phase 1] Linked portrait to primaryNPC:', result.primaryNPC.name);
+          }
         }
       } else {
-        console.log('[Portrait] No LLM hint provided (showPortraitFor was null/undefined)');
-      }
+        // FALLBACK: Use old portrait resolution system
+        console.log('[Portrait] Using fallback portrait resolution system');
 
-      // 2. FALLBACK: Use EntityAgent's selection
-      if (!portraitEntity && result.selectedEntity) {
-        if (!isAnimalOrObject(result.selectedEntity)) {
-          portraitEntity = result.selectedEntity;
-          console.log('[Portrait] ⟳ Fallback to EntityAgent selection:', result.selectedEntity.name);
+        // 1. PRIMARY: Trust LLM's portrait hint (knows narrative intent)
+        console.log('[Portrait] LLM hint received:', result.showPortraitFor);
+        if (result.showPortraitFor) {
+          // Search EntityManager (includes all entities, not just new ones this turn)
+          const hintedEntity = entityManager.getByName(result.showPortraitFor);
+          console.log('[Portrait] Entity lookup result for', result.showPortraitFor, ':', hintedEntity ? 'FOUND' : 'NOT FOUND');
+
+          if (hintedEntity && !isAnimalOrObject(hintedEntity)) {
+            portraitEntity = hintedEntity;
+            console.log('[Portrait] ✓ Using LLM hint:', result.showPortraitFor);
+          } else if (!hintedEntity) {
+            console.warn('[Portrait] ✗ LLM suggested', result.showPortraitFor, 'but entity not found in EntityManager');
+          } else {
+            console.warn('[Portrait] ✗ LLM suggested', result.showPortraitFor, 'but it is an animal/object:', hintedEntity);
+          }
+        } else {
+          console.log('[Portrait] No LLM hint provided (showPortraitFor was null/undefined)');
         }
-      }
 
-      // 3. LAST RESORT: First person mentioned (excluding animals/objects/items)
-      if (!portraitEntity && result.newNPCs?.length > 0) {
-        const firstPerson = result.newNPCs.find(npc => {
-          // Exclude animals, objects, and items
-          if (isAnimalOrObject(npc)) return false;
-          const entityType = npc.entityType || npc.type;
-          if (entityType === 'item' || entityType === 'location') return false;
-          return true;
-        });
-        if (firstPerson) {
-          portraitEntity = firstPerson;
-          console.log('[Portrait] ⟳ Last resort - first person mentioned:', firstPerson.name);
+        // 2. FALLBACK: Use EntityAgent's selection
+        if (!portraitEntity && result.selectedEntity) {
+          if (!isAnimalOrObject(result.selectedEntity)) {
+            portraitEntity = result.selectedEntity;
+            console.log('[Portrait] ⟳ Fallback to EntityAgent selection:', result.selectedEntity.name);
+          }
         }
-      }
 
-      // 4. FINAL FALLBACK: Keep previous portrait if no new entity found
-      if (!portraitEntity && previousPortraitEntityRef.current) {
-        portraitEntity = previousPortraitEntityRef.current;
-        console.log('[Portrait] ↻ No new entity found, keeping previous:', portraitEntity.name);
-      }
+        // 3. LAST RESORT: First person mentioned (excluding animals/objects/items)
+        if (!portraitEntity && result.newNPCs?.length > 0) {
+          const firstPerson = result.newNPCs.find(npc => {
+            // Exclude animals, objects, and items
+            if (isAnimalOrObject(npc)) return false;
+            const entityType = npc.entityType || npc.type;
+            if (entityType === 'item' || entityType === 'location') return false;
+            return true;
+          });
+          if (firstPerson) {
+            portraitEntity = firstPerson;
+            console.log('[Portrait] ⟳ Last resort - first person mentioned:', firstPerson.name);
+          }
+        }
+
+        // 4. FINAL FALLBACK: Keep previous portrait if no new entity found
+        if (!portraitEntity && previousPortraitEntityRef.current) {
+          portraitEntity = previousPortraitEntityRef.current;
+          console.log('[Portrait] ↻ No new entity found, keeping previous:', portraitEntity.name);
+        }
+      } // End fallback portrait resolution system
 
       // Track NPCs for portrait system (ContextPanel queries directly from EntityManager)
       if (portraitEntity) {
@@ -880,10 +950,12 @@ export function useGameHandlers({
       }
 
       // Handle contract offers (treatment or sale)
+      // Store contract offer but DON'T auto-open modal
+      // Player will see a clickable card in NarrativePanel
       if (result.contractOffer && result.contractOffer.type) {
         console.log('[Contract] Offer detected:', result.contractOffer.type, result.contractOffer);
         setPendingContract(result.contractOffer);
-        setIsContractModalOpen(true);
+        // Note: Modal is NOT auto-opened, user must click the contract card
       }
 
       // Add journal entry
@@ -1444,21 +1516,11 @@ Respond with ONLY a JSON object in this exact format:
   // CONTRACT HANDLERS
 
   // Handle accepting treatment contract
-  const handleAcceptTreatment = useCallback((patientEntity, paymentAmount) => {
+  const handleAcceptTreatment = useCallback(async (patientEntity, paymentAmount) => {
     console.log('[Contract] Accepting treatment:', patientEntity.name, 'Payment:', paymentAmount);
 
-    // Set as active patient immediately
-    setActivePatient(patientEntity);
-    setActiveTab('patient');
-    setPatientDialogue([]); // Clear previous dialogue
-
-    // Update wealth
+    // Update wealth immediately (payment received upfront)
     setWealth(prev => prev + paymentAmount);
-
-    // Log to conversation history
-    setConversationHistory(prev => [...prev,
-      { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales. Payment received.*` }
-    ]);
 
     // Add journal entry
     addJournalEntry({
@@ -1467,8 +1529,73 @@ Respond with ONLY a JSON object in this exact format:
       entry: `Accepted contract to treat ${patientEntity.name} for ${paymentAmount} reales.`
     });
 
-    toast.success(`Contract accepted! ${patientEntity.name} is now your active patient.`, { duration: 4000 });
-  }, [setActivePatient, setActiveTab, setPatientDialogue, setWealth, setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast]);
+    toast.success(`Contract accepted! Preparing to examine ${patientEntity.name}...`, { duration: 3000 });
+
+    // Generate transition narrative (Maria preparing/traveling)
+    try {
+      setIsLoading(true);
+
+      const scenario = scenarioLoader.loadScenario(scenarioId);
+      const systemPrompt = `You are narrating a brief transition scene in a historical medical RPG.
+
+Maria de Lima, a converso apothecary in 1680 Mexico City, has just accepted a contract to treat ${patientEntity.name} for ${paymentAmount} reales.
+
+Write a short (2-3 sentences) narrative showing:
+- If the patient is present: Maria preparing her workspace and asking the patient to sit
+- If the patient is elsewhere: Maria gathering her medical bag and traveling to the patient's location
+- Maria's thoughts about the case or the payment
+
+Keep it brief and atmospheric. End with Maria ready to begin the examination.`;
+
+      const userPrompt = `Patient: ${patientEntity.name}
+Payment: ${paymentAmount} reales
+Location: ${gameState.location}
+Time: ${gameState.time}
+
+Generate the transition narrative.`;
+
+      const response = await createChatCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        0.7, // Slightly higher temperature for narrative variety
+        200 // Short response
+      );
+
+      const transitionNarrative = response.choices[0].message.content;
+
+      // Add to conversation history
+      setConversationHistory(prev => [...prev,
+        { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales.*` },
+        { role: 'assistant', content: transitionNarrative }
+      ]);
+
+      // Display narrative
+      setHistoryOutput(transitionNarrative);
+
+      // NOW set active patient (triggers "Patient Ready for Examination" card)
+      // Do NOT auto-switch to patient tab - let player click the card
+      setActivePatient(patientEntity);
+      setPatientDialogue([]); // Clear previous dialogue
+
+      setIsLoading(false);
+
+    } catch (error) {
+      console.error('[Contract] Transition narrative error:', error);
+      setIsLoading(false);
+
+      // Fallback: simple message
+      const fallbackNarrative = `Maria accepts the payment and prepares to examine ${patientEntity.name}.`;
+      setConversationHistory(prev => [...prev,
+        { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales.*` },
+        { role: 'assistant', content: fallbackNarrative }
+      ]);
+      setHistoryOutput(fallbackNarrative);
+      setActivePatient(patientEntity);
+      setPatientDialogue([]);
+    }
+  }, [setWealth, addJournalEntry, turnNumber, gameState.date, gameState.location, gameState.time, toast, setIsLoading, scenarioId, setConversationHistory, setHistoryOutput, setActivePatient, setPatientDialogue]);
 
   // Handle accepting sale contract
   const handleAcceptSale = useCallback(async (item, price, customerName) => {

@@ -128,6 +128,18 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
   "sceneDescription": "Brief scene/setting description",
   "suggestedCommands": ["#symptoms", "#prescribe"],
   "showPortraitFor": "string or null - name of the primary character Maria is directly interacting with",
+  "primaryPortrait": "filename.jpg or null - portrait file to display for primary NPC",
+  "primaryNPC": {
+    "name": "Full name of primary NPC",
+    "age": "child|youth|adult|middle-aged|elderly",
+    "gender": "male|female",
+    "occupation": "Specific occupation/role",
+    "casta": "español|criollo|mestizo|indígena|africano|mulato",
+    "class": "elite|middling|common|poor",
+    "personality": "2-3 trait description",
+    "appearance": "Physical description",
+    "description": "Brief character summary"
+  },
   "requestNewPatient": "boolean - true if a new patient should arrive next turn, false otherwise",
   "patientContext": "string or null - Brief reason why patient is arriving (only if requestNewPatient is true). Examples: 'Morning rush at botica', 'Messenger sent by nobleman', 'Word of Maria's skill has spread'",
   "entities": [
@@ -149,26 +161,54 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 }
 \`\`\`
 
-### Portrait Selection (showPortraitFor):
-**CRITICAL:** Show whoever is **physically present and speaking** in the scene. This is the most important face-to-face person.
+### Primary NPC & Portrait System (NEW):
+**When a NAMED NPC is the primary person Maria is interacting with, provide their COMPLETE profile upfront.**
 
-**Simple Rule:** If someone speaks dialogue OR is directly interacting with Maria → show that person. If Maria is alone → null.
+**Available Portraits** (choose best match):
+- **Elite Women:** spanishnoblewoman.jpg, middleagedcriollofemalemerchant.jpg, criollofemalemerchant.jpg
+- **Common Women:** peasantwoman.jpg, poorwoman.jpg, beggarwoman.jpg, africanwoman.jpg, indiowoman.jpg
+- **Young Women:** youngspanishwoman.jpg, youngafricanwoman.jpg, youngindigenouswoman.jpg, youngmulattowoman.jpg
+- **Elderly Women:** oldwoman.jpg, elderlyafricanwoman.jpg, elderlycriollofemalehealer.jpg
+- **Elite Men:** spanishnoble.jpg, elderlynobleman.jpg, elderlypeninsulareman.jpg
+- **Common Men:** indiopeasantman.jpg, mulattoman.jpg, pooryoungman.jpg, youngman.jpg
+- **Clergy:** priest.jpg, abbot.jpg, nun.jpg, elderlycriollonun.jpg, middleagedcriollonun.jpg
+- **Merchants:** merchantman.jpg, middleagedmalemerchant.jpg, mestizomiddleagedmalemerchant.jpg
+- **Soldiers:** soldier.jpg, elderlysoldier.jpg, mulattosoldier.jpg, frontiersoldier.jpg
+- **Children:** child.jpg, childevening.jpg, sickboy.jpg, mestizoboy.jpg, mestizogirl.jpg, noblemalechild.jpg
+- **Scholars/Healers:** scholar.jpg, femalescholar.jpg, middleagedfemaleapothecary.jpg, middleagedmaleapothecary.jpg
+- **Workers:** middleagedfarmer.jpg, middleagedmalesailor.jpg, middleagedmalemuleteer.jpg, fishermanonriver.jpg
+
+**When to provide primaryPortrait & primaryNPC:**
+✓ Named NPC speaking/interacting directly (Doña Luisa, Fray Antonio, etc.)
+✓ First appearance of a new recurring NPC
+✓ Patient being discussed in detail (even if intermediary present)
+✗ Background entities (soldiers marching past)
+✗ Animals, items, locations
+✗ Maria alone navigating
+
+**primaryNPC must include:**
+- name (full formal name)
+- age, gender (for portrait matching)
+- occupation (specific job, not vague)
+- casta, class (colonial social hierarchy)
+- personality (2-3 traits: "Gruff but fair", "Pious and nervous")
+- appearance (physical description: build, clothing, distinguishing features)
+- description (1 sentence character summary)
+
+**Portrait Selection Rules:**
+1. Match demographics first (age + gender + class)
+2. Match occupation second (clergy, merchant, soldier, etc.)
+3. Match casta third (español, criollo, mestizo, etc.)
+4. If no perfect match, choose closest approximate
 
 **Examples:**
-✓ Nun says "Please help this child" and hands over sick boy → "showPortraitFor": "Hermana Francisca" (SHOW THE NUN)
-✓ Messenger says "I come on behalf of X" → "showPortraitFor": "a messenger" (SHOW THE MESSENGER)
-✓ Servant delivers message about sick lord → "showPortraitFor": "the servant" (SHOW THE SERVANT)
-✓ Maria examines patient who speaks → "showPortraitFor": "Doña Mercedes"
-✓ Merchant speaks to Maria → "showPortraitFor": "Señor Benavides"
-✗ Maria walks alone (no dialogue) → "showPortraitFor": null
-✗ Narrative mentions "the alguaciles might come" but they're not present → "showPortraitFor": null (DON'T show them!)
-✗ Someone mentions Don Cristóbal but he's not present → "showPortraitFor": null
+✓ Doña Luisa Mendoza (elite woman, middle-aged, español) → "primaryPortrait": "spanishnoblewoman.jpg"
+✓ Fray Antonio (priest, middle-aged, male) → "primaryPortrait": "priest.jpg"
+✓ Stout peasant woman (common, middle-aged) → "primaryPortrait": "peasantwoman.jpg"
+✗ João the cat → null (animal)
+✗ Maria thinking alone → null (no NPC)
 
-**DO NOT:**
-- Show people who are only mentioned but not physically present in the scene
-- Show background entities mentioned in passing (e.g., "the alguaciles might arrest you" ← they're not here!)
-- Show animals, objects, or locations
-- Return null when someone is clearly speaking or interacting face-to-face
+**CRITICAL:** Keep showPortraitFor for compatibility, but primaryPortrait is now authoritative.
 
 ### Patient Request System (requestNewPatient):
 **YOU control when new patients arrive.** Only request a new patient when it makes narrative sense.

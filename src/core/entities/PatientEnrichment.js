@@ -1,6 +1,8 @@
 // PatientEnrichment - Utilities for enriching patient entities with LLM-extracted data
 // Handles intelligent merging of symptoms, family history, and medical data
 
+import { calculateZodiacSign, calculateAge } from '../utils/astrologyCalculator';
+
 /**
  * Calculate string similarity (Levenshtein distance)
  * @param {string} str1 - First string
@@ -198,9 +200,36 @@ export function enrichPatientData(patient, extractedData) {
     extractedData.symptoms || []
   );
 
+  // Handle name (overwrite if provided - patient told us their real name)
+  const name = extractedData.name || patient.name;
+
+  // Handle birth date and auto-calculate age & astrology
+  let birthDate = extractedData.birthDate || patient.birthDate;
+  let age = extractedData.age || patient.age;
+  let astrology = patient.astrology; // Keep existing if not recalculating
+
+  // If birth date was provided, calculate age and astrology
+  if (extractedData.birthDate) {
+    birthDate = extractedData.birthDate;
+    astrology = calculateZodiacSign(birthDate);
+    age = calculateAge(birthDate) || age; // Fallback to extracted age if calculation fails
+    console.log('[PatientEnrichment] Calculated astrology from birthDate:', astrology);
+  }
+
+  // Merge humoral characteristics
+  const humors = {
+    temperature: extractedData.humors?.temperature || patient.humors?.temperature,
+    moisture: extractedData.humors?.moisture || patient.humors?.moisture
+  };
+
   // Create enriched patient
   const enriched = {
     ...patient,
+    name,
+    age,
+    birthDate,
+    astrology,
+    humors,
     symptoms: symptomResult.symptoms,
 
     // Merge text fields

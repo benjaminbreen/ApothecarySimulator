@@ -115,6 +115,15 @@ class EntityManager {
       return this.update(entity.id, entity);
     }
 
+    // NEW: Flag LLM-provided entities to prevent procedural override
+    if (entity.llmProvided === true) {
+      const logKey = `llmProvided:${entity.id}`;
+      if (!this.loggedMessages.has(logKey)) {
+        console.log('[EntityManager] LLM-provided entity, preserving data:', entity.name);
+        this.loggedMessages.add(logKey);
+      }
+    }
+
     // Store RAW entity data (no enrichment yet)
     this.entities.set(entity.id, entity);
 

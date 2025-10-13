@@ -429,6 +429,8 @@ const NarrativePanel = ({
   activePatient,
   onSwitchToPatientView,
   pendingPrescription,
+  pendingContract = null, // Contract offer pending negotiation
+  onOpenContractModal = null, // Handler to open contract modal
   fontSize = 'text-base',
   isDarkMode = false
 }) => {
@@ -551,6 +553,39 @@ const NarrativePanel = ({
                   playerPortrait={playerPortrait}
                 />
               ))}
+
+              {/* Contract Offer Card - Amber/Gold */}
+              {pendingContract && onOpenContractModal && (
+                <div className="animate-fade-in mb-4">
+                  <div className="w-full p-4 bg-gradient-to-r from-amber-500/90 to-yellow-600 dark:from-amber-700 dark:to-yellow-800 rounded-xl shadow-lg border-2 border-amber-400/20 dark:border-amber-600/30">
+                    <div className="flex items-center gap-3">
+                      {/* Contract Icon */}
+                      <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="text-white font-bold text-lg mb-0.5">
+                          {pendingContract.type === 'treatment' ? 'Treatment Contract Available' : 'Sale Request'}
+                        </div>
+                        <div className="text-amber-100 dark:text-amber-200 text-sm font-medium">
+                          {pendingContract.offeredBy} is seeking your services
+                        </div>
+                      </div>
+                      <button
+                        onClick={onOpenContractModal}
+                        className="flex-shrink-0 px-4 py-2 bg-white hover:bg-amber-50 text-amber-600 font-semibold rounded-lg transition-colors shadow-md flex items-center gap-2"
+                      >
+                        Negotiate Terms
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Patient Ready for Examination Card - Red */}
               {activePatient && !pendingPrescription && (

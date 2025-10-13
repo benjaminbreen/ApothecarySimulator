@@ -14,6 +14,7 @@ const ContextPanel = ({
   locationDetails = "Botica de la Amargura",
   onActionClick,
   recentNPCs = [], // Direct NPC data from game state
+  primaryPortraitFile = null, // PHASE 1: LLM-selected portrait filename
   currentNarrative, // Fallback for narrative parsing
   recentNarrativeTurn = '', // Most recent narrative turn for LLM analysis
   scenario = null, // Scenario config for maps and historical context
@@ -122,13 +123,19 @@ const ContextPanel = ({
     return adaptEntity(npcEntity, modalType);
   }, [npcEntity]);
 
-  // Get portrait URL using new portrait resolver
+  // Get portrait URL using Phase 1 hybrid system
   const getPortraitUrl = React.useMemo(() => {
-    if (!npcEntity) return null;
+    // PHASE 1: If LLM provided primary portrait, use it directly
+    if (primaryPortraitFile) {
+      console.log('[ContextPanel Phase 1] Using LLM-selected portrait:', primaryPortraitFile);
+      return `/portraits/${primaryPortraitFile}`;
+    }
 
-    // Use the new portrait resolver system
+    // FALLBACK: Use old portrait resolver system
+    if (!npcEntity) return null;
+    console.log('[ContextPanel] Using fallback portrait resolution for:', npcEntity.name);
     return resolvePortrait(npcEntity);
-  }, [npcEntity]);
+  }, [primaryPortraitFile, npcEntity]);
 
   const currentNPC = latestNPC && getPortraitUrl ? {
     name: latestNPC,
