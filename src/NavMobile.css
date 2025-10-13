@@ -1,0 +1,84 @@
+.nav-mobile {
+    cursor: pointer;
+    position: fixed;
+    top: 35px;
+    left: 35px;
+    z-index: 1;
+    width: 50px;
+    height: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    color: #darkgray;
+
+
+}
+
+
+/* Style adjustments for mobile screens */
+@media (max-width: 768px) {
+  .nav-mobile {
+    top: 0px; /* Adjust position if needed */
+    left: 0px; /* Adjust position if needed */
+  }
+
+  .nav-mobile .hamburger-react {
+    transform: scale(0.8); /* Shrink the hamburger menu on mobile */
+  }
+}
+
+.menu-container {
+    position: fixed;
+    top: 20px;
+    left: 20px; 
+    width: 250px;
+    padding: 10px;
+    background-color: rgba(255, 255, 255, 0.2); /* Light, semi-transparent background */
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    color: #000; /* Changed to black */
+    z-index: 999;
+    transition: left 0.3s ease;
+    opacity: 90%;
+
+}
+
+.menu-list {
+    display: grid;
+    gap: 0.3rem;
+    opacity: 90%; /* Changed from 10% to 1 (100%) */
+
+}
+
+.menu-item {
+    width: 100%;
+    padding: 0.08rem;
+    border-radius: 0.75rem;
+    background-image: none; /* Removed gradient background */
+
+}
+
+.menu-link,
+.menu-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%; /* Changed from 190% to 100% */
+    padding: 1rem;
+    border-radius: 0.45rem;
+    background-color: rgba(255, 255, 255, 0.5); /* Light, semi-transparent background */
+    color: #000; /* Changed to black */
+    text-decoration: none;
+    font-size: 1.25rem;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.2s ease;
+    opacity: 90%;
+}
+
+.menu-link:hover,
+.menu-button:hover {
+    background-color: rgba(0, 0, 0, 0.1); /* Slight darkening on hover */
+}

@@ -1,0 +1,160 @@
+/* Centering the loading wheel and phrase */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  position: relative;
+  padding-top: 120px;  /* Reserve space for the phrase */
+  opacity: 1;
+  background-color: transparent;
+  transition: background-color 3s ease-in-out, opacity 3s ease-in-out;
+ padding-bottom: 80px;
+}
+
+/* Rotating Wheel Image */
+.wheel-image {
+  width: 350px;
+  height: 350px;
+  opacity: 0;
+  animation: fadeInWheel 3s forwards, rotate 40s infinite linear;
+filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.2));
+}
+
+/* Rotating animation */
+@keyframes rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.wheel-image:hover {
+  opacity: 0.5;  /* Slight visual feedback */
+  transform: scale(1.05);  /* Small enlargement */
+  transition: transform 0.3s ease;
+}
+
+
+/* Fade in animation for the wheel */
+@keyframes fadeInWheel {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Phrase Styling */
+.loading-phrase {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 1.4rem;
+  color: #333;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 1s ease-in-out, transform 1s ease-in-out;
+  position: absolute;
+  top: 5%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  max-width: 600px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    padding-top: 50px;  /* Reserve space for the phrase */
+}
+
+
+.loading-phrase.fade-in {
+  animation: phraseZoom 3s forwards;
+}
+
+
+/* Fade-in state */
+.loading-phrase.fade-in {
+  opacity: 0.8;  /* Visible with fade-in */
+    transform: translate(-50%, -50%) scale(1);
+}
+
+/* Fade-out state */
+.loading-phrase.fade-out {
+  opacity: 0;
+    transform: translate(-50%, -60%) scale(0.9);
+}
+
+/* Container fade-to-white */
+.loading-container.fade-to-white {
+  background-color: #ffffff;
+  opacity: 0;
+}
+
+
+.loading-container::after {
+  background-color: #2196f3;
+  bottom: -100px;
+  right: -100px;
+  animation-delay: -7.5s;
+}
+
+
+/* Dark Mode Styles - Tailwind class-based dark mode */
+.dark .loading-container {
+  background-color: #2c3e50;  /* Dark background for dark mode */
+}
+
+.dark .wheel-image {
+  filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.3));  /* Lighter shadow for dark mode */
+}
+
+.dark .loading-phrase {
+  color: #f1f1f1;  /* Light text color for dark mode */
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);  /* Stronger shadow for better contrast */
+}
+
+/* Dark mode fade to black instead of white */
+.dark .loading-container.fade-to-white {
+  background-color: #2c3e50;  /* Fade to dark background */
+  opacity: 0;
+}
+
+/* Dark Mode specific animation for the container background */
+.loading-container::after {
+  background-color: #2196f3;
+  bottom: -100px;
+  right: -100px;
+  animation-delay: -7.5s;
+}
+
+@media (max-width: 768px) {
+  /* Adjust the container padding for small screens */
+  .loading-container {
+    padding-top: 80px;
+    padding-bottom: 50px;
+  }
+
+  /* Reduce the size of the wheel image for smaller screens */
+  .wheel-image {
+    width: 250px;
+    height: 250px;
+  }
+
+  /* Adjust the position and font size of the loading phrase */
+  .loading-phrase {
+    font-size: 1.2rem;
+    top: 10%; /* Move the text a bit lower on smaller screens */
+    width: 90%; /* Make sure it adapts to smaller screen widths */
+    max-width: 100%;
+    padding-top: 30px;
+  }
+
+  /* Slightly reduce the hover effect scale */
+  .wheel-image:hover {
+    transform: scale(1.02); /* Less drastic scaling */
+  }
+}
+
+

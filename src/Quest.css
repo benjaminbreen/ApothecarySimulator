@@ -1,0 +1,828 @@
+/* Quest Popup Container */
+
+.quest-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* This centers the popup */
+  width: 95%;
+  max-width: 800px;
+  background: rgba(0, 0, 0, 0.60); /* Black frosted glass effect */
+  border-radius: 15px;
+  box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.9);
+  z-index: 1000;
+  color: #fff;
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  opacity: 0; /* Start with zero opacity */
+  animation: fadeInOpacity 0.8s ease-in-out forwards; /* Fade in only opacity */
+}
+@keyframes fadeInOpacity {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Dark overlay background */
+.dark-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8); /* Black with 40% opacity */
+  z-index: 2; /* Ensure it's below the quest popup but above everything else */
+}
+
+/* Quest Header with Image Banner */
+.quest-header {
+  position: relative;
+  margin-bottom: 1rem;
+
+}
+
+.quest-header .dialogue-image,
+.quest-header .decision-image {
+  width: 100%;
+  max-height: 400px;
+  object-fit: cover;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease;
+  margin: 0 auto;
+  display: block;
+}
+
+.quest-header img:hover,
+.quest-header .banner-image:hover,
+.quest-header .dialogue-image:hover,
+.quest-header .decision-image:hover {
+  transform: scale(1.03);
+}
+
+/* Quest Title */
+.quest-header h2 {
+  font-family: 'MedievalSharp', cursive;
+  font-size: 1.4rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  border-bottom: 2px solid #8b8b8b;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.43);
+}
+
+/* Close Button */
+.quest-close-button {
+  position: absolute;
+  top: .1rem;
+  right: .1rem;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-size: 1.6rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s ease;
+}
+.quest-header .banner-image {
+  width: 100%;
+  height: 400px; /* Adjust height as needed */
+  object-fit: cover;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 10px 10px 0 0;
+  animation: pan-image 60s linear forwards; /* Panning effect */
+}
+
+.initial-text {
+  text-align: left; 
+
+    top: 20%;
+  position: fixed;
+
+  padding: 10px;
+  padding-right: 60px;
+  padding-left: 30px;
+    padding-bottom: 10px;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.9);
+    font-size: 1.1rem;
+    line-height: 0.5;
+}
+
+
+
+@keyframes pan-down {
+  0% {
+    background-position: top;
+  }
+  100% {
+    background-position: bottom;
+  }
+}
+
+.panning-banner-image {
+  width: 100%;
+  height: 600px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 10px 10px 0 0;
+  animation: pan-image 60s linear forwards;
+
+}
+
+@keyframes pan-image {
+  0% {
+    background-position: 50% 0%;
+  }
+  100% {
+    background-position: 50% 100%;
+  }
+}
+
+
+
+
+.button-caption {
+  padding-right: 10px;
+  font-size: 1rem;
+  text-align: left;
+  color: gray;
+
+  position: fixed;
+  color: white;
+  text-shadow: 0px 2px 2px rgba(0, 0, 0, 1);
+
+}
+
+/* Secondary dialogue image */
+.secondary-dialogue-image {
+  width: 60%;
+  max-height: 400px;
+  object-fit: cover;
+  border-radius: 10px;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+  margin: 10px auto;
+  display: block;
+}
+
+.dialogue-section {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.dialogue-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+    gap: 1rem;
+}
+
+.quest-user-input {
+  text-align: right;
+  font-weight: bold;
+  color: #fff;
+  background-color: rgba(74, 144, 226, 0.2);
+  padding: 0.1rem;
+  border-radius: 10px;
+  max-width: 40%;
+}
+
+.quest-npc-response {
+  text-align: left;
+  color: #fff;
+  background-color: rgba(52, 152, 219, 0.2);
+  padding: 0.5rem;
+  border-radius: 8px;
+  max-width: 60%;
+}
+
+/* Loading Indicator */
+.loading-indicator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  color: #fff;
+}
+
+.loading-indicator .dot {
+  width: 10px;
+  height: 10px;
+  background-color: #fff;
+  border-radius: 50%;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.quest-header img:hover {
+  transform: scale(1.03);
+}
+
+/* Style for User Input */
+.quest-user-input {
+  text-align: right; /* Align the user input text to the right */
+  font-weight: bold; /* Make user input bold */
+  color: #ffffff; /* White color for NPC text */
+  margin-bottom: 10px; /* Add space between user input and NPC response */
+  padding: 30px;
+  margin-right: 10px;
+  font-size: 1.1rem;
+  text-align: left;
+  }
+
+/* Style for NPC Response */
+.quest-npc-response {
+  text-align: left; /* Align the NPC response to the left */
+  color: #ffffff; /* White color for NPC text */
+  margin-bottom: 20px; /* Add space after the NPC response */
+  animation: fadeInDialogue 0.2s ease-in;
+}
+
+/* Optional: animation for fading in dialogue */
+@keyframes fadeInDialogue {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+
+
+
+.quest-close-button:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Quest Content Area */
+.quest-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+
+.text-container {
+  width: 100%;
+  
+}
+
+.quest-content p {
+  font-size: 1.2em;
+  line-height: 1.5;
+  animation: fadeInText 0.6s ease-in-out;
+}
+
+/* Text Input for Dialogue */
+.dialogue-input input[type="text"] {
+  width: 90%; /* Make the input wider */
+  padding: 20px; /* Increase padding for a larger height */
+  font-size: 1.2em; /* Make the text larger */
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.7); /* Adjust the background */
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  outline: none;
+  transition: border 0.3s ease, box-shadow 0.3s ease;
+}
+
+.dialogue-entry {
+  margin-bottom: 0px;
+}
+
+/* Focus state: Adds glowing effect when focused */
+.dialogue-input input[type="text"]:focus {
+  border: 1px solid rgba(0, 255, 0, 0.2); /* Green glow on focus */
+  background: rgba(0, 0, 0, 0.9); /* Darker background on focus */
+  color: #fff; /* White text for contrast */
+  transition: box-shadow 4s ease-in-out, border 4s ease-in-out; /* Slower tempo */
+  border-color: rgba(0, 255, 0, 0.6);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+/* Jewel-like button styling */
+.dialogue-input button {
+  width: auto; /* Allow button width to adjust based on content */
+  padding: 15px; /* Match the padding of the input */
+  height: auto; /* Automatically adjust based on padding */
+  border-radius: 5px; /* Same border radius for consistent styling */
+  background: linear-gradient(145deg, rgba(0, 100, 200, 0.9), rgba(0, 150, 255, 0.9)); /* Jewel-like blue gradient */
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 1em; /* Match the font size of the input */
+  transition: background 0.8s ease, transform 0.8s ease, box-shadow 0.4s ease;
+  box-shadow: 0 0 15px rgba(0, 255, 200, 0.5), inset 0 0 10px rgba(0, 150, 255, 0.5); /* Internal and external glow */
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box; /* Ensure padding is included in height calculation */
+}
+
+
+/* Button hover effect */
+.dialogue-input button:hover {
+  background: linear-gradient(145deg, rgba(0, 200, 255, 0.9), rgba(0, 255, 180, 0.9)); /* Slightly brighter on hover */
+  box-shadow: 0 0 25px rgba(0, 255, 180, 0.5), inset 0 0 15px rgba(0, 200, 255, 0.7); /* Enhanced glow on hover */
+  transform: translateY(-.2px);
+}
+
+
+
+/* Button active effect */
+.dialogue-input button:active {
+  transform: scale(0.97);
+  background: linear-gradient(145deg, rgba(0, 100, 200, 0.8), rgba(0, 200, 150, 0.8)); /* Slightly darker when clicked */
+}
+
+
+
+
+
+
+
+/* Button Styles */
+.button-group {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: -10px;
+}
+
+.button-group button {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
+  font-size: 1.1em;
+  font-weight: bold;
+}
+
+.button-group button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-.5px);
+}
+
+/* Thumbnail Gallery for Quests with Images */
+.thumbnail-gallery {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.thumbnail-gallery img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 5px;
+  box-shadow: 0px 0px 5px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.thumbnail-gallery img:hover {
+  transform: scale(1.1);
+  box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.5);
+}
+
+/* Subtle animation for the entire popup */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -55%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* New text fade-in animation */
+@keyframes fadeInText {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Failure Stage Styles */
+.failure-stage {
+  background-color: rgba(150, 0, 0, 0.8);
+  padding: 20px;
+  text-align: center;
+  color: #fff;
+  font-size: 2em;
+  border-radius: 10px;
+  animation: glowingFail 1.5s infinite;
+  box-shadow: 0px 0px 20px rgba(255, 0, 0, 0.8);
+}
+
+/* Glowing red failure animation */
+@keyframes glowingFail {
+  0% {
+    box-shadow: 0 0 5px red, 0 0 10px red, 0 0 20px red, 0 0 30px red;
+  }
+  50% {
+    box-shadow: 0 0 10px red, 0 0 15px red, 0 0 25px red, 0 0 40px red;
+  }
+  100% {
+    box-shadow: 0 0 5px red, 0 0 10px red, 0 0 20px red, 0 0 30px red;
+  }
+}
+
+/* Badge Screen */
+.badge-screen {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+  animation: fadeInBadge 1s ease-in-out;
+  margin: 10px;
+}
+
+.badge-popup {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+  animation: fadeInBadge 1s ease-in-out;
+}
+
+.badge-screen h2 {
+  font-size: 2em;
+  margin-bottom: 10px;
+  color: #ffd700; /* Gold color to emphasize achievement */
+  text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+}
+
+.badge-screen p {
+  font-size: 1.2em;
+  line-height: 1.6;
+}
+
+@keyframes fadeInBadge {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Failure State Screen */
+.failure-state {
+  background-color: rgba(255, 0, 0, 0.8); /* Red color for failure */
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+  animation: fadeInFailure 1s ease-in-out, pulseRed 2s infinite;
+}
+
+.failure-state h2 {
+  font-size: 2.5em;
+  color: #ff0000;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+  margin-bottom: 15px;
+}
+
+.failure-state p {
+  font-size: 1.3em;
+  margin: 0;
+  padding: 0;
+  line-height: 1.8;
+}
+
+@keyframes fadeInFailure {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseRed {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 0, 0, 0.9);
+  }
+}
+
+/* Dialogue History Styling */
+.quest-output {
+  color: whitesmoke;
+  font-size: 1.2em;
+  line-height: .9;
+  padding: 1px;
+  max-height: 300px;
+  overflow-y: auto;
+
+}
+
+.quest-output p {
+  margin: 5px 0;
+  animation: fadeInDialogue 0.5s ease-in;
+}
+
+@keyframes fadeInDialogue {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Prescribe & Mixing Popups */
+.prescribe-popup,
+.mixing-popup {
+  background-color: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.8);
+
+  z-index: 1000;
+}
+
+.prescribe-popup h3,
+.mixing-popup h3 {
+  font-size: 1.5em;
+  margin-bottom: 10px;
+}
+
+.prescribe-popup p,
+.mixing-popup p {
+  font-size: 1.1em;
+  line-height: 1.6;
+}
+
+/* Scrollbar styling for dialogue */
+.quest-output::-webkit-scrollbar {
+  width: 10px;
+}
+
+.quest-output::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.quest-output::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+}
+
+.quest-output::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* Success State for Prescriptions/Mixing */
+.success-state {
+  background-color: rgba(0, 128, 0, 0.8); /* Green background for success */
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+  animation: fadeInSuccess 1s ease-in-out;
+}
+
+@keyframes fadeInSuccess {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+.quest-button:hover {
+  background-color: #45a049;
+}
+
+.image-button {
+  width: 250px;
+  height: 150px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: 3px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.3s ease, transform 0.3s ease;
+}
+
+.image-button:hover {
+  border-color: var(--color-accent);
+  transform: scale(1.05);
+}
+
+
+  .dialogue-input input[type="text"] {
+    flex-grow: 1; /* Allow the input to take up available space */
+    padding: 5px; /* Set padding to define height */
+    height: auto; /* Automatically adjust based on padding */
+    font-size: 1.1em;
+    margin-top: 0px;
+    margin-bottom: 0px;
+    margin-right: 10px;
+  }
+
+  .dialogue-input button {
+    padding: 10px; /* Match the padding of the input */
+    height: auto; /* Automatically adjust based on padding */
+    border-radius: 5px; /* Same border radius for consistent styling */
+    background: linear-gradient(145deg, rgba(0, 100, 200, 0.9), rgba(0, 150, 255, 0.9)); /* Jewel-like blue gradient */
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2em; /* Match the font size of the input */
+    transition: background 0.8s ease, transform 0.8s ease, box-shadow 0.4s ease;
+    box-shadow: 0 0 15px rgba(0, 255, 200, 0.5), inset 0 0 10px rgba(0, 150, 255, 0.5); /* Internal and external glow */
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box; /* Ensure padding is included in height calculation */
+  }
+
+
+/* Media Queries for Responsiveness */
+@media (max-width: 768px) {
+
+
+  .quest-popup {
+    width: 98%;
+    padding: 15px;
+    height: 86%;
+  }
+.quest-header .dialogue-image,
+.quest-header .decision-image {
+  width: 100%;
+  height: 160px; /* Increase this value */
+  object-fit: cover;
+  border-radius: 10px;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease;
+  margin: 0 auto;
+  display: block;
+
+}
+
+.quest-content {
+  padding-top: 0px; /* Padding to separate from the image */
+  display: flex;
+  gap: 0px;
+  padding: 2px;
+  overflow-y: auto; /* Add scrollbar if content overflows */
+  max-width: 100%; /* Ensure it doesn't overflow the container */
+
+}
+
+.text-container {
+  width: 100%;
+  
+}
+
+.quest-content p {
+  font-size: 1em;
+  line-height: 1;
+  animation: fadeInText 0.6s ease-in-out;
+   overflow-y: auto;
+}
+
+  .button-group {
+
+    gap: 20px;  /* Adjust as needed */
+padding: 10px;
+
+  }
+
+  .initial-text {
+
+    font-size: .9rem;
+    line-height: 0.6rem;
+}
+
+  .quest-button {
+    width: 100px;
+    height:100px;
+    margin-top: 0px;
+
+  }
+
+
+.quest-header {
+  position: relative;
+  margin-bottom: 15px;
+
+}
+
+.quest-header .banner-image {
+  width: 90%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease;
+  margin: 0 auto;
+  display: block;
+}
+
+
+.quest-button {
+  padding: 10px 10px;
+  border: none;
+  border-radius: 5px;
+  background-color: #4CAF50;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.3s;
+   font-size: 0.8rem !important;
+   line-height: .8rem;
+   margin-bottom: 10px;
+}
+
+
+  .quest-header img {
+    width: 100%;
+    height: 150px; /* Adjust height for smaller screens */
+    margin-bottom: 2px;
+  } 
+
+  .thumbnail-gallery img {
+    width: 60px;
+    height: 60px;
+  }
+
+.dialogue-input {
+    display: flex; /* Use flexbox to align items on the same line */
+    align-items: center; /* Vertically align input and button */
+    justify-content: space-between; /* Space between input and button */
+    gap: 2px; /* Optional: add a gap between input and button */
+  }
+
+  .quest-header h2 {
+  font-family: 'MedievalSharp', cursive;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  border-bottom: 2px solid #8b8b8b;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  padding-right: 20px;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.43);
+}
+
+}
+

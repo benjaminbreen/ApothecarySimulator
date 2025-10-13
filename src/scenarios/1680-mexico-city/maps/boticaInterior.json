@@ -1,0 +1,136 @@
+{
+  "id": "botica-interior",
+  "name": "Botica de la Amargura",
+  "type": "interior",
+  "bounds": {
+    "width": 900,
+    "height": 700
+  },
+  "backgroundColor": "#1a1f2e",
+  "startPosition": [450, 600],
+
+  "rooms": [
+    {
+      "id": "shop-floor",
+      "name": "Shop Floor",
+      "type": "shop",
+      "polygon": [[100, 100], [550, 100], [550, 450], [100, 450]]
+    },
+    {
+      "id": "laboratory",
+      "name": "Laboratory",
+      "type": "workroom",
+      "polygon": [[570, 100], [800, 100], [800, 500], [570, 500]]
+    },
+    {
+      "id": "storage",
+      "name": "Storage Room",
+      "type": "storage",
+      "polygon": [[100, 470], [550, 470], [550, 600], [100, 600]]
+    }
+  ],
+
+  "doors": [
+    {
+      "id": "main-entrance",
+      "position": [325, 100],
+      "rotation": 0,
+      "to": "street",
+      "isLocked": false
+    },
+    {
+      "id": "lab-door",
+      "position": [570, 275],
+      "rotation": 90,
+      "to": "laboratory",
+      "isLocked": false
+    },
+    {
+      "id": "storage-door",
+      "position": [325, 470],
+      "rotation": 0,
+      "to": "storage",
+      "isLocked": false
+    }
+  ],
+
+  "furniture": [
+    {
+      "id": "counter-main",
+      "type": "counter",
+      "position": [325, 250],
+      "size": [300, 80],
+      "rotation": 0
+    },
+    {
+      "id": "shelf-west",
+      "type": "shelf",
+      "position": [130, 200],
+      "size": [50, 250],
+      "rotation": 0
+    },
+    {
+      "id": "shelf-east",
+      "type": "shelf",
+      "position": [520, 200],
+      "size": [50, 250],
+      "rotation": 0
+    },
+    {
+      "id": "workbench-lab",
+      "type": "table",
+      "position": [685, 200],
+      "size": [180, 100],
+      "rotation": 0
+    },
+    {
+      "id": "still-lab",
+      "type": "chest",
+      "position": [720, 380],
+      "size": [100, 80],
+      "rotation": 0
+    },
+    {
+      "id": "bookshelf-lab",
+      "type": "shelf",
+      "position": [760, 130],
+      "size": [60, 120],
+      "rotation": 0
+    },
+    {
+      "id": "storage-shelf-1",
+      "type": "shelf",
+      "position": [150, 535],
+      "size": [80, 100],
+      "rotation": 0
+    },
+    {
+      "id": "storage-shelf-2",
+      "type": "shelf",
+      "position": [300, 535],
+      "size": [80, 100],
+      "rotation": 0
+    },
+    {
+      "id": "storage-chest",
+      "type": "chest",
+      "position": [480, 535],
+      "size": [100, 80],
+      "rotation": 0
+    },
+    {
+      "id": "chair-counter",
+      "type": "chair",
+      "position": [325, 340],
+      "size": [30, 30],
+      "rotation": 0
+    },
+    {
+      "id": "chair-lab",
+      "type": "chair",
+      "position": [620, 250],
+      "size": [30, 30],
+      "rotation": 0
+    }
+  ]
+}

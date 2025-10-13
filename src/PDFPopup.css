@@ -1,0 +1,146 @@
+/* PDF Popup Overlay Styles */
+.pdf-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9000;
+}
+
+/* PDF Popup Content Styles */
+.pdf-popup-content {
+  position: relative;
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 90% !important;  /* Ensure the width isn't constrained */
+  max-height: 90% !important; /* Ensure the height isn't constrained */
+  width: 58vw !important;     /* Set width to 95% of viewport width */
+
+  overflow: hidden;
+
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50px);
+   z-index: 3000;
+}
+
+/* Enforce iframe width */
+iframe {
+  width: 90% ;      
+  height: 80vh ;     /* Use 80% of the viewport height */
+  border: none;
+   z-index: 2000;
+}
+
+.citation {
+  position: absolute;
+  top: 80px; /* Below the close button */
+  right: 5px;
+  color: gray;
+  font-size: 11px;
+  max-width: 10%; /* Small space to the right */
+  text-align: left;
+}
+/* Close button repositioned to the top right */
+.pdf-popup-content .close-popup {
+  position: absolute;
+  top: 1px;
+  right: 10px;
+  padding: 8px 16px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.pdf-popup-content .close-popup:hover {
+  background-color: #d32f2f; /* Darker shade on hover */
+}
+
+
+
+/* Controls for Previous/Next (if needed) */
+.pdf-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 10px;
+}
+
+
+.pdf-link:hover {
+  color: #0b5394; /* Darker blue on hover */
+  text-decoration: underline solid; /* Solid underline on hover */
+}
+
+
+
+
+/* Bold and dotted underline for NPC or inventory items with PDFs */
+.pdf-link {
+  font-weight: bold;
+  cursor: pointer;
+  color: #1a73e8; /* Blue color for the text (optional, can be changed) */
+  display: inline-flex;
+  align-items: center;
+}
+
+.pdf-link:hover {
+  color: #0b5394; /* Darker blue on hover */
+  text-decoration: underline solid; /* Solid underline on hover */
+}
+
+
+/* Optional: transition effect for hover */
+.pdf-link {
+  transition: all 0.2s ease;
+}
+
+/* Styles for small screens (max-width: 768px) */
+@media only screen and (max-width: 768px) {
+ .pdf-popup-content {
+  position: relative;
+  background-color: white;
+  padding: 10px;
+    padding-right: 40px;
+  border-radius: 8px;
+  max-width: 100% !important ;  /* Ensure the width isn't constrained */
+  max-height: 90% ; /* Ensure the height isn't constrained */
+  width: 100vw !important;     /* Set width to 95% of viewport width */
+  height: auto !important;    /* Adjust height automatically */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(0px) ;
+
+}
+
+/* Enforce iframe width */
+iframe {
+  width: 95% !important;      
+  height: 80vh !important;     /* Use 80% of the viewport height */
+  border: none;
+}
+
+.citation {
+  position: absolute;
+  top: 80px; /* Below the close button */
+  right: 5px;
+  color: gray;
+  font-size: 8px;
+  max-width: 9%; /* Small space to the right */
+  text-align: left;
+
+}
+}
+

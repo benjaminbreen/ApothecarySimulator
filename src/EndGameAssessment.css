@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap');
+
+.assessment-popup, .endgame-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.assessment-content, .endgame-content {
+  background: linear-gradient(135deg, #2c3e50, #34495e);
+  padding: 20px;
+  border-radius: 15px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8);
+  text-align: center;
+  max-width: 1000px;
+  width: 90%;
+  color: #ecf0f1;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+.assessment-content, .endgame-content 
+p {
+  margin: 20px 0;
+  font-size: 1.2em;
+  line-height: 1.5;
+}
+
+.assessment-content, .endgame-content 
+
+.close-button {
+  padding: 12px 24px;
+  background: #e74c3c;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+  font-family: 'MedievalSharp', cursive;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.assessment-content, .endgame-content 
+.close-button:hover {
+  background: #c0392b;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(231, 76, 60, 0.6);
+}
+
+.outcome-badge {
+  width: 100px;
+  height: 100px;
+  margin-bottom: 20px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.endgame-content {
+  background: linear-gradient(135deg, #34495e, #2c3e50);
+  border: 2px solid #e74c3c;
+  width: 80%;
+
+}
+
+.endgame-content h2 {
+  font-size: 2.5em;
+  margin-bottom: 20px;
+}

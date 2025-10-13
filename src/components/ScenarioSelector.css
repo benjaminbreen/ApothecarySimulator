@@ -1,0 +1,235 @@
+/* ScenarioSelector.css */
+
+.scenario-selector-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #1a1816 0%, #3a3634 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 2rem;
+}
+
+.scenario-selector-container {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.scenario-selector-title {
+  font-family: 'IM Fell English', serif;
+  font-size: 3rem;
+  color: #f5e6d3;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.scenario-selector-subtitle {
+  font-family: 'IM Fell English', serif;
+  font-size: 1.2rem;
+  color: #d4c5b0;
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.scenario-card {
+  background: linear-gradient(135deg, #f5e6d3 0%, #e8d9c5 100%);
+  border: 3px solid #8b7355;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.scenario-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border-color: #d4a574;
+}
+
+.scenario-card-inner {
+  padding: 1.5rem;
+}
+
+.scenario-header {
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #8b7355;
+  padding-bottom: 1rem;
+}
+
+.scenario-header h2 {
+  font-family: 'IM Fell English', serif;
+  font-size: 2rem;
+  color: #1a1816;
+  margin: 0 0 0.5rem 0;
+}
+
+.scenario-description {
+  font-family: 'EB Garamond', serif;
+  font-size: 1rem;
+  color: #3a3634;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.scenario-preview {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+}
+
+.scenario-portrait {
+  flex-shrink: 0;
+}
+
+.scenario-portrait img {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid #8b7355;
+  object-fit: cover;
+}
+
+.scenario-character-info {
+  flex: 1;
+}
+
+.scenario-character-info h3 {
+  font-family: 'IM Fell English', serif;
+  font-size: 1.5rem;
+  color: #1a1816;
+  margin: 0 0 0.5rem 0;
+}
+
+.character-title {
+  font-family: 'EB Garamond', serif;
+  font-size: 1.1rem;
+  color: #5a4a3a;
+  margin: 0 0 0.25rem 0;
+  font-style: italic;
+}
+
+.character-age {
+  font-family: 'EB Garamond', serif;
+  font-size: 0.95rem;
+  color: #6a5a4a;
+  margin: 0;
+}
+
+.scenario-details {
+  background: rgba(139, 115, 85, 0.1);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.scenario-detail {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-family: 'EB Garamond', serif;
+}
+
+.scenario-detail:last-child {
+  margin-bottom: 0;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #3a3634;
+}
+
+.detail-value {
+  color: #5a4a3a;
+}
+
+.scenario-select-btn {
+  width: 100%;
+  padding: 1rem;
+  background: linear-gradient(135deg, #8b7355 0%, #6a5544 100%);
+  border: 2px solid #5a4534;
+  border-radius: 8px;
+  color: #f5e6d3;
+  font-family: 'IM Fell English', serif;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.scenario-select-btn:hover {
+  background: linear-gradient(135deg, #a08568 0%, #7a6555 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.scenario-select-btn:active {
+  transform: translateY(0);
+}
+
+.no-scenarios {
+  text-align: center;
+  padding: 3rem;
+  color: #f5e6d3;
+  font-family: 'EB Garamond', serif;
+  font-size: 1.2rem;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .scenario-selector-overlay {
+    padding: 1rem;
+  }
+
+  .scenario-selector-title {
+    font-size: 2rem;
+  }
+
+  .scenario-selector-subtitle {
+    font-size: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .scenario-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .scenario-card {
+    border-width: 2px;
+  }
+
+  .scenario-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .scenario-preview {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .scenario-portrait img {
+    width: 100px;
+    height: 100px;
+  }
+
+  .scenario-character-info h3 {
+    font-size: 1.3rem;
+  }
+}

@@ -1,0 +1,359 @@
+/* Buy Popup Base Styles */
+
+/* Fade-out effect for Buy popup */
+.buy-popup.fade-out {
+  opacity: 1;
+  animation: fadeOutDown 0.5s ease forwards;
+}
+
+@keyframes fadeOutDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px); /* Slide down effect */
+  }
+}
+
+
+/* Center the emoji above the item name */
+.buy-popup .item .emoji {
+  font-size: 2.5rem; /* Size of the emoji */
+  display: block;    /* Makes it behave like a block element */
+  text-align: center; /* Centers the emoji horizontally */
+  margin-bottom: 8px; /* Adds some space between emoji and item name */
+}
+
+/* Ensure the item name and description are properly spaced under the emoji */
+.buy-popup .item strong {
+  display: block;
+  text-align: center;  /* Centers the item name */
+  font-size: 1.2rem;   /* Adjust the size of the item name */
+  margin-bottom: 5px;  /* Add some spacing between name and description */
+}
+
+.buy-popup .item {
+  text-align: center;  /* Centers all content inside the item box */
+}
+
+
+/* Loading animation for the Buy popup */
+.buy-popup.loading {
+  animation: emerald-glow 4s infinite ease-in-out;
+}
+
+@keyframes emerald-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(46, 125, 50, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(76, 175, 80, 0.6); }
+}
+
+/* Item List Styles */
+.buy-popup .item-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  padding: 8px;
+
+  border-radius: 10px;
+}
+
+/* Individual item in the list */
+.buy-popup .item {
+  background-color: rgba(232, 245, 233, 0.4);
+  padding: 10px;
+  border-radius: 8px;
+  border: 2px solid #2e7d32;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), inset 0 1px 3px rgba(255, 255, 255, 0.5);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  font-size: 1.1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+
+
+/* Hover effect for item */
+.buy-popup .item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12), inset 0 1px 3px rgba(255, 255, 255, 0.3);
+   background-color: rgba(232, 245, 233, 0.7);
+}
+
+/* Selected item */
+.buy-popup .item.selected {
+ background-color: rgba(232, 245, 233, 0.9);  /* Keeps the translucent effect */
+   border: 4px solid #2e7d32;
+  box-shadow: 0 0 8px rgba(255, 191, 0, 0.4), 0 0 20px rgba(255, 191, 0, 0.2); /* Amber glow effect */
+
+}
+
+
+/* Merchant Response Section */
+.merchant-response {
+  background-color: rgba(129, 199, 132, 0.7);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+  font-style: italic;
+  position: relative;
+}
+
+.merchant-response::before {
+  content: '"';
+  font-size: 4rem;
+  position: absolute;
+  top: -10px;
+  left: 10px;
+  color: rgba(46, 125, 50, 0.3);
+}
+
+/* Offer Price Input Styles */
+.buy-controls label {
+  font-weight: bold;
+  font-size: 1.3rem;
+  margin-right: 10px;
+  text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
+  margin-left: 60px;
+}
+
+.buy-controls input {
+  width: 30%;
+  padding: 10px;
+  font-size: 1.4rem;
+  border: 2px solid #8b7355;
+  border-radius: 8px;
+  background-color: #fff9e6;
+  color: #4a4a4a;
+  transition: all 0.3s ease;
+  margin-left: 15px;
+  margin-right: 20px;
+}
+
+/* Focused input styling */
+.buy-controls input:focus {
+  outline: none;
+  border-color: #4caf50;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2), inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Buy Button Styling */
+.buy-controls button {
+  margin-top: 20px;
+  padding: 12px 25px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border-radius: 8px;
+  border: none;
+  background-color: #4caf50;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.buy-controls button:hover {
+  background-color: #43a047;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.buy-controls button:disabled {
+  background-color: #a5d6a7;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Close Button Styling */
+.buy-popup .close-button {
+  padding: 10px 15px;
+  font-size: 1.1rem;
+  background-color: #8B4513;
+  color: #fff9e6;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 20px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.buy-popup .close-button:hover {
+  background-color: #A0522D;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Fade-in effect for the Buy popup when it opens */
+.buy-popup {
+  opacity: 0;
+  transform: translateY(20px); /* Slide up effect */
+  animation: fadeInUp 0.5s ease forwards; /* 0.5s duration, ease timing */
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0); /* Brings the element to its normal position */
+  }
+}
+
+/* Fade-in effect for each item */
+.buy-popup .item {
+  opacity: 0;
+  animation: fadeIn 0.7s ease forwards;
+  animation-delay: calc(var(--item-index) * 0.1s); /* Staggered effect based on index */
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Apply index to each item for staggered animation */
+.buy-popup .item:nth-child(1) {
+  --item-index: 1;
+}
+
+.buy-popup .item:nth-child(2) {
+  --item-index: 2;
+}
+
+.buy-popup .item:nth-child(3) {
+  --item-index: 3;
+}
+
+
+/* Add hover and selected animations */
+.buy-popup .item:hover {
+  transform: translateY(-1px) scale(1.01); /* Add slight scale on hover */
+  transition: transform 0.3s ease, background-color 0.3s ease;
+}
+
+
+
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 10px rgba(255, 191, 0, 0.5), 0 0 30px rgba(255, 191, 0, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(255, 191, 0, 0.8), 0 0 40px rgba(255, 191, 0, 1);
+  }
+}
+
+.buy-popup .item strong {
+  font-size: 1.4rem; /* Increase font size */
+  display: block;
+  margin-bottom: 5px;
+  text-align: center; /* Centers the item name */
+}
+
+/* Enhanced Responsive Styles */
+@media (max-width: 1024px) {
+  /* General adjustments for medium screen devices like tablets */
+  .buy-popup {
+    width: 80%;
+    left: 10%;
+    padding: 20px;
+    max-height: 85vh;
+    font-size: 1rem; /* Slightly reduce font size */
+    overflow-y: auto;
+    padding-bottom: 50px;
+  }
+
+  .buy-popup .item-list {
+    grid-template-columns: 2fr 2fr; /* Two columns for medium screens */
+    gap: 15px;
+  }
+
+  .buy-controls input,
+  .buy-controls button,
+  .close-button {
+    width: 100%;
+    font-size: 1rem; /* Adjust font size for better readability */
+  }
+
+  /* Adjust item sizes */
+  .buy-popup .item {
+    padding: 10px;
+    font-size: 1rem; /* Slightly reduce font size for item details */
+  }
+}
+
+@media (max-width: 768px) {
+  /* Small screen adjustments for mobile devices */
+  .buy-popup {
+    width: 90%;
+    left: 5%;
+    padding: 15px;
+    max-height: 90vh;
+    font-size: 0.9rem; /* Further reduce font size for smaller screens */
+  }
+
+  .buy-popup .item-list {
+    grid-template-columns: 2fr; /* Single column for mobile */
+  }
+
+  .buy-controls input,
+  .buy-controls button,
+  .close-button {
+    width: 100%;
+    font-size: 1rem; /* Adjust font size for buttons and inputs */
+  }
+
+  /* Make items more compact on mobile */
+  .buy-popup .item {
+    padding: 8px;
+    font-size: 0.9rem; /* Further reduce font size for items */
+  }
+
+  /* Reduce emoji size on smaller screens */
+  .buy-popup .item .emoji {
+    font-size: 2rem;
+    margin-bottom: 5px; /* Adjust spacing for smaller screens */
+  }
+}
+
+/* For very small devices (like small phones) */
+@media (max-width: 480px) {
+  .buy-popup {
+    width: 95%;
+    left: 2.5%;
+    padding: 10px;
+    max-height: 95vh;
+    font-size: 0.8rem; /* Further reduce font size */
+  }
+
+  /* Stack controls vertically and adjust sizes */
+  .buy-controls input,
+  .buy-controls button,
+  .close-button {
+    font-size: 0.9rem;
+    padding: 8px;
+    width: 100%;
+  }
+
+  .buy-popup .item-list {
+    gap: 10px; /* Reduce gap between items */
+  }
+
+  /* Make items more compact for very small screens */
+  .buy-popup .item {
+    padding: 5px;
+    font-size: 0.8rem;
+  }
+
+  /* Reduce emoji size further for very small devices */
+  .buy-popup .item .emoji {
+    font-size: 1.8rem;
+    margin-bottom: 4px;
+  }
+}

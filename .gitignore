@@ -1,0 +1,91 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production builds (DO NOT COMMIT BUILD OUTPUT)
+/build
+/dist
+
+# Vite
+.vite
+
+# misc
+.DS_Store
+*.local
+
+# environment variables (NEVER COMMIT API KEYS)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Development mockups and prototypes (not needed in repo)
+*-mockup*.html
+*-demo.html
+*-variants.html
+action-panel-*.html
+status-bar-*.html
+status-tab-*.html
+meter-mockups.html
+ui-mockup.html
+
+# Tools (not needed in repo)
+bfg.jar
+
+# Duplicate package locks
+package-lock 2.json
+
+# Planning and internal documentation (future feature plans)
+*_PLAN.md
+*_PROPOSAL.md
+*_SUMMARY.md
+*_ASSESSMENT.md
+*_PROGRESS*.md
+*_COMPLETE.md
+*_INSTRUCTIONS.md
+PHASE_*.md
+CHARACTER_MODALS_PLAN.md
+ENTITY_PORTRAIT_SYSTEM_SUMMARY.md
+FACTION_SYSTEM_SUMMARY.md
+HOW_TO_GENERATE_MAPS.md
+LEVELING_SYSTEM_PROPOSAL.md
+LEVELING_SYSTEM_REVISED.md
+MAP_SYSTEM_README.md
+MIGRATION_PLAN.md
+NEW_NAMED_NPCS.md
+REMOVED_SYSTEMS.md
+STREAMING_INVESTIGATION.md
+PORTRAIT_SYSTEM.md
+PORTRAIT_SYSTEM_ASSESSMENT.md
+PORTRAIT_TEST_INSTRUCTIONS.md
+UI_IMPROVEMENTS.md
+STYLE_GUIDE.md
+
+# Keep these important docs:
+# !README.md (already not ignored)
+# !CLAUDE.md (already not ignored)

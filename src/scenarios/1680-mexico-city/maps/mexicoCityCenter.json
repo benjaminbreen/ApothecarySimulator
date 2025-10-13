@@ -1,0 +1,185 @@
+{
+  "id": "mexico-city-center",
+  "name": "Mexico City Center",
+  "type": "exterior",
+  "bounds": {
+    "width": 1400,
+    "height": 1000
+  },
+  "backgroundColor": "#1a1f2e",
+  "startPosition": [700, 850],
+
+  "streets": [
+    {
+      "id": "calle-tacuba",
+      "name": "Calle de Tacuba",
+      "type": "main",
+      "width": 8,
+      "points": [[50, 350], [1350, 350]]
+    },
+    {
+      "id": "calle-san-francisco",
+      "name": "Calle de San Francisco",
+      "type": "main",
+      "width": 8,
+      "points": [[700, 550], [700, 950]]
+    },
+    {
+      "id": "calle-moneda",
+      "name": "Calle de la Moneda",
+      "type": "main",
+      "width": 7,
+      "points": [[850, 150], [850, 550]]
+    },
+    {
+      "id": "calle-relox",
+      "name": "Calle del Relox",
+      "type": "minor",
+      "width": 5,
+      "points": [[50, 200], [1350, 200]]
+    },
+    {
+      "id": "calle-plateros",
+      "name": "Calle de Plateros",
+      "type": "main",
+      "width": 7,
+      "points": [[450, 150], [450, 550]]
+    },
+    {
+      "id": "plaza-norte",
+      "type": "plaza",
+      "width": 6,
+      "points": [[450, 450], [850, 450]]
+    },
+    {
+      "id": "plaza-sur",
+      "type": "plaza",
+      "width": 6,
+      "points": [[450, 550], [850, 550]]
+    },
+    {
+      "id": "plaza-oeste",
+      "type": "plaza",
+      "width": 6,
+      "points": [[450, 450], [450, 550]]
+    },
+    {
+      "id": "plaza-este",
+      "type": "plaza",
+      "width": 6,
+      "points": [[850, 450], [850, 550]]
+    },
+    {
+      "id": "callejon-amargura",
+      "name": "Calle de la Amargura",
+      "type": "minor",
+      "width": 4,
+      "points": [[550, 750], [850, 750]]
+    }
+  ],
+
+  "buildings": [
+    {
+      "id": "metropolitan-cathedral",
+      "name": "Metropolitan Cathedral",
+      "type": "church",
+      "polygon": [[480, 280], [820, 280], [820, 440], [480, 440]],
+      "labelPosition": [650, 360],
+      "hasInterior": null
+    },
+    {
+      "id": "viceregal-palace",
+      "name": "Viceregal Palace",
+      "type": "government",
+      "polygon": [[860, 380], [1100, 380], [1100, 540], [860, 540]],
+      "labelPosition": [980, 460],
+      "hasInterior": null
+    },
+    {
+      "id": "inquisition-palace",
+      "name": "Holy Office Palace",
+      "type": "government",
+      "polygon": [[150, 80], [400, 80], [400, 190], [150, 190]],
+      "labelPosition": [275, 135],
+      "hasInterior": null
+    },
+    {
+      "id": "la-merced-market",
+      "name": "La Merced Market",
+      "type": "market",
+      "polygon": [[1050, 650], [1320, 650], [1320, 900], [1050, 900]],
+      "labelPosition": [1185, 775],
+      "hasInterior": null
+    },
+    {
+      "id": "hospital-real",
+      "name": "Hospital Real de Naturales",
+      "type": "hospital",
+      "polygon": [[80, 500], [340, 500], [340, 700], [80, 700]],
+      "labelPosition": [210, 600],
+      "hasInterior": null
+    },
+    {
+      "id": "botica-de-la-amargura",
+      "name": "Botica de la Amargura",
+      "type": "pharmacy",
+      "polygon": [[650, 720], [750, 720], [750, 780], [650, 780]],
+      "labelPosition": [700, 750],
+      "hasInterior": "botica-interior",
+      "isPlayerLocation": true
+    },
+    {
+      "id": "convento-san-francisco",
+      "name": "Convento de San Francisco",
+      "type": "church",
+      "polygon": [[550, 600], [800, 600], [800, 710], [550, 710]],
+      "labelPosition": [675, 655],
+      "hasInterior": null
+    },
+    {
+      "id": "casa-cabildo",
+      "name": "Casa del Cabildo",
+      "type": "government",
+      "polygon": [[350, 460], [440, 460], [440, 540], [350, 540]],
+      "labelPosition": [395, 500],
+      "hasInterior": null
+    },
+    {
+      "id": "portales-mercaderes",
+      "name": "Portal de Mercaderes",
+      "type": "market",
+      "polygon": [[460, 560], [690, 560], [690, 630], [460, 630]],
+      "labelPosition": [575, 595],
+      "hasInterior": null
+    },
+    {
+      "id": "casa-moneda",
+      "name": "Casa de Moneda",
+      "type": "government",
+      "polygon": [[860, 220], [1040, 220], [1040, 360], [860, 360]],
+      "labelPosition": [950, 290],
+      "hasInterior": null
+    }
+  ],
+
+  "landmarks": [
+    {
+      "id": "plaza-mayor",
+      "name": "Plaza Mayor",
+      "position": [650, 500],
+      "description": "The heart of New Spain, where colonial power and indigenous heritage meet"
+    },
+    {
+      "id": "fountain-plaza",
+      "name": "Fountain",
+      "position": [650, 500],
+      "description": "Central fountain of the Plaza Mayor"
+    },
+    {
+      "id": "alameda",
+      "name": "La Alameda",
+      "position": [250, 350],
+      "description": "Public garden and promenade"
+    }
+  ]
+}

@@ -1,0 +1,631 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,400;0,700;1,400&family=Sorts+Mill+Goudy:ital@0;1&display=swap');
+
+:root {
+  --primary-bg: #f5e6d3;
+  --secondary-bg: #e0d5b8;
+  --text-primary: #3a2f23;
+  --text-secondary: #5a4a3f;
+  --accent-color: #8B4513;
+  --button-color: #059669;
+  --button-hover:  #10b981 ;
+  --highlight-bg: rgba(305, 277, 222, 0.95);
+  --highlight-border: #ffcb42;
+  --glow-color: #ffcb42;
+  --shadow-color: rgba(0, 0, 0, 0.2);
+  --transition-speed: 0.3s;
+  --border-width: 25px;
+  --border-color: rgba(0, 0, 0, 0.4);
+}
+
+/* Fullscreen Popup Styling */
+.game-intro-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  transition: background-color var(--transition-speed) ease;
+  backdrop-filter: blur(5px);
+
+}
+
+.image-container-right {
+  display: inline-block;
+  float: right;
+  margin-left: 30px;
+  margin-bottom: 20px;
+    margin-top: 10px;
+  text-align: center; /* Ensures the caption is centered below the image */
+}
+.image-container-left {
+  display: inline-block;
+  float: left;
+  margin-right: 30px;
+  margin-bottom: 10px;
+    margin-top: 5px;
+  text-align: center; /* Ensures the caption is centered below the image */
+
+}
+
+.image-right {
+  max-width: 300px; /* Adjust as necessary */
+  height: auto;
+  border-radius: 4px;
+    border-radius: 12px;
+}
+
+.image-left {
+  max-width: 270px; /* Adjust as necessary */
+  height: auto;
+  border-radius: 4px;
+    border-radius: 12px;
+}
+.caption {
+  font-size: 0.9rem;
+  color: #3a2f23;
+  font-style: italic;
+  margin-top: 10px;
+}
+
+
+
+li {
+  position: relative;
+  overflow: auto; /* Ensures the content flows properly with floating images */
+}
+
+
+/* Popup Content with Parchment Background and Border */
+.game-intro-content {
+  background-image: 
+    linear-gradient(rgba(250, 250, 230, 0.85), rgba(200, 200, 200, 0.45)), 
+    url('/src/assets/splashpage.jpg');
+  background-position: center;
+  background-size: cover;
+  max-width: 1350px;
+  width: 95%; /* Slightly wider */
+  height: 98vh; /* Increase height to give more room for buttons */
+  border-radius: 10px;
+  position: relative;
+  color: var(--text-primary);
+  transition: all var(--transition-speed) ease;
+  animation: fadeIn 0.5s ease-out;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+
+.game-intro-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: var(--border-width) solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 
+    inset 0 0 20px rgba(0, 0, 0, 0.3),
+    0 10px 30px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.game-intro-content::after {
+  content: '';
+  position: absolute;
+  top: var(--border-width);
+  left: var(--border-width);
+  right: var(--border-width);
+  bottom: var(--border-width);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.content-wrapper {
+  padding: calc(var(--border-width) + 30px);
+  overflow-y: auto;
+  flex-grow: 1;
+  position: relative;
+  z-index: 0;
+}
+
+
+.content-wrapper::-webkit-scrollbar {
+  width: 8px;
+}
+
+.content-wrapper::-webkit-scrollbar-track {
+  background: var(--primary-bg);
+  border-radius: 4px;
+}
+
+.content-wrapper::-webkit-scrollbar-thumb {
+  background-color: var(--accent-color);
+  border-radius: 4px;
+  border: 2px solid var(--primary-bg);
+}
+
+/* Fade-in Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Highlighted Interactive Text Styling */
+.hoverable-text {
+  cursor: pointer;
+  background-image: linear-gradient(90deg, #ffe56b, #ffcb42);
+  background-repeat: no-repeat;
+  background-position: bottom;
+  background-size: 100% 2px;
+  color: var(--accent-color);
+  position: relative;
+  transition: color 0.3s ease, background-size 0.4s ease;
+  font-weight: 800;
+  padding-bottom: 1px;
+}
+
+.hoverable-text:hover {
+  background-size: 100% 100%;
+  color: #d2691e;
+  text-shadow: 0 0 8px rgba(255, 203, 66, 0.2);
+}
+
+.hover-popup {
+  position: absolute;
+  background-color: var(--highlight-bg);
+  border: 2px solid var(--highlight-border);
+  padding: 15px;
+  border-radius: 8px;
+  max-width: 400px;
+  box-shadow: 
+    0 0 15px rgba(255, 203, 66, 0.4),
+    0 0 30px rgba(255, 203, 66, 0.4);
+  text-align: left;
+  font-size: 1.2rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  animation: fadeIn 0.3s ease-in-out;
+  z-index: 1000;
+}
+
+/* Close Icon Styling */
+.close-icon {
+  position: absolute;
+  top: calc(var(--border-width) + 10px);
+  right: calc(var(--border-width) + 10px);
+  font-size: 2.5rem;
+  cursor: pointer;
+  color: #3a2f23;
+  transition: all var(--transition-speed) ease;
+  z-index: 2;
+}
+
+.close-icon:hover {
+  color: #5a4a3f;
+  transform: rotate(90deg) scale(1.1);
+  text-shadow: 0 0 10px rgba(255, 203, 66, 0.7);
+}
+
+/* H2 Styling */
+.game-intro-content h2 {
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 2rem;
+  font-weight: 900;
+  text-align: center;
+  margin: 0px 0 18px;
+  background: linear-gradient(to right, #6b3e9c, #c02a8c, #2f80ed);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  position: relative; /* Needed for pseudo-element positioning */
+  letter-spacing: 1.6px;
+  padding-bottom: 8px;
+  transition: background 1s ease, color 2s ease;
+
+}
+
+.game-intro-content h2::before {
+  content: attr(data-text); /* Duplicate the text */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  color: transparent; /* Keep the duplicate text transparent */
+  text-shadow: 
+    0 0 2px rgba(255, 255, 255, 1), 
+    0 0 10px rgba(255, 255, 255, 1), 
+    0 5px 20px rgba(255, 255, 255, 1),
+     0 2px 30px rgba(255, 255, 255, .9);
+  pointer-events: none;
+}
+
+.game-intro-content h2::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
+    box-shadow: 
+    0 0 15px rgba(255, 203, 66, 0.4),
+    0 0 30px rgba(255, 203, 66, 0.4);
+}
+
+/* H3 Styling */
+.game-intro-content h3 {
+  font-size: 1.6rem;
+  margin: 5px;
+  color: var(--accent-color);
+  font-family: 'Cinzel', serif;
+  letter-spacing: 1.5px;
+  text-shadow: 0px 1px 4px var(--shadow-color);
+  text-align: center;
+  position: relative;
+  padding: 3px 5px;
+    text-shadow:
+    0 0 5px rgba(255, 255, 255, 7),  /* Soft close white glow */
+    0 0 10px rgba(255, 255, 255, 0.3), /* Medium outer glow */
+    0 0 15px rgba(255, 255, 255, 0.4); /* Larger outer glow */
+      margin-top: 15px;
+
+
+}
+
+.game-intro-content h3::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  right: -5px;
+  bottom: -5px;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 70%);
+  z-index: -1;
+  opacity: 0.5;
+  filter: blur(10px);
+}
+
+
+/* Paragraph Styling */
+.game-intro-content p {
+  font-size: 1.3rem;
+  line-height: 1.55;
+  margin-bottom: 10px;
+  color: var(--text-primary);
+  font-family: 'Sorts Mill Goudy', serif;
+  text-align: justify;
+  text-indent: .2em;
+  position: relative;
+  padding: 14px 22px;
+  background-color: rgba(255, 255, 255, 0.65);
+  border-radius: 10px;
+  box-shadow: 0 1px 10px rgba(0, 0, 0, 0.3);
+}
+
+.game-intro-content p::first-letter {
+  font-size: 1.8em;
+  font-family: 'Cinzel', serif;
+  line-height: 1;
+  padding-right: -3px;
+  color: var(--accent-color);
+}
+
+/* List Styling */
+.game-intro-content ul {
+  text-align: left;
+  padding-left: 1.5rem;
+    padding: 14px 22px;
+  list-style-type: none;
+  margin-bottom: 25px;
+    padding: 12px 20px;
+  background-color: rgba(255, 255, 255, 0.65);
+  border-radius: 10px;
+  box-shadow: 0 1px 10px rgba(0, 0, 0, 0.3);
+}
+
+.game-intro-content ul li {
+  font-size: 1.3rem;
+  margin-bottom: 10px;
+  font-family: 'Sorts Mill Goudy', serif;
+  position: relative;
+  padding-left: 40px;
+  line-height: 1.5;
+}
+
+.game-intro-content ul li::before {
+  content: "❧";
+  position: absolute;
+  left: 0;
+  top: -7px; /* Adjusted for better centering */
+  font-size: 2rem; /* Increased size for more prominence */
+  color: var(--accent-color); /* Keeps the color defined in your variable */
+  vertical-align: middle; /* Ensures the symbol aligns with the middle of the text */
+  padding-right: 14px; /* Adds space between the symbol and the text */
+}
+
+/* Start Button Styling */
+.start-button {
+  background-color: var(--button-color);
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  border-radius: 30px; /* Softer button corners */
+  transition: all var(--transition-speed) ease;
+
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+}
+
+.start-button::before {
+  content: '';
+  position: absolute;
+
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  transition: all 0.6s;
+
+}
+
+
+
+.start-button:hover {
+  background-color: var(--button-hover);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 15px rgba(0, 0, 0, 0.2),
+    0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.start-button:active {
+  transform: translateY(1px);
+  box-shadow: 
+    0 2px 5px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Instruction Button Styling */
+.instruction-button {
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  border-radius: 30px; /* Softer button corners */
+  transition: all var(--transition-speed) ease;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+}
+
+.instruction-button:hover {
+  background-color: #a0522d;
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 15px rgba(0, 0, 0, 0.2),
+    0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.instruction-button:active {
+  transform: translateY(1px);
+  box-shadow: 
+    0 2px 5px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.back-button {
+  background-color: var(--button-color);
+  color: white;
+  padding: 10px 20px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all var(--transition-speed) ease;
+  font-family: 'Cinzel', serif;
+  margin-top: 20px;
+  border: none;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 
+    0 5px 15px rgba(0, 0, 0, 0.1),
+    0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+.back-button:hover {
+  background-color: var(--button-hover);
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 15px rgba(0, 0, 0, 0.2),
+    0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.back-button:active {
+  transform: translateY(1px);
+  box-shadow: 
+    0 2px 5px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Button Container */
+.splash-button-container {
+  display: flex;
+  justify-content: center; /* Center the buttons */
+  gap: 20px; /* Space between buttons */
+  padding: 10px 30px;
+  height: 160px;
+  margin-top: 0px; /* Give more space between buttons and content */
+  margin-bottom: 2%; /* Add more space at the bottom */
+  margin-left: 2%;
+    margin-right: 2%;
+  position: sticky;
+  z-index: 2;
+  border-radius: 10px; /* Softer corner radius */
+  box-shadow: 0px -6px 15px rgba(0, 0, 0, 0.5); /* Subtle shadow at the top of buttons */
+}
+/* Responsive Styles for Small Screens */
+/* Improved Responsive Styles for Small Screens */
+
+@media (max-width: 768px) {
+  /* Reduce padding to give more screen space for text */
+  .game-intro-content {
+    padding: 15px;
+    max-width: 95%;
+  }
+
+  /* Adjust headline sizes for better visibility on smaller screens */
+  .game-intro-content h2 {
+    font-size: 1.4rem;
+    padding-bottom: 5px;
+  }
+
+  .game-intro-content h3 {
+    font-size: 1.2rem;
+    margin: 10px 0;
+  }
+
+  /* Make text easier to read by adjusting font sizes */
+  .game-intro-content p {
+    font-size: 1.1rem;
+    line-height: 1.4;
+  }
+
+  /* Adjust list styling for improved spacing */
+  .game-intro-content ul li {
+    font-size: 1rem;
+    line-height: 1.3;
+  }
+
+  /* Button improvements: full width for better tapping area */
+  .start-button,
+  .instruction-button {
+    font-size: 1rem;
+    padding: 10px 15px;
+    width: 90%;
+    margin: 10px auto; /* Center the buttons with some spacing */
+  }
+
+  /* Reduce padding for better screen use */
+  .content-wrapper {
+    padding: 15px;
+  }
+
+.image-container-left,
+.image-container-right {
+  display: flex; /* Use flexbox for centering */
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically if necessary */
+  width: 100%; /* Full-width container to adapt to various screen sizes */
+  margin: 20px 0; /* Spacing between the container and other elements */
+  float: none; /* Remove any previous floating behavior */
+}
+
+/* Styling for Images */
+.image-right,
+.image-left {
+  max-width: 300px; /* Adjust as necessary */
+  width: 100%; /* Ensure responsiveness */
+  height: auto; /* Maintain aspect ratio */
+  margin: 0; /* Remove margin for full centering */
+}
+
+
+  /* Button container adjustment for better responsiveness */
+  .splash-button-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 40px; /* Add more space to avoid being cut off */
+    height: 300px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Reduce padding even further on very small screens */
+  .game-intro-content {
+    padding: 10px;
+  }
+
+  /* Further shrink header sizes for narrow screens */
+  .game-intro-content h2 {
+    font-size: 1.2rem;
+  }
+
+  .game-intro-content h3 {
+    font-size: 1rem;
+  }
+
+  /* Smaller font sizes for paragraphs and lists for improved readability */
+  .game-intro-content p,
+  .game-intro-content ul li {
+    font-size: 0.9rem;
+  }
+
+  /* Button full width for easier interaction */
+  .start-button,
+  .instruction-button {
+    font-size: 0.9rem;
+    padding: 8px 15px;
+    width: 100%;
+  }
+
+  /* Image size reduction for mobile */
+  .image-right,
+  .image-left {
+    max-width: 120px;
+    margin: 5px 0;
+  }
+
+  /* Adjust button container to stack and ensure visibility */
+  .splash-button-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 20px 0; /* Space above and below to avoid conflicts with navigation bars */
+  }
+
+  /* Ensure the close button is easily tappable */
+  .close-icon {
+    top: 10px;
+    right: 10px;
+    font-size: 2rem;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .game-intro-content,
+  .start-button,
+  .close-icon {
+    transition: none;
+  }
+
+  .game-intro-content {
+    animation: none;
+  }
+
+  .start-button::before {
+    display: none;
+  }
+}
+

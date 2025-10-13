@@ -1,0 +1,106 @@
+/* Tip Box General Styles */
+.tip-box {
+  width: 100%;
+  max-width: 640px;
+  background-color: rgba(255, 243, 199, 0.9); /* Light background with transparency */
+  backdrop-filter: blur(5px); /* Blur effect for a more sophisticated look */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); /* Softer, larger shadow */
+  border-radius: 10px; /* More rounded corners for a modern feel */
+  padding: 15px;
+  position: relative;
+  cursor: pointer;
+  max-height: 400px;
+  transition: background-color 0.3s ease, color 0.3s ease, transform 0.4s ease;
+  transform-origin: top; /* Animation origin for new tips */
+  animation: fade-in 0.6s ease-in-out;
+}
+
+/* Close button */
+.tip-box button {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  color: #d97706; /* Tailwind amber-700 for a warmer color */
+  font-weight: bold;
+  opacity: 0.75;
+  font-size: 1.1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.3s, transform 0.3s ease;
+}
+
+.tip-box button:hover {
+  opacity: 1;
+  transform: scale(1.05); /* Enlarge slightly on hover */
+}
+
+/* Tip Box Heading */
+.tip-box h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #d97706; /* Tailwind amber-700 */
+  margin-bottom: 3px;
+  text-align: left;
+  letter-spacing: 0.1px; /* Slight letter spacing for elegance */
+}
+
+/* Subheading for click-to-show-more */
+.tip-box h2 span {
+  font-size: 0.85rem;
+  color: #6b7280; /* Tailwind gray-500 */
+}
+
+/* Tip Box Content */
+.tip-box p {
+  font-size: 1rem;
+  color: #4b5563; /* Tailwind gray-600 */
+  line-height: 1.4;
+  margin-bottom: 0;
+  animation: slide-in 0.4s ease forwards;
+}
+
+/* Animation for new tip */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Dark Mode - Tailwind class-based dark mode */
+.dark .tip-box {
+  background-color: rgba(45, 55, 72, 0.8); /* Tailwind's Gray-800 with transparency */
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5); /* Darker shadow for dark mode */
+}
+
+.dark .tip-box button {
+  color: #fbd38d; /* Lighter color for close button in dark mode */
+}
+
+.dark .tip-box h2 {
+  color: #fbd38d; /* Lighter heading text for dark mode */
+}
+
+.dark .tip-box h2 span {
+  color: #a0aec0; /* Lighter subheading for dark mode */
+}
+
+.dark .tip-box p {
+  color: #a0aec0; /* Lighter text for dark mode */
+}

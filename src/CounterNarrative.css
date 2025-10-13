@@ -1,0 +1,191 @@
+/* Left Pane Styles */
+.left-pane .output-box {
+    background-color: #E7FFF1; /* Pale bluish-green */
+    padding: 20px;
+    font-size: 1.15rem;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow-y: auto;
+    max-height: 70vh;
+}
+
+/* Right Pane Styles */
+.right-pane .output-box {
+    background-color: #FFF5F5; /* Pale pink/coral */
+    padding: 20px;
+    font-size: 1.15rem;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow-y: auto;
+    max-height: 70vh;
+}
+.incorporate-button-container {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 3px;
+    padding: 10px;
+    overflow: visible;
+    margin-top: -50px;
+}
+
+.incorporate-button {
+    background: linear-gradient(45deg, #9b59b6, #e91e63, #c0392b); /* Gradient from purple to pink */
+    color: #fff;
+    padding: 12px 26px; /* Adjusted padding for prominence */
+    border: none;
+    border-radius: 20px; /* Slightly rounded corners for a gem-like appearance */
+    cursor: pointer;
+    font-size: 18px; /* Larger font size for visibility */
+    font-weight: bold; /* Bold text for emphasis */
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6); /* Subtle shadow for text */
+    box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4), 0 0 15px rgba(231, 76, 60, 0.5) inset; /* Outer and inner glow in warm tones */
+    transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease; /* Smooth transitions */
+}
+
+.incorporate-button:hover {
+    background: linear-gradient(45deg, #8e44ad, #c0392b, #d35400); /* Darker gradient on hover */
+    box-shadow: 0 6px 20px rgba(192, 57, 43, 0.5), 0 0 20px rgba(192, 57, 43, 0.5) inset; /* Intensified glow on hover */
+    transform: translateY(-2px) scale(1.02); /* Slight lift and scale on hover */
+}
+
+
+
+
+/* Container and Pane Styles */
+.counter-narrative-container {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-top: 10px;
+    width: 90%; /* Allow the container to take full width */
+}
+
+.pane {
+    width: 48%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Prevent panes from scrolling separately */
+}
+
+.critique-agent-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    margin-bottom:50px;
+}
+
+/* Header in Right Pane */
+.right-pane .header {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+    margin-top: 8px; /* Ensure there's enough space between the header and the button */
+    flex-wrap: wrap;
+    margin-right: 150px;
+}
+
+/* Dropdown Styles */
+.dropdown-container {
+    margin-bottom: 10px;
+}
+
+.dropdown-container select {
+    padding: 10px;
+    border-radius: 4px;
+    background-color: #f7f7f7;
+    border: 1px solid #ccc;
+    width: 100%;
+    font-size: 1rem;
+}
+
+/* Loading Indicator */
+.loading-dots span {
+    display: inline-block;
+    font-size: 2rem;
+    animation: blink 1s infinite both;
+}
+
+.loading-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes blink {
+    0% {
+        opacity: 0.2;
+    }
+    20% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.2;
+    }
+}
+
+/* Smaller screen */
+
+
+@media (max-width: 768px) {
+    /* Stack Right Pane Above Left Pane */
+    .counter-narrative-container {
+        flex-direction: column-reverse; /* Display right pane above left pane */
+        gap: 10px; /* Adjust gap between stacked panes */
+        width: 100%; /* Use full width for mobile */
+    }
+
+    .pane {
+        width: 100%; /* Each pane takes full width */
+    }
+
+    /* Reduce Text Size and Padding */
+    .left-pane .output-box,
+    .right-pane .output-box {
+        font-size: 0.95rem; /* Smaller font size for mobile */
+        padding: 10px; /* Reduce padding */
+        max-height: 50vh; /* Reduce max height for better fit */
+    }
+
+    .incorporate-button-container {
+        display: flex;
+        justify-content: flex-end; /* Ensure the button stays to the right */
+        margin-top: -20px; /* Adjust margin for mobile */
+        padding: 5px; /* Reduce padding */
+    }
+
+    .incorporate-button {
+        font-size: 14px; /* Smaller button text */
+        padding: 8px 16px; /* Reduce padding */
+    }
+
+    .critique-agent-container {
+        padding: 15px; /* Reduce padding for mobile */
+    }
+
+    .right-pane .header {
+        font-size: 1rem; /* Reduce header size */
+        margin-bottom: 8px; /* Adjust margin */
+    }
+
+    .dropdown-container select {
+        font-size: 0.9rem; /* Smaller dropdown font size */
+        padding: 8px; /* Reduce padding */
+    }
+
+    .loading-dots span {
+        font-size: 1.5rem; /* Smaller loading dots */
+    }
+
+    .counter {
+        font-size: 10px; /* Reduce counter text size */
+        padding-left: 2px; /* Adjust padding */
+        padding-bottom: 2px; /* Adjust padding */
+    }
+}
+

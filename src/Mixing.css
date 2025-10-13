@@ -1,0 +1,991 @@
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English&family=MedievalSharp&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600&display=swap');
+
+.mixing-popup {
+  transition: all 0.3s ease-in-out; /* Smooth entrance/exit */
+}
+
+.method-square {
+  transition: transform 0.4s ease-in-out, box-shadow 0.4s ease-in-out; /* Smooth hover effect */
+}
+
+.mix-button:hover {
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.3s ease;
+}
+
+/* General Styles */
+.mixing-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1;
+    border-radius: 12px;
+    padding: 5px;
+  backdrop-filter: blur(6px); /* Background blur for depth */
+}
+
+.large-emoji {
+    font-size: 3.5em;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    color: #fff;
+    text-shadow: 0 0 15px rgba(255, 255, 255, 1),
+                 0 0 30px rgba(255, 165, 0, 0.9),
+                 0 0 50px rgba(255, 165, 0, 0.7),
+                 0 4px 12px rgba(0, 0, 0, 0.8);
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 50%;
+    padding: 0.3em;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8),
+                0 0 40px rgba(255, 165, 0, 0.6),
+                inset 0 2px 8px rgba(255, 165, 0, 0.3);
+    animation: ingredient-float 3s ease-in-out infinite,
+               ingredient-glow 2s ease-in-out infinite;
+}
+
+@keyframes ingredient-float {
+  0%, 100% {
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    transform: translate(-50%, -55%);
+  }
+}
+
+@keyframes ingredient-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8),
+                0 0 30px rgba(255, 165, 0, 0.5),
+                inset 0 2px 8px rgba(255, 165, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8),
+                0 0 50px rgba(255, 165, 0, 0.9),
+                inset 0 2px 8px rgba(255, 165, 0, 0.5);
+  }
+}
+
+.ingredient-list {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+}
+
+
+
+.mixing-popup-content {
+ background-color: rgba(45, 45, 45, 0.9);
+  box-shadow: inset 0px 0px 8px rgba(255, 223, 186, 0.3), 0px 0px 10px rgba(0, 0, 0, 0.1); 
+  padding: 30px;
+  padding: 20px;
+  border-radius: 12px;
+  width: 95%;
+  height: 98%;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  margin-right: 50px;
+
+  max-width: 1620px;
+}
+
+.mixing-header {
+  font-family: "MedievalSharp", cursive;
+  font-size: 1.8rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  border-bottom: 2px solid #8b8b8b;
+  padding-bottom: 5px;
+  margin-bottom: 5px;
+  color: #e1cfa5;
+  text-align: center;
+  text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.23);
+}
+
+
+
+.close-mixing-button {
+  position: absolute;
+    top: 35px;
+    right: 110px;
+    padding: 10px 18px;
+    background-color: #ff4d4f;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    z-index: 3000;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.close-mixing-button:hover {
+  background-color: #ff1c1c;
+  box-shadow: 0px 0px 20px rgba(255, 0, 0, 0.9);
+}
+
+.mixing-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 95%;
+   border-radius: 12px;
+}
+
+.mix-button-container {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.mix-button {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1.3rem;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+  font-family: "MedievalSharp", cursive;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.mix-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.mix-button.enabled:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.mix-button.enabled:hover::before {
+  left: 100%;
+}
+
+.mix-button.enabled:active {
+  transform: translateY(0);
+}
+
+.mix-button.disabled {
+  background: linear-gradient(135deg, #555 0%, #444 100%);
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.6;
+}
+
+/* Loading Spinner */
+.button-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Method Grid and Squares */
+.method-grid {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  margin: 1px 5px;
+  padding: 10px;
+  background-color: rgba(58, 58, 58, 0.7);
+  border-radius: 14px;
+  box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  flex-wrap: wrap; /* Allow items to wrap to the next line if necessary */
+  max-width: 100%; /* Ensure the grid stays within the container */
+  box-sizing: border-box;
+}
+
+.method-square-container {
+  flex: 1 2 20%; /* Allow squares to take up 23% of the container width */
+  display: flex;
+  flex-direction: column;
+  padding: 2px;
+  margin-bottom: 10px;
+  
+}
+
+
+
+.mixing-instructions {
+  font-family: 'IM Fell English', serif;
+  font-size: 1.2rem !important;
+  color: floralwhite;
+  text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.3);
+  margin-bottom: 2px; /* Adjust spacing between title and square */
+  text-align: center; /* Center the title */
+  padding-left: 20%;
+    padding-right: 20%;
+    font-style: italic;
+}
+.method-title {
+  font-family: 'IM Fell English', serif;
+  font-size: 1.3rem;
+  color: #e1cfa5;
+  text-shadow: 0px 1px 2px rgba(0, 0, 0, 0.2);
+  margin-bottom: 5px; /* Adjust spacing between title and square */
+  text-align: left; /* Center the title */
+  font-weight: 900;
+  letter-spacing: .02rem;
+}
+
+.method-square {
+  width: 300px;
+  height: 300px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 12px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  overflow: hidden;
+  border: 2px solid rgba(255, 223, 186, 0.15);
+}
+
+.method-square::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.4) 100%);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.method-square:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.8),
+              0 0 0 2px rgba(255, 223, 186, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 223, 186, 0.4);
+}
+
+.method-square:hover::after {
+  opacity: 0.5;
+}
+
+/* Hover, Click Caption Box */
+.method-hover-box {
+  display: none;
+  position: fixed;
+  bottom: 58%; /* Position the box at top of square */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 240px; /* Adjust the width as needed */
+  background-color: rgba(45, 45, 45, 0.9);
+  padding: 8px;
+  border-radius: 8px;
+box-shadow: 0 4px 15px rgba(255, 165, 0, 0.2), 0 4px 10px rgba(0, 0, 0, 0.8);
+  font-family: 'IM Fell English', serif;
+  font-size: 1.5rem;
+  color: #eaeaea;
+  text-align: center;
+  text-shadow: 0px 4px 8px rgba(0, 0, 0, 0.8);
+  line-height: 1.1rem;
+  z-index: 1001; /* Ensure it appears above other elements */
+  pointer-events: none; /* Prevent the box from interfering with mouse events */
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+
+.method-square:hover .method-hover-box,
+.method-square:focus .method-hover-box {
+  display: block; /* Show the hover box on hover or focus */
+}
+
+/* Inventory Grid */
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 8px;
+  padding: 8px;
+  margin-top: 5px;
+  background-color: rgba(68, 68, 68, 0.9);
+  border-radius: 14px;
+  box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+   height: auto; /* Set a fixed height for the grid */
+  overflow-y: auto; /* Enable vertical scrollbar */
+   overflow-x: auto;
+   width: 88%;
+   margin: 5px auto;
+
+}
+
+.mixing-inventory-item {
+  background: linear-gradient(135deg, #4a4a4a, #5a5a5a);
+  color: #f2f2f2;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: 110px;
+  text-align: left;
+  box-shadow: inset 0 1px 2px rgba(255, 223, 186, 0.15),
+              0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Nunito Sans', sans-serif;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 223, 186, 0.1);
+}
+
+.mixing-inventory-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 223, 186, 0.15), transparent);
+  transition: left 0.5s ease;
+}
+
+.mixing-inventory-item:hover {
+  background: linear-gradient(135deg, #5a5a5a, #6a6a6a);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 0 8px rgba(255, 223, 186, 0.4),
+              0 6px 20px rgba(0, 0, 0, 0.6),
+              inset 0 1px 2px rgba(255, 223, 186, 0.2);
+  border-color: rgba(255, 223, 186, 0.3);
+}
+
+.mixing-inventory-item:hover::before {
+  left: 100%;
+}
+
+.mixing-inventory-item:active {
+  cursor: grabbing;
+  transform: translateY(0) scale(0.98);
+}
+
+.inventory-item-emoji {
+  font-size: 2.5em; /* Larger emoji size for emphasis */
+  margin-right: 12px; /* Added more space between emoji and text */
+  line-height: 1.3; 
+  padding: 5px; /* More padding around emoji for better alignment */
+  flex-shrink: 0;
+  text-shadow: 0 0 12px rgba(255, 223, 186, 0.5), 0 3px 6px rgba(0, 0, 0, 0.9); /* Added text shadow for glowing effect */
+}
+
+
+.inventory-item-text {
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.1em; /* Slightly larger text for readability */
+  color: #eaeaea; /* Softer text color */
+}
+
+
+
+
+/* Hover Popup for Inventory Items */
+
+.mixing-hover-popup {
+  position: fixed;
+  top: 50%;
+  left: 92%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(45, 45, 45, 0.9);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
+  font-family: 'IM Fell English', serif;
+  font-size: 1.1rem;
+  color: #eaeaea;
+  text-align: left;
+  text-shadow: 0px 4px 8px rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+  max-width: 230px;
+  pointer-events: none;
+}
+
+
+/* ========================================
+   COMPOUND RESULT MODAL (Overlaying)
+   ======================================== */
+
+.compound-result-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.compound-result-modal {
+  background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8),
+              0 0 0 1px rgba(255, 223, 186, 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  width: 90%;
+  max-width: 600px;
+  max-height: 85vh;
+  overflow: hidden;
+  animation: slideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.result-modal-header {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+  padding: 20px 24px;
+  border-bottom: 2px solid #e0d5b8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.result-modal-title {
+  font-family: "MedievalSharp", cursive;
+  font-size: 1.5rem;
+  color: #e1cfa5;
+  text-shadow: 0 2px 10px rgba(255, 223, 186, 0.3);
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.result-close-btn {
+  background: none;
+  border: none;
+  color: #e1cfa5;
+  font-size: 2rem;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.result-close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+.compound-result-content {
+  padding: 32px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.compound-emoji-display {
+  text-align: center;
+  margin-bottom: 24px;
+  animation: bounceIn 0.6s ease-out 0.2s both;
+}
+
+.result-emoji {
+  font-size: 7rem;
+  display: inline-block;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5),
+               0 0 40px rgba(255, 165, 0, 0.4),
+               0 8px 16px rgba(0, 0, 0, 0.6);
+  filter: drop-shadow(0 0 30px rgba(255, 165, 0, 0.6));
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.compound-details {
+  text-align: center;
+}
+
+.compound-name {
+  font-family: "MedievalSharp", cursive;
+  font-size: 2rem;
+  color: #e1cfa5;
+  margin: 0 0 12px 0;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: fadeInUp 0.5s ease-out 0.3s both;
+}
+
+.compound-latin,
+.compound-spanish {
+  font-family: 'IM Fell English', serif;
+  font-size: 1.2rem;
+  color: #c4b998;
+  font-style: italic;
+  margin: 4px 0;
+  animation: fadeInUp 0.5s ease-out 0.4s both;
+}
+
+.compound-properties {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 24px 0;
+  border: 1px solid rgba(255, 223, 186, 0.15);
+  animation: fadeInUp 0.5s ease-out 0.5s both;
+}
+
+.property-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: 'IM Fell English', serif;
+}
+
+.property-row:last-child {
+  border-bottom: none;
+}
+
+.property-label {
+  font-size: 1rem;
+  color: #a8a29e;
+  font-weight: 600;
+}
+
+.property-value {
+  font-size: 1.1rem;
+  color: #e1cfa5;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(255, 223, 186, 0.3);
+}
+
+.compound-description {
+  font-family: 'IM Fell English', serif;
+  font-size: 1.15rem;
+  line-height: 1.6;
+  color: #d4d4d4;
+  margin: 20px 0;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 3px solid #e1cfa5;
+  border-radius: 4px;
+  font-style: italic;
+  animation: fadeInUp 0.5s ease-out 0.6s both;
+}
+
+.compound-citation {
+  font-family: 'IM Fell English', serif;
+  font-size: 0.95rem;
+  color: #999;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  animation: fadeInUp 0.5s ease-out 0.7s both;
+}
+
+.result-modal-footer {
+  padding: 16px 24px;
+  border-top: 2px solid rgba(255, 223, 186, 0.2);
+  background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+  display: flex;
+  justify-content: center;
+}
+
+.continue-button {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 14px 48px;
+  font-size: 1.2rem;
+  font-family: "MedievalSharp", cursive;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+  animation: fadeInUp 0.5s ease-out 0.8s both;
+}
+
+.continue-button:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.continue-button:active {
+  transform: translateY(0);
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 20px rgba(255, 165, 0, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 40px rgba(255, 165, 0, 0.8));
+  }
+}
+
+
+
+.mix-button-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    margin-top: 0;  /* Adjusted margin to remove extra space */
+    margin-bottom: 0; /* Adjusted margin to remove extra space */
+
+}
+
+.mix-button {
+    background: linear-gradient(45deg, #3b82f6, #1d5a92);   
+    border: none;
+    padding: 12px 20px; /* Larger padding for glow effect */
+    cursor: pointer;
+    font-size: 18px; /* Larger font size */
+    border-radius: 8px;
+    flex: 1;  /* Allows this button to take more space */
+    text-align: center;
+    margin-right: 10px; /* Space between mix and reset button */
+}
+
+.mix-button.enabled {
+    box-shadow: 0 0 15px 5px rgba(0, 123, 255, 0.6); /* Glow effect */
+       background: linear-gradient(45deg, #3b82f6, #1d5a92);   
+}
+
+.reset-button {
+  background-color: #10b981;
+  color: white;
+  border: none;
+  padding: 12px 25px;
+  cursor: pointer;
+  font-size: 1rem;
+      border-radius: 8px !important;
+  border-radius: var(--border-radius);
+  font-family: "MedievalSharp", cursive;
+  text-transform: uppercase;
+  transition: all var(--transition-speed) ease;
+}
+
+.reset-button:hover {
+  background-color: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+}
+
+
+.mix-button.disabled {
+    background-color: gray;
+    cursor: not-allowed;
+}
+
+
+
+.mixing-popup-content {
+
+}
+
+
+
+
+/* Adjustments for Small Screens */
+@media (max-width: 768px) {
+  
+  /* Mixing Popup Content */
+  .mixing-popup-content {
+    width: 100%;
+    height: 98%;
+    padding: 8px;
+    max-height: 92vh; /* Ensure the content doesn’t exceed the viewport height */
+    overflow-y: auto;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    margin-right: 0; /* Ensure it fits within the screen */
+  }
+
+  .mixing-instructions {
+  font-family: 'IM Fell English', serif;
+  font-size: .5rem;
+  color: floralwhite;
+  text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.3);
+  margin-bottom: 2px; /* Adjust spacing between title and square */
+  text-align: center; /* Center the title */
+  padding-left: 1%;
+    padding-right: 1%;
+    font-style: italic;
+}
+
+  .large-emoji {
+    font-size: 1.8em; /* Increased size */
+
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    
+    /* Glowing effect */
+    color: #fff; /* White text color */
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                 0 0 20px rgba(255, 255, 255, 0.8),
+                 0 0 30px rgba(255, 255, 255, 0.8),
+                 0 0 40px rgba(255, 165, 0, 0.8), /* Orange glow */
+                 0 0 70px rgba(255, 165, 0, 0.8),
+                 0 0 80px rgba(255, 165, 0, 0.8),
+                 0 0 100px rgba(255, 165, 0, 0.8),
+                 0 0 150px rgba(255, 165, 0, 0.8);
+    
+    /* Background and box shadow for contrast */
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black background */
+    border-radius: 50%; /* Circular background */
+    padding: 0.2em;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.7), /* Dark shadow for depth */
+                0 0 30px rgba(255, 165, 0, 0.5); /* Orange shadow for glow effect */
+}
+
+  /* Header Styling */
+  .mixing-header {
+    font-size: 1.2rem;
+    margin-bottom: 2px;
+    text-align: center;
+  }
+
+  /* Close Button Adjustments */
+  .close-mixing-button {
+    top: 10px;
+    right: 10px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+
+  /* Method Grid */
+  .method-grid {
+    flex-wrap: wrap; /* Wrap the squares on smaller screens */
+    gap: 4px;
+    padding: 12px;
+    max-width: 100%;
+    display: flex;
+    justify-content: space-between; /* Distribute the squares evenly */
+    overflow-y: auto;
+  }
+
+  /* Method Square Containers */
+  .method-square-container {
+    flex: 0 0 58%; /* Ensure better distribution for small screens */
+    width: 100%; /* Full width */
+    max-width: 140px; /* Max width adjusted for smaller screens */
+    margin-bottom: 5px; /* Add spacing below */
+  }
+
+  /* Method Title Adjustments */
+  .method-title {
+    font-size: 1rem;
+  }
+
+  /* Method Squares Adjustments */
+  .method-square {
+    width: 130px;
+    height: 120px;
+  }
+
+  /* Inventory Grid Adjustments */
+  .inventory-grid {
+    grid-template-columns: repeat(2, 1fr); /* Two columns for better fit */
+    gap: 8px; /* Space between items */
+    padding: 10px;
+    max-height: 200px; /* Adjusted height */
+    overflow-y: auto;
+    max-width: 100%; /* Ensure grid fits within the screen */
+  }
+
+  /* Inventory Item Adjustments */
+  .mixing-inventory-item {
+    height: 60px;
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  /* Hover Popups - Disable on Mobile */
+  .method-hover-box,
+  .mixing-hover-popup {
+    display: none !important; /* Disable hover popups on mobile */
+  }
+
+  /* Compound Result Adjustments */
+  .compound-result {
+    text-align: center;
+    margin-bottom: 10px;
+    padding: 12px;
+    background-color: rgba(58, 58, 58, 0.9);
+    border-radius: 12px;
+    box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.6);
+    color: floralwhite;
+    max-width: 90%;
+    font-family: 'IM Fell English', serif;
+    font-size: 0.8rem;
+    overflow-y: auto;
+  }
+
+  .mixing-inventory-item {
+    background-color: #555;
+    color: white;
+    padding: 5px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 70px;
+    text-align: center;
+    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.4);
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    font-family: 'Nunito Sans', sans-serif;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+  }
+  
+  /* Adjustments for buttons */
+  .mix-button-container {
+    margin-top: 10px;
+    text-align: center; /* Center align buttons */
+  }
+}
+
+
+.mixing-container.loading {
+  animation: glow 2s infinite ease-in-out;
+  background-color: rgba(45, 45, 45, 0.9); /* Adjust as needed */
+}
+
+/* Loading Animation */
+@keyframes glow {
+  0% {
+    box-shadow: 0 0 10px rgba(255, 165, 0, 0.2); /* Lighter orange */
+  }
+  50% {
+    box-shadow: 
+      0 0 20px rgba(255, 140, 0, 0.7),  /* Darker orange */
+      0 0 40px rgba(255, 215, 0, 0.5),  /* Yellow-gold */
+      0 0 60px rgba(255, 69, 0, 0.3);   /* Redder orange-amber */
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(255, 165, 0, 0.2); /* Lighter orange */
+  }
+}
+
+.mixing-container.loading {
+  animation: glow 3s infinite ease-in-out;
+}
