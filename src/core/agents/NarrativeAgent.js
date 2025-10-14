@@ -6,6 +6,7 @@ import { buildContextSummary, buildEntityContext, buildSkillsContext } from '../
 import { scenarioLoader } from '../services/scenarioLoader';
 import { getGridSystem } from '../../features/map/services/gridMovementSystem';
 import { getReputationTier, getFactionStanding, FACTION_INFO } from '../systems/reputationSystem';
+import { formatPortraitListForPrompt } from '../config/portraits.config';
 
 /**
  * Build reputation context for narrative generation
@@ -90,10 +91,16 @@ Player Position: Grid (${playerPosition.gridX || Math.floor(playerPosition.x / 2
     });
 
     context += `\n### Narrative Instructions for Movement:
-- If player tries to move in a BLOCKED direction, narratively explain WHY using the obstacle name
-- If player moves in a CLEAR direction, describe the movement vividly with period details
-- Mention nearby locations naturally in the narrative to give spatial awareness
-- Use directional language (north, south, east, west) when describing relative positions
+- MOVEMENT COMMANDS ("I walk north", "I go east", "I walk south", "I walk west"):
+  * Keep description BRIEF (2-3 sentences maximum, 40-60 words)
+  * Focus on immediate surroundings and what Maria observes
+  * Mention 1-2 key landmarks, architectural details, or people she notices
+  * Use vivid sensory details (sounds, smells, sights) but stay concise
+  * DO NOT include long dialogues or complex interactions during simple movement
+  * Example: "Maria walks north along the dusty Calle de Plateros. The cathedral's unfinished towers loom ahead, scaffolding wrapped around its stone facade. A vendor calls out, selling tamales from a clay pot."
+- If BLOCKED by obstacle, explain why in 1 sentence, then describe what Maria sees instead
+- Mention nearby locations naturally to give spatial awareness
+- Use compass directions (north, south, east, west) when describing positions
 - DO NOT mention grid coordinates or game mechanics - stay in-character and historical`;
 
     return context;
@@ -120,11 +127,45 @@ function buildNarrativePrompt(scenarioPrompts, mapContext = '') {
 
 Generate compelling, historically accurate narrative text. Create vivid scenes with period-specific detail, believable NPC dialogue, and appropriate pacing.
 
+### Response Type Detection:
+
+**MOVEMENT MODE** - Use when player navigates:
+- Patterns: "I walk [direction]", "I go [direction]", "go to [place]"
+- Set \`responseType: "movement"\`
+- Brief description in \`narrative\` field (2-3 sentences, 40-60 words)
+
+**NARRATION MODE (DEFAULT)** - All other actions:
+- Player actions, NPC interactions, examining, choices, contracts, commands
+- Set \`responseType: "narration"\`
+- Full scene in \`narrative\` field (1-3 paragraphs)
+- **Embed NPC dialogue naturally** using quotation marks
+- **Accurately represent player input** - don't contradict what they said
+- **Show consequences** - NPC responses, game events, what happens next
+
+**Examples:**
+
+\`\`\`json
+{
+  "responseType": "movement",
+  "narrative": "Maria walks north along dusty Calle de Plateros. The cathedral's unfinished towers loom ahead, scaffolding wrapped around stone. A vendor calls out, selling tamales."
+}
+\`\`\`
+
+\`\`\`json
+{
+  "responseType": "narration",
+  "narrative": "Beatriz's weathered face brightens. \\"The ipecacuanha, Doña Maria,\\" she says, gesturing to the bundles. \\"The bitter one for purging the stomach.\\" She unwraps the cloth to reveal dark, gnarled specimens."
+}
+\`\`\`
+
 ### Response Format (JSON):
 \`\`\`json
 {
-  "narrative": "Story text (1-3 paragraphs, markdown, concise, vivid)",
-  "npcDialogue": "Direct NPC speech if applicable",
+  "responseType": "movement|narration - REQUIRED (use 'narration' for everything except movement)",
+  "narrative": "Story text (1-3 paragraphs, markdown) - ALWAYS populate this field with the narrative",
+  "dialogue": "RESERVED - leave null (future companion travel mode only)",
+  "npcSpeaker": "RESERVED - leave null (future companion travel mode only)",
+  "npcDialogue": "RESERVED - leave null (legacy field)",
   "sceneDescription": "Brief scene/setting description",
   "suggestedCommands": ["#symptoms", "#prescribe"],
   "showPortraitFor": "string or null - name of the primary character Maria is directly interacting with",
@@ -162,51 +203,51 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 \`\`\`
 
 ### Primary NPC & Portrait System (NEW):
-**When a NAMED NPC is the primary person Maria is interacting with, provide their COMPLETE profile upfront.**
+**Show the person who is PHYSICALLY PRESENT in the scene with Maria, NOT people being discussed or mentioned.**
 
-**Available Portraits** (choose best match):
-- **Elite Women:** spanishnoblewoman.jpg, middleagedcriollofemalemerchant.jpg, criollofemalemerchant.jpg
-- **Common Women:** peasantwoman.jpg, poorwoman.jpg, beggarwoman.jpg, africanwoman.jpg, indiowoman.jpg
-- **Young Women:** youngspanishwoman.jpg, youngafricanwoman.jpg, youngindigenouswoman.jpg, youngmulattowoman.jpg
-- **Elderly Women:** oldwoman.jpg, elderlyafricanwoman.jpg, elderlycriollofemalehealer.jpg
-- **Elite Men:** spanishnoble.jpg, elderlynobleman.jpg, elderlypeninsulareman.jpg
-- **Common Men:** indiopeasantman.jpg, mulattoman.jpg, pooryoungman.jpg, youngman.jpg
-- **Clergy:** priest.jpg, abbot.jpg, nun.jpg, elderlycriollonun.jpg, middleagedcriollonun.jpg
-- **Merchants:** merchantman.jpg, middleagedmalemerchant.jpg, mestizomiddleagedmalemerchant.jpg
-- **Soldiers:** soldier.jpg, elderlysoldier.jpg, mulattosoldier.jpg, frontiersoldier.jpg
-- **Children:** child.jpg, childevening.jpg, sickboy.jpg, mestizoboy.jpg, mestizogirl.jpg, noblemalechild.jpg
-- **Scholars/Healers:** scholar.jpg, femalescholar.jpg, middleagedfemaleapothecary.jpg, middleagedmaleapothecary.jpg
-- **Workers:** middleagedfarmer.jpg, middleagedmalesailor.jpg, middleagedmalemuleteer.jpg, fishermanonriver.jpg
+**CRITICAL RULE: Show who Maria is LOOKING AT and TALKING TO, not who she's HEARING ABOUT.**
+
+${formatPortraitListForPrompt()}
 
 **When to provide primaryPortrait & primaryNPC:**
-✓ Named NPC speaking/interacting directly (Doña Luisa, Fray Antonio, etc.)
-✓ First appearance of a new recurring NPC
-✓ Patient being discussed in detail (even if intermediary present)
+✓ NPC in the same room/location as Maria, actively conversing
+✓ Person Maria is examining, treating, or directly interacting with
+✗ Person being TALKED ABOUT but not present (sick relative, absent friend, etc.)
+✗ Person mentioned in dialogue but not in the scene
 ✗ Background entities (soldiers marching past)
 ✗ Animals, items, locations
 ✗ Maria alone navigating
 
-**primaryNPC must include:**
-- name (full formal name)
+**EXAMPLES:**
+✓ Mother at door talking about sick son → Show mother's portrait (she's present)
+✓ Priest tells you about merchant → Show priest's portrait (he's present)
+✗ Servant delivers message from Doña Isabel → null (Isabel absent)
+
+**NPC Identity Consistency:**
+Check conversation history. If same NPC still present → reuse EXACT name + portrait from previous turn. Only create NEW identity for NEW arrivals. If NPC leaves, narrate that departure.
+
+**primaryNPC must describe the PHYSICALLY PRESENT person:**
+- name (full formal name of the person AT THE SCENE)
 - age, gender (for portrait matching)
-- occupation (specific job, not vague)
+- occupation (specific job of the person Maria is LOOKING AT, not who they represent)
 - casta, class (colonial social hierarchy)
-- personality (2-3 traits: "Gruff but fair", "Pious and nervous")
-- appearance (physical description: build, clothing, distinguishing features)
-- description (1 sentence character summary)
+- personality (2-3 traits describing their demeanor and character: "Direct and businesslike, seems accustomed to giving orders", "Soft-spoken but determined", "Nervous but respectful, chooses words carefully")
+- appearance (physical description of the person PRESENT: build, clothing, distinguishing features)
+- description (1-2 sentence summary of THIS person, not who they're talking about)
+
+**IMPORTANT - NPC Emotional Variety:**
+Not every NPC should show strong physical reactions (wincing, flinching, recoiling, grimacing). Most people speak calmly and directly. Reserve intense physical reactions for:
+- Patients in acute pain
+- NPCs receiving shocking news
+- Moments of genuine crisis
+
+Most conversations should be straightforward without constant physical distress signals.
 
 **Portrait Selection Rules:**
-1. Match demographics first (age + gender + class)
-2. Match occupation second (clergy, merchant, soldier, etc.)
-3. Match casta third (español, criollo, mestizo, etc.)
+1. Match demographics first (age + gender + class) OF THE PERSON PRESENT
+2. Match occupation second (clergy, merchant, soldier) OF THE PERSON PRESENT
+3. Match casta third (español, criollo, mestizo) OF THE PERSON PRESENT
 4. If no perfect match, choose closest approximate
-
-**Examples:**
-✓ Doña Luisa Mendoza (elite woman, middle-aged, español) → "primaryPortrait": "spanishnoblewoman.jpg"
-✓ Fray Antonio (priest, middle-aged, male) → "primaryPortrait": "priest.jpg"
-✓ Stout peasant woman (common, middle-aged) → "primaryPortrait": "peasantwoman.jpg"
-✗ João the cat → null (animal)
-✗ Maria thinking alone → null (no NPC)
 
 **CRITICAL:** Keep showPortraitFor for compatibility, but primaryPortrait is now authoritative.
 
@@ -214,50 +255,36 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 **YOU control when new patients arrive.** Only request a new patient when it makes narrative sense.
 
 **Set requestNewPatient to TRUE when:**
-- Maria is clearly waiting for patients at her shop during business hours
+- Maria is clearly waiting for patients at her shop 
 - Player says something like "wait for patients" or "open the shop"
-- It's morning/midday at the botica and no one has visited recently
-- A messenger arrives saying someone needs treatment
+- It's day at the botica and no one has visited recently
 - The narrative suggests patients would naturally seek Maria out
 
 **Set requestNewPatient to FALSE when:**
 - Currently treating an active patient (don't interrupt)
 - Maria is away from her shop/workplace
-- It's late evening or night time
+- It's late evening 
 - Maria is busy with other activities (mixing medicines, studying, eating)
 - The scene doesn't support a new arrival (traveling, sleeping, in crisis)
 - Someone already arrived this turn
 
 **patientContext examples:**
-- "Morning rush - word of Maria's success has spread"
 - "Nobleman sends messenger requesting treatment"
-- "Market day brings more foot traffic"
 - "Patient returns for follow-up treatment"
 
 **Default to FALSE unless context clearly supports a new patient arrival.**
 
 ### Contract Offers (CRITICAL):
-**When an NPC requests medical treatment or wants to purchase medicine, DO NOT have Maria automatically agree.**
+When NPC requests treatment/purchase, STOP before Maria responds. Let player decide.
 
-**Treatment Request Flow:**
-1. NPC makes request: "I need you to treat [patient name]. I can offer [X reales]."
-2. Describe the patient's condition and symptoms clearly
-3. **END THE NARRATIVE before Maria responds** - let player decide via modal
-4. StateAgent will detect this as a contract offer
-
-**Sale Request Flow:**
-1. NPC asks: "Do you have [medicine name]? I need it for [condition]. What is your price?"
-2. **END THE NARRATIVE before Maria responds** - let player propose price via modal
-3. StateAgent will detect this as a sale offer
+**Rules:**
+1. NPC makes request with clear terms ("I'll pay X reales for treatment")
+2. END narrative before Maria accepts/declines - no auto-completion
+3. StateAgent detects and creates contract modal
 
 **Examples:**
-✓ GOOD (Treatment): "Hermana Francisca clutches the feverish child. 'Please, *curandera*, young Diego needs your help. The convent can pay 15 reales for your services.'" ← STOPS HERE (no Maria response)
-✗ BAD (Treatment): "Hermana Francisca requests help, and Maria agrees to treat the child." ← Maria already agreed, no player choice
-
-✓ GOOD (Sale): "The merchant eyes your shelf. 'Do you have a remedy for stomach griping? My wife suffers terribly.'" ← STOPS HERE
-✗ BAD (Sale): "The merchant asks for medicine and Maria sells him a draught for 8 reales." ← Already completed, no player choice
-
-**KEY RULE:** Treatment/purchase requests = PAUSE for player decision. Don't auto-complete transactions.
+✓ "Please help my son. I can pay 15 reales." → STOP (player decides)
+✗ "She asks for help and Maria agrees" → WRONG (auto-completed)
 
 ### Entity Detection:
 List 2-3 most important interactive elements in "entities" array.
@@ -268,14 +295,24 @@ List 2-3 most important interactive elements in "entities" array.
 - "text": Must match narrative EXACTLY for highlighting
 - "tier": story-critical (plot-essential) | recurring (named, likely to reappear) | background (unnamed one-time)
 - "description": Required for unnamed entities
-- "wikipediaQuery": **Educational context suggestion**
-  - For NPCs/patients: Suggest Wikipedia pages about their ROLE/OCCUPATION/SOCIAL CONTEXT, NOT their personal name
-    - ✓ Good: "Converso", "Midwifery in colonial Mexico", "Spanish Inquisition"
-    - ✗ Bad: "Rosa Maria Perez" (ambiguous person name)
-  - For items: Use null to allow direct lookup, OR suggest specific page if ambiguous
-    - ✓ Good: null (for "Sal Ammoniac"), "Mexico City Metropolitan Cathedral" (for "Cathedral")
-    - ✗ Bad: Generic terms that won't match Wikipedia
-  - For locations: Suggest full proper name if abbreviated in narrative
+- "wikipediaQuery": **ONE Wikipedia article suggestion per turn (max)**
+  - **CRITICAL:** Use SIMPLE, GENERAL Wikipedia article titles that actually exist. Avoid overly specific phrases.
+  - **Test mentally:** Would this exact phrase be a Wikipedia article title? If unsure, use simpler/broader term.
+  - **ONLY ONE** wikipediaQuery per turn across ALL entities (not one per entity). Choose the most educationally valuable term.
+
+  - **For NPCs/patients:** Suggest pages about their ROLE/OCCUPATION/SOCIAL CONTEXT (not personal names)
+    - ✓ Good: "Converso", "Midwife", "Spanish Inquisition", "Criollo people"
+    - ✗ Bad: "Rosa Maria Perez" (person name), "Midwifery in colonial Mexico" (too specific - use "Midwife")
+
+  - **For items/objects:** Use the SIMPLEST form of the item name
+    - ✓ Good: "Molcajete", "Hacienda", "Copal", "Metate"
+    - ✗ Bad: "Hacienda system in New Spain" (too specific - use "Hacienda"), "Traditional grinding tools" (too generic)
+
+  - **For locations:** Use the actual Wikipedia article title
+    - ✓ Good: "Mexico City Metropolitan Cathedral", "Zócalo"
+    - ✗ Bad: "Cathedral" (too vague), "The main plaza" (not an article title)
+
+  - **When in doubt:** Use the SHORTEST viable term. "Hacienda" not "Hacienda system". "Converso" not "Converso in New Spain".
 - "demographics": **REQUIRED for NPCs and patients** - Provides portrait matching data
   - "gender": Physical presentation (male, female, or unknown if ambiguous/group)
   - "age": Apparent age category (child <12, youth 12-20, adult 20-40, middle-aged 40-60, elderly 60+)
@@ -284,14 +321,16 @@ List 2-3 most important interactive elements in "entities" array.
   - **Omit demographics for animals, items, and locations**
 
 **Examples:**
-- Named NPC: \`{ "text": "Señor Benavides", "entityType": "npc", "tier": "recurring", "occupation": "herb merchant", "wikipediaQuery": "Herbalism in colonial Mexico", "demographics": { "gender": "male", "age": "middle-aged", "casta": "español", "class": "middling" } }\`
-- Unnamed character: \`{ "text": "a weathered beggar", "entityType": "npc", "tier": "background", "description": "An elderly Indigenous man in tattered clothes", "wikipediaQuery": "Poverty in colonial Mexico", "demographics": { "gender": "male", "age": "elderly", "casta": "indígena", "class": "poor" } }\`
-- Patient: \`{ "text": "Doña Mercedes", "entityType": "patient", "tier": "recurring", "description": "A wealthy criolla woman with fever", "wikipediaQuery": "Criollo people", "demographics": { "gender": "female", "age": "adult", "casta": "criollo", "class": "elite" } }\`
-- Item: \`{ "text": "Sal Ammoniac", "entityType": "item", "tier": "background", "description": "A crystalline salt", "wikipediaQuery": null }\`
-- Location: \`{ "text": "the Cathedral", "entityType": "location", "tier": "recurring", "description": "The grand Metropolitan Cathedral", "wikipediaQuery": "Mexico City Metropolitan Cathedral" }\`
+- Named NPC: \`{ "text": "Señor Benavides", "entityType": "npc", "tier": "recurring", "occupation": "herb merchant", "wikipediaQuery": "Herbalism", "demographics": { "gender": "male", "age": "middle-aged", "casta": "español", "class": "middling" } }\`
+- Unnamed character: \`{ "text": "a weathered beggar", "entityType": "npc", "tier": "background", "description": "An elderly Indigenous man in tattered clothes", "wikipediaQuery": null, "demographics": { "gender": "male", "age": "elderly", "casta": "indígena", "class": "poor" } }\`
+- Patient: \`{ "text": "Doña Mercedes", "entityType": "patient", "tier": "recurring", "description": "A wealthy criolla woman with fever", "wikipediaQuery": null, "demographics": { "gender": "female", "age": "adult", "casta": "criollo", "class": "elite" } }\`
+- Item: \`{ "text": "molcajete", "entityType": "item", "tier": "background", "description": "A stone mortar and pestle", "wikipediaQuery": null }\`
+- Location: \`{ "text": "the Cathedral", "entityType": "location", "tier": "recurring", "description": "The grand Metropolitan Cathedral", "wikipediaQuery": null }\`
+
+**Remember:** Only ONE entity should have a non-null wikipediaQuery per turn. Choose the most educationally valuable term.
 
 ### Writing Style:
-${core.tone || 'Clear, concise prose. No purple language. 1-3 paragraphs max.'}
+${core.tone || 'Clear, concise prose. No purple language. Interesting details, historically vivid touches. 1-3 paragraphs max.'}
 
 ${mechanics.commands ? `\n### Commands Available:\n${mechanics.commands}` : ''}
 
@@ -302,7 +341,6 @@ ${historical.social ? `\n${historical.social}` : ''}
 ${narrative.pacing ? `\n### Pacing:\n${narrative.pacing}` : ''}
 ${narrative.events ? `\n### Events:\n${narrative.events}` : ''}
 ${narrative.npcIntroduction ? `\n### NPC Introduction:\n${narrative.npcIntroduction}` : ''}
-${narrative.npcPresence ? `\n${narrative.npcPresence}` : ''}
 
 **Focus only on narrative.** Another agent handles game state, inventory, and journal entries.
 
@@ -319,12 +357,19 @@ ${mapContext}`;
  * @returns {string} Formatted history string
  */
 function buildConversationHistory(conversationHistory, journal = [], currentTurn = 0) {
+  // Validate inputs
+  if (!Array.isArray(journal)) {
+    console.warn('[buildConversationHistory] journal is not an array:', typeof journal);
+    journal = [];
+  }
+
   // DEBUG: Log what we received
   console.log('[buildConversationHistory] Received:', {
     historyLength: conversationHistory?.length,
     journalLength: journal?.length,
     currentTurn,
-    historyType: Array.isArray(conversationHistory) ? 'array' : typeof conversationHistory
+    historyType: Array.isArray(conversationHistory) ? 'array' : typeof conversationHistory,
+    journalType: Array.isArray(journal) ? 'array' : typeof journal
   });
 
   // Log first few messages to see structure
@@ -333,6 +378,15 @@ function buildConversationHistory(conversationHistory, journal = [], currentTurn
       msg0: conversationHistory[0],
       msg1: conversationHistory[1]
     });
+    console.log(`[buildConversationHistory] Total messages: ${conversationHistory.length}`);
+
+    // Log last few messages for debugging
+    const lastFew = conversationHistory.slice(-3);
+    console.log('[buildConversationHistory] Last 3 messages:', lastFew.map(msg => ({
+      role: msg?.role,
+      contentPreview: msg?.content ? msg.content.substring(0, 50) : 'NO CONTENT',
+      hasContent: !!msg?.content
+    })));
   }
 
   if (!conversationHistory || conversationHistory.length === 0) {
@@ -350,7 +404,8 @@ function buildConversationHistory(conversationHistory, journal = [], currentTurn
     const userMsg = filteredHistory[i];
     const assistantMsg = filteredHistory[i + 1];
 
-    if (userMsg?.role === 'user' && assistantMsg?.role === 'assistant') {
+    if (userMsg?.role === 'user' && assistantMsg?.role === 'assistant' &&
+        userMsg?.content && assistantMsg?.content) {
       pairs.push({
         user: userMsg.content,
         assistant: assistantMsg.content,
@@ -396,15 +451,19 @@ function buildConversationHistory(conversationHistory, journal = [], currentTurn
   if (recentFive.length > 0) {
     history.push('### Recent Conversation:');
     recentFive.forEach(pair => {
-      history.push(`Player: ${pair.user}`);
-      history.push(`Narrator: ${pair.assistant}`);
+      if (pair.user && pair.assistant) {
+        history.push(`Player: ${pair.user}`);
+        history.push(`Narrator: ${pair.assistant}`);
+      }
     });
   }
 
-  // Log compression stats
-  const uncompressedTokens = recentPairs.reduce((sum, p) =>
-    sum + (p.user.length + p.assistant.length) / 4, 0
-  );
+  // Log compression stats (with safety checks for undefined/null)
+  const uncompressedTokens = recentPairs.reduce((sum, p) => {
+    const userLen = (p.user && typeof p.user === 'string') ? p.user.length : 0;
+    const assistantLen = (p.assistant && typeof p.assistant === 'string') ? p.assistant.length : 0;
+    return sum + (userLen + assistantLen) / 4;
+  }, 0);
   const compressedTokens = history.join('\n').length / 4;
   const savedTokens = uncompressedTokens - compressedTokens;
   const journalUsed = oldTurns.length > 0 && journal.length > 0 ? Math.min(oldTurns.length, journal.length) : 0;
@@ -429,6 +488,9 @@ function buildConversationHistory(conversationHistory, journal = [], currentTurn
  * @param {string|null} params.currentMapId - Current map identifier
  * @param {Object|null} params.playerSkills - Player's skills from useSkills hook
  * @param {Array} params.journal - Journal entries for history compression
+ * @param {string|null} params.recentPortrait - Portrait file from previous turn (for consistency)
+ * @param {boolean} params.isContinuation - Flag if conversation is continuing from previous turn
+ * @param {string|null} params.continuationNPC - Name of NPC from previous turn (if continuing)
  * @returns {Promise<Object>} Narrative response
  */
 export async function generateNarrative({
@@ -445,7 +507,10 @@ export async function generateNarrative({
   currentMapId = null,
   reputation = null,
   playerSkills = null,
-  journal = []
+  journal = [],
+  recentPortrait = null,
+  isContinuation = false,
+  continuationNPC = null
 }) {
   try {
     // Load scenario
@@ -475,6 +540,38 @@ export async function generateNarrative({
     // Build skills context
     const skillsContext = playerSkills ? buildSkillsContext(playerSkills) : '';
 
+    // PHASE 2: Build portrait continuity context
+    let recentPortraitContext = '';
+    if (recentPortrait && conversationHistory.length > 2) {
+      recentPortraitContext = `
+**IMPORTANT - Portrait Continuity:**
+The NPC in the previous turn was displayed with portrait: ${recentPortrait}
+
+If the SAME PERSON is still present in this scene, you MUST use: ${recentPortrait}
+Only change the portrait if this is a DIFFERENT person (new arrival, different character).
+`;
+    }
+
+    // PHASE 3: Build conversation continuation context
+    let continuationContext = '';
+    if (isContinuation && continuationNPC) {
+      continuationContext = `
+**CRITICAL - Conversation Continuation:**
+${continuationNPC} is STILL PRESENT from the previous turn.
+The player is continuing their conversation with them.
+
+DO NOT:
+- Create a new NPC identity
+- Change their name or description
+- Introduce someone new unless the player explicitly mentions another person
+
+DO:
+- Use the EXISTING name: "${continuationNPC}"
+- Continue the ongoing conversation naturally
+- Maintain identity consistency
+`;
+    }
+
     // Build conversation history (5 full turns + 10 journal entries)
     const recentHistory = buildConversationHistory(conversationHistory, journal, turnNumber);
 
@@ -485,6 +582,8 @@ Recent Conversation:
 ${recentHistory}
 
 ${entityContext ? `\n${entityContext}\n` : ''}
+${recentPortraitContext}
+${continuationContext}
 ${reputationContext}
 
 ${skillsContext ? `\n${skillsContext}\n` : ''}
@@ -528,17 +627,38 @@ Generate narrative response. Remember: JSON format, concise, historically accura
 
     const narrativeData = JSON.parse(cleanedResponse);
 
-    // Debug: Log the showPortraitFor and requestNewPatient values
+    // Debug: Log the portrait and patient system values
     console.log('[NarrativeAgent] LLM returned showPortraitFor:', narrativeData.showPortraitFor);
+    console.log('[NarrativeAgent] LLM returned primaryPortrait:', narrativeData.primaryPortrait);
+    console.log('[NarrativeAgent] LLM returned primaryNPC:', narrativeData.primaryNPC ? narrativeData.primaryNPC.name : 'null');
     console.log('[NarrativeAgent] LLM returned requestNewPatient:', narrativeData.requestNewPatient);
+
+    // PHASE 2 ENFORCEMENT: Override LLM portrait choice during conversation continuation
+    // This ensures portrait consistency even if LLM ignores prompt instructions
+    if (isContinuation && recentPortrait) {
+      if (narrativeData.primaryPortrait && narrativeData.primaryPortrait !== recentPortrait) {
+        console.log(`[NarrativeAgent] ⚠️ PORTRAIT CONSISTENCY ENFORCEMENT: LLM tried to change portrait from ${recentPortrait} to ${narrativeData.primaryPortrait} during conversation continuation. Overriding to maintain consistency.`);
+        narrativeData.primaryPortrait = recentPortrait;
+      } else if (!narrativeData.primaryPortrait) {
+        console.log(`[NarrativeAgent] 🔧 PORTRAIT CONSISTENCY ENFORCEMENT: LLM didn't provide portrait during continuation. Using previous: ${recentPortrait}`);
+        narrativeData.primaryPortrait = recentPortrait;
+      } else {
+        console.log(`[NarrativeAgent] ✓ PORTRAIT CONSISTENCY: LLM correctly maintained portrait: ${recentPortrait}`);
+      }
+    }
 
     return {
       success: true,
       narrative: narrativeData.narrative || '',
+      responseType: narrativeData.responseType || 'narration', // PHASE 3: Response mode (dialogue/movement/narration)
+      dialogue: narrativeData.dialogue || null, // PHASE 3: Pure NPC speech for dialogue mode
+      npcSpeaker: narrativeData.npcSpeaker || null, // PHASE 3: NPC name for dialogue mode
       npcDialogue: narrativeData.npcDialogue || null,
       sceneDescription: narrativeData.sceneDescription || '',
       suggestedCommands: narrativeData.suggestedCommands || [],
-      showPortraitFor: narrativeData.showPortraitFor || null, // LLM portrait hint
+      showPortraitFor: narrativeData.showPortraitFor || null, // LLM portrait hint (old system)
+      primaryPortrait: narrativeData.primaryPortrait || null, // PHASE 2: Direct portrait filename
+      primaryNPC: narrativeData.primaryNPC || null, // PHASE 2: Complete NPC profile
       requestNewPatient: narrativeData.requestNewPatient || false, // LLM controls patient flow
       patientContext: narrativeData.patientContext || null, // Reason for patient arrival
       entities: narrativeData.entities || [] // Entity list from LLM

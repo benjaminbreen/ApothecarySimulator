@@ -113,6 +113,24 @@ export function PatientViewTab({
       addJournalEntry(`🩺 Diagnosis for ${patient.name}:\n\n${diagnosis.diagnosis}\n\nEvidence:\n${evidenceText}`);
     }
 
+    // Add to conversation history (so LLM knows about the diagnosis)
+    if (setConversationHistory) {
+      const diagnosisSummary = `Maria diagnosed ${patient.name} with: ${diagnosis.diagnosis}`;
+      const evidenceSummary = diagnosis.evidence.join('; ');
+
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: `[DIAGNOSIS SUBMITTED] Based on examination, diagnose ${patient.name}` },
+        { role: 'assistant', content: diagnosisSummary },
+        { role: 'system', content: `*[MEDICAL DIAGNOSIS] Diagnosis: ${diagnosis.diagnosis}. Evidence: ${evidenceSummary}*` }
+      ]);
+    }
+
+    // Update history output for narration panel
+    if (setHistoryOutput) {
+      setHistoryOutput(`You have diagnosed ${patient.name} with **${diagnosis.diagnosis}**. Now you may offer a prescription.`);
+    }
+
     // Return to examine mode to show the prescribe option
     setViewMode('examine');
   };

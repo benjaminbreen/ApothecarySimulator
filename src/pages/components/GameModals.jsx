@@ -12,6 +12,7 @@ import ReputationModal from '../../components/ReputationModal';
 import SkillsModal from '../../components/SkillsModal';
 import PrescribePopup from '../../features/medical/components/PrescribePopup.jsx';
 import NPCPatientModal from '../../features/medical/components/NPCPatientModal';
+import NPCModal from '../../features/modals/NPCModal';
 import Diagnose from '../../features/medical/components/Diagnose';
 import Buy from '../../features/commerce/components/Buy';
 import TradeModal from '../../features/commerce/components/TradeModal';
@@ -47,6 +48,7 @@ export function GameModals({
   isJournalOpen,
   isAboutOpen,
   showPatientModal,
+  showNPCModal,
   showItemModal,
   showEquipmentModal,
   showReputationModal,
@@ -68,6 +70,7 @@ export function GameModals({
 
   // Modal data
   selectedPatient,
+  selectedNPC,
   selectedItem,
   selectedPDF,
   selectedCitation,
@@ -89,6 +92,7 @@ export function GameModals({
   skillEffects,
   transactionManager,
   TRANSACTION_CATEGORIES,
+  playerPosition,
 
   // Toggle/close handlers
   toggleMixingPopup,
@@ -104,6 +108,8 @@ export function GameModals({
   toggleAbout,
   setShowPatientModal,
   setSelectedPatient,
+  setShowNPCModal,
+  setSelectedNPC,
   setShowItemModal,
   setSelectedItem,
   setShowEquipmentModal,
@@ -401,6 +407,16 @@ export function GameModals({
         }}
       />
 
+      {/* NPC Modal (for non-patient NPCs) */}
+      <NPCModal
+        isOpen={showNPCModal}
+        onClose={() => {
+          setShowNPCModal(false);
+          setSelectedNPC(null);
+        }}
+        npc={selectedNPC}
+      />
+
       {/* Item Modal Enhanced */}
       <ItemModalEnhanced
         isOpen={showItemModal}
@@ -480,7 +496,7 @@ export function GameModals({
           scenario={scenarioLoader.getScenario(scenarioId || '1680-mexico-city')}
           currentLocation={gameState.location}
           npcs={recentNPCs}
-          playerPosition={null}
+          playerPosition={playerPosition}
           onLocationChange={(newLocation) => {
             // TODO: Wire up location change handler from GamePage
             console.log('Location changed via map modal:', newLocation);
@@ -575,9 +591,9 @@ export function GameModals({
               entry: `Performed phlebotomy on ${result.patientName}. Vein: ${result.vein}. Blood drawn: ${result.bloodAmount} fl oz. ${result.success ? 'Procedure successful.' : 'Complications occurred.'}`
             });
 
-            // Award XP for surgery
+            // Award XP for surgery (+1 XP)
             if (awardXP) {
-              awardXP(result.success ? 25 : 10, `surgery_bloodletting_${result.patientName}`);
+              awardXP(1, `surgery_bloodletting_${result.patientName}`);
             }
 
             // Award skill XP

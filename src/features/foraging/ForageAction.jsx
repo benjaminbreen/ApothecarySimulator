@@ -44,8 +44,8 @@ export default function ForageAction({
       setTimeout(() => {
         setShowResult(true);
 
-        // If found item, trigger completion callback
-        if (forageResult.foundItem && onForageComplete) {
+        // Always trigger completion callback (awards XP regardless of find)
+        if (onForageComplete) {
           onForageComplete(forageResult);
         }
       }, 300);
@@ -111,7 +111,7 @@ export default function ForageAction({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
         onClick={handleClose}
       >
         <motion.div
@@ -119,24 +119,28 @@ export default function ForageAction({
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="bg-gradient-to-br from-parchment-100 to-botanical-50 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden border-2 border-botanical-700/20"
+          className="relative bg-gradient-to-br from-emerald-50/95 via-green-50/95 to-lime-50/95 backdrop-blur-md rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden border-2 border-emerald-300/60"
+          style={{
+            backgroundImage: 'linear-gradient(to bottom right, rgba(236, 253, 245, 0.95), rgba(240, 253, 244, 0.95), rgba(247, 254, 231, 0.95))',
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-botanical-800 to-botanical-700 px-6 py-4 relative overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-700 via-green-700 to-emerald-600 px-6 py-4 relative overflow-hidden">
             <div className="absolute inset-0 bg-[url('/paper-texture.png')] opacity-10"></div>
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/10"></div>
             <div className="relative flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-cinzel font-bold text-botanical-50 mb-1">
-                  {getActionVerb()} for Items
+                <h2 className="text-2xl font-cinzel font-bold text-emerald-50 mb-1 drop-shadow-sm">
+                  🌿 {getActionVerb()} for Items
                 </h2>
-                <p className="text-sm text-botanical-200/90 font-crimson">
+                <p className="text-sm text-emerald-100/90 font-crimson">
                   {currentLocation}
                 </p>
               </div>
               <button
                 onClick={handleClose}
-                className="text-botanical-200 hover:text-white transition-colors p-2 hover:bg-black/20 rounded-lg"
+                className="text-emerald-100 hover:text-white transition-colors p-2 hover:bg-black/20 rounded-lg"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -154,21 +158,21 @@ export default function ForageAction({
                 className="space-y-6"
               >
                 {/* Location Description Card */}
-                <div className="bg-white/60 backdrop-blur-sm rounded-lg p-5 border border-botanical-200/50 shadow-sm">
+                <div className="bg-white/70 backdrop-blur-sm rounded-lg p-5 border border-emerald-200/60 shadow-lg shadow-emerald-100/50">
                   <div className="flex items-start gap-4">
-                    <div className="text-4xl">{locationType.icon}</div>
+                    <div className="text-4xl drop-shadow-sm">{locationType.icon}</div>
                     <div className="flex-1">
-                      <h3 className="font-cinzel font-bold text-botanical-900 text-lg mb-2">
+                      <h3 className="font-cinzel font-bold text-emerald-900 text-lg mb-2">
                         {locationType.name}
                       </h3>
-                      <p className="text-botanical-700 font-crimson text-sm leading-relaxed mb-3">
+                      <p className="text-emerald-800 font-crimson text-sm leading-relaxed mb-3">
                         {locationType.flavorText}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {locationType.tags?.map((tag, idx) => (
                           <span
                             key={idx}
-                            className="px-2 py-1 bg-botanical-100/80 text-botanical-700 text-xs rounded-full font-medium"
+                            className="px-2 py-1 bg-emerald-100/80 text-emerald-700 text-xs rounded-full font-medium border border-emerald-200/50"
                           >
                             {tag}
                           </span>
@@ -180,17 +184,17 @@ export default function ForageAction({
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-lg p-4 border border-blue-200/50">
-                    <div className="text-xs font-crimson text-blue-600 uppercase tracking-wide mb-1">
+                  <div className="bg-gradient-to-br from-emerald-50/80 to-green-100/60 backdrop-blur-sm rounded-lg p-4 border border-emerald-200/60 shadow-md">
+                    <div className="text-xs font-crimson text-emerald-700 uppercase tracking-wide mb-1">
                       Success Rate
                     </div>
-                    <div className="text-2xl font-cinzel font-bold text-blue-900">
+                    <div className="text-2xl font-cinzel font-bold text-emerald-900">
                       {Math.round(locationType.successRate * 100)}%
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-lg p-4 border border-amber-200/50">
-                    <div className="text-xs font-crimson text-amber-600 uppercase tracking-wide mb-1">
+                  <div className="bg-gradient-to-br from-amber-50/80 to-orange-100/60 backdrop-blur-sm rounded-lg p-4 border border-amber-200/60 shadow-md">
+                    <div className="text-xs font-crimson text-amber-700 uppercase tracking-wide mb-1">
                       Energy Cost
                     </div>
                     <div className="text-2xl font-cinzel font-bold text-amber-900">
@@ -198,18 +202,18 @@ export default function ForageAction({
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-lg p-4 border border-purple-200/50">
-                    <div className="text-xs font-crimson text-purple-600 uppercase tracking-wide mb-1">
+                  <div className="bg-gradient-to-br from-lime-50/80 to-green-100/60 backdrop-blur-sm rounded-lg p-4 border border-lime-200/60 shadow-md">
+                    <div className="text-xs font-crimson text-lime-700 uppercase tracking-wide mb-1">
                       Time Cost
                     </div>
-                    <div className="text-2xl font-cinzel font-bold text-purple-900">
+                    <div className="text-2xl font-cinzel font-bold text-lime-900">
                       {locationType.timeCost}m
                     </div>
                   </div>
                 </div>
 
                 {/* Current Energy */}
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4 border border-amber-300/50">
+                <div className="bg-gradient-to-r from-amber-50/80 to-orange-50/80 backdrop-blur-sm rounded-lg p-4 border border-amber-300/60 shadow-md">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-sm font-crimson text-amber-700 mb-1">Your Current Energy</div>
@@ -220,7 +224,7 @@ export default function ForageAction({
                     <div className="text-3xl">{gameState.energy < locationType.energyCost ? '⚠️' : '✅'}</div>
                   </div>
                   {gameState.energy < locationType.energyCost && (
-                    <div className="mt-3 text-sm font-crimson text-amber-800 bg-amber-100/50 rounded px-3 py-2">
+                    <div className="mt-3 text-sm font-crimson text-amber-800 bg-amber-100/60 backdrop-blur-sm rounded px-3 py-2 border border-amber-200/50">
                       ⚠️ Low energy! Consider using <span className="font-bold">#sleep</span> to rest, or <span className="font-bold">#eat</span> for a quick boost.
                     </div>
                   )}
@@ -234,12 +238,12 @@ export default function ForageAction({
                   whileTap={{ scale: gameState.energy >= locationType.energyCost ? 0.98 : 1 }}
                   className={`w-full py-4 px-6 rounded-lg font-cinzel font-bold text-lg transition-all duration-200 ${
                     gameState.energy >= locationType.energyCost
-                      ? 'bg-gradient-to-r from-botanical-600 to-botanical-700 hover:from-botanical-700 hover:to-botanical-800 text-white shadow-lg hover:shadow-xl'
+                      ? 'bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl'
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }`}
                 >
                   {gameState.energy >= locationType.energyCost
-                    ? `Begin ${getActionVerb()}ing`
+                    ? `🌿 Begin ${getActionVerb()}ing`
                     : 'Insufficient Energy'}
                 </motion.button>
               </motion.div>
@@ -266,10 +270,10 @@ export default function ForageAction({
                 >
                   🔍
                 </motion.div>
-                <h3 className="text-2xl font-cinzel font-bold text-botanical-800 mb-2">
+                <h3 className="text-2xl font-cinzel font-bold text-emerald-800 mb-2">
                   Searching{locationType.category === 'interior' ? ' carefully' : ' thoroughly'}...
                 </h3>
-                <p className="text-botanical-600 font-crimson text-center max-w-md">
+                <p className="text-emerald-700 font-crimson text-center max-w-md">
                   Maria {locationType.category === 'interior' ? 'rifles through drawers and searches corners' : 'examines the ground and nearby plants'},
                   looking for anything useful...
                 </p>
@@ -282,7 +286,7 @@ export default function ForageAction({
                   {[0, 1, 2].map((i) => (
                     <motion.div
                       key={i}
-                      className="w-3 h-3 bg-botanical-500 rounded-full"
+                      className="w-3 h-3 bg-emerald-500 rounded-full"
                       animate={{
                         scale: [1, 1.3, 1],
                         opacity: [0.5, 1, 0.5]
@@ -377,15 +381,15 @@ export default function ForageAction({
                     </div>
 
                     {/* Resource Summary */}
-                    <div className="bg-white/60 backdrop-blur-sm rounded-lg p-4 border border-botanical-200/50">
+                    <div className="bg-white/70 backdrop-blur-sm rounded-lg p-4 border border-emerald-200/60 shadow-md">
                       <div className="flex items-center justify-between text-sm font-crimson">
                         <div className="flex items-center gap-2">
                           <span className="text-amber-600">⚡</span>
-                          <span className="text-botanical-700">Energy used: <strong>{result.energyCost}</strong></span>
+                          <span className="text-emerald-800">Energy used: <strong>{result.energyCost}</strong></span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-purple-600">⏱️</span>
-                          <span className="text-botanical-700">Time passed: <strong>{result.timeCost} minutes</strong></span>
+                          <span className="text-lime-600">⏱️</span>
+                          <span className="text-emerald-800">Time passed: <strong>{result.timeCost} minutes</strong></span>
                         </div>
                       </div>
                     </div>
@@ -401,14 +405,14 @@ export default function ForageAction({
                     >
                       🤷‍♀️
                     </motion.div>
-                    <h3 className="text-2xl font-cinzel font-bold text-botanical-800 mb-2">
+                    <h3 className="text-2xl font-cinzel font-bold text-emerald-800 mb-2">
                       Nothing Found
                     </h3>
-                    <p className="text-botanical-600 font-crimson max-w-md mx-auto mb-6">
+                    <p className="text-emerald-700 font-crimson max-w-md mx-auto mb-6">
                       Despite your careful search, you find nothing of value this time. Perhaps try a different location, or return later.
                     </p>
-                    <div className="bg-botanical-50 rounded-lg p-4 border border-botanical-200/50 max-w-md mx-auto">
-                      <div className="flex items-center justify-between text-sm font-crimson text-botanical-700">
+                    <div className="bg-emerald-50/80 backdrop-blur-sm rounded-lg p-4 border border-emerald-200/60 shadow-md max-w-md mx-auto">
+                      <div className="flex items-center justify-between text-sm font-crimson text-emerald-800">
                         <div>⚡ Energy used: <strong>{result.energyCost}</strong></div>
                         <div>⏱️ Time passed: <strong>{result.timeCost} minutes</strong></div>
                       </div>
@@ -422,9 +426,9 @@ export default function ForageAction({
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.7 }}
                   onClick={handleClose}
-                  className="w-full py-3 px-6 bg-gradient-to-r from-botanical-600 to-botanical-700 hover:from-botanical-700 hover:to-botanical-800 text-white font-cinzel font-bold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
+                  className="w-full py-3 px-6 bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white font-cinzel font-bold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
                 >
-                  {result.foundItem ? 'Take Item & Continue' : 'Continue'}
+                  {result.foundItem ? '🌿 Take Item & Continue' : '🌿 Continue'}
                 </motion.button>
               </motion.div>
             )}

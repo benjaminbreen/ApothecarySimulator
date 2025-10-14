@@ -204,7 +204,7 @@ export default function ItemModal({ isOpen, onClose, item }) {
                   <h3 className="font-display text-lg font-bold text-ink-900 dark:text-amber-100 mb-3">Medicinal Effects</h3>
                   <ul className="space-y-2">
                     {adaptedItem.medicinal.effects.map((effect, idx) => (
-                      <li key={idx} className="flex items-start gap-2 text-sm font-serif text-ink-700 dark:text-stone-300">
+                      <li key={idx} className="flex items-start gap-2 text-md font-serif text-ink-700 dark:text-stone-300">
                         <span className="text-botanical-600 mt-1">✓</span>
                         <span className="capitalize">{effect}</span>
                       </li>
@@ -332,7 +332,7 @@ export default function ItemModal({ isOpen, onClose, item }) {
               {adaptedItem.provenance.tradeRoute && (
                 <section className="bg-parchment-50 rounded-xl p-4 border border-ink-200">
                   <h3 className="font-display text-lg font-bold text-ink-900 dark:text-amber-100 mb-3">Trade Route</h3>
-                  <p className="text-sm font-serif text-ink-700 leading-relaxed">
+                  <p className="text-md font-serif text-ink-700 leading-relaxed">
                     {adaptedItem.provenance.tradeRoute['1680-mexico-city'] || adaptedItem.provenance.tradeRoute.generic}
                   </p>
                 </section>

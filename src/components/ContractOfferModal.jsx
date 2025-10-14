@@ -36,37 +36,104 @@ function ContractOfferModal({
   const isTreatment = offer.type === 'treatment';
   const isSale = offer.type === 'sale';
 
+  // Extract demographics from description text
+  const extractDemographicsFromDescription = (description) => {
+    const lowerDesc = description.toLowerCase();
+
+    // Age detection
+    let age = 'adult';
+    if (lowerDesc.match(/child|boy|girl|infant|baby|toddler/)) age = 'child';
+    else if (lowerDesc.match(/youth|adolescent|teen/)) age = 'youth';
+    else if (lowerDesc.match(/elderly|aged|old/)) age = 'elderly';
+    else if (lowerDesc.match(/middle[-\s]aged/)) age = 'middle-aged';
+
+    // Extract specific age if mentioned
+    const ageMatch = lowerDesc.match(/(\d+)[-\s]?year|age\s+(\d+)|(\d+)\s+years?\s+old/);
+    if (ageMatch) {
+      const ageNum = parseInt(ageMatch[1] || ageMatch[2] || ageMatch[3]);
+      if (ageNum < 12) age = 'child';
+      else if (ageNum < 20) age = 'youth';
+      else if (ageNum < 40) age = 'adult';
+      else if (ageNum < 60) age = 'middle-aged';
+      else age = 'elderly';
+    }
+
+    // Gender detection
+    let gender = 'unknown';
+    if (lowerDesc.match(/\b(boy|man|male|he|his|him|son)\b/)) gender = 'male';
+    else if (lowerDesc.match(/\b(girl|woman|female|she|her|daughter)\b/)) gender = 'female';
+
+    return { age, gender };
+  };
+
   // Handle treatment contract acceptance
   const handleAcceptTreatment = () => {
     // Find or create the patient entity
     let patientEntity = entityManager.getByName(offer.patientName);
 
     if (!patientEntity) {
-      // Create patient entity if it doesn't exist
-      patientEntity = {
-        id: `patient_${offer.patientName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
-        name: offer.patientName,
-        entityType: 'patient',
-        type: 'patient',
-        description: offer.patientDescription || 'Patient requiring treatment',
-        symptoms: extractSymptoms(offer.patientDescription),
-        social: {
-          class: 'unknown',
-          casta: 'unknown'
-        },
-        appearance: {
-          gender: 'unknown',
-          age: 'adult'
-        },
-        metadata: {
-          representedBy: offer.offeredBy,
-          paymentAgreed: offer.paymentOffered
-        }
-      };
+      // Try to find a patient entity registered by NarrativeAgent that matches the description
+      const allEntities = entityManager.getAllEntities();
+      const potentialPatient = allEntities.find(e =>
+        e.entityType === 'patient' &&
+        e.description?.toLowerCase().includes(offer.patientDescription?.toLowerCase().split(' ').slice(0, 3).join(' '))
+      );
+
+      if (potentialPatient) {
+        console.log('[ContractModal] Found matching patient entity from LLM:', potentialPatient.name);
+        // Use the LLM-registered entity's demographics
+        patientEntity = {
+          id: `patient_${offer.patientName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
+          name: offer.patientName,
+          entityType: 'patient',
+          type: 'patient',
+          description: offer.patientDescription || potentialPatient.description || 'Patient requiring treatment',
+          symptoms: extractSymptoms(offer.patientDescription),
+          social: potentialPatient.social || {
+            class: 'unknown',
+            casta: 'unknown'
+          },
+          appearance: potentialPatient.appearance || {
+            gender: 'unknown',
+            age: 'adult'
+          },
+          demographics: potentialPatient.demographics, // LLM demographics
+          metadata: {
+            representedBy: offer.offeredBy,
+            paymentAgreed: offer.paymentOffered
+          }
+        };
+      } else {
+        // Extract demographics from description
+        const extractedDemographics = extractDemographicsFromDescription(offer.patientDescription || '');
+
+        // Create patient entity with extracted demographics
+        patientEntity = {
+          id: `patient_${offer.patientName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
+          name: offer.patientName,
+          entityType: 'patient',
+          type: 'patient',
+          description: offer.patientDescription || 'Patient requiring treatment',
+          symptoms: extractSymptoms(offer.patientDescription),
+          social: {
+            class: 'unknown',
+            casta: 'unknown'
+          },
+          appearance: {
+            gender: extractedDemographics.gender,
+            age: extractedDemographics.age
+          },
+          metadata: {
+            representedBy: offer.offeredBy,
+            paymentAgreed: offer.paymentOffered
+          }
+        };
+        console.log('[ContractModal] Created patient entity with extracted demographics:', extractedDemographics);
+      }
 
       // Register with EntityManager
       patientEntity = entityManager.register(patientEntity);
-      console.log('[ContractModal] Created patient entity:', patientEntity.name);
+      console.log('[ContractModal] Registered patient entity:', patientEntity.name);
     }
 
     onAcceptTreatment(patientEntity, offer.paymentOffered);
@@ -139,7 +206,14 @@ ${offer.offeredByDescription}
         { type: 'json_object' }
       );
 
-      const result = JSON.parse(response.choices[0].message.content);
+      // Clean markdown-wrapped JSON (LLM sometimes returns ```json ... ```)
+      const rawContent = response.choices[0].message.content;
+      const cleanedContent = rawContent
+        .replace(/^```json\s*\n?/i, '') // Remove opening ```json
+        .replace(/\n?```\s*$/i, '')      // Remove closing ```
+        .trim();
+
+      const result = JSON.parse(cleanedContent);
       setNegotiationResponse(result);
 
       // If accepted, automatically proceed

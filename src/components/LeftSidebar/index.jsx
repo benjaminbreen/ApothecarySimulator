@@ -34,7 +34,9 @@ export function LeftSidebar({
   onItemDropOnPlayer = null, // New prop for drag-drop
   statusPanelTab = undefined, // External control of status panel tab
   onStatusPanelTabChange = undefined, // Callback when tab changes
-  inventory = [] // Inventory array from gameState
+  inventory = [], // Inventory array from gameState
+  xpGain = null, // XP gain notification data
+  xpGainKey = 0 // Key to force re-render of XP animation
 }) {
   const [showCharacterModal, setShowCharacterModal] = useState(false);
 
@@ -67,6 +69,8 @@ export function LeftSidebar({
         activeTab={statusPanelTab}
         onTabChange={onStatusPanelTabChange}
         inventory={inventory}
+        xpGain={xpGain}
+        xpGainKey={xpGainKey}
       />
 
       {/* Player Character Modal */}

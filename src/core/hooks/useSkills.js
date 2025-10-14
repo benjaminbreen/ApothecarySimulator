@@ -2,6 +2,11 @@
  * useSkills Hook
  *
  * React hook for managing player skills, XP, and leveling
+ *
+ * @param {Object} characterData - Character data from scenario (optional)
+ * @param {number} characterData.level - Starting level
+ * @param {number} characterData.startingXP - Starting XP (optional, defaults to random 5-15)
+ * @param {Function} onSkillLevelUp - Callback when skill levels up (optional)
  */
 
 import { useState, useCallback } from 'react';
@@ -14,11 +19,14 @@ import {
   getActiveSkillEffects
 } from '../systems/skillsSystem';
 
-export function useSkills(onSkillLevelUp = null) {
+export function useSkills(characterData = null, onSkillLevelUp = null) {
   // Initialize skills fresh every page load (8 random skill points distributed differently each time)
   const [playerSkills, setPlayerSkills] = useState(() => {
-    const newSkills = initializePlayerSkills();
+    const startLevel = characterData?.level || 1;
+    const startXP = null; // Always random 5-15 for variety
+    const newSkills = initializePlayerSkills(startLevel, startXP);
     console.log('[useSkills] Initialized new skills:', Object.keys(newSkills.knownSkills).length, 'skills');
+    console.log('[useSkills] Starting level:', startLevel, 'Starting XP:', newSkills.xp);
     return newSkills;
   });
 

@@ -154,7 +154,7 @@ export function ActionPanel({
   const [hotkeySlots, setHotkeySlots] = useState({
     1: 'forage',
     2: 'read',
-    3: 'observe'
+    3: 'mix'
   });
 
   // Temporary state for settings (before saving)
@@ -199,6 +199,15 @@ export function ActionPanel({
   useEffect(() => {
     const handleKeyPress = (e) => {
       if (isSettingsOpen) return;
+
+      // Don't trigger hotkeys if user is typing in a text input or textarea
+      const activeElement = document.activeElement;
+      const isTyping = activeElement &&
+        (activeElement.tagName === 'INPUT' ||
+         activeElement.tagName === 'TEXTAREA' ||
+         activeElement.isContentEditable);
+
+      if (isTyping) return;
 
       if (e.key === '1' || e.key === '2' || e.key === '3') {
         const slot = parseInt(e.key);

@@ -387,26 +387,10 @@ if (currentPatient) {
 
     console.log("Current Patient Details:", currentPatient);
 
-    // Award XP based on prescription outcome
+    // Award XP for prescription (+1 XP per prescription)
     if (typeof awardXP === 'function') {
-      // Parse journal summary to determine outcome
-      let xpAmount = 15; // Default for neutral outcomes
-
-      if (journalSummary.includes('✨') || journalSummary.includes('💸') || journalSummary.includes('😇')) {
-        xpAmount = 25; // Excellent outcome
-      } else if (journalSummary.includes('💀') || journalSummary.includes('😡') || journalSummary.includes('🩸')) {
-        xpAmount = 5; // Poor outcome
-      }
-
-      // Apply Poisoner L10/L30 ability: Poison Knowledge (bonus XP for toxic substances)
-      const toxicBonus = getToxicXPBonus(gameState.chosenProfession, gameState.playerLevel, item.name);
-      if (toxicBonus > 1.0) {
-        xpAmount = Math.floor(xpAmount * toxicBonus);
-        console.log(`[Poisoner] Toxic substance bonus applied: ${toxicBonus}x XP`);
-      }
-
-      awardXP(xpAmount, `patient_healing_${npcName}`);
-      console.log(`[XP] Awarded ${xpAmount} XP for prescription to ${npcName}`);
+      awardXP(1, `prescription_${npcName}`);
+      console.log(`[XP] Awarded 1 XP for prescription to ${npcName}`);
     }
 
     // Award pharmacy skill XP

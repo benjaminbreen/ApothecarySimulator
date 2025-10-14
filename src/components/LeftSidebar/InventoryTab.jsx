@@ -66,7 +66,7 @@ export function InventoryTab({ onItemClick, inventory = [] }) {
     if (item.entityType === 'clothing' || item.type === 'clothing') return true;
 
     // Check for clothing-related keywords in name
-    const clothingKeywords = ['bodice', 'coat', 'dress', 'gown', 'shirt', 'blouse', 'skirt', 'pants', 'trousers', 'hat', 'cap', 'shoes', 'boots', 'cloak', 'robe', 'tunic', 'vest', 'jacket', 'mantle', 'chemise', 'doublet', 'breeches', 'stockings', 'gloves'];
+    const clothingKeywords = ['bodice', 'coat', 'dress', 'rosary', 'pin', 'shawl', 'gown', 'shirt', 'blouse', 'necklace', 'skirt', 'pants', 'trousers', 'hat', 'cap', 'shoes', 'boots', 'cloak', 'robe', 'tunic', 'vest', 'jacket', 'mantle', 'chemise', 'doublet', 'breeches', 'stockings', 'gloves'];
     const nameLower = (item.name || '').toLowerCase();
     return clothingKeywords.some(keyword => nameLower.includes(keyword));
   };
@@ -231,7 +231,7 @@ export function InventoryTab({ onItemClick, inventory = [] }) {
       {/* Grid View */}
       {viewMode === 'grid' && (
         <div className="grid grid-cols-3 gap-1.5">
-          {medicineItems.slice(0, 12).map((item, idx) => {
+          {medicineItems.slice(0, 20).map((item, idx) => {
         const iconPath = loadedIcons[item.name];
         const hasIcon = iconPath !== null && iconPath !== undefined;
 

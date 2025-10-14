@@ -4,8 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
 import HomePage from './pages/HomePage';
 import GamePage from './pages/GamePage';
-import ItemModalPreview from './pages/ItemModalPreview';
-import PortraitTest from './pages/PortraitTest';
+
 import ErrorBoundary from './components/ErrorBoundary';
 import reportWebVitals from './reportWebVitals';
 
@@ -17,8 +16,7 @@ root.render(
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/play/:scenarioId" element={<GamePage />} />
-          <Route path="/item-modal-preview" element={<ItemModalPreview />} />
-          <Route path="/portrait-test" element={<PortraitTest />} />
+
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>

@@ -230,7 +230,9 @@ export function selectContextAwareEntity(context) {
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);
 
   // Intent detection: Does player action suggest they want to encounter someone?
-  const encounterKeywords = /answer|open|door|greet|who|visit|see|meet|talk|speak|ask|approach|enter|call|invite|welcome|help|knock/i;
+  // Note: Conversation continuation detection is handled by AgentOrchestrator (after entity selection)
+  // This section only affects NEW encounter probability, not continuation logic
+  const encounterKeywords = /answer|open|door|greet|who|visit|see|meet|talk|speak|ask|approach|enter|call|invite|welcome|knock/i;
   const avoidanceKeywords = /sleep|ignore|hide|leave|go away|dismiss|close|lock|refuse/i;
 
   const actionIndicatesEncounter = encounterKeywords.test(playerAction);
@@ -258,41 +260,26 @@ export function selectContextAwareEntity(context) {
     if (random <= 0) {
       const selectedEntity = filteredEntities[i];
 
-      // Check if this is a template entity that needs name generation
+      // PHASE 2 CHANGE: No longer generating procedural names
+      // Templates are just demographic hints for the LLM
+      // LLM creates actual names via primaryNPC field
       if (isTemplateName(selectedEntity.name)) {
-        console.log(`[EntityAgent] Selected template entity: ${selectedEntity.name}`);
-        console.log(`[EntityAgent] Generating procedural name...`);
+        console.log(`[EntityAgent] Selected template entity: ${selectedEntity.name} [this is a generic class descriptor, invent a contextually appropriate full name that fits this type of person when adding to simulation]`);
+        console.log(`[EntityAgent] Template will be passed to LLM as demographic hint (no procedural name generated)`);
 
-        // Generate historical name for template
-        const nameData = generateNameForTemplate(selectedEntity);
-
-        // Create enriched entity with generated name
-        const enrichedEntity = {
-          ...selectedEntity,
-          name: nameData.fullName,
-          firstName: nameData.firstName,
-          surname: nameData.surname,
-          archetype: nameData.archetype,
-          isTemplate: false, // Mark as no longer a template
-          appearance: {
-            ...selectedEntity.appearance,
-            gender: nameData.gender
-          },
-          social: {
-            ...selectedEntity.social,
-            occupation: nameData.archetype,
-            casta: nameData.casta
-          },
-          // Generate unique ID for this procedurally named entity
-          id: `${selectedEntity.entityType}_${nameData.firstName.toLowerCase()}_${nameData.surname?.toLowerCase() || 'unnamed'}_${Date.now()}`
-        };
-
-        // Register this new entity with EntityManager
-        const registered = entityManager.register(enrichedEntity);
-
-        console.log(`[EntityAgent] ✓ Generated name: ${registered.name}`);
-        return registered;
+        // Return template as-is, LLM will create the actual NPC via primaryNPC
+        return selectedEntity;
       }
+
+      // LEGACY CODE (DEPRECATED): Old procedural name generation disabled for Phase 2
+      // if (isTemplateName(selectedEntity.name)) {
+      //   console.log(`[EntityAgent] Generating procedural name...`);
+      //   const nameData = generateNameForTemplate(selectedEntity);
+      //   const enrichedEntity = { ...selectedEntity, name: nameData.fullName, ... };
+      //   const registered = entityManager.register(enrichedEntity);
+      //   console.log(`[EntityAgent] ✓ Generated name: ${registered.name}`);
+      //   return registered;
+      // }
 
       return selectedEntity;
     }

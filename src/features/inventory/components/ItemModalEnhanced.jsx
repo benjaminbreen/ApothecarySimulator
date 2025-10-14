@@ -201,7 +201,7 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                 </div>
 
                 {/* Title & Metadata */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 ">
                   {/* Name */}
                   <h1
                     className="text-5xl font-bold mb-3 leading-tight font-serif text-ink-900"
@@ -210,8 +210,21 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                       lineHeight: '1.1'
                     }}
                   >
-                    {item.name}
+                    {item.name}  {item.quantity && (
+                      <span
+                        className="px-2 py-2 rounded-lg text-sm mb-3 font-bold font-sans"
+                        style={{
+                          background: 'rgba(245, 238, 223, 0.7)',
+                          color: '#5c4a3a',
+                          border: '1px solid rgba(209, 213, 219, 0.3)'
+                        }}
+                      >
+                        In Stock: {item.quantity}
+                      </span>
+                    )}
                   </h1>
+
+
 
                   {/* Latin & Spanish */}
                   <div className="space-y-1 mb-4">
@@ -261,26 +274,15 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                     >
                       {item.price} Reales
                     </span>
-                    {item.quantity && (
-                      <span
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold font-sans"
-                        style={{
-                          background: 'rgba(245, 238, 223, 0.7)',
-                          color: '#5c4a3a',
-                          border: '1px solid rgba(209, 213, 219, 0.3)'
-                        }}
-                      >
-                        In Stock: {item.quantity}
-                      </span>
-                    )}
+                   
                   </div>
 
                   {/* Description */}
                   <p
                     className="text-base leading-relaxed font-serif text-ink-900"
                     style={{
-                      lineHeight: '1.7',
-                      fontSize: '1.0625rem'
+                      lineHeight: '1.6',
+                      fontSize: '1.35rem'
                     }}
                   >
                     {item.description}
@@ -295,7 +297,7 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                 {item.humoralQualities && (
                   <InfoCard
                     title="Humoral Qualities"
-                    icon="⚖️"
+              
                     color="#3b82f6"
                     expanded={expandedSections.overview_humoral}
                     onToggle={() => toggleSection('overview_humoral')}
@@ -315,12 +317,12 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                 {item.medicinalEffects && (
                   <InfoCard
                     title="Medicinal Effects"
-                    icon="💊"
+                    
                     color="#10b981"
                     expanded={expandedSections.overview_effects}
                     onToggle={() => toggleSection('overview_effects')}
                   >
-                    <p className="text-sm leading-relaxed font-serif text-ink-900" style={{ lineHeight: '1.7', fontSize: '0.9375rem' }}>
+                    <p className="text-lg leading-relaxed font-serif text-ink-900" style={{ lineHeight: '1.7' }}>
                       {item.medicinalEffects}
                     </p>
                   </InfoCard>
@@ -330,19 +332,19 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
               {/* Provenance & Trade */}
               <InfoCard
                 title="Provenance & Trade Routes"
-                icon="🌍"
+
                 color="#8b5cf6"
                 expanded={expandedSections.overview_provenance}
                 onToggle={() => toggleSection('overview_provenance')}
               >
-                <p className="text-sm leading-relaxed mb-3 font-sans text-ink-900" style={{ lineHeight: '1.7' }}>
+                <p className="text-md leading-relaxed mb-3 font-sans text-ink-900" style={{ lineHeight: '1.7' }}>
                   {expandedSections.overview_provenance
                     ? "In 1680 New Spain, this substance arrived through complex global trade networks. Most exotic materia medica entered Mexico City via the Manila Galleon trade route from the Philippines, or through Spanish shipping from Seville and Cádiz. Local apothecaries also sourced indigenous plants and minerals from regional markets, creating a unique pharmacopeia blending European, Asian, African, and Mesoamerican medical traditions."
                     : "In 1680 New Spain, this substance arrived through complex global trade networks. Most exotic materia medica entered Mexico City via the Manila Galleon trade route..."}
                 </p>
                 {expandedSections.overview_provenance && (
                   <div
-                    className="rounded-lg p-3 text-xs font-sans text-ink-800"
+                    className="rounded-lg p-3 text-lg font-sans text-ink-800"
                     style={{
                       background: 'rgba(139, 92, 46, 0.08)',
                       border: '1px solid rgba(139, 92, 46, 0.15)',
@@ -705,9 +707,9 @@ function InfoCard({ title, icon, color, children, expanded, onToggle }) {
         }}
       >
         <div className="flex items-center gap-2.5">
-          <span className="text-lg">{icon}</span>
+          
           <h3
-            className="text-sm font-bold uppercase tracking-wider font-sans"
+            className="text-sm font-semibold uppercase tracking-widest font-sans"
             style={{
               color: color,
               letterSpacing: '0.08em'

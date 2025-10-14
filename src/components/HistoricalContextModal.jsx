@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { createChatCompletion } from '../core/services/llmService';
 
 /**
@@ -16,35 +18,7 @@ const HistoricalContextModal = ({
   const [isLoading, setIsLoading] = useState(false);
   const [content, setContent] = useState('');
   const [error, setError] = useState(null);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [fullText, setFullText] = useState(''); // Store complete text for animation
   const isDark = document.documentElement.classList.contains('dark');
-
-  // Animate text reveal for streaming effect
-  useEffect(() => {
-    if (!fullText || mode !== 'fact-check') return;
-
-    console.log('[HistoricalContextModal] Starting text animation, length:', fullText.length);
-    setContent('');
-    setIsStreaming(true);
-
-    let currentIndex = 0;
-    const totalDuration = 2500; // 2.5 seconds total animation
-    const charsPerFrame = Math.max(1, Math.ceil(fullText.length / (totalDuration / 16))); // ~60fps
-
-    const animateText = () => {
-      if (currentIndex < fullText.length) {
-        currentIndex = Math.min(currentIndex + charsPerFrame, fullText.length);
-        setContent(fullText.substring(0, currentIndex));
-        requestAnimationFrame(animateText);
-      } else {
-        setIsStreaming(false); // Hide cursor when animation complete
-        console.log('[HistoricalContextModal] Text animation complete');
-      }
-    };
-
-    requestAnimationFrame(animateText);
-  }, [fullText, mode]);
 
   // Generate content based on mode when modal opens
   useEffect(() => {
@@ -55,25 +29,15 @@ const HistoricalContextModal = ({
       setIsLoading(true);
       setError(null);
       setContent(''); // Clear previous content
-      setFullText(''); // Clear full text
-      setIsStreaming(false);
 
       generateContent(mode, narrativeTurn, scenario)
         .then(finalContent => {
           console.log('[HistoricalContextModal] Generation complete, content length:', finalContent?.length);
-
-          if (mode === 'fact-check') {
-            // For fact-check, trigger animation by setting fullText
-            setFullText(finalContent);
-          } else {
-            // For other modes, show immediately
-            setContent(finalContent);
-          }
+          setContent(finalContent);
         })
         .catch(err => {
           console.error('[HistoricalContextModal] Error generating content:', err);
           setError('Failed to generate historical context. Please try again.');
-          setIsStreaming(false);
         })
         .finally(() => {
           console.log('[HistoricalContextModal] Finally block executed');
@@ -177,7 +141,9 @@ const HistoricalContextModal = ({
               <p className="text-red-600 dark:text-red-400 text-lg font-sans">{error}</p>
             </div>
           ) : content ? (
-            <ContentRenderer content={content} mode={mode} isDark={isDark} isStreaming={isStreaming} />
+            <div className="animate-fade-in">
+              <ContentRenderer content={content} mode={mode} isDark={isDark} />
+            </div>
           ) : (
             <div className="text-center py-16">
               <p className="text-gray-500 dark:text-gray-400 italic text-lg font-sans">
@@ -212,7 +178,7 @@ const HistoricalContextModal = ({
           </button>
         </div>
 
-        {/* Custom scrollbar */}
+        {/* Custom scrollbar and animations */}
         <style jsx>{`
           .custom-scrollbar::-webkit-scrollbar {
             width: 10px;
@@ -228,6 +194,19 @@ const HistoricalContextModal = ({
           .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: ${isDark ? 'rgba(71, 85, 105, 0.7)' : 'rgba(107, 114, 128, 0.7)'};
           }
+
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
+          }
+
+          .animate-fade-in {
+            animation: fadeIn 500ms ease-in-out;
+          }
         `}</style>
       </div>
     </div>,
@@ -238,7 +217,7 @@ const HistoricalContextModal = ({
 /**
  * Renders content with beautiful typography based on mode
  */
-const ContentRenderer = ({ content, mode, isDark, isStreaming = false }) => {
+const ContentRenderer = ({ content, mode, isDark }) => {
   if (mode === 'fact-check') {
     return (
       <div className="prose prose-lg dark:prose-invert max-w-none">
@@ -250,13 +229,9 @@ const ContentRenderer = ({ content, mode, isDark, isStreaming = false }) => {
             letterSpacing: '0.01em'
           }}
         >
-          {content}
-          {isStreaming && (
-            <span
-              className="inline-block ml-1 w-2 h-6 bg-emerald-600 dark:bg-amber-500 animate-pulse"
-              style={{ animation: 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
-            />
-          )}
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {content}
+          </ReactMarkdown>
         </div>
       </div>
     );
@@ -276,7 +251,9 @@ const ContentRenderer = ({ content, mode, isDark, isStreaming = false }) => {
             letterSpacing: '0.01em'
           }}
         >
-          {mainText}
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {mainText}
+          </ReactMarkdown>
         </div>
 
         {citations && (
@@ -290,13 +267,15 @@ const ContentRenderer = ({ content, mode, isDark, isStreaming = false }) => {
               Academic Sources
             </h3>
             <div
-              className="font-sans text-base text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line"
+              className="font-sans text-base text-gray-700 dark:text-gray-300 leading-relaxed"
               style={{
                 lineHeight: '1.7',
                 fontSize: '1.05rem'
               }}
             >
-              {citations.replace(/^(Sources|References|Citations):?\s*/i, '')}
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {citations.replace(/^(Sources|References|Citations):?\s*/i, '')}
+              </ReactMarkdown>
             </div>
           </div>
         )}
@@ -312,120 +291,14 @@ const ContentRenderer = ({ content, mode, isDark, isStreaming = false }) => {
           letterSpacing: '0.01em'
         }}
       >
-        <div className="whitespace-pre-line">{content}</div>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {content}
+        </ReactMarkdown>
       </div>
     );
   }
   return null;
 };
-
-/**
- * Stream content from Gemini API with real-time updates
- */
-async function streamGeminiContent(prompt, onChunk, temperature = 0.7, maxTokens = 1000) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('VITE_GEMINI_API_KEY is not set in .env.local');
-  }
-
-  console.log('[Streaming] Starting stream with gemini-flash-lite-latest');
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:streamGenerateContent?alt=sse&key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          temperature,
-          maxOutputTokens: maxTokens,
-        }
-      })
-    }
-  );
-
-  if (!response.ok) {
-    const errorData = await response.text();
-    console.error('[Streaming] API error:', response.status, errorData);
-    throw new Error(`Gemini API error: ${response.status} - ${errorData}`);
-  }
-
-  console.log('[Streaming] Response received, starting to read stream');
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let chunkCount = 0;
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        console.log(`[Streaming] Stream done, processing final buffer`);
-        break;
-      }
-
-      const decodedChunk = decoder.decode(value, { stream: true });
-      console.log('[Streaming] Raw chunk received, length:', decodedChunk.length);
-      buffer += decodedChunk;
-
-      // Process complete SSE messages (they end with \n\n)
-      const lines = buffer.split('\n\n');
-      buffer = lines.pop() || ''; // Keep incomplete message in buffer
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const jsonStr = line.slice(6); // Remove 'data: ' prefix
-            const data = JSON.parse(jsonStr);
-
-            // Extract text from response
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) {
-              chunkCount++;
-              console.log(`[Streaming] Chunk ${chunkCount}:`, text);
-              onChunk(text);
-            }
-          } catch (e) {
-            console.warn('[Streaming] Failed to parse chunk:', e);
-          }
-        }
-      }
-    }
-
-    // Process any remaining data in buffer after stream ends
-    console.log('[Streaming] Processing final buffer, length:', buffer.length);
-    if (buffer) {
-      // SSE messages are separated by single newlines, not double
-      const finalLines = buffer.split('\n');
-      console.log('[Streaming] Final buffer has', finalLines.length, 'lines');
-      for (const line of finalLines) {
-        if (line.trim().startsWith('data: ')) {
-          try {
-            const jsonStr = line.trim().slice(6);
-            const data = JSON.parse(jsonStr);
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) {
-              chunkCount++;
-              console.log(`[Streaming] Final chunk ${chunkCount}:`, text);
-              onChunk(text);
-            }
-          } catch (e) {
-            console.warn('[Streaming] Failed to parse final chunk:', line.substring(0, 100), e.message);
-          }
-        }
-      }
-    }
-
-    console.log(`[Streaming] Complete! Received ${chunkCount} text chunks total`);
-  } catch (e) {
-    console.error('[Streaming] Error reading stream:', e);
-    throw e;
-  }
-}
 
 /**
  * Generate content using LLM based on mode
@@ -438,9 +311,10 @@ Historical period: ${scenario.setting?.era || 'Colonial New Spain'}
 ` : '';
 
   if (mode === 'fact-check') {
-    console.log('[generateContent] Starting fact-check mode');
-
-    const systemPrompt = `You are a historian with a PhD specializing in 1680s Mexico and Colonial New Spain. You are extremely well-versed in the historical literature and primary sources from this period. Your role is to provide hyper-accurate, stringently realistic fact-checking.
+    const messages = [
+      {
+        role: 'system',
+        content: `You are a historian with a PhD specializing in 1680s Mexico and Colonial New Spain. You are extremely well-versed in the historical literature and primary sources from this period. Your role is to provide hyper-accurate, stringently realistic fact-checking.
 
 Your responses must be:
 - VERY pithy and succinct (1-4 sentences maximum)
@@ -450,32 +324,16 @@ Your responses must be:
 
 ${scenarioContext}
 
-If the narrative is historically accurate, briefly confirm this. If there are issues, point them out concisely.`;
+If the narrative is historically accurate, briefly confirm this. If there are issues, point them out concisely.`
+      },
+      {
+        role: 'user',
+        content: `Fact-check this narrative passage for historical accuracy:\n\n${narrativeTurn}`
+      }
+    ];
 
-    const userPrompt = `Fact-check this narrative passage for historical accuracy:\n\n${narrativeTurn}`;
-
-    const fullPrompt = `${systemPrompt}\n\nUser: ${userPrompt}\n\nAssistant:`;
-
-    console.log('[generateContent] Prompt length:', fullPrompt.length);
-
-    // Collect all text from stream
-    let fullText = '';
-    try {
-      await streamGeminiContent(
-        fullPrompt,
-        (chunk) => {
-          fullText += chunk;
-        },
-        0.3,
-        500
-      );
-
-      console.log('[generateContent] Streaming complete, full text length:', fullText.length);
-      return fullText;
-    } catch (error) {
-      console.error('[generateContent] Streaming failed:', error);
-      throw error;
-    }
+    const response = await createChatCompletion(messages, 0.3, 500, null, { agent: 'FactCheck' });
+    return response.choices[0].message.content;
 
   } else if (mode === 'learn-more') {
     const messages = [

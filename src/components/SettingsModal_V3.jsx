@@ -13,6 +13,7 @@ import { useDarkMode } from '../hooks/useDarkMode';
 import TestSuitePanel from './TestSuitePanel';
 import PortraitTestPanel from './PortraitTestPanel';
 import ProfessionTestPanel from './ProfessionTestPanel';
+import TestRunner from './TestRunner';
 
 const GAME_VERSION = '0.1.0';
 
@@ -971,6 +972,19 @@ function DevSection({ onLoadTestPatient, onClose, gameState, setGameState, onLoa
           Test the portrait priority system: physically present NPCs (newly created) should take priority over topical entities (pre-selected). Validates the fix for showing correct portraits (e.g., servant vs patient).
         </p>
         <PortraitTestPanel />
+      </SettingCard>
+
+      <SettingCard title="🧪 Phase 2 Portrait System Test Suite">
+        <p className="text-sm mb-4" style={{
+          fontFamily: "'Inter', sans-serif",
+          color: '#5c4a3a',
+          lineHeight: '1.6'
+        }}>
+          <strong>Automated end-to-end tests for Phase 2 simplification.</strong> Tests NPC identity consistency across turns, portrait resolution, contract → patient transitions, and edge cases (animals, player alone, etc.).
+          <br /><br />
+          <span style={{ color: '#dc2626', fontWeight: 600 }}>⚠️ These tests make real LLM calls and will take 2-3 minutes to complete.</span>
+        </p>
+        <TestRunner gameState={gameState} />
       </SettingCard>
 
       <SettingCard title="Profession System Testing">

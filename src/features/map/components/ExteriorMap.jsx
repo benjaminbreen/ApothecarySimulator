@@ -287,135 +287,23 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
           </pattern>
         </defs>
 
-        {/* Phase 2: Barrios layer (background zones) */}
-        {barrios && barrios.length > 0 && (
-          <g className="barrios-layer" opacity="0.5">
-            {barrios.map(barrio => {
-              let fillColor;
-              switch(barrio.type) {
-                case 'spanish':
-                  fillColor = colors.barrioSpanish;
-                  break;
-                case 'indigenous':
-                  fillColor = colors.barrioIndigenous;
-                  break;
-                case 'mixed':
-                  fillColor = colors.barrioMixed;
-                  break;
-                default:
-                  fillColor = colors.barrioSpanish;
-              }
+        {/* Historical Map Background Layer - 1680 Mexico City */}
+        <image
+          href={theme === 'dark' ? '/maps/mapdark.png' : '/maps/maplight.png'}
+          x="0"
+          y="0"
+          width={bounds.width}
+          height={bounds.height}
+          opacity={theme === 'dark' ? '0.6' : '0.7'}
+          preserveAspectRatio="xMidYMid slice"
+          style={{ pointerEvents: 'none' }}
+        />
 
-              return (
-                <polygon
-                  key={barrio.id}
-                  points={polygonToSVGPoints(barrio.polygon)}
-                  fill={fillColor}
-                  stroke={colors.barrioStroke}
-                  strokeWidth="1"
-                  strokeDasharray="4 2"
-                  style={{ pointerEvents: 'none' }}
-                />
-              );
-            })}
-          </g>
-        )}
+        {/* Phase 2: Barrios layer - HIDDEN: Historical map shows districts */}
 
-        {/* Generic City Blocks - Urban fabric fill */}
-        {cityBlocks && cityBlocks.length > 0 && (
-          <g className="city-blocks-layer">
-            {cityBlocks.map((block, idx) => {
-              // Very subtle color variation by block type - barely visible background
-              let blockFill = colors.buildingFill;
-              let blockOpacity = 0.10; // Much more subtle base opacity
+        {/* Generic City Blocks - HIDDEN: Historical map shows urban fabric */}
 
-              switch(block.type) {
-                case 'residential':
-                  blockOpacity = 0.08;
-                  break;
-                case 'commercial':
-                  blockOpacity = 0.12;
-                  break;
-                case 'mixed':
-                  blockOpacity = 0.10;
-                  break;
-                case 'religious':
-                  blockOpacity = 0.09;
-                  break;
-                case 'market':
-                  blockOpacity = 0.12;
-                  break;
-                default:
-                  blockOpacity = 0.10;
-              }
-
-              // Subtle random variation (±10%)
-              const randomVariation = 0.9 + (Math.random() * 0.2);
-              const finalOpacity = blockOpacity * randomVariation;
-
-              return (
-                <polygon
-                  key={`city-block-${idx}`}
-                  points={polygonToSVGPoints(block.polygon)}
-                  fill={`url(#block-pattern-${idx % 3})`}
-                  opacity={finalOpacity}
-                  stroke={colors.buildingStroke}
-                  strokeWidth="1"
-                  strokeOpacity="0.25"
-                  style={{ pointerEvents: 'none' }}
-                />
-              );
-            })}
-          </g>
-        )}
-
-        {/* Phase 2: Acequias layer (canals) */}
-        {acequias && acequias.length > 0 && (
-          <g className="acequias-layer">
-            {acequias.map(acequia => {
-              // Convert points array to polygon for filled canal
-              const points = acequia.points;
-
-              return (
-                <g key={acequia.id}>
-                  {/* Canal water with moonlight in dark mode */}
-                  <polygon
-                    points={polygonToSVGPoints(points)}
-                    fill="url(#water-gradient)"
-                    stroke={colors.acequiaStroke}
-                    strokeWidth="1.5"
-                    className="acequia-water"
-                    filter={theme === 'dark' ? 'url(#moonlight-shimmer)' : 'none'}
-                  >
-                    {/* Very subtle shimmer animation */}
-                    <animate
-                      attributeName="opacity"
-                      values={theme === 'dark' ? "0.6;0.8;0.6" : "0.5;0.65;0.5"}
-                      dur="5s"
-                      repeatCount="indefinite"
-                    />
-                  </polygon>
-
-                  {/* Subtle highlight on water surface - brighter in dark */}
-                  <polyline
-                    points={`${points[0][0]},${points[0][1]} ${points[1][0]},${points[1][1]}`}
-                    stroke={colors.fountainAccent}
-                    strokeWidth="2"
-                    opacity={theme === 'dark' ? "0.4" : "0.2"}
-                    strokeLinecap="round"
-                  >
-                    <animate
-                      attributeName="opacity"
-                      values={theme === 'dark' ? "0.3;0.6;0.3" : "0.15;0.3;0.15"}
-                      dur="4s"
-                      repeatCount="indefinite"
-                    />
-                  </polyline>
-                </g>
-              );
-            })}
-          </g>
-        )}
+        {/* Phase 2: Acequias layer - HIDDEN: Historical map shows canals */}
 
         {/* Phase 2: Parks layer */}
         {parks && parks.length > 0 && (
@@ -461,41 +349,7 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
           </g>
         )}
 
-        {/* Render streets */}
-        <g className="streets-layer">
-          {streets.map(street => {
-            // Calculate label position with custom positioning or fallback to midpoint
-            const labelX = street.labelPosition?.[0] || (street.points[0][0] + street.points[street.points.length - 1][0]) / 2;
-            const labelY = street.labelPosition?.[1] || (street.points[0][1] + street.points[street.points.length - 1][1]) / 2;
-
-            // Apply offset if specified
-            const finalX = labelX + (street.labelOffset?.[0] || 0);
-            const finalY = labelY + (street.labelOffset?.[1] || 0);
-            const rotation = street.labelRotation || 0;
-
-            // Determine street color based on paving
-            const isPaved = street.paved !== false; // Default to paved if not specified
-            const streetColor = isPaved ? colors.streetPaved : colors.streetUnpaved;
-            const strokeDash = isPaved ? 'none' : '12 6'; // Heavier dash for unpaved
-            const streetWidth = street.width * 1.5; // 50% wider for visibility
-
-            return (
-              <g key={street.id}>
-                <polyline
-                  points={street.points.map(p => p.join(',')).join(' ')}
-                  className={`street street-${street.type || 'main'} ${isPaved ? 'paved' : 'unpaved'}`}
-                  strokeWidth={streetWidth}
-                  fill="none"
-                  stroke={streetColor}
-                  strokeDasharray={strokeDash}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={isPaved ? 1 : 0.75}
-                />
-              </g>
-            );
-          })}
-        </g>
+        {/* Render streets - HIDDEN: Historical map shows streets */}
 
         {/* Render buildings */}
         <g className="buildings-layer">
@@ -935,12 +789,12 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
                 x,
                 y,
                 text: building.name,
-                fontSize: isPlayerLocation ? 24 : (isHovered ? 22 : 20),  // Increased for readability
+                fontSize: isPlayerLocation ? 20 : (isHovered ? 22 : 20),  // Same size as others
                 rotation: 0,
                 priority: building.priority || 5,
                 type: 'building',
-                color: isPlayerLocation ? colors.playerLocationLabel : colors.buildingLabel,
-                bgColor: isPlayerLocation ? colors.streetLabelBg : colors.buildingLabelBg,
+                color: isPlayerLocation ? colors.buildingLabel : colors.buildingLabel,
+                bgColor: isPlayerLocation ? colors.buildingLabelBg : colors.buildingLabelBg,
                 isHovered,
                 isPlayerLocation,
                 alwaysShowLabel: building.alwaysShowLabel || false
@@ -961,7 +815,7 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
                 x: landmark.position[0],
                 y: landmark.position[1] - 25,
                 text: landmark.name,
-                fontSize: 16,  // Increased from 14
+                fontSize: 15,  // Slightly reduced for cleaner look
                 rotation: 0,
                 priority: landmark.priority || 6,
                 type: 'landmark',
@@ -1006,7 +860,7 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
                   x: park.labelPosition[0],
                   y: park.labelPosition[1],
                   text: park.name,
-                  fontSize: 19,  // Increased from 17
+                  fontSize: 17,  // Reduced for cleaner look
                   rotation: 0,
                   priority: park.priority || 5,
                   type: 'park',
@@ -1040,28 +894,13 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
                       width={label.text.length * label.fontSize * 0.6}
                       height={label.fontSize * 1.3}
                       fill={label.bgColor}
+                      stroke={label.isPlayerLocation ? (theme === 'dark' ? '#fbbf24' : '#f59e0b') : 'none'}
+                      strokeWidth={label.isPlayerLocation ? '1.5' : '0'}
                       rx="4"
                       ry="4"
-                      opacity="0.85"
+                      opacity="0.9"
                       style={{ pointerEvents: 'none' }}
                     />
-
-                    {/* Text shadow for depth */}
-                    <text
-                      x={label.x}
-                      y={label.y}
-                      className="label-shadow"
-                      fontSize={label.fontSize}
-                      fill="#000000"
-                      fontWeight={label.isPlayerLocation ? "800" : "600"}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      opacity={theme === 'dark' ? '0.4' : '0.2'}
-                      fontFamily="'Crimson Text', 'Georgia', serif"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      {label.text}
-                    </text>
 
                     {/* Main label text - Enhanced glow in dark mode */}
                     <text
@@ -1070,7 +909,7 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
                       className="label-text"
                       fontSize={label.fontSize}
                       fill={label.color}
-                      fontWeight={label.isPlayerLocation ? "800" : "600"}
+                      fontWeight="600"
                       textAnchor="middle"
                       dominantBaseline="middle"
                       fontFamily="'Crimson Text', 'Georgia', serif"

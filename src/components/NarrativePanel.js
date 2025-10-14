@@ -216,8 +216,8 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
 
   // Determine entry icon based on content or role
   const getEntryIcon = () => {
+    // User input: Maria's portrait
     if (isUser) {
-      // Use Maria's current portrait for user input
       return (
         <img
           src={playerPortrait || "/assets/marianormal.jpg"}
@@ -230,6 +230,8 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
         />
       );
     }
+
+    // System messages: gear icon
     if (isSystem) {
       return (
         <svg className="w-5 h-5 text-potion-600 dark:text-amber-500 transition-colors duration-300" fill="currentColor" viewBox="0 0 20 20">
@@ -237,6 +239,35 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
         </svg>
       );
     }
+
+    // PHASE 3B: Three response modes for assistant messages
+
+    // DIALOGUE MODE: NPC portrait (person Maria is talking to)
+    if (entry.responseType === 'dialogue' && entry.primaryPortrait) {
+      return (
+        <img
+          src={`/portraits/${entry.primaryPortrait}`}
+          alt={entry.npcSpeaker || 'NPC'}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            console.warn('[NarrativePanel] Failed to load NPC portrait:', entry.primaryPortrait);
+            // Fallback to book icon if portrait fails
+            e.target.outerHTML = '<svg class="w-6 h-6 text-ink-600" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" /></svg>';
+          }}
+        />
+      );
+    }
+
+    // MOVEMENT MODE: Compass icon
+    if (entry.responseType === 'movement') {
+      return (
+        <svg className="w-5 h-5 text-botanical-600 dark:text-botanical-400 transition-colors duration-300" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+        </svg>
+      );
+    }
+
+    // NARRATION MODE (default): Book icon
     return (
       <svg className="w-6 h-6 text-ink-600 dark:text-parchment-300 transition-colors duration-300" fill="currentColor" viewBox="0 0 20 20">
         <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
@@ -348,8 +379,31 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
             </div>
           ) : (
             <div>
-              {content.includes('"') || content.includes('"') ? (
-                // NPC dialogue - special styling
+              {/* DIALOGUE MODE - RESERVED FOR FUTURE COMPANION TRAVEL FEATURE
+                  This styling displays pure NPC speech during companion travel (Maria walking with an NPC).
+                  NOT used in normal gameplay - NPC dialogue is embedded in narration mode instead.
+                  Kept here for future animated map travel feature where Maria follows an NPC to a location. */}
+              {entry.responseType === 'dialogue' && entry.dialogue ? (
+                <div className="bg-gradient-to-br from-parchment-100/20 via-parchment-50/50 to-white dark:from-slate-800 dark:via-slate-750 dark:to-slate-700 rounded-2xl p-3.5 border-2 border-parchment-300 dark:border-amber-600/30 shadow-elevation-2 dark:shadow-dark-elevation-2 relative transition-all duration-300">
+                  <div className="prose prose-lg max-w-none relative z-10">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw]}
+                      components={entityComponents}
+                      className="text-[21px] text-parchment-900 dark:text-parchment-100 font-serif italic transition-colors duration-300"
+                    >
+                      {entry.dialogue}
+                    </ReactMarkdown>
+                  </div>
+                  {/* Optional: Show speaker name */}
+                  {entry.npcSpeaker && (
+                    <div className="text-xs text-parchment-600 dark:text-parchment-400 mt-2 font-sans">
+                      — {entry.npcSpeaker}
+                    </div>
+                  )}
+                </div>
+              ) : content.includes('"') || content.includes('"') ? (
+                // Legacy: NPC dialogue detected by quotation marks
                 <div className="bg-gradient-to-br from-parchment-100/20 via-parchment-50/50 to-white dark:from-slate-800 dark:via-slate-750 dark:to-slate-700 rounded-2xl p-3.5 border-2 border-parchment-300 dark:border-amber-600/30 shadow-elevation-2 dark:shadow-dark-elevation-2 relative transition-all duration-300">
 
                   <div className="prose prose-lg max-w-none relative z-10">
@@ -358,6 +412,31 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
                       className="text-[21px] text-parchment-900 dark:text-parchment-100 font-serif transition-colors duration-300"
+                    >
+                      {content}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              ) : entry.responseType === 'movement' ? (
+                // PHASE 3B: Movement mode - distinct travel/navigation styling
+                <div className="bg-gradient-to-br from-botanical-50/30 to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-3.5 border border-botanical-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
+                  {/* Extract direction from content for header */}
+                  {(() => {
+                    const directionMatch = content.match(/\b(north|south|east|west)\b/i);
+                    const direction = directionMatch ? directionMatch[1] : null;
+                    return direction && (
+                      <div className="text-xs font-bold uppercase tracking-wider text-botanical-700 dark:text-botanical-400 mb-2 flex items-center gap-1.5">
+                        <span>→</span>
+                        <span>Heading {direction.charAt(0).toUpperCase() + direction.slice(1)}</span>
+                      </div>
+                    );
+                  })()}
+                  <div className="prose prose-lg max-w-none">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw]}
+                      components={entityComponents}
+                      className="text-[19px] text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300"
                     >
                       {content}
                     </ReactMarkdown>
@@ -542,7 +621,9 @@ const NarrativePanel = ({
             </div>
           ) : (
             <>
-              {conversationHistory.map((entry, index) => (
+              {conversationHistory
+                .filter(entry => !entry.hidden) // Skip hidden entries (e.g., movement commands)
+                .map((entry, index) => (
                 <NarrativeEntry
                   key={index}
                   entry={entry}

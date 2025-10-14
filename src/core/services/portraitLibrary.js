@@ -1181,6 +1181,52 @@ export const PORTRAIT_LIBRARY = {
     tags: ['merchant', 'businesswoman', 'middle-aged', 'criolla', 'independent']
   },
 
+  // Generic Male Portraits - Additional Middling Class
+  'male_middleaged_criollo_merchant_importer.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: ['criollo'],
+    class: 'middling',
+    occupation: ['merchant', 'importer', 'trader', 'businessman'],
+    tags: ['merchant', 'importer', 'trade', 'criollo', 'middling', 'business']
+  },
+  'male_middleaged_mestizo_artisan_cobbler.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: ['mestizo'],
+    class: ['middling', 'common'],
+    occupation: ['cobbler', 'shoemaker', 'artisan', 'craftsman'],
+    tags: ['artisan', 'cobbler', 'shoemaker', 'craftsman', 'mestizo', 'skilled']
+  },
+
+  // Generic Male Portraits - Indigenous Elite
+  'male_elder_indigenous_noble_delegate.jpg': {
+    gender: 'male',
+    age: 'elderly',
+    casta: ['indio', 'indígena'],
+    class: ['elite', 'middling'],
+    occupation: ['noble', 'delegate', 'cacique', 'representative', 'leader'],
+    tags: ['indigenous', 'noble', 'elite', 'delegate', 'elder', 'dignified', 'cacique']
+  },
+
+  // Generic Female Portraits - Additional Young/Middle-aged
+  'female_young_mestiza_market_vendor.jpg': {
+    gender: 'female',
+    age: 'young',
+    casta: ['mestiza'],
+    class: 'common',
+    occupation: ['vendor', 'market seller', 'trader', 'shopkeeper'],
+    tags: ['vendor', 'market', 'mestiza', 'young', 'working', 'seller']
+  },
+  'female_middleaged_criollo_patroness.jpg': {
+    gender: 'female',
+    age: 'middle-aged',
+    casta: ['criollo', 'criolla'],
+    class: ['elite', 'middling'],
+    occupation: ['patroness', 'noblewoman', 'lady', 'benefactor'],
+    tags: ['patroness', 'elite', 'criolla', 'benefactor', 'wealthy', 'dignified']
+  },
+
   // Animals
   'donkey.jpg': {
     gender: 'animal',

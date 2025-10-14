@@ -79,16 +79,22 @@ class ScenarioLoader {
       throw new Error(`Scenario not found: ${scenarioId}. Available scenarios: ${available}`);
     }
 
-    // Validate before loading
-    try {
-      validateScenarioConfig(scenario);
-    } catch (error) {
-      console.error(`Scenario validation failed for ${scenarioId}:`, error);
-      throw error;
+    // Only validate and log on first load or when switching scenarios
+    const isNewScenario = !this.currentScenario || this.currentScenario.id !== scenarioId;
+
+    if (isNewScenario) {
+      // Validate before loading
+      try {
+        validateScenarioConfig(scenario);
+      } catch (error) {
+        console.error(`Scenario validation failed for ${scenarioId}:`, error);
+        throw error;
+      }
+
+      this.currentScenario = scenario;
+      console.log(`Loaded scenario: ${scenario.name} (${scenarioId})`);
     }
 
-    this.currentScenario = scenario;
-    console.log(`Loaded scenario: ${scenario.name} (${scenarioId})`);
     return scenario;
   }
 

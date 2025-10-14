@@ -194,7 +194,7 @@ const InputArea = ({
               aria-label="Action input"
               style={{
                 fontFamily: "'Crimson Text', Georgia, serif",
-                fontSize: '1.125rem',
+                fontSize: '1.425rem',
                 lineHeight: '1.5',
                 fontWeight: 500
               }}

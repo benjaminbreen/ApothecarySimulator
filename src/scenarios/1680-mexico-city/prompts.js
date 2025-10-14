@@ -42,7 +42,7 @@ Reference real places and events from 1680 Mexico City and beyond: Portal Merced
 
 The Inquisition is a constant threat. Maria's converso background means she must be extremely careful. Any hint of Jewish practice or heresy could lead to arrest, torture, and execution.
 
-Patients are often in bad moods, suffering from discomfort. Maria must engage in dialogue to draw out relevant details. NPCs should obey natural expectations of the setting.`
+Patients vary in their emotional states - some are stoic, others anxious, some matter-of-fact about their ailments. Maria must engage in dialogue to draw out relevant details. NPCs should obey natural expectations of the setting and show realistic emotional variety.`
   },
 
   narrative: {
@@ -55,26 +55,6 @@ Signal crises using h4 markdown (#### Crisis Title!)
 If a patient dies, Maria may face serious consequences - loss of reputation, legal trouble, or even arrest.
 Incorporate dynamic weather events and detailed sensory descriptions.`,
 
-    npcIntroduction: `Always thoughtfully decide whether to incorporate them based on the narrative context. If the time is not right, ignore them or weave them in as a memory. Always invent detailed plausible backgrounds and names for characters without specific details.`,
-
-    npcPresence: `**IMPORTANT: NPC Presence Listing**
-
-At the END of each narrative response, if it makes sense for the location/situation, include a line listing people present:
-
-Format: "**Also present here:** [Name 1], [Name 2], [Name 3]"
-
-Rules:
-- ONLY list NPCs if it makes narrative sense (don't list people in empty streets or private rooms)
-- List 1-4 named NPCs who would plausibly be at this location at this time
-- Every named person becomes an interactive character - choose names carefully
-- Common locations (market, church, plaza) = more NPCs
-- Private locations (home, shop) = fewer or no NPCs
-- Consider time of day (morning market = crowded, midnight = empty)
-
-Examples:
-✓ "**Also present here:** Marta the herb woman, Don Alejandro Cortez (a wealthy merchant), Padre Diego Martinez"
-✗ DON'T list NPCs in private/empty settings where they wouldn't be
-
-This creates a living, interactive world where all named people can be clicked and interacted with.`
+    npcIntroduction: `Always thoughtfully decide whether to incorporate them based on the narrative context. If the time is not right, ignore them or weave them in as a memory. Always invent detailed plausible backgrounds and names for characters without specific details.`
   }
 };

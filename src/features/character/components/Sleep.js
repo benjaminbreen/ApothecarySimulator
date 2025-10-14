@@ -237,10 +237,10 @@ const handleSleep = useCallback(async () => {
       });
     }
 
-    // Award XP for resting
+    // Award XP for resting (+1 XP)
     if (typeof awardXP === 'function') {
-      awardXP(5, 'rest');
-      console.log('[XP] Awarded 5 XP for resting');
+      awardXP(1, 'rest');
+      console.log('[XP] Awarded 1 XP for resting');
     }
 
     setHistoryOutput(simulatedOutput); // Update the game state with the new turn's output

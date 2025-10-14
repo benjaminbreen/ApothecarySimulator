@@ -24,7 +24,8 @@ const ViewportPanel = ({
   onLocationChange = null, // Callback when location changes
   onMapClick = null, // Callback when map is clicked to open modal
   discoveredBooks = [], // Books discovered during gameplay
-  onBookClick = null // Callback when book is clicked
+  onBookClick = null, // Callback when book is clicked
+  narrativeTurn = '' // Most recent narrative turn for Study tab
 }) => {
   const defaultTab = npcPresent ? 'portrait' : 'map';
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -133,7 +134,7 @@ const ViewportPanel = ({
 
         {/* Map Tab - Interactive SVG Map */}
         {activeTab === 'map' && (
-          <div className="flex flex-col animate-fade-in" style={{ height: '300px' }}>
+          <div className="flex flex-col animate-fade-in" style={{ height: '335px' }}>
             {scenario && scenario.maps ? (
               <div className="h-full">
                 <MapRenderer
@@ -184,7 +185,7 @@ const ViewportPanel = ({
                 <button
                   ref={dropNPC}
                   onClick={() => onPortraitClick?.(npcData)}
-                  className={`relative inline-block mb-4 group cursor-pointer transition-transform duration-base hover:scale-105 ${isOverNPC ? 'scale-110 ring-4 ring-emerald-400' : ''}`}
+                  className={`relative inline-block  mb-4 group cursor-pointer transition-transform duration-base hover:scale-105 ${isOverNPC ? 'scale-110 ring-4 ring-emerald-400' : ''}`}
                   disabled={!npcData}
                   title={isOverNPC ? 'Drop item to interact' : (npcData?.type === 'patient' ? 'Click to examine patient' : 'View character details')}
                 >
@@ -208,14 +209,14 @@ const ViewportPanel = ({
                     )}
                   </div>
 
-                  <div className="w-40 h-40 rounded-lg overflow-hidden border-4 border-white shadow-elevation-3 group-hover:shadow-elevation-4 transition-shadow">
+                  <div className="w-[220px] h-[181px] rounded-lg overflow-hidden border-4 border-white shadow-elevation-3 group-hover:shadow-elevation-4 transition-shadow">
                     <img src={npcPortrait} alt={npcName} className="w-full h-full object-cover" />
                   </div>
                 </button>
                 <h3 className="font-serif text-lg font-bold text-ink-900 dark:text-amber-400 uppercase tracking-wide mb-0.5 transition-colors duration-300">{npcName}</h3>
-                <p className="text-sm text-ink-600 dark:text-parchment-300 font-sans italic transition-colors duration-300">In Conversation</p>
+                <p className="text-sm text-ink-400 dark:text-parchment-300 font-sans italic transition-colors duration-300">In Conversation</p>
                 {npcData && (
-                  <p className="text-xs font-sans mt-1.5 transition-colors duration-300 tracking-wide" style={{
+                  <p className="text-xs font-sans mt-0.5 transition-colors duration-300 tracking-wide" style={{
                     color: 'var(--tw-prose-body)',
                     opacity: 0.7,
                     letterSpacing: '0.05em',
@@ -251,6 +252,8 @@ const ViewportPanel = ({
             discoveredBooks={discoveredBooks}
             onBookClick={onBookClick}
             theme={currentTheme}
+            narrativeTurn={narrativeTurn}
+            location={locationDetails}
           />
         )}
 

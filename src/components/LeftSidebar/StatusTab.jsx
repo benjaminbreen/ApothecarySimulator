@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { SKILLS, SKILL_CATEGORIES } from '../../core/systems/skillsSystem';
+import XPGainNotification from '../XPGainNotification';
 
 /**
  * StatusTab Component
  * Displays player skills (known + learning) and active effects
  */
-export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal }) {
+export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal, xpGain, xpGainKey }) {
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
   const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list'
 
@@ -162,6 +163,15 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal 
             <div className="text-xs text-center mt-1 font-sans" style={{ color: isDark ? '#94a3b8' : '#64748b' }}>
               {playerSkills.xp} / {playerSkills.xpToNextLevel} XP
             </div>
+
+            {/* XP Gain Notification with Particle Animation */}
+            {xpGain && (
+              <XPGainNotification
+                key={xpGainKey}
+                xpGain={xpGain}
+                onComplete={() => {}}
+              />
+            )}
           </div>
         </div>
       )}

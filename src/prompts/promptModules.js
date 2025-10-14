@@ -178,21 +178,10 @@ export function getPromptModules(scenarioId) {
 
 // Function to build context summary
 export function buildContextSummary(gameState, turnNumber, incorporatedContent, additionalQuestions) {
-  // Only list first 5 inventory items to save tokens (narrative agent doesn't need full inventory)
-  const topItems = gameState.inventory
-    .slice(0, 5)
-    .map(item => item.name)
-    .join(', ');
-  const totalItems = gameState.inventory.length;
-  const inventorySummary = totalItems > 5
-    ? `${topItems}... (${totalItems} total items)`
-    : topItems;
-
   return `Location: ${gameState.location}
 Date: ${gameState.date} | Time: ${gameState.time} | Turn: ${turnNumber}
 ${incorporatedContent ? `\nCritique: ${incorporatedContent}` : ''}
-${additionalQuestions ? `\nQuestions: ${additionalQuestions}` : ''}
-Inventory: ${inventorySummary}`;
+${additionalQuestions ? `\nQuestions: ${additionalQuestions}` : ''}`;
 }
 
 // Function to build entity context

@@ -286,6 +286,20 @@ function PrescribePanelIntegrated({
       const simulatedOutput = data.choices[0].message.content;
       setSimulatedOutput(simulatedOutput);
 
+      // Add to conversation history IMMEDIATELY (so LLM knows about prescription)
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: prescriptionPrompt },
+        { role: 'assistant', content: simulatedOutput },
+        { role: 'system', content: `*[PRESCRIPTION ADMINISTERED] Prescribed ${amount} ${item.name} to ${currentPatient.name} via ${route} route.*` }
+      ]);
+
+      // Update history output immediately so it appears in chronicle
+      setHistoryOutput(`℞ **Prescription Administered**: You prescribed ${amount} ${item.name} to ${currentPatient.name} via ${route} route. Processing outcome...`);
+
+      // Increment turn number so prescription appears as separate chronicle entry
+      setTurnNumber(prev => prev + 1);
+
       // Update inventory
       updateInventory(item.name, -amount);
 
@@ -370,14 +384,7 @@ function PrescribePanelIntegrated({
     setShowOutcomeModal(false);
     setPendingModalOpen(false);
 
-    // Add to conversation history NOW (after user sees outcome)
-    setConversationHistory(prev => [
-      ...prev,
-      { role: 'user', content: prescriptionPrompt },
-      { role: 'assistant', content: simulatedOutput },
-    ]);
-
-    // Update history output for narration panel
+    // Update history output for narration panel (conversation history already updated)
     setHistoryOutput(simulatedOutput);
 
     const updatedTime = gameState.time;

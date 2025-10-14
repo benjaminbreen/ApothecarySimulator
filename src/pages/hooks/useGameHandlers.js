@@ -34,6 +34,8 @@ export function useGameHandlers({
   setIsPdfOpen,
   setSelectedPatient,
   setShowPatientModal,
+  setSelectedNPC,
+  setShowNPCModal,
   setJournal,
   setCustomJournalEntry,
   setEnergy,
@@ -121,6 +123,9 @@ export function useGameHandlers({
   // Track previous portrait entity for smooth transitions (persists across renders)
   const previousPortraitEntityRef = useRef(null);
 
+  // PHASE 2: Track recent portrait filename for consistency across turns
+  const recentPortraitRef = useRef(null);
+
   // STATE CHANGE HANDLERS
   const handleWealthChange = (newWealth) => {
     setWealth(newWealth);
@@ -203,8 +208,10 @@ export function useGameHandlers({
       setShowPatientModal(true);
     } else {
       console.log('[Portrait Click] Non-patient NPC clicked:', npcData.name);
+      setSelectedNPC(npcData);
+      setShowNPCModal(true);
     }
-  }, [setSelectedPatient, setShowPatientModal]);
+  }, [setSelectedPatient, setShowPatientModal, setSelectedNPC, setShowNPCModal]);
 
   // JOURNAL HANDLERS
   const addJournalEntry = (entry) => {
@@ -340,22 +347,7 @@ export function useGameHandlers({
         entry: `Foraged at ${gameState.location}. Found ${forageResult.quantity}x ${item.name} (${forageResult.rarity}). ${item.message || ''}`
       });
 
-      // Award XP for foraging
-      if (typeof awardXP === 'function') {
-        let xpAmount = 8; // Base foraging XP
-
-        // Bonus for rarity
-        if (forageResult.rarity === 'rare') {
-          xpAmount += 10;
-        } else if (forageResult.rarity === 'uncommon') {
-          xpAmount += 5;
-        }
-
-        awardXP(xpAmount, `foraging_${item.name}`);
-        console.log(`[XP] Awarded ${xpAmount} XP for foraging ${item.name} (${forageResult.rarity})`);
-      }
-
-      // Award herbalism skill XP
+      // Award herbalism skill XP (only when item found)
       if (typeof awardSkillXP === 'function') {
         awardSkillXP('herbalism', forageResult.rarity === 'rare' ? 10 : forageResult.rarity === 'uncommon' ? 6 : 3);
       }
@@ -371,6 +363,13 @@ export function useGameHandlers({
 
       const forageMessage = `*You searched ${gameState.location} for useful materials, but found nothing of value.*`;
       setConversationHistory(prev => [...prev, { role: 'system', content: forageMessage }]);
+    }
+
+    // Award XP for foraging (+1 XP per forage, regardless of result)
+    if (typeof awardXP === 'function') {
+      const itemName = forageResult.foundItem && forageResult.item ? forageResult.item.name : 'nothing';
+      awardXP(1, `foraging_${itemName}`);
+      console.log(`[XP] Awarded 1 XP for foraging (found: ${itemName})`);
     }
 
     const newEnergy = Math.max(0, energy - forageResult.energyCost);
@@ -591,7 +590,8 @@ export function useGameHandlers({
         currentMapId: currentMapId,
         playerSkills: playerSkills,
         journal: journal,
-        activePatient: activePatient // Pass current active patient for contextual guards
+        activePatient: activePatient, // Pass current active patient for contextual guards
+        recentPortrait: recentPortraitRef.current // PHASE 2: Pass last portrait for consistency
       });
 
       if (!result.success) {
@@ -639,18 +639,20 @@ export function useGameHandlers({
       // NEW PHASE 1: Handle LLM-selected portrait (replaces complex portrait resolution)
       let primaryPortraitFile = null;
       if (result.primaryPortrait) {
-        console.log('[Portrait Phase 1] LLM selected portrait:', result.primaryPortrait);
+        console.log('[Portrait] LLM selected portrait:', result.primaryPortrait);
         primaryPortraitFile = result.primaryPortrait;
-
-        // Store in state for ContextPanel to display
-        // We'll pass this directly to ContextPanel instead of using portraitResolver
-        console.log('[Portrait Phase 1] ✓ Using direct LLM selection (bypassing portraitResolver)');
       } else {
-        console.log('[Portrait Phase 1] No primaryPortrait from LLM, will use fallback system');
+        console.log('[Portrait] No portrait this turn - map will be shown');
       }
 
       // Store in state for ContextPanel to use
       setPrimaryPortraitFile(primaryPortraitFile);
+
+      // Store portrait filename for next turn's consistency check
+      if (primaryPortraitFile) {
+        recentPortraitRef.current = primaryPortraitFile;
+        console.log('[Portrait] Storing portrait for next turn:', primaryPortraitFile);
+      }
 
       // PATIENT HANDLING: If entity is a patient, validate LLM used them correctly
       if (result.selectedEntity) {
@@ -727,83 +729,34 @@ export function useGameHandlers({
         });
       }
 
-      // Portrait Selection Logic (PHASE 1 HYBRID):
-      // NEW: If LLM provided primaryPortrait, skip complex resolution entirely
+      // Portrait Selection Logic (OPTION A: LLM-ONLY, NO FALLBACK):
+      // Only show portrait if LLM explicitly provides primaryPortrait
+      // If LLM returns null, UI will show map tab instead
       let portraitEntity = null;
 
       if (primaryPortraitFile) {
-        // PHASE 1: Direct portrait selection from LLM
-        console.log('[Portrait Phase 1] Skipping fallback system, using LLM portrait:', primaryPortraitFile);
+        // LLM provided portrait - this is the ONLY way portraits are shown
+        console.log('[Portrait] ✓ LLM selected portrait:', primaryPortraitFile);
 
-        // If primaryNPC was provided, use that as portraitEntity for tracking
+        // Link portrait to primaryNPC if available (for modal opening)
         if (result.primaryNPC) {
           const primaryEntity = entityManager.getByName(result.primaryNPC.name);
           if (primaryEntity) {
             portraitEntity = primaryEntity;
-            console.log('[Portrait Phase 1] Linked portrait to primaryNPC:', result.primaryNPC.name);
+            console.log('[Portrait] ✓ Linked portrait to primaryNPC:', result.primaryNPC.name);
           }
+        }
+
+        // Track NPC for display
+        if (portraitEntity) {
+          npcTracker.addNPC(portraitEntity.name);
+          console.log('[Portrait] → Tracking for display:', portraitEntity.name);
+          previousPortraitEntityRef.current = portraitEntity;
         }
       } else {
-        // FALLBACK: Use old portrait resolution system
-        console.log('[Portrait] Using fallback portrait resolution system');
-
-        // 1. PRIMARY: Trust LLM's portrait hint (knows narrative intent)
-        console.log('[Portrait] LLM hint received:', result.showPortraitFor);
-        if (result.showPortraitFor) {
-          // Search EntityManager (includes all entities, not just new ones this turn)
-          const hintedEntity = entityManager.getByName(result.showPortraitFor);
-          console.log('[Portrait] Entity lookup result for', result.showPortraitFor, ':', hintedEntity ? 'FOUND' : 'NOT FOUND');
-
-          if (hintedEntity && !isAnimalOrObject(hintedEntity)) {
-            portraitEntity = hintedEntity;
-            console.log('[Portrait] ✓ Using LLM hint:', result.showPortraitFor);
-          } else if (!hintedEntity) {
-            console.warn('[Portrait] ✗ LLM suggested', result.showPortraitFor, 'but entity not found in EntityManager');
-          } else {
-            console.warn('[Portrait] ✗ LLM suggested', result.showPortraitFor, 'but it is an animal/object:', hintedEntity);
-          }
-        } else {
-          console.log('[Portrait] No LLM hint provided (showPortraitFor was null/undefined)');
-        }
-
-        // 2. FALLBACK: Use EntityAgent's selection
-        if (!portraitEntity && result.selectedEntity) {
-          if (!isAnimalOrObject(result.selectedEntity)) {
-            portraitEntity = result.selectedEntity;
-            console.log('[Portrait] ⟳ Fallback to EntityAgent selection:', result.selectedEntity.name);
-          }
-        }
-
-        // 3. LAST RESORT: First person mentioned (excluding animals/objects/items)
-        if (!portraitEntity && result.newNPCs?.length > 0) {
-          const firstPerson = result.newNPCs.find(npc => {
-            // Exclude animals, objects, and items
-            if (isAnimalOrObject(npc)) return false;
-            const entityType = npc.entityType || npc.type;
-            if (entityType === 'item' || entityType === 'location') return false;
-            return true;
-          });
-          if (firstPerson) {
-            portraitEntity = firstPerson;
-            console.log('[Portrait] ⟳ Last resort - first person mentioned:', firstPerson.name);
-          }
-        }
-
-        // 4. FINAL FALLBACK: Keep previous portrait if no new entity found
-        if (!portraitEntity && previousPortraitEntityRef.current) {
-          portraitEntity = previousPortraitEntityRef.current;
-          console.log('[Portrait] ↻ No new entity found, keeping previous:', portraitEntity.name);
-        }
-      } // End fallback portrait resolution system
-
-      // Track NPCs for portrait system (ContextPanel queries directly from EntityManager)
-      if (portraitEntity) {
-        npcTracker.addNPC(portraitEntity.name);
-        console.log('[Portrait] → Tracking for display:', portraitEntity.name);
-        // Update previous portrait for next turn
-        previousPortraitEntityRef.current = portraitEntity;
-      } else {
-        console.log('[Portrait] ∅ No portrait-worthy NPCs this turn');
+        // No portrait provided by LLM - this is intentional, show map instead
+        console.log('[Portrait] ∅ No portrait this turn - map will be shown');
+        previousPortraitEntityRef.current = null;
       }
 
       // Log all entities for debugging
@@ -847,7 +800,15 @@ export function useGameHandlers({
       // Note: Removed "Someone approaches" system message - causes confusion when LLM diverges
       // The narrative itself already mentions who appears
 
-      newHistory.push({ role: 'assistant', content: result.narrative });
+      // PHASE 3: Add response type and dialogue fields for UI display
+      newHistory.push({
+        role: 'assistant',
+        content: result.responseType === 'dialogue' ? result.dialogue : result.narrative,
+        responseType: result.responseType || 'narration',
+        dialogue: result.dialogue || null,
+        npcSpeaker: result.npcSpeaker || null,
+        primaryPortrait: result.primaryPortrait || null
+      });
 
       if (result.systemAnnouncements && result.systemAnnouncements.length > 0) {
         result.systemAnnouncements.forEach(announcement => {
@@ -952,10 +913,20 @@ export function useGameHandlers({
       // Handle contract offers (treatment or sale)
       // Store contract offer but DON'T auto-open modal
       // Player will see a clickable card in NarrativePanel
-      if (result.contractOffer && result.contractOffer.type && result.contractOffer.type !== 'null') {
-        console.log('[Contract] Offer detected:', result.contractOffer.type, result.contractOffer);
+      // TIMING FIX: Only show card when system announcement confirms contract is ready
+      // This prevents premature card display on first NPC mention (Turn 1)
+      // and ensures card appears when negotiation is actually finalized (Turn 2-3)
+      if (result.contractOffer &&
+          result.contractOffer.type &&
+          result.contractOffer.type !== 'null' &&
+          result.systemAnnouncements?.some(msg => msg.toLowerCase().includes('contract'))) {
+        console.log('[Contract] Offer finalized and ready for player decision:', result.contractOffer.type, result.contractOffer);
         setPendingContract(result.contractOffer);
         // Note: Modal is NOT auto-opened, user must click the contract card
+      } else if (result.contractOffer && result.contractOffer.type && result.contractOffer.type !== 'null') {
+        // Contract detected but not yet finalized (no system announcement)
+        console.log('[Contract] Offer detected but not yet finalized (waiting for negotiation):', result.contractOffer.type);
+        // Don't show card yet - let negotiation continue
       } else {
         // Clear any previous contract when none is active
         if (result.contractOffer && result.contractOffer.type === 'null') {
@@ -1035,6 +1006,172 @@ export function useGameHandlers({
     npcPositions,
     setPlayerPosition,
     setGameLog
+  ]);
+
+  // ARROW KEY MOVEMENT HANDLER
+  const handleMovement = useCallback(async (direction) => {
+    // Map direction to movement delta and text
+    const MOVEMENT_STEP = 50;
+    const movements = {
+      north: { dx: 0, dy: -MOVEMENT_STEP, text: 'I walk north' },
+      south: { dx: 0, dy: MOVEMENT_STEP, text: 'I walk south' },
+      west: { dx: -MOVEMENT_STEP, dy: 0, text: 'I walk west' },
+      east: { dx: MOVEMENT_STEP, dy: 0, text: 'I walk east' }
+    };
+
+    const movement = movements[direction];
+    if (!movement) return;
+
+    // Calculate new position for visual feedback
+    const newPosition = {
+      ...playerPosition,
+      x: playerPosition.x + movement.dx,
+      y: playerPosition.y + movement.dy
+    };
+
+    // Update player position immediately for visual feedback
+    setPlayerPosition(newPosition);
+
+    // Set loading state
+    setIsLoading(true);
+
+    // NOTE: Don't add to userActions or setUserInput - keep movement command hidden from player
+    // It's only in conversation history for LLM context
+
+    // Call orchestrateTurn directly with movement text (bypasses state timing issues)
+    try {
+      const result = await orchestrateTurn({
+        scenarioId: gameState.scenarioId || '1680-mexico-city',
+        playerAction: movement.text, // Pass movement text directly
+        conversationHistory,
+        gameState: {
+          ...gameState,
+          position: playerPosition,
+          currentMap: currentMapId
+        },
+        turnNumber,
+        recentNPCs: npcTracker.getRecentNPCs(),
+        reputation: reputation,
+        wealth: currentWealth,
+        mapData: currentMapData,
+        playerPosition: playerPosition,
+        npcPositions,
+        playerSkills,
+        journal,
+        shopSignHung: gameState.shopSign?.hung || false,
+        isContinuation: false, // IMPORTANT: Movement breaks conversation continuation
+        continuationNPC: null, // No NPC continuity for movement
+      });
+
+      // Check if result is valid
+      // Note: result.narrative is a STRING, not an object
+      if (!result || !result.narrative || typeof result.narrative !== 'string') {
+        console.error('[Movement] Invalid result structure:', result);
+        throw new Error('Invalid response from narrative agent');
+      }
+
+      // Process result same as handleSubmit (abbreviated for movement)
+      const primaryPortraitFile = result.primaryPortrait || null;
+
+      if (primaryPortraitFile) {
+        console.log('[Portrait Phase 2] Movement: Setting portrait:', primaryPortraitFile);
+        setPrimaryPortraitFile(primaryPortraitFile);
+      } else {
+        console.log('[Portrait Phase 2] Movement: No portrait (solo exploration)');
+        setPrimaryPortraitFile(null); // Clear portrait when walking alone
+      }
+
+      // Update conversation history
+      // Mark movement commands as hidden so they don't display in narrative panel
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: movement.text, isMovement: true, hidden: true },
+        {
+          role: 'assistant',
+          content: result.narrative,
+          responseType: result.responseType || 'movement',
+          primaryPortrait: result.primaryPortrait || null
+        }
+      ]);
+
+      // Update narrative output
+      setHistoryOutput(result.narrative);
+
+      // Handle game state updates
+      if (result.gameState) {
+        // Handle inventory changes properly (don't call updateInventory with null)
+        if (result.inventoryChanges && result.inventoryChanges.length > 0) {
+          for (const change of result.inventoryChanges) {
+            updateInventory(change.item, change.quantity);
+          }
+        }
+
+        // Update location if it changed
+        if (result.gameState.location) {
+          updateLocation(result.gameState.location);
+        }
+
+        // Update time/date if they changed
+        if (result.gameState.time && result.gameState.date) {
+          advanceTime({
+            time: result.gameState.time,
+            date: result.gameState.date,
+            location: result.gameState.location || gameState.location
+          });
+        }
+
+        // DON'T overwrite position during movement - we already set it manually above
+        // The LLM doesn't track pixel coordinates, so its position data would be stale
+      }
+
+      // Increment turn
+      setTurnNumber(prevTurn => prevTurn + 1);
+
+      // Don't clear input (we never set it for movement)
+    } catch (error) {
+      console.error('[Movement] Error:', error);
+      console.error('[Movement] Error details:', error.message);
+      console.error('[Movement] Error stack:', error.stack);
+
+      // Show error to player
+      const errorMessage = `*Movement failed: ${error.message || 'Unknown error'}*`;
+      setHistoryOutput(errorMessage);
+
+      // Add error to conversation history
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'system', content: errorMessage }
+      ]);
+
+      // Revert position on error
+      setPlayerPosition(playerPosition);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    setPlayerPosition,
+    setIsLoading,
+    setUserInput,
+    setUserActions,
+    orchestrateTurn,
+    gameState,
+    conversationHistory,
+    turnNumber,
+    npcTracker,
+    reputation,
+    currentWealth,
+    currentMapData,
+    playerPosition,
+    currentMapId,
+    npcPositions,
+    playerSkills,
+    journal,
+    setPrimaryPortraitFile,
+    setConversationHistory,
+    setHistoryOutput,
+    updateInventory,
+    updateLocation,
+    setTurnNumber
   ]);
 
   // QUICK ACTION HANDLER
@@ -1528,6 +1665,11 @@ Respond with ONLY a JSON object in this exact format:
     // Update wealth immediately (payment received upfront)
     setWealth(prev => prev + paymentAmount);
 
+    // Award XP for entering contract
+    if (typeof awardXP === 'function') {
+      awardXP(1, `contract_treatment_${patientEntity.name}`);
+    }
+
     // Add journal entry
     addJournalEntry({
       turnNumber,
@@ -1585,6 +1727,41 @@ Generate the transition narrative.`;
       setActivePatient(patientEntity);
       setPatientDialogue([]); // Clear previous dialogue
 
+      // PHASE 2 FIX: Update portrait to show the patient who is now physically present
+      // Since transition narrative doesn't go through NarrativeAgent, manually update portrait
+      console.log('[Portrait Phase 2] Patient now present, updating portrait for:', patientEntity.name);
+
+      // Enrich patient if needed to get appearance data
+      const enrichedPatient = entityManager.getById(patientEntity.id) || patientEntity;
+
+      // Use old portrait resolver as fallback for this edge case (transition scenes)
+      const patientPortrait = resolvePortrait(enrichedPatient);
+      if (patientPortrait) {
+        const portraitFilename = patientPortrait.replace('/portraits/', '');
+        console.log('[Portrait Phase 2] Setting patient portrait:', portraitFilename);
+
+        // Store portrait in patient entity for display in "Patient Ready" card and patient view
+        enrichedPatient.image = portraitFilename;
+        if (!enrichedPatient.visual) enrichedPatient.visual = {};
+        enrichedPatient.visual.image = portraitFilename;
+        console.log('[Portrait Phase 2] Stored portrait in patient entity:', portraitFilename);
+
+        setPrimaryPortraitFile(portraitFilename);
+
+        // CRITICAL FIX: Update entity reference so ContextPanel displays correct name
+        previousPortraitEntityRef.current = enrichedPatient;
+        console.log('[Portrait Phase 2] Updated entity reference to:', enrichedPatient.name);
+
+        // Update recent portrait for next turn's continuity
+        recentPortraitRef.current = portraitFilename;
+        console.log('[Portrait Phase 2] Stored portrait for next turn:', portraitFilename);
+
+        // Update active patient to include the portrait
+        setActivePatient({ ...enrichedPatient });
+      } else {
+        console.warn('[Portrait Phase 2] Could not resolve portrait for patient:', patientEntity.name);
+      }
+
       // Clear the contract and close modal
       setPendingContract(null);
       setIsContractModalOpen(false);
@@ -1605,11 +1782,27 @@ Generate the transition narrative.`;
       setActivePatient(patientEntity);
       setPatientDialogue([]);
 
+      // PHASE 2 FIX: Update portrait for patient (even in fallback case)
+      const enrichedPatient = entityManager.getById(patientEntity.id) || patientEntity;
+      const patientPortrait = resolvePortrait(enrichedPatient);
+      if (patientPortrait) {
+        const portraitFilename = patientPortrait.replace('/portraits/', '');
+        setPrimaryPortraitFile(portraitFilename);
+
+        // CRITICAL FIX: Update entity reference so ContextPanel displays correct name
+        previousPortraitEntityRef.current = enrichedPatient;
+        console.log('[Portrait Phase 2 Fallback] Updated entity reference to:', enrichedPatient.name);
+
+        // Update recent portrait for next turn's continuity
+        recentPortraitRef.current = portraitFilename;
+        console.log('[Portrait Phase 2 Fallback] Stored portrait for next turn:', portraitFilename);
+      }
+
       // Clear the contract and close modal (even in error case)
       setPendingContract(null);
       setIsContractModalOpen(false);
     }
-  }, [setWealth, addJournalEntry, turnNumber, gameState.date, gameState.location, gameState.time, toast, setIsLoading, scenarioId, setConversationHistory, setHistoryOutput, setActivePatient, setPatientDialogue, setPendingContract, setIsContractModalOpen]);
+  }, [setWealth, awardXP, addJournalEntry, turnNumber, gameState.date, gameState.location, gameState.time, toast, setIsLoading, scenarioId, setConversationHistory, setHistoryOutput, setActivePatient, setPatientDialogue, setPendingContract, setIsContractModalOpen, setPrimaryPortraitFile]);
 
   // Handle accepting sale contract
   const handleAcceptSale = useCallback(async (item, price, customerName) => {
@@ -1620,6 +1813,11 @@ Generate the transition narrative.`;
 
     // Update wealth
     setWealth(prev => prev + price);
+
+    // Award XP for completing sale
+    if (typeof awardXP === 'function') {
+      awardXP(1, `sale_${item.name}_to_${customerName}`);
+    }
 
     // Log to conversation history
     setConversationHistory(prev => [...prev,
@@ -1638,7 +1836,7 @@ Generate the transition narrative.`;
     // Clear the contract and close modal
     setPendingContract(null);
     setIsContractModalOpen(false);
-  }, [updateInventory, setWealth, setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast, setPendingContract, setIsContractModalOpen]);
+  }, [updateInventory, setWealth, awardXP, setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast, setPendingContract, setIsContractModalOpen]);
 
   // Handle declining contract
   const handleDeclineContract = useCallback(() => {
@@ -1697,5 +1895,6 @@ Generate the transition narrative.`;
     handleAcceptTreatment,
     handleAcceptSale,
     handleDeclineContract,
+    handleMovement,
   };
 }

@@ -305,9 +305,9 @@ export default function TradeModal({
     setHistoryOutput(responseText);
     addJournalEntry(`Purchased ${selectedItem.name} for ${finalPrice} reales.`);
 
-    // Award XP for commerce
+    // Award XP for commerce (+1 XP)
     if (typeof awardXP === 'function') {
-      awardXP(2, `commerce_purchase_${selectedItem.name}`);
+      awardXP(1, `commerce_purchase_${selectedItem.name}`);
     }
 
     // Award bargaining skill XP

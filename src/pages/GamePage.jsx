@@ -25,6 +25,8 @@ import LevelUpNotification from '../components/LevelUpNotification';
 import ProfessionChoiceModal from '../components/ProfessionChoiceModal';
 import AbilityUnlockNotification from '../components/AbilityUnlockNotification';
 import ContractOfferModal from '../components/ContractOfferModal';
+import ItemConsumptionModal from '../components/ItemConsumptionModal';
+import GameOverModal from '../components/GameOverModal';
 
 // Feature components
 import { useGameState } from '../core/state/gameState';
@@ -36,7 +38,7 @@ import resourceManager from '../systems/ResourceManager';
 import { scenarioLoader } from '../core/services/scenarioLoader';
 import { getTransactionManager, TRANSACTION_CATEGORIES } from '../core/systems/transactionManager';
 import { getAllAbilitiesForProfession, getXPMultiplier, getSkillXPMultiplier } from '../core/systems/professionAbilities';
-import { getProfessionIcon } from '../core/systems/levelingSystem';
+import { getProfessionIcon, getPlayerTitle } from '../core/systems/levelingSystem';
 
 // Modularized components
 import { useGameHandlers } from './hooks/useGameHandlers';
@@ -48,6 +50,7 @@ import { generateJournalEntry } from '../journalAgent';
 import imageMap from '../imageMap';
 
 import { createChatCompletion } from '../core/services/llmService';
+import { evaluateConsumptionEffects } from '../core/services/consumptionService';
 import { buildSystemPrompt, buildContextSummary, buildEntityContext } from '../prompts/promptModules';
 import { orchestrateTurn } from '../core/agents/AgentOrchestrator';
 import { NPCTracker } from '../core/agents/EntityAgent';
@@ -90,6 +93,10 @@ const GameContent = () => {
   const toast = useToast();
   const { scenarioId } = useParams(); // Get scenarioId from URL
 
+  // Load scenario character data for skills initialization
+  const scenario = scenarioLoader.getScenario(scenarioId || '1680-mexico-city');
+  const characterData = scenario?.character;
+
   const {
     gameState,
     updateInventory,
@@ -131,6 +138,21 @@ const GameContent = () => {
   const [currentMapData, setCurrentMapData] = useState(null);
   const [currentMapId, setCurrentMapId] = useState('botica-de-la-amargura');
 
+  // Update player position based on location (for exterior map display)
+  useEffect(() => {
+    const location = gameState.location;
+
+    // If location is "Botica de la Amargura" (exterior map view)
+    if (location && location.includes('Botica') && location.includes('Mexico City')) {
+      // Set position to botica building center on exterior map
+      setPlayerPosition({ x: 1350, y: 917, gridX: 0, gridY: 0 });
+    }
+    // For interior locations, use default interior position
+    else if (location && location.includes('Botica') && !location.includes('Mexico City')) {
+      setPlayerPosition({ x: 500, y: 620, gridX: 25, gridY: 31 });
+    }
+  }, [gameState.location]);
+
   // NPC position tracking (real-time updates every 100ms)
   const {
     npcPositions,
@@ -166,6 +188,14 @@ const GameContent = () => {
   const [pendingContract, setPendingContract] = useState(null);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
 
+  // Item consumption modal state
+  const [isConsumptionModalOpen, setIsConsumptionModalOpen] = useState(false);
+  const [itemToConsume, setItemToConsume] = useState(null);
+
+  // Game over state
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [causeOfDeath, setCauseOfDeath] = useState('');
+
   // PHASE 1: Primary portrait file (LLM-selected portrait)
   const [primaryPortraitFile, setPrimaryPortraitFile] = useState(null);
 
@@ -181,7 +211,7 @@ const GameContent = () => {
   // Reputation system
   const { reputation, updateReputation, reputationEmoji, setReputation: setReputationDirect } = useReputation();
 
-  // Skills system
+  // Skills system (pass character data for proper initialization)
   const {
     playerSkills,
     activeEffects: skillEffects,
@@ -190,17 +220,11 @@ const GameContent = () => {
     learnNewSkill,
     improveSkill,
     resetSkills
-  } = useSkills((skillId) => {
-    // Award character XP when skills level up
-    if (typeof gameState.awardXP === 'function') {
-      gameState.awardXP(10, `skill_levelup_${skillId}`, playerSkills);
-      console.log(`[Character XP] Awarded 10 XP for leveling up skill: ${skillId}`);
-    }
-  });
+  } = useSkills(characterData, null); // No callback needed - character XP is managed by playerSkills now
 
   // Wrap XP award functions to apply Scholar profession bonuses
   const awardXP = useCallback((xp, source = 'unknown') => {
-    const multiplier = getXPMultiplier(gameState.chosenProfession, gameState.playerLevel);
+    const multiplier = getXPMultiplier(gameState.chosenProfession, playerSkills.level);
     const adjustedXP = Math.floor(xp * multiplier);
 
     if (multiplier > 1.0) {
@@ -208,10 +232,62 @@ const GameContent = () => {
     }
 
     rawAwardXP(adjustedXP, source);
-  }, [rawAwardXP, gameState.chosenProfession, gameState.playerLevel]);
+
+    // Trigger XP gain notification with category for color-coded particles
+    const reasonText = formatXPReason(source);
+    const category = categorizeXPSource(source);
+    setXPGain({ amount: adjustedXP, reason: reasonText, category });
+    setXPGainKey(prev => prev + 1);
+
+    // Auto-open status tab to show XP gain
+    setLeftSidebarTab('status');
+
+    // Clear notification after 2 seconds
+    setTimeout(() => {
+      setXPGain(null);
+    }, 2000);
+  }, [rawAwardXP, gameState.chosenProfession, playerSkills.level]);
+
+  // Categorize XP sources for color-coded particles
+  // gold: deals/contracts, green: foraging/herbal, purple: medical, blue: everything else
+  const categorizeXPSource = (source) => {
+    if (source.includes('sale_') || source.includes('contract_treatment')) {
+      return 'gold'; // Deals and contracts
+    } else if (source.includes('foraging') || source.includes('compound_creation')) {
+      return 'green'; // Foraging and herbal skills
+    } else if (source.includes('prescription') || source.includes('surgery') ||
+               source.includes('bloodletting') || source.includes('patient_healing')) {
+      return 'purple'; // Medical diagnosis and treatment
+    } else {
+      return 'blue'; // Everything else (rest, purchases, etc.)
+    }
+  };
+
+  // Format XP reason text for display
+  const formatXPReason = (source) => {
+    if (source.includes('prescription') || source.includes('patient_healing')) {
+      return 'prescription';
+    } else if (source.includes('contract_treatment')) {
+      return 'treatment contract';
+    } else if (source.includes('sale_')) {
+      return 'sale';
+    } else if (source.includes('compound_creation')) {
+      return 'alchemy';
+    } else if (source.includes('foraging')) {
+      return 'foraging';
+    } else if (source.includes('rest')) {
+      return 'rest';
+    } else if (source.includes('commerce_purchase')) {
+      return 'purchase';
+    } else if (source.includes('surgery') || source.includes('bloodletting')) {
+      return 'surgery';
+    } else {
+      return source.replace(/_/g, ' ');
+    }
+  };
 
   const awardSkillXP = useCallback((skillId, xp, source = 'unknown') => {
-    const multiplier = getSkillXPMultiplier(gameState.chosenProfession, gameState.playerLevel);
+    const multiplier = getSkillXPMultiplier(gameState.chosenProfession, playerSkills.level);
     const adjustedXP = Math.floor(xp * multiplier);
 
     if (multiplier > 1.0) {
@@ -219,11 +295,15 @@ const GameContent = () => {
     }
 
     rawAwardSkillXP(skillId, adjustedXP, source);
-  }, [rawAwardSkillXP, gameState.chosenProfession, gameState.playerLevel]);
+  }, [rawAwardSkillXP, gameState.chosenProfession, playerSkills.level]);
 
   // Active effects (not core stats - this is for temporary buffs/debuffs)
   const [activeEffects, setActiveEffects] = useState([]);
   const [consecutiveLowEnergyTurns, setConsecutiveLowEnergyTurns] = useState(0);
+
+  // XP gain notification state
+  const [xpGain, setXPGain] = useState(null);
+  const [xpGainKey, setXPGainKey] = useState(0); // Force re-render for animations
 
   // Popups and modals
   const [showMixingPopup, setShowMixingPopup] = useState(false);
@@ -254,6 +334,8 @@ const GameContent = () => {
   const [gameAssessment, setGameAssessment] = useState('');
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [showNPCModal, setShowNPCModal] = useState(false);
+  const [selectedNPC, setSelectedNPC] = useState(null);
   const [showItemModal, setShowItemModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
@@ -308,23 +390,31 @@ const GameContent = () => {
     }
   }, [gameState.wealth, transactionManager, scenarioId]);
 
-  // Handle level-ups and profession choice
-  const prevLevelRef = React.useRef(gameState.playerLevel);
+  // Handle level-ups and profession choice (now using playerSkills.level)
+  const prevLevelRef = React.useRef(playerSkills.level);
   useEffect(() => {
-    if (gameState.playerLevel > prevLevelRef.current) {
-      // Level up occurred!
+    if (playerSkills.level > prevLevelRef.current) {
+      // Level up occurred! Award health and energy bonuses
+      const healthGain = 10;
+      const energyGain = 5;
+
+      setHealth(prev => Math.min(100, prev + healthGain));
+      setEnergy(prev => Math.min(100, prev + energyGain));
+
       setLevelUpData({
-        newLevel: gameState.playerLevel,
+        newLevel: playerSkills.level,
         oldLevel: prevLevelRef.current,
         newTitle: gameState.playerTitle,
-        healthGain: 10,
-        energyGain: 5,
+        healthGain,
+        energyGain,
         skillPointGain: 1
       });
       setShowLevelUpNotification(true);
 
+      console.log(`[Level Up] ${prevLevelRef.current} → ${playerSkills.level} (+${healthGain} health, +${energyGain} energy)`);
+
       // Check if reached level 5 and no profession chosen
-      if (gameState.playerLevel === 5 && !gameState.chosenProfession) {
+      if (playerSkills.level === 5 && !gameState.chosenProfession) {
         // Show profession choice modal after level-up notification closes
         setTimeout(() => {
           setShowProfessionChoiceModal(true);
@@ -334,7 +424,7 @@ const GameContent = () => {
       // Check if a profession ability unlocked at this level (L10/L15/L20/L25)
       if (gameState.chosenProfession) {
         const allAbilities = getAllAbilitiesForProfession(gameState.chosenProfession);
-        const unlockedAbility = allAbilities.find(a => a.level === gameState.playerLevel);
+        const unlockedAbility = allAbilities.find(a => a.level === playerSkills.level);
 
         if (unlockedAbility) {
           // Show ability unlock notification after level-up notification
@@ -351,7 +441,7 @@ const GameContent = () => {
             setAbilityUnlockData({
               abilityName: unlockedAbility.name,
               abilityDescription: unlockedAbility.description,
-              level: gameState.playerLevel,
+              level: playerSkills.level,
               professionIcon: getProfessionIcon(gameState.chosenProfession),
               professionColor: professionColors[gameState.chosenProfession] || '#8b5cf6'
             });
@@ -360,8 +450,35 @@ const GameContent = () => {
         }
       }
     }
-    prevLevelRef.current = gameState.playerLevel;
-  }, [gameState.playerLevel, gameState.playerTitle, gameState.chosenProfession]);
+    prevLevelRef.current = playerSkills.level;
+  }, [playerSkills.level, gameState.playerTitle, gameState.chosenProfession]);
+
+  // Sync title with level and profession changes
+  useEffect(() => {
+    const newTitle = getPlayerTitle(
+      playerSkills.level,
+      gameState.chosenProfession,
+      playerSkills.knownSkills
+    );
+
+    if (newTitle !== gameState.playerTitle) {
+      setGameState(prev => ({ ...prev, playerTitle: newTitle }));
+      console.log(`[Title] Updated to: ${newTitle}`);
+    }
+  }, [playerSkills.level, gameState.chosenProfession, playerSkills.knownSkills, gameState.playerTitle, setGameState]);
+
+  // Monitor health for game over condition
+  useEffect(() => {
+    if (gameState.health <= 0 && !isGameOver) {
+      console.log('[GameOver] Health reached 0, triggering game over');
+      setIsGameOver(true);
+
+      // If no specific cause of death was set, use generic message
+      if (!causeOfDeath) {
+        setCauseOfDeath('Maria\'s health was depleted. She succumbed to her injuries and ailments.');
+      }
+    }
+  }, [gameState.health, isGameOver, causeOfDeath]);
 
   // Load initial narrative on game start AND register EntityList
   useEffect(() => {
@@ -417,6 +534,8 @@ const GameContent = () => {
     setIsPdfOpen,
     setSelectedPatient,
     setShowPatientModal,
+    setSelectedNPC,
+    setShowNPCModal,
     setJournal,
     setCustomJournalEntry,
     setEnergy,  // Now uses gameState
@@ -491,7 +610,7 @@ const GameContent = () => {
     toggleShopSign,
 
     // Leveling system
-    awardXP: gameState.awardXP,
+    awardXP,
     awardSkillXP,
   });
 
@@ -529,7 +648,40 @@ const GameContent = () => {
     handleAcceptTreatment,
     handleAcceptSale,
     handleDeclineContract,
+    handleMovement,
   } = handlers;
+
+  // Keyboard event listener for arrow key movement
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only respond to arrow keys when NOT typing in an input field
+      const activeElement = document.activeElement;
+      if (activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.contentEditable === 'true'
+      )) {
+        return;
+      }
+
+      // Map arrow keys to compass directions
+      const keyToDirection = {
+        'ArrowUp': 'north',
+        'ArrowDown': 'south',
+        'ArrowLeft': 'west',
+        'ArrowRight': 'east'
+      };
+
+      const direction = keyToDirection[e.key];
+      if (direction) {
+        e.preventDefault(); // Prevent page scrolling
+        handleMovement(direction);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleMovement]);
 
   // Study Tab - Detect books when narrative changes
   React.useEffect(() => {
@@ -540,8 +692,107 @@ const GameContent = () => {
 
   // Drag-drop handlers for portraits
   const handleItemDropOnPlayer = (item) => {
-    // For now, just show info toast (could be expanded to use/consume items)
-    toast.info(`Drag items onto NPCs to interact with them`);
+    console.log('[ItemDrop] Item dropped on player:', item);
+    setItemToConsume(item);
+    setIsConsumptionModalOpen(true);
+  };
+
+  const handleConfirmConsumption = async () => {
+    if (!itemToConsume) return;
+
+    console.log('[Consumption] Confirming consumption of:', itemToConsume.name);
+
+    // Close modal first
+    setIsConsumptionModalOpen(false);
+
+    // Show brief info toast while evaluating
+    toast.info('Evaluating effects...', 1000);
+
+    try {
+      // Check if item exists in inventory
+      const inventoryItem = gameState.inventory.find(i => i.name === itemToConsume.name);
+      if (!inventoryItem || inventoryItem.quantity < 1) {
+        toast.error(`You don't have any ${itemToConsume.name} to consume!`);
+        setItemToConsume(null);
+        return;
+      }
+
+      // Remove one from inventory
+      updateInventory(itemToConsume.name, -1, 'consumed');
+
+      // Use LLM to evaluate realistic effects
+      const scenario = `Maria de Lima is a converso apothecary in 1680 Mexico City. Current health: ${gameState.health}/100, Energy: ${gameState.energy}/100.`;
+
+      const effects = await evaluateConsumptionEffects(
+        itemToConsume.name,
+        inventoryItem.properties || {},
+        scenario
+      );
+
+      // Show appropriate toast based on severity
+      const { healthChange, energyChange, message, severity } = effects;
+
+      // Check for lethal consequences
+      if (severity === 'lethal' || healthChange <= -100) {
+        setCauseOfDeath(message);
+        toast.error(message, 6000);
+      } else if (severity === 'severe') {
+        toast.error(message, 5000);
+      } else if (severity === 'beneficial') {
+        toast.success(message, 4000);
+      } else if (healthChange < 0 || energyChange < 0) {
+        toast.warning(message, 4000);
+      } else {
+        toast.info(message, 4000);
+      }
+
+      // Apply resource changes
+      applyResourceChanges('consume_item', {
+        energyBonus: energyChange,
+        healthBonus: healthChange
+      });
+
+      // Add to conversation history
+      setConversationHistory(prev => [...prev, { role: 'system', content: `*${message}*` }]);
+
+      // Add journal entry
+      addJournalEntry({
+        turnNumber,
+        date: gameState.date,
+        entry: `Consumed ${itemToConsume.name}. Energy: ${energyChange > 0 ? '+' : ''}${energyChange}, Health: ${healthChange > 0 ? '+' : ''}${healthChange}.`
+      });
+
+    } catch (error) {
+      console.error('[Consumption] Error evaluating effects:', error);
+      toast.error('Failed to evaluate effects. Item not consumed.');
+      // Refund the item since consumption failed
+      updateInventory(itemToConsume.name, 1, 'refunded');
+    }
+
+    setItemToConsume(null);
+  };
+
+  const handleCancelConsumption = () => {
+    console.log('[Consumption] Cancelled consumption');
+    setIsConsumptionModalOpen(false);
+    setItemToConsume(null);
+  };
+
+  // Handle game restart after game over
+  const handleRestartGame = () => {
+    console.log('[GameOver] Restarting game');
+
+    // Clear localStorage to reset save
+    localStorage.removeItem('apothecaryGameState');
+    localStorage.removeItem('apothecaryConversationHistory');
+
+    // Reload the page to start fresh
+    window.location.reload();
+  };
+
+  const handleMainMenu = () => {
+    console.log('[GameOver] Returning to main menu');
+    window.location.href = '/'; // Navigate to home page
   };
 
   const handleItemDropOnNPC = (item, npcData) => {
@@ -659,7 +910,7 @@ const GameContent = () => {
               energy={gameState.energy}
               characterName="Maria de Lima"
               characterTitle={gameState.playerTitle || "Master Apothecary"}
-              characterLevel={gameState.playerLevel || 1}
+              characterLevel={playerSkills.level || 1}
               chosenProfession={gameState.chosenProfession}
               activeEffects={activeEffects}
               playerSkills={playerSkills}
@@ -679,6 +930,8 @@ const GameContent = () => {
               onItemDropOnPlayer={handleItemDropOnPlayer}
               statusPanelTab={leftSidebarTab}
               onStatusPanelTabChange={setLeftSidebarTab}
+              xpGain={xpGain}
+              xpGainKey={xpGainKey}
             />
 
             {/* Center - Central Panel (Tabbed Interface) */}
@@ -820,6 +1073,7 @@ const GameContent = () => {
           isJournalOpen={isJournalOpen}
           isAboutOpen={isAboutOpen}
           showPatientModal={showPatientModal}
+          showNPCModal={showNPCModal}
           showItemModal={showItemModal}
           showEquipmentModal={showEquipmentModal}
           showReputationModal={showReputationModal}
@@ -841,6 +1095,7 @@ const GameContent = () => {
 
           // Modal data
           selectedPatient={selectedPatient}
+          selectedNPC={selectedNPC}
           selectedItem={selectedItem}
           selectedPDF={selectedPDF}
           selectedCitation={selectedCitation}
@@ -862,6 +1117,7 @@ const GameContent = () => {
           skillEffects={skillEffects}
           transactionManager={transactionManager}
           TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
+          playerPosition={playerPosition}
 
           // Toggle/close handlers
           toggleMixingPopup={toggleMixingPopup}
@@ -877,6 +1133,8 @@ const GameContent = () => {
           toggleAbout={toggleAbout}
           setShowPatientModal={setShowPatientModal}
           setSelectedPatient={setSelectedPatient}
+          setShowNPCModal={setShowNPCModal}
+          setSelectedNPC={setSelectedNPC}
           setShowItemModal={setShowItemModal}
           setSelectedItem={setSelectedItem}
           setShowEquipmentModal={setShowEquipmentModal}
@@ -966,7 +1224,7 @@ const GameContent = () => {
           isOpen={showProfessionChoiceModal}
           playerSkills={playerSkills}
           onChoose={(professionId) => {
-            gameState.chooseProfession(professionId);
+            gameState.chooseProfession(professionId, playerSkills.level);
             setShowProfessionChoiceModal(false);
           }}
           canClose={false}
@@ -991,6 +1249,22 @@ const GameContent = () => {
           onDecline={handleDeclineContract}
           inventory={gameState.inventory}
           theme={narrationDarkMode ? 'dark' : 'light'}
+        />
+
+        {/* Item Consumption Modal - for consuming items by dragging to player portrait */}
+        <ItemConsumptionModal
+          isOpen={isConsumptionModalOpen}
+          itemName={itemToConsume?.name || ''}
+          onConfirm={handleConfirmConsumption}
+          onCancel={handleCancelConsumption}
+        />
+
+        {/* Game Over Modal - displayed when health reaches 0 */}
+        <GameOverModal
+          isOpen={isGameOver}
+          causeOfDeath={causeOfDeath}
+          onRestart={handleRestartGame}
+          onMainMenu={handleMainMenu}
         />
 
         </div>

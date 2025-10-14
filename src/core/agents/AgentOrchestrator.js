@@ -29,6 +29,7 @@ import { entityManager } from '../entities/EntityManager';
  * @param {Object|null} [params.playerSkills] - Player's skills from useSkills hook
  * @param {Array} [params.journal] - Journal entries for history compression
  * @param {Object|null} [params.activePatient] - Currently active patient being treated
+ * @param {string|null} [params.recentPortrait] - Portrait file from previous turn (for consistency)
  * @returns {Promise<Object>}
  */
 export async function orchestrateTurn({
@@ -45,7 +46,8 @@ export async function orchestrateTurn({
   currentMapId = null,
   playerSkills = null,
   journal = [],
-  activePatient = null
+  activePatient = null,
+  recentPortrait = null
 }) {
   try {
     // Step 1: Context-aware entity selection
@@ -69,7 +71,28 @@ export async function orchestrateTurn({
       console.log(`[Turn ${turnNumber}] No entity selected this turn`);
     }
 
+    // PHASE 3: Detect conversation continuation (with movement/dismissal awareness)
+    // Only force continuation if player is staying in place AND not explicitly leaving/dismissing
+    const movementOrDismissalKeywords = /\b(walk|move|go|leave|travel|run|head|stride|turn away|back away|flee|escape|go away|dismiss|send away|leave me|get out|enough)\b/i;
+    const isMovingAway = movementOrDismissalKeywords.test(playerAction);
+
+    // Check if EntityAgent returns null but we have recentNPCs
+    // AND player is NOT moving away (which would break the conversation)
+    const isContinuation = !selectedEntity &&
+                          (recentNPCs.length > 0 || recentPortrait !== null) &&
+                          !isMovingAway;
+
+    const continuationNPC = isContinuation && recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
+
+    if (isContinuation) {
+      console.log(`[Turn ${turnNumber}] CONTINUATION DETECTED - Last NPC: ${continuationNPC || 'unknown'}, Last portrait: ${recentPortrait}`);
+    } else if (!selectedEntity && recentNPCs.length > 0 && isMovingAway) {
+      console.log(`[Turn ${turnNumber}] Movement detected - allowing conversation to end naturally (player action: "${playerAction}")`);
+    }
+
     // Step 2: Generate narrative using NarrativeAgent (with map context, reputation, skills, and journal)
+    // PHASE 3 FIX: Only pass continuation context if actually continuing conversation
+    // When player moves away or dismisses, clear ALL continuation context so LLM starts fresh
     const narrativeResult = await generateNarrative({
       scenarioId,
       playerAction,
@@ -82,7 +105,10 @@ export async function orchestrateTurn({
       currentMapId,
       reputation,
       playerSkills,
-      journal
+      journal,
+      recentPortrait: isContinuation ? recentPortrait : null, // PHASE 2: Only maintain portrait during true continuations
+      isContinuation, // PHASE 3: Flag if conversation is continuing
+      continuationNPC: isContinuation ? continuationNPC : null // PHASE 3: Only pass NPC name during true continuations
     });
 
     if (!narrativeResult.success) {
@@ -190,8 +216,10 @@ export async function orchestrateTurn({
     const validatedState = validateGameState(stateResult.gameState, gameState);
 
     // Step 5: Return combined result
-    // Debug: Log the showPortraitFor and requestNewPatient passthrough
+    // Debug: Log the portrait and patient system passthrough
     console.log('[AgentOrchestrator] showPortraitFor from narrative:', narrativeResult.showPortraitFor);
+    console.log('[AgentOrchestrator] primaryPortrait from narrative:', narrativeResult.primaryPortrait);
+    console.log('[AgentOrchestrator] primaryNPC from narrative:', narrativeResult.primaryNPC ? narrativeResult.primaryNPC.name : 'null');
     console.log('[AgentOrchestrator] requestNewPatient from narrative:', narrativeResult.requestNewPatient);
     if (stateResult.contractOffer) {
       console.log('[AgentOrchestrator] contractOffer from state:', stateResult.contractOffer.type, stateResult.contractOffer);
@@ -200,10 +228,15 @@ export async function orchestrateTurn({
     return {
       success: true,
       narrative: narrativeResult.narrative,
+      responseType: narrativeResult.responseType || 'narration', // PHASE 3: Response mode (dialogue/movement/narration)
+      dialogue: narrativeResult.dialogue || null, // PHASE 3: Pure NPC speech for dialogue mode
+      npcSpeaker: narrativeResult.npcSpeaker || null, // PHASE 3: NPC name for dialogue mode
       npcDialogue: narrativeResult.npcDialogue,
       sceneDescription: narrativeResult.sceneDescription,
       suggestedCommands: narrativeResult.suggestedCommands,
-      showPortraitFor: narrativeResult.showPortraitFor || null, // LLM portrait hint
+      showPortraitFor: narrativeResult.showPortraitFor || null, // LLM portrait hint (old system)
+      primaryPortrait: narrativeResult.primaryPortrait || null, // PHASE 2: Direct portrait filename
+      primaryNPC: narrativeResult.primaryNPC || null, // PHASE 2: Complete NPC profile
       requestNewPatient: narrativeResult.requestNewPatient || false, // LLM controls patient flow
       patientContext: narrativeResult.patientContext || null, // Reason for patient arrival
       gameState: validatedState,

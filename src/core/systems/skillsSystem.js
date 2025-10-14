@@ -701,9 +701,16 @@ export function getRandomStartingSkills(count = 2) {
  * Initialize player skills with fixed baseline + random auxiliary
  * Fixed baseline: Core medical knowledge and languages (always same for replayability)
  * Random auxiliary: 10 skill points distributed randomly for variety
+ *
+ * @param {number} startLevel - Starting character level (default 1)
+ * @param {number|null} startXP - Starting XP (default null = random 5-15)
+ * @returns {Object} Initial player skills state
  */
-export function initializePlayerSkills() {
+export function initializePlayerSkills(startLevel = 1, startXP = null) {
   const knownSkills = {};
+
+  // Generate random starting XP between 5-15 if not explicitly provided
+  const initialXP = startXP !== null ? startXP : Math.floor(Math.random() * 11) + 5;
 
   // FIXED BASELINE SKILLS (always the same)
   // Core Medical Knowledge - Considerable starting skills
@@ -807,9 +814,9 @@ export function initializePlayerSkills() {
     knownSkills,          // { skillId: { level, xp } }
     learningSkills: [],   // [{ skillId, xp }] - skills being actively trained
     skillPoints: 0,       // Unspent skill points
-    level: 1,             // Player level
-    xp: 0,                // Current XP towards next level
-    xpToNextLevel: 20,    // XP needed for next level
+    level: startLevel,    // Player level (from character.js)
+    xp: initialXP,        // Current XP towards next level (random 5-15)
+    xpToNextLevel: 20,    // XP needed for next level (flat 20 always)
     totalXP: 0            // Total XP earned
   };
 }
@@ -823,15 +830,15 @@ export function initializePlayerSkills() {
 export function addXP(playerSkills, xp) {
   const newState = { ...playerSkills, xp: playerSkills.xp + xp, totalXP: playerSkills.totalXP + xp };
 
-  // Check for player level-ups (20 XP per level)
+  // Check for player level-ups (flat 20 XP per level)
   while (newState.xp >= newState.xpToNextLevel) {
     newState.xp -= newState.xpToNextLevel;
     newState.level += 1;
     newState.skillPoints += 1;
     console.log(`[Skills] Level up! Now level ${newState.level}. +1 skill point`);
 
-    // XP to next level increases slightly (keeps progression interesting)
-    newState.xpToNextLevel = 20 + Math.floor(newState.level / 5) * 5;
+    // Flat 20 XP per level (simple, predictable progression)
+    newState.xpToNextLevel = 20;
   }
 
   return newState;

@@ -191,79 +191,79 @@ export default {
   // Streets at x: 150, 350, 550, 720, 1080, 1280, 1480
   // Streets at y: 100, 300, 490, 830, 1020, 1200, 1250
   buildings: [
-    // ===== PLAZA MAYOR (Central, 720-1080 x 490-830) =====
+    // ===== PLAZA MAYOR (Central, narrower to match historical map) =====
     {
       id: 'plaza-mayor',
       name: 'Plaza Mayor',
       fullName: 'Plaza Mayor de México',
-      polygon: [[740, 510], [1060, 510], [1060, 810], [740, 810]],
+      polygon: [[820, 610], [980, 610], [980, 730], [820, 730]],
       type: 'plaza',
       hasInterior: null,
-      labelPosition: [900, 580],
+      labelPosition: [900, 670],
       priority: 2,
       alwaysShowLabel: true,
       yearBuilt: 1524,
       description: 'Central plaza, heart of colonial power and commerce'
     },
 
-    // ===== CATEDRAL (North of Plaza, 720-1080 x 300-480) =====
+    // ===== CATEDRAL (West of Plaza, smaller and less tall) =====
     {
       id: 'cathedral',
       name: 'Catedral Metropolitana',
       fullName: 'Catedral Metropolitana de la Asunción de María',
-      polygon: [[760, 330], [1040, 330], [1040, 470], [760, 470]],
+      polygon: [[690, 610], [800, 610], [800, 730], [690, 730]],
       type: 'church',
       subtype: 'cathedral',
       hasInterior: 'cathedral-interior',
-      labelPosition: [900, 400],
+      labelPosition: [745, 670],
       priority: 2,
       alwaysShowLabel: true,
       yearBuilt: 1573,
       description: 'Metropolitan Cathedral (under construction in 1680)'
     },
 
-    // ===== PALACIO VIRREINAL (East of Plaza, 1100-1260 x 510-810) =====
+    // ===== PALACIO VIRREINAL (East of Plaza, smaller and less tall) =====
     {
       id: 'palacio-virreinal',
       name: 'Palacio Virreinal',
       fullName: 'Palacio de los Virreyes de Nueva España',
-      polygon: [[1100, 530], [1250, 530], [1250, 790], [1100, 790]],
+      polygon: [[1000, 610], [1110, 610], [1110, 730], [1000, 730]],
       type: 'government',
       subtype: 'viceregal-palace',
       hasInterior: 'palacio-interior',
-      labelPosition: [1175, 660],
+      labelPosition: [1055, 670],
       priority: 2,
       alwaysShowLabel: true,
       yearBuilt: 1562,
       description: 'Seat of the Viceroy, governs all New Spain'
     },
 
-    // ===== EL PARIÁN (Inside Plaza) =====
+    // ===== EL PARIÁN (Inside Plaza, label hidden to show Plaza Mayor label) =====
     {
       id: 'el-parian',
       name: 'El Parián',
       fullName: 'El Parián - Mercado Central',
-      polygon: [[860, 630], [940, 630], [940, 710], [860, 710]],
+      polygon: [[875, 650], [925, 650], [925, 690], [875, 690]],
       type: 'market',
       subtype: 'covered-market',
       hasInterior: 'parian-interior',
       labelPosition: [900, 670],
-      priority: 3,
-      alwaysShowLabel: true,
+      priority: 10,
+      alwaysShowLabel: false,
       yearBuilt: 1673,
       description: 'Central covered market'
     },
 
-    // ===== AYUNTAMIENTO (South of Plaza, 740-1060 x 840-1010) =====
+    // ===== AYUNTAMIENTO (South of Plaza, adjusted to new plaza size) =====
     {
       id: 'ayuntamiento',
       name: 'Ayuntamiento',
       fullName: 'Palacio del Ayuntamiento',
-      polygon: [[780, 860], [1020, 860], [1020, 1000], [780, 1000]],
+      polygon: [[820, 750], [980, 750], [980, 840], [820, 840]],
       type: 'government',
       subtype: 'municipal',
       hasInterior: null,
-      labelPosition: [900, 930],
+      labelPosition: [900, 795],
       priority: 3,
       alwaysShowLabel: true,
       yearBuilt: 1532,
@@ -370,16 +370,16 @@ export default {
       description: 'Market near monastery'
     },
 
-    // ===== MARIA'S BOTICA ⭐ (Block: 1300-1470 x 1030-1190, near Calle Amargura) =====
+    // ===== MARIA'S BOTICA ⭐ (Tiny yellow box) =====
     {
       id: 'botica-amargura',
       name: 'Botica de la Amargura',
-      polygon: [[1390, 1150], [1420, 1150], [1420, 1180], [1390, 1180]],
+      polygon: [[1340, 910], [1360, 910], [1360, 925], [1340, 925]],
       type: 'shop',
       subtype: 'apothecary',
       hasInterior: 'botica-interior',
       isPlayerLocation: true,
-      labelPosition: [1405, 1165],
+      labelPosition: [1350, 945],
       priority: 1,
       alwaysShowLabel: true,
       streetAddress: 'Calle de la Amargura, 47',
@@ -449,35 +449,35 @@ export default {
     {
       id: 'portal-mercaderes',
       name: 'Portal de Mercaderes',
-      polygon: [[730, 510], [738, 510], [738, 810], [730, 810]],
+      polygon: [[814, 610], [818, 610], [818, 730], [814, 730]],
       type: 'arcade',
-      labelPosition: [734, 660],
+      labelPosition: [816, 670],
       labelOffset: [-60, 0],
       labelRotation: -90,
-      priority: 5,
+      priority: 6,
       alwaysShowLabel: false,
       description: 'Western arcade'
     },
     {
       id: 'portal-flores',
       name: 'Portal de las Flores',
-      polygon: [[740, 500], [1060, 500], [1060, 508], [740, 508]],
+      polygon: [[820, 736], [980, 736], [980, 742], [820, 742]],
       type: 'arcade',
-      labelPosition: [900, 504],
-      labelOffset: [0, -30],
-      priority: 5,
+      labelPosition: [900, 739],
+      labelOffset: [0, 25],
+      priority: 6,
       alwaysShowLabel: false,
-      description: 'Northern arcade'
+      description: 'Southern arcade (corrected position)'
     },
     {
       id: 'portal-palacio',
       name: 'Portal del Palacio',
-      polygon: [[1070, 510], [1078, 510], [1078, 810], [1070, 810]],
+      polygon: [[986, 610], [992, 610], [992, 730], [986, 730]],
       type: 'arcade',
-      labelPosition: [1074, 660],
+      labelPosition: [989, 670],
       labelOffset: [60, 0],
       labelRotation: -90,
-      priority: 5,
+      priority: 6,
       alwaysShowLabel: false,
       description: 'Eastern arcade'
     },

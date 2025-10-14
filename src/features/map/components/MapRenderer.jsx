@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ExteriorMap from './ExteriorMap';
 import InteriorMap from './InteriorMap';
 
@@ -26,19 +26,40 @@ export default function MapRenderer({ scenario, currentLocation, npcs = [], play
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
+  // Ref for non-passive wheel listener
+  const mapContainerRef = useRef(null);
+
   // Get all maps from scenario
   const maps = scenario?.maps;
 
   // Reset zoom when map type changes
   useEffect(() => {
     if (mapType === 'exterior') {
-      setZoom(1.8); // Exterior maps more zoomed in
+      setZoom(4); // Exterior maps maximum zoomed in
       setPan({ x: 0, y: 0 }); // Reset pan
     } else {
       setZoom(1); // Interior maps normal zoom
       setPan({ x: 0, y: 0 }); // Reset pan
     }
   }, [mapType]);
+
+  // Attach non-passive wheel event listener
+  useEffect(() => {
+    const container = mapContainerRef.current;
+    if (!container) return;
+
+    const wheelHandler = (e) => {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        setZoom(z => Math.min(z * 1.15, 4));
+      } else {
+        setZoom(z => Math.max(z / 1.15, 0.5));
+      }
+    };
+
+    container.addEventListener('wheel', wheelHandler, { passive: false });
+    return () => container.removeEventListener('wheel', wheelHandler);
+  }, []);
 
   // Determine which map to show based on current location
   useEffect(() => {
@@ -126,12 +147,36 @@ export default function MapRenderer({ scenario, currentLocation, npcs = [], play
   // Reset zoom/pan when map changes
   useEffect(() => {
     if (mapType === 'exterior') {
-      setZoom(1.8);
+      setZoom(4);
     } else {
       setZoom(1);
     }
-    setPan({ x: 0, y: 0 });
+    setPan({ x: 0, y: 0 }); // Reset to center
   }, [activeMapId, mapType]);
+
+  // TODO: Center map on player position (disabled for now - needs debugging)
+  // The CSS transform order and zoom scaling makes this tricky
+  // For now, user can manually pan to see the player marker
+  /*
+  useEffect(() => {
+    if (!playerPosition || !mapContainerRef.current || mapType !== 'exterior') {
+      return;
+    }
+
+    const container = mapContainerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const containerCenterX = containerRect.width / 2;
+    const containerCenterY = containerRect.height / 2;
+
+    // Calculate the pan offset to center the player
+    const newPan = {
+      x: (containerCenterX / zoom) - playerPosition.x,
+      y: (containerCenterY / zoom) - playerPosition.y
+    };
+
+    setPan(newPan);
+  }, [playerPosition, zoom, mapType]);
+  */
 
   // Zoom handlers - Smoother, slower zoom (1.15 instead of 1.3)
   const handleZoomIn = () => {
@@ -145,11 +190,12 @@ export default function MapRenderer({ scenario, currentLocation, npcs = [], play
   const handleResetView = () => {
     // Reset to appropriate zoom based on map type
     if (mapType === 'exterior') {
-      setZoom(1.8);
+      setZoom(4); // Use max zoom for exterior (player centering will handle pan)
+      // Pan will auto-adjust via the player position centering effect
     } else {
       setZoom(1);
+      setPan({ x: 0, y: 0 });
     }
-    setPan({ x: 0, y: 0 });
   };
 
   // Pan handlers
@@ -169,16 +215,6 @@ export default function MapRenderer({ scenario, currentLocation, npcs = [], play
 
   const handleMouseUp = () => {
     setIsPanning(false);
-  };
-
-  // Mouse wheel zoom
-  const handleWheel = (e) => {
-    e.preventDefault();
-    if (e.deltaY < 0) {
-      handleZoomIn();
-    } else {
-      handleZoomOut();
-    }
   };
 
   // Convert NPCs to map markers format
@@ -208,9 +244,12 @@ export default function MapRenderer({ scenario, currentLocation, npcs = [], play
       setMapType('interior');
 
       // Notify parent component of location change
-      if (onLocationChange) {
+      if (onLocationChange && maps?.interior?.[building.hasInterior]) {
         const interiorMap = maps.interior[building.hasInterior];
         onLocationChange(interiorMap.name);
+      } else if (onLocationChange) {
+        // Fallback: use building name if interior map not found
+        onLocationChange(building.name);
       }
     } else {
       // Navigate to this building's location (but stay on exterior map)
@@ -287,6 +326,7 @@ export default function MapRenderer({ scenario, currentLocation, npcs = [], play
       <div className="flex flex-col h-full">
         {/* Clickable map area */}
         <div
+          ref={mapContainerRef}
           className={`flex-1 relative overflow-hidden ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
           onClick={() => {
             if (onMapClick) {
@@ -299,7 +339,6 @@ export default function MapRenderer({ scenario, currentLocation, npcs = [], play
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          onWheel={handleWheel}
           title="Drag to pan, scroll to zoom, click to enlarge"
         >
           {/* Zoom controls - Compact and glassy */}

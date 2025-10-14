@@ -176,6 +176,104 @@ scenarios/1680-mexico-city/
 
 **Components**: `PortraitSection.js`, `CharacterStats.js`, `Sleep.js`, `SkillRadialProgress.jsx`, `RelationshipBar.jsx`
 
+### NPC Portrait System (Phase 2 - Current)
+**Purpose**: Display portraits of NPCs physically present in scenes (people Maria is looking at and talking to)
+
+#### How It Works
+
+**1. Entity Selection (EntityAgent.js)**
+- Selects contextual NPC/patient based on:
+  - Player action intent (conversation continuation vs new encounter)
+  - Time of day, location, reputation
+  - Shop sign status (for patients)
+- **No procedural names generated** - templates are demographic hints only
+- Returns template entity (e.g., "Merchant", "Widow") OR null if conversation continues
+
+**2. LLM Portrait Selection (NarrativeAgent.js)**
+- LLM receives template as demographic hint
+- Generates complete NPC profile via `primaryNPC` field:
+  ```json
+  {
+    "primaryNPC": {
+      "name": "Isabel Valdés",
+      "age": "middle-aged",
+      "gender": "female",
+      "casta": "criollo",
+      "class": "middling",
+      "occupation": "Merchant's widow",
+      "personality": "Cautious but desperate",
+      "appearance": "Tanned skin, worn clothing",
+      "description": "A widow seeking help for her ill daughter"
+    },
+    "primaryPortrait": "middleagedcriollofemalemerchant.jpg"
+  }
+  ```
+- **Critical rule**: Show physically present person (mother at door), NOT discussed person (sick daughter)
+- **Identity consistency**: Same NPC keeps same name/portrait across conversation turns
+
+**3. Portrait Display (ContextPanel.js)**
+- Receives `primaryPortraitFile` from useGameHandlers
+- Displays portrait at `/portraits/{filename}`
+- **Phase 2**: LLM-primary path with fallback warnings if old system used
+
+#### Adding New Portraits
+
+**Automated sync system** - portraits are auto-added to the config when you run the sync script.
+
+**Step 1: Add image file to `/public/portraits/`**
+- Naming convention: `{descriptor}_{age}_{casta}_{occupation}.jpg`
+- Examples:
+  - `female_middleaged_criollo_patroness.jpg`
+  - `male_elder_indigenous_noble_delegate.jpg`
+  - `female_young_mestiza_market_vendor.jpg`
+  - `criollomaleprintermiddleaged.jpg`
+  - `peninsularpriestmiddleaged.jpg`
+
+**Step 2: Run the portrait sync script**
+```bash
+node scripts/syncPortraits.js
+```
+
+The script will:
+- Scan `/public/portraits/` for all `.jpg` and `.png` files
+- Auto-categorize new portraits based on filename patterns (gender, age, class, occupation)
+- Update `src/core/config/portraits.config.js` automatically
+- Display which portraits were added to which categories
+
+**That's it!** The LLM will now be able to select the new portraits from the config.
+
+**Categorization keywords:**
+- `priest`, `nun`, `friar`, `monk` → Clergy
+- `merchant`, `vendor`, `trader` → Merchants
+- `soldier`, `guard`, `military` → Soldiers
+- `child`, `boy`, `girl` → Children
+- `scholar`, `healer`, `apothecary`, `physician`, `midwife` → Scholars/Healers
+- `farmer`, `sailor`, `artisan`, `cobbler`, `seamstress`, `innkeeper` → Workers/Artisans
+- Gender/age/class patterns → Elite/Common/Young/Elderly Women/Men
+
+**Files:**
+- Portrait config: `src/core/config/portraits.config.js`
+- Sync script: `scripts/syncPortraits.js`
+- ~~`portraitLibrary.js`~~ (deprecated, will be deleted in Phase 3)
+
+#### Identity Consistency Rules (NarrativeAgent prompt)
+
+- **Conversation continuations**: EntityAgent returns null → LLM sees existing NPC in history → maintains identity
+- **Turn 1**: "Isabel Valdés arrives at door" → `primaryPortrait: "middleagedcriollofemalemerchant.jpg"`
+- **Turn 2**: Player says "what do you need?" → EntityAgent detects continuation → no new entity
+- **Turn 2 result**: LLM sees "Isabel Valdés" in history → uses same name and portrait ✓
+
+**Edge Cases**:
+- **Animals**: `primaryPortrait: null` (no human portrait for João the cat)
+- **Player alone**: `primaryPortrait: null` (no NPC present)
+- **Patient transitions**: When contract accepted, portrait updates to patient via `handleAcceptTreatment`
+
+**Files**:
+- Entity selection: `src/core/agents/EntityAgent.js`
+- LLM portrait generation: `src/core/agents/NarrativeAgent.js`
+- Portrait display: `src/components/ContextPanel.js`
+- Portrait orchestration: `src/pages/hooks/useGameHandlers.js`
+
 ### Inventory (`src/features/inventory/`)
 - **Inventory Pane**: Materia medica list with search/filter
 - **Journal**: Auto-generated entries for important events

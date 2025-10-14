@@ -3,8 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { initialInventoryData, potentialInventoryItems } from '../../initialInventory';
 import { createChatCompletion } from '../services/llmService';
 import { scenarioLoader } from '../services/scenarioLoader';
-import { getXPForNextLevel, getPlayerTitle } from '../systems/levelingSystem';
-import { getXPMultiplier, getSkillXPMultiplier, getPassiveIncomePerDay } from '../systems/professionAbilities';
+import { getPlayerTitle } from '../systems/levelingSystem';
+import { getPassiveIncomePerDay } from '../systems/professionAbilities';
 
 // Fisher-Yates shuffle function to shuffle the array
 const shuffleArray = (array) => {
@@ -15,10 +15,10 @@ const shuffleArray = (array) => {
   return array;
 };
 
-// Function to get a random selection of 10 items from the full inventory
+// Function to get a random selection of 20 items from the full inventory
 const getRandomInventory = () => {
   const inventorySet = new Set();
-  while (inventorySet.size < 10) {
+  while (inventorySet.size < 20) {
     const randomIndex = Math.floor(Math.random() * initialInventoryData.length);
     inventorySet.add(initialInventoryData[randomIndex]);
   }
@@ -32,14 +32,14 @@ const getRandomInventory = () => {
  */
 const initializeGameState = (scenarioId = '1680-mexico-city') => {
   // Generate random starting wealth between 5 and 25 reales
-  const startingWealth = Math.floor(Math.random() * 21) + 5;
+  const startingWealth = Math.floor(Math.random() * 21) + 17;
 
   try {
     const startingState = scenarioLoader.getStartingState(scenarioId);
 
-    // Get random selection of 10 items from starting inventory
+    // Get random selection of 15 items from starting inventory
     const shuffled = shuffleArray([...startingState.inventory]);
-    const randomInventory = shuffled.slice(0, 10);
+    const randomInventory = shuffled.slice(0, 15);
 
     return {
       scenarioId: startingState.scenarioId,
@@ -63,11 +63,7 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       shopSign: {
         hung: false  // Track whether shop sign is displayed
       },
-      // Leveling system
-      playerLevel: startingState.character.level,
-      playerXP: startingState.character.startingXP || 0,
-      xpToNextLevel: getXPForNextLevel(startingState.character.level),
-      totalXP: 0,
+      // Title and profession (level/XP now managed by playerSkills)
       playerTitle: startingState.character.title,
       chosenProfession: null, // null until Level 5 choice
       // Core player stats - single source of truth
@@ -100,11 +96,7 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       shopSign: {
         hung: false  // Track whether shop sign is displayed
       },
-      // Leveling system (fallback values)
-      playerLevel: 4,
-      playerXP: 25,
-      xpToNextLevel: getXPForNextLevel(4), // 50 XP
-      totalXP: 0,
+      // Title and profession (fallback values - level/XP now managed by playerSkills)
       playerTitle: 'Independent Apothecary',
       chosenProfession: null, // null until Level 5 choice
       // Core player stats - single source of truth
@@ -183,16 +175,22 @@ export const useGameState = (scenarioId) => {
 
   // Update inventory logic
   const updateInventory = useCallback((updateItemName, quantityChange) => {
+    // Safety check: prevent null/undefined errors
+    if (!updateItemName || typeof updateItemName !== 'string') {
+      console.warn('[updateInventory] Invalid item name:', updateItemName);
+      return;
+    }
+
     setGameState((prevState) => {
       let updatedInventory = prevState.inventory.map((item) => {
-        if (item.name.toLowerCase() === updateItemName.toLowerCase()) {
+        if (item.name && item.name.toLowerCase() === updateItemName.toLowerCase()) {
           const newQuantity = item.quantity + quantityChange;
           return { ...item, quantity: Math.max(0, newQuantity) };
         }
         return item;
       });
 
-      const itemExists = updatedInventory.some(item => item.name.toLowerCase() === updateItemName.toLowerCase());
+      const itemExists = updatedInventory.some(item => item.name && item.name.toLowerCase() === updateItemName.toLowerCase());
       if (!itemExists) {
         const newItem = potentialInventoryItems[updateItemName.toLowerCase()];
         if (newItem) {
@@ -344,7 +342,7 @@ Ensure that the JSON is correctly formatted and includes all required fields.`,
     }));
   }, []);
 
-const advanceTime = useCallback((summaryData) => {
+const advanceTime = useCallback((summaryData, playerLevel = 1) => {
   setGameState((prevState) => {
     let newTime = prevState.time;
     let newDate = prevState.date;
@@ -378,9 +376,10 @@ const advanceTime = useCallback((summaryData) => {
     }
 
     // Court Physician passive income (awarded once per day)
+    // Note: playerLevel is now passed from GamePage (from playerSkills.level)
     let newWealth = prevState.wealth;
     if (dayChanged && prevState.chosenProfession) {
-      const passiveIncome = getPassiveIncomePerDay(prevState.chosenProfession, prevState.playerLevel);
+      const passiveIncome = getPassiveIncomePerDay(prevState.chosenProfession, playerLevel);
       if (passiveIncome > 0) {
         newWealth += passiveIncome;
         console.log(`[Court Physician] Passive income: +${passiveIncome} reales (new wealth: ${newWealth})`);
@@ -614,111 +613,16 @@ const advanceTime = useCallback((summaryData) => {
   // ============================================
   // LEVELING & XP MANAGEMENT
   // ============================================
+  // PROFESSION SYSTEM
+  // ============================================
 
   /**
-   * Award XP to player and handle level-ups
-   * @param {number} amount - XP amount to award
-   * @param {string} source - Source of XP (for logging)
-   * @param {Object} playerSkills - Current player skills (from useSkills hook)
-   * @param {Function} awardSkillPoint - Callback to award skill point on level up
-   * @param {Function} onLevelUp - Callback when player levels up
-   * @returns {Object} Level-up data (if leveled up) or null
-   */
-  const awardXP = useCallback((amount, source = 'unknown', playerSkills = {}, awardSkillPoint = null, onLevelUp = null) => {
-    let levelUpData = null;
-
-    setGameState(prev => {
-      // Apply Scholar XP multiplier if player has Scholar profession
-      const xpMultiplier = getXPMultiplier(prev.chosenProfession, prev.playerLevel);
-      const adjustedAmount = Math.round(amount * xpMultiplier);
-
-      // Log XP gain (with multiplier if applicable)
-      if (xpMultiplier > 1.0) {
-        console.log(`[XP] +${amount} from ${source} × ${xpMultiplier.toFixed(2)} (Scholar bonus) = ${adjustedAmount} total`);
-      } else {
-        console.log(`[XP] +${adjustedAmount} from ${source}`);
-      }
-
-      let newXP = prev.playerXP + adjustedAmount;
-      let newLevel = prev.playerLevel;
-      let newXPToNext = prev.xpToNextLevel;
-      let newHealth = prev.health;
-      let newEnergy = prev.energy;
-      let leveledUp = false;
-
-      // Check for level-up
-      while (newXP >= newXPToNext) {
-        newXP -= newXPToNext;
-        newLevel += 1;
-        leveledUp = true;
-
-        // Award stat bonuses on level up
-        const healthGain = 10;
-        const energyGain = 5;
-        newHealth = Math.min(100, newHealth + healthGain);
-        newEnergy = Math.min(100, newEnergy + energyGain);
-
-        // Award skill point
-        if (awardSkillPoint) {
-          awardSkillPoint();
-        }
-
-        // Calculate new XP requirement
-        newXPToNext = getXPForNextLevel(newLevel);
-
-        console.log(`[XP] Level up! ${newLevel - 1} → ${newLevel}`);
-      }
-
-      // Update title dynamically (pre-profession) or from profession (post-profession)
-      let newTitle = prev.playerTitle;
-      if (leveledUp) {
-        newTitle = getPlayerTitle(newLevel, prev.chosenProfession, playerSkills?.knownSkills);
-      }
-
-      // If leveled up, prepare notification data
-      if (leveledUp) {
-        levelUpData = {
-          newLevel,
-          oldLevel: prev.playerLevel,
-          newTitle,
-          oldTitle: prev.playerTitle,
-          healthGain: newHealth - prev.health,
-          energyGain: newEnergy - prev.energy,
-          skillPointGain: 1,
-          reachedProfessionChoice: newLevel === 10 && !prev.chosenProfession
-        };
-
-        // Call onLevelUp callback if provided
-        if (onLevelUp) {
-          onLevelUp(levelUpData);
-        }
-      }
-
-      return {
-        ...prev,
-        playerXP: newXP,
-        playerLevel: newLevel,
-        xpToNextLevel: newXPToNext,
-        totalXP: prev.totalXP + amount,
-        playerTitle: newTitle,
-        health: newHealth,
-        energy: newEnergy
-      };
-    });
-
-    return levelUpData;
-  }, []);
-
-  /**
-   * Set chosen profession (at Level 10)
+   * Set chosen profession (level check handled by GamePage)
    * @param {string} professionId - Profession ID from PROFESSIONS enum
+   * @param {number} playerLevel - Current player level (from playerSkills)
    */
-  const chooseProfession = useCallback((professionId) => {
+  const chooseProfession = useCallback((professionId, playerLevel) => {
     setGameState(prev => {
-      if (prev.playerLevel < 10) {
-        console.warn('[Profession] Cannot choose profession before Level 10');
-        return prev;
-      }
 
       if (prev.chosenProfession) {
         console.warn('[Profession] Profession already chosen:', prev.chosenProfession);
@@ -727,8 +631,8 @@ const advanceTime = useCallback((summaryData) => {
 
       console.log(`[Profession] Chose profession: ${professionId}`);
 
-      // Update title to profession base title
-      const newTitle = getPlayerTitle(prev.playerLevel, professionId, {});
+      // Update title to profession base title (requires playerLevel from playerSkills)
+      const newTitle = getPlayerTitle(playerLevel, professionId, {});
 
       return {
         ...prev,
@@ -780,8 +684,7 @@ const advanceTime = useCallback((summaryData) => {
     updateEnergy,
     setEnergy,
 
-    // Leveling & XP
-    awardXP,
+    // Profession system (level/XP managed by playerSkills)
     chooseProfession,
   };
 };

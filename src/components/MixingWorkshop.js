@@ -128,7 +128,7 @@ const MixingWorkshop = ({
     const systemPrompt = `
 You are a 1680s iatrochemist tasked with simulating the process of creating compound drugs based on real principles of "chymical medicine." Some potential compound drug names: Balsamum Lucatelli, Elixir Proprietatis, Theriac, Sal Volatile Oleosum, Aurum Potabile, Emetic Wine, Gascon's Powder, Tinctura Antimonii, Elixir de Paracelso, Balsamo Peruviano, Salt of Mallow, Pulvis Cephalico, Hysteric Water, Cinnamon Water, Aqua Celestis, Camphorated Wine Spirit, Volatile Spirit, Aqua Vitae, Tinctura Opii Crocata, Plague Water, Mercurius Dulcis, Balsam of Sulphur, Aqua Mercurialis, Camphorated Oil, Quicksilver Liniment, Mithridate.
 
-When provided with two or more simple ingredients (materia medica) and a compounding method, you must generate a historically plausible compound drug. Mention if it is toxic in the description. Toxic drugs can either be unusable sludge or can be usable purgatives (classified as "Vomitorios").
+When provided with two or more simple ingredients (materia medica) and a compounding method, you must generate a historically plausible compound drug. Mention if it is toxic in the description. Toxic drugs can be usable purgatives (classified as "Vomitorios").
 
 Guide for mixing (other combos work too - this is just a guide to general logic):
 Quicksilver: Calcination of quicksilver ALWAYS yields toxic but highly valuable red precipitate of mercury (used in ointments); distillation yields distilled quicksilver, other methods nothing, as quicksilver is volatile and not suited for these methods. Distillation yields Distilled Quicksilver which is toxic and usually produces toxic compounds (not unusable sludge - actual named compounds with toxic properties) when mixed.
@@ -158,13 +158,13 @@ Always observe rules above. Another option is for a drug to become something wea
 When provided with ingredients and a compounding method, return a JSON object with the following fields:
 
 {
-  "name": "Name of the compound or 'Unusable Sludge'",
+  "name": "Name of the compound",
   "latinName": "The Latin name of the compound (be creative)",
   "spanishName": "The name of the compound in Spanish",
   "humoralQualities": "Two word description of humoral qualities: warm and moist, cold and dry, cold and moist, or warm and dry.",
   "medicinalEffects": "The specific effects it has on health and the body - defined in a phrase, like 'soporific and resolutive, but potentially toxic'",
   "description": "Brief, pithy, witty description of the process and result (no more than a single short sentence or phrase)",
-  "price": Number of reales in value (0 if 'Unusable Sludge'),
+  "price": Number of reales in value,
   "emoji": "A single HISTORICALLY ACCURATE and CREATIVE emoji to represent the result (Unusable Sludge is always ☠️)",
   "citation": "Real primary source or historical reference which mentions it or something like it",
   "quantity": "1"
@@ -239,23 +239,10 @@ Compounding Method: ${selectedMethod}
         addJournalEntry(`Maria created a new compound named **${newCompound.name}** using the ${selectedMethod} method. The compound is ${newCompound.humoralQualities} with ${newCompound.medicinalEffects} effects and is worth ${newCompound.price} silver coins.`);
       }
 
-      // Award XP for compound creation
+      // Award XP for compound creation (+1 XP per creation)
       if (typeof awardXP === 'function') {
-        if (newCompound.name === 'Unusable Sludge') {
-          // Small XP for failed experiments (learning from mistakes)
-          awardXP(5, 'failed_compound_creation');
-        } else {
-          // Base XP for successful compound creation
-          let xpAmount = 15;
-
-          // Bonus XP for valuable compounds (price > 50)
-          if (newCompound.price > 50) {
-            xpAmount += 10;
-          }
-
-          awardXP(xpAmount, `compound_creation_${newCompound.name}`);
-          console.log(`[XP] Awarded ${xpAmount} XP for creating ${newCompound.name}`);
-        }
+        awardXP(1, `compound_creation_${newCompound.name}`);
+        console.log(`[XP] Awarded 1 XP for creating ${newCompound.name}`);
       }
 
       // Award alchemy skill XP

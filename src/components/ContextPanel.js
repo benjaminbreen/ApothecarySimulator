@@ -68,25 +68,37 @@ const ContextPanel = ({
     return () => clearTimeout(timer);
   }, []);
 
-  // Fetch Wikipedia data when entities change
+  // Fetch Wikipedia data for ONE entity with wikipediaQuery per turn
   React.useEffect(() => {
-    if (entities && entities.length > 0) {
-      setIsLoadingWikipedia(true);
-      console.log('[ContextPanel] Fetching Wikipedia data for entities:', entities);
+    // Find the first entity with a wikipediaQuery
+    const entityWithQuery = entities?.find(e => e.wikipediaQuery);
 
-      fetchEntitiesWithWikipedia(entities)
+    if (entityWithQuery) {
+      setIsLoadingWikipedia(true);
+      console.log('[ContextPanel] Found entity with wikipediaQuery:', entityWithQuery.wikipediaQuery);
+
+      // Fetch Wikipedia for just this one entity
+      fetchEntitiesWithWikipedia([entityWithQuery])
         .then((enriched) => {
-          setEnrichedEntities(enriched);
+          // Only show if Wikipedia data exists
+          const withWikipedia = enriched.filter(e => e.wikipedia !== null);
+          if (withWikipedia.length > 0) {
+            setEnrichedEntities(withWikipedia);
+            console.log('[ContextPanel] Wikipedia article found:', withWikipedia[0].wikipedia.title);
+          } else {
+            setEnrichedEntities([]);
+            console.log('[ContextPanel] No Wikipedia article found for:', entityWithQuery.wikipediaQuery);
+          }
           setIsLoadingWikipedia(false);
-          console.log('[ContextPanel] Wikipedia data fetched:', enriched);
         })
         .catch((error) => {
           console.error('[ContextPanel] Error fetching Wikipedia data:', error);
-          setEnrichedEntities(entities); // Fallback to original entities
+          setEnrichedEntities([]);
           setIsLoadingWikipedia(false);
         });
     } else {
       setEnrichedEntities([]);
+      console.log('[ContextPanel] No entity with wikipediaQuery this turn');
     }
   }, [entities]);
 
@@ -123,19 +135,18 @@ const ContextPanel = ({
     return adaptEntity(npcEntity, modalType);
   }, [npcEntity]);
 
-  // Get portrait URL using Phase 1 hybrid system
+  // Get portrait URL (LLM-ONLY, NO FALLBACK)
+  // Only show portrait if LLM explicitly provides primaryPortraitFile
+  // If null, ViewportPanel will default to map tab
   const getPortraitUrl = React.useMemo(() => {
-    // PHASE 1: If LLM provided primary portrait, use it directly
     if (primaryPortraitFile) {
-      console.log('[ContextPanel Phase 1] Using LLM-selected portrait:', primaryPortraitFile);
+      console.log('[ContextPanel] ✓ Using LLM portrait:', primaryPortraitFile);
       return `/portraits/${primaryPortraitFile}`;
     }
 
-    // FALLBACK: Use old portrait resolver system
-    if (!npcEntity) return null;
-    console.log('[ContextPanel] Using fallback portrait resolution for:', npcEntity.name);
-    return resolvePortrait(npcEntity);
-  }, [primaryPortraitFile, npcEntity]);
+    console.log('[ContextPanel] ∅ No portrait provided - map will be shown');
+    return null;
+  }, [primaryPortraitFile]);
 
   const currentNPC = latestNPC && getPortraitUrl ? {
     name: latestNPC,
@@ -227,6 +238,7 @@ const ContextPanel = ({
           onMapClick={onMapClick}
           discoveredBooks={discoveredBooks}
           onBookClick={onBookClick}
+          narrativeTurn={recentNarrativeTurn}
         />
       </div>
 
@@ -339,7 +351,7 @@ const ContextPanel = ({
             {!isLoadingWikipedia && enrichedEntities.length === 0 && (
               <div className="text-center py-6">
                 <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-                  Historical context will appear here as you interact with the world
+                  Relevant Wikipedia articles will appear here when available
                 </p>
               </div>
             )}

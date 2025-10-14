@@ -17,7 +17,9 @@ export function PlayerStatusPanel({
   onOpenSkillsModal,
   activeTab: controlledActiveTab,
   onTabChange,
-  inventory // Add inventory prop
+  inventory, // Add inventory prop
+  xpGain, // XP gain notification data
+  xpGainKey // Key to force re-render of XP animation
 }) {
   const [internalActiveTab, setInternalActiveTab] = useState('reputation');
   const [hoveredTab, setHoveredTab] = useState(null);
@@ -134,6 +136,8 @@ export function PlayerStatusPanel({
             playerSkills={playerSkills}
             activeEffects={activeEffects}
             onOpenSkillsModal={onOpenSkillsModal}
+            xpGain={xpGain}
+            xpGainKey={xpGainKey}
           />
         )}
 

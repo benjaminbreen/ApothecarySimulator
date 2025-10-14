@@ -69,170 +69,53 @@ function extractMovement(narrative, playerAction, currentPosition, currentMapId,
  * @returns {string} Complete state agent system prompt
  */
 function buildStatePrompt(scenario, movementData = null) {
-  const mechanics = scenario.prompts?.mechanics || {};
   const currencyName = scenario.currency || 'coins';
 
-  return `You are the State Tracking Engine for HistoryLens.
+  return `Extract game state changes from narrative text. Return JSON only.
 
-Your ONLY job is to analyze narrative text and extract game state changes.
-
-### Your Responsibilities:
-1. Determine wealth changes (purchases, earnings, expenses) - tracked in ${currencyName}
-2. Assess character emotional/physical status
-3. Track reputation changes based on actions
-4. Calculate time progression (how many hours passed)
-5. Track location changes
-6. Identify inventory changes
-7. Track player position/movement${movementData ? ' (movement detected: ' + movementData.direction + ')' : ''}
-8. Track relationship changes with NPCs based on interactions
-
-### Your Response Format:
 \`\`\`json
 {
   "gameState": {
-    "wealth": 11,
-    "wealthChange": -3,
-    "status": "tired",
-    "reputation": "😐",
-    "location": "${scenario.startLocation}",
-    "time": "3:45 PM",
-    "date": "${scenario.startDate}",
-    "timeElapsed": "2 hours 30 minutes",
+    "wealth": number,
+    "wealthChange": number,
+    "status": "one word",
+    "reputation": "emoji",
+    "location": "string",
+    "time": "H:MM AM/PM",
+    "date": "Month DD, YYYY",
+    "timeElapsed": "X hours Y minutes",
     "position": ${movementData ? `{"x": ${movementData.newPosition.x}, "y": ${movementData.newPosition.y}}` : 'null'}
   },
-  "inventoryChanges": [
-    {"item": "Aloe Vera", "quantity": 2, "action": "bought", "price": 3}
-  ],
-  "relationshipChanges": [
-    {"npcId": "dona-isabel", "npcName": "Doña Isabel", "delta": 5, "reason": "Successfully treated her headache"}
-  ],
-  "contractOffer": {
-    "type": "treatment|sale|null",
-    "offeredBy": "NPC name who is making the request",
-    "offeredByDescription": "Brief description of the NPC",
-    "patientName": "Name of patient to treat (for treatment type)",
-    "patientDescription": "Brief description of patient and symptoms (for treatment type)",
-    "paymentOffered": 0,
-    "itemRequested": "Name of item they want to buy (for sale type)"
-  },
-  "journalEntry": "**August 22, 3:45 PM, Location**: Brief summary with **NPC names bolded**.",
+  "inventoryChanges": [{"item": "string", "quantity": number, "action": "bought|sold|used|foraged|received|lost", "price": number}],
+  "relationshipChanges": [{"npcId": "kebab-case", "npcName": "Full Name", "delta": -20 to +20, "reason": "brief"}],
+  "contractOffer": {"type": "treatment|sale|null", "offeredBy": "string", "offeredByDescription": "string", "patientName": "string", "patientDescription": "string", "paymentOffered": number, "itemRequested": "string"},
+  "journalEntry": "**Date, Time, Location**: One sentence with **NPC names bolded**",
   "systemAnnouncements": []
 }
 \`\`\`
 
-### Status Words (pick ONE):
-tired, exhilarated, frightened, anxious, worried, determined, calm, rested, weary, content, frustrated, angry, curious, hopeful, desperate, relieved, proud, ashamed, uncertain, confident, melancholy, joyful
+**Status words**: tired, exhilarated, frightened, anxious, worried, determined, calm, rested, weary, content, frustrated, angry, curious, hopeful, desperate, relieved, proud, ashamed, uncertain, confident, melancholy, joyful
 
-### Reputation Scale:
-😡 (1 - Abysmal), 😠 (2 - Very Poor), 😐 (3 - Neutral), 😶 (4 - Below Average),
-🙂 (5 - Decent), 😌 (6 - Above Average), 😏 (7 - Good), 😃 (8 - Excellent),
-😇 (9 - Outstanding), 👑 (10 - Legendary)
+**Reputation**: 😡 (1), 😠 (2), 😐 (3), 😶 (4), 🙂 (5), 😌 (6), 😏 (7), 😃 (8), 😇 (9), 👑 (10)
 
-${mechanics.timeProgression ? `\n### Time Progression Rules:\n${mechanics.timeProgression}` : `### Time Progression Rules:
-- Simple conversation: 30 minutes - 1 hour
-- Treating a patient: 1-2 hours
-- Shopping/foraging: 1-2 hours
-- Traveling across town: 2-3 hours
-- Traveling to another city: several hours to days
-- Sleeping: 6-8 hours
-- Always provide exact times like "8:35 AM" never "morning"
-- Increment date when passing midnight`}
+**Time**: Conversation 0.5-1h, treatment 1-2h, shopping 1-2h, travel 2-3h, sleep 6-8h. Use exact times ("8:35 AM"), increment date past midnight.
 
-### Location Tracking:
-- Always include region/city (e.g., "Market stall, La Merced, ${scenario.settings?.locations?.[0] || 'City'}")
-- Track character's exact location carefully
-- Don't default back to starting location unless narrative indicates return
+**Relationships**: Most interactions are neutral (delta: 0). Only track meaningful changes. Major positive +10 to +20, moderate +5 to +9, minor +1 to +4, minor negative -1 to -4, moderate -5 to -9, major -10 to -20.
 
-### Inventory Actions:
-- "bought" - character purchased
-- "sold" - character sold
-- "used" - character consumed/used
-- "foraged" - character found/gathered
-- "received" - character was given
-- "lost" - character lost/stolen
+**Contract Detection** (BE CONSERVATIVE):
+- **Detect ONLY when**: Player action includes "negotiate", "how much", "payment", "terms" OR NPC offers payment AND player engaged
+- **DO NOT detect**: First turn with NPC, player hasn't asked about payment, no negotiation yet, already completed transaction
+- **Type "treatment"**: Extract offeredBy, offeredByDescription, patientName, patientDescription, paymentOffered (number or 0)
+- **Type "sale"**: Extract offeredBy, offeredByDescription, itemRequested, paymentOffered
+- **Type null**: Default (no contract)
+- **System announcement**: Add "A potential contract offer for [type] has been detected, pending player acceptance of the terms ([payment])." when type is NOT null
 
-### Relationship Changes:
-Track meaningful interactions that affect NPC relationships. Use these guidelines:
-- **delta**: Change in relationship (-20 to +20, typically -10 to +10)
-  - +10 to +20: Major positive (saved their life, exceptional treatment, generous gift)
-  - +5 to +9: Moderate positive (successful treatment, helpful advice, courtesy)
-  - +1 to +4: Minor positive (pleasant conversation, small favor)
-  - 0: Neutral interaction (no impact)
-  - -1 to -4: Minor negative (mild rudeness, small inconvenience)
-  - -5 to -9: Moderate negative (failed treatment, broken promise, insult)
-  - -10 to -20: Major negative (serious harm, betrayal, major offense)
-- **npcId**: Use kebab-case lowercase (e.g., "dona-isabel", "father-antonio")
-- **npcName**: Full display name (e.g., "Doña Isabel", "Father Antonio")
-- **reason**: Brief explanation (e.g., "Successfully treated headache", "Charged too much")
-- Only include if there was a meaningful interaction (not every turn)
-- Be conservative - most casual interactions are neutral
-
-### Contract Offer Detection:
-**CRITICAL**: Only detect contracts when Maria is actively negotiating payment/terms with an NPC.
-
-**BE CONSERVATIVE**: Do NOT detect contracts when NPCs first mention needing help. Only detect when the conversation has progressed to discussing terms, payment, or Maria explicitly engaging with the request.
-
-**Set contractOffer ONLY when:**
-- Maria asks "What can you pay?" or "How much?" or similar payment questions
-- NPC explicitly offers a specific amount of payment AND Maria hasn't declined yet
-- NPC holds out money/payment and waits for Maria's decision (after she's engaged)
-- Narrative shows Maria considering the offer or asking details about terms
-- Player action includes negotiation keywords: "negotiate", "payment", "how much", "terms", "contract"
-
-**DO NOT set contractOffer when:**
-- NPC first mentions needing help (too early, player hasn't engaged yet)
-- NPC just describes a problem or sick person (no negotiation yet)
-- Maria hasn't responded or shown interest yet
-- This is the first turn of interaction with an NPC
-
-**DETECTION PATTERNS (look for these phrases):**
-- Maria asks "What can you pay?" or "How much?" = TREATMENT OFFER
-- "I have here [X] reales" + Maria engaged in conversation = TREATMENT OFFER
-- "holding out the pouch" + "expecting Maria to accept" = TREATMENT OFFER (only if Maria already asked about it)
-- Player action contains "negotiate" or "payment" = DETECT CONTRACT
-- "Do you have [medicine]?" + Maria responds + "what is your price?" = SALE OFFER
-
-**Type "treatment"**: Someone needs medical treatment
-- offeredBy: The NPC making the request (might be intermediary)
-- offeredByDescription: Brief description (e.g., "Dominican friar, cautiously respectful")
-- patientName: Name of the sick person (could be "the traveler", "a soul in distress", "her mother", etc. - VAGUE IS OK)
-- patientDescription: Symptoms and condition details (use what's available, even if vague like "in distress near the Alameda")
-- paymentOffered: Amount offered in ${currencyName} (extract from narrative)
-
-**Type "sale"**: NPC wants to buy an item
-- offeredBy: The NPC making the request
-- offeredByDescription: Brief description
-- itemRequested: What they want to buy (e.g., "draught for stomach", "fever remedy")
-- paymentOffered: Amount offered (or 0 if not specified yet)
-
-**Type null**: No offer detected (default)
-
-**EXAMPLES:**
-✓ Player action: "What can you pay?" + "I have here fifteen reales" → CONTRACT DETECTED (type: treatment)
-✓ Player action: "negotiate terms" + "Holding out 10 reales for treatment" → CONTRACT DETECTED
-✓ Player action: "How much for the remedy?" + "What is your price?" → CONTRACT DETECTED (type: sale)
-✗ "A sailor urgently requests help for a choking man" → NO CONTRACT (first mention, player hasn't engaged)
-✗ "The NPC describes a sick person needing treatment" → NO CONTRACT (no negotiation yet)
-✗ "Maria agreed to help and received 15 reales" → NO CONTRACT (already completed)
-✗ "After Maria accepted, the NPC paid" → NO CONTRACT (already completed)
-
-**IMPORTANT**:
-- **CONSERVATIVE APPROACH**: When in doubt, DO NOT detect a contract
-- Only detect when player action shows clear negotiation intent
-- Do NOT detect on first turn when NPC mentions needing help
-- Do NOT update wealth until player accepts the offer
-- Do NOT assume agreement - offers must be accepted explicitly
-- If narrative says "Maria accepted", "Maria agreed", "Maria took the money" = treat as completed transaction (no offer)
-
-### Journal Entry Format:
-"**[Date], [Time], [Location]**: [One sentence summary with **NPC names bolded**]"
-
-### Important:
-- Be conservative with reputation changes (usually stays same)
-- Wealth changes must match inventory transactions (in ${currencyName})
-- Time must always move forward, never backward
-- One status word only
-- Detect contract offers before transactions complete`;
+**Rules**:
+- Wealth changes match inventory (${currencyName})
+- Time moves forward only
+- Location: Include region/city
+- Conservative: Reputation/relationships rarely change
+- Contracts: Only when actively negotiating, never on first mention`;
 }
 
 /**
