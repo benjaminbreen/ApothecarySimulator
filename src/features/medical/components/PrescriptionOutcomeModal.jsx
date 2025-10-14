@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import { resolvePortrait } from '../../../core/services/portraitResolver';
 
@@ -42,8 +43,9 @@ function PrescriptionOutcomeModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-lg animate-fade-in">
+  // Render modal using portal to ensure it appears above everything
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-lg animate-fade-in">
       <div className="relative w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-slate-800 border border-ink-200 dark:border-slate-700 shadow-2xl dark:shadow-dark-elevation-4 transition-colors duration-300">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b-2 border-ink-100 dark:border-slate-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 transition-colors duration-300">
@@ -235,6 +237,9 @@ function PrescriptionOutcomeModal({
       </div>
     </div>
   );
+
+  // Use portal to render at document root (above all other UI)
+  return ReactDOM.createPortal(modalContent, document.body);
 }
 
 export default PrescriptionOutcomeModal;

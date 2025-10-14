@@ -952,10 +952,16 @@ export function useGameHandlers({
       // Handle contract offers (treatment or sale)
       // Store contract offer but DON'T auto-open modal
       // Player will see a clickable card in NarrativePanel
-      if (result.contractOffer && result.contractOffer.type) {
+      if (result.contractOffer && result.contractOffer.type && result.contractOffer.type !== 'null') {
         console.log('[Contract] Offer detected:', result.contractOffer.type, result.contractOffer);
         setPendingContract(result.contractOffer);
         // Note: Modal is NOT auto-opened, user must click the contract card
+      } else {
+        // Clear any previous contract when none is active
+        if (result.contractOffer && result.contractOffer.type === 'null') {
+          console.log('[Contract] No active contract, clearing previous offer');
+          setPendingContract(null);
+        }
       }
 
       // Add journal entry
@@ -1579,6 +1585,10 @@ Generate the transition narrative.`;
       setActivePatient(patientEntity);
       setPatientDialogue([]); // Clear previous dialogue
 
+      // Clear the contract and close modal
+      setPendingContract(null);
+      setIsContractModalOpen(false);
+
       setIsLoading(false);
 
     } catch (error) {
@@ -1594,8 +1604,12 @@ Generate the transition narrative.`;
       setHistoryOutput(fallbackNarrative);
       setActivePatient(patientEntity);
       setPatientDialogue([]);
+
+      // Clear the contract and close modal (even in error case)
+      setPendingContract(null);
+      setIsContractModalOpen(false);
     }
-  }, [setWealth, addJournalEntry, turnNumber, gameState.date, gameState.location, gameState.time, toast, setIsLoading, scenarioId, setConversationHistory, setHistoryOutput, setActivePatient, setPatientDialogue]);
+  }, [setWealth, addJournalEntry, turnNumber, gameState.date, gameState.location, gameState.time, toast, setIsLoading, scenarioId, setConversationHistory, setHistoryOutput, setActivePatient, setPatientDialogue, setPendingContract, setIsContractModalOpen]);
 
   // Handle accepting sale contract
   const handleAcceptSale = useCallback(async (item, price, customerName) => {
@@ -1620,7 +1634,11 @@ Generate the transition narrative.`;
     });
 
     toast.success(`Sold ${item.name} for ${price} reales!`, { duration: 3000 });
-  }, [updateInventory, setWealth, setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast]);
+
+    // Clear the contract and close modal
+    setPendingContract(null);
+    setIsContractModalOpen(false);
+  }, [updateInventory, setWealth, setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast, setPendingContract, setIsContractModalOpen]);
 
   // Handle declining contract
   const handleDeclineContract = useCallback(() => {
@@ -1639,7 +1657,11 @@ Generate the transition narrative.`;
     });
 
     toast.info('Contract declined.', { duration: 2000 });
-  }, [setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast]);
+
+    // Clear the contract and close modal
+    setPendingContract(null);
+    setIsContractModalOpen(false);
+  }, [setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast, setPendingContract, setIsContractModalOpen]);
 
   // Return all handlers
   return {
