@@ -83,6 +83,34 @@ Player Position: Grid (${playerPosition.gridX || Math.floor(playerPosition.x / 2
       context += '\n';
     }
 
+    // Add nearby furniture for interior maps
+    if (mapData.type === 'interior' && mapData.furniture) {
+      const nearbyFurniture = mapData.furniture.filter(f => {
+        const fx = f.position ? f.position[0] : f.x;
+        const fy = f.position ? f.position[1] : f.y;
+        const dist = Math.abs(playerPosition.x - fx) + Math.abs(playerPosition.y - fy);
+        return dist < 200; // Within ~10 grid cells
+      });
+
+      if (nearbyFurniture.length > 0) {
+        context += `Nearby Objects/Furniture:\n`;
+        nearbyFurniture.forEach(f => {
+          const fx = f.position ? f.position[0] : f.x;
+          const fy = f.position ? f.position[1] : f.y;
+          const dist = Math.floor(Math.abs(playerPosition.x - fx) + Math.abs(playerPosition.y - fy) / 20);
+          const dx = fx - playerPosition.x;
+          const dy = fy - playerPosition.y;
+          const direction = Math.abs(dx) > Math.abs(dy)
+            ? (dx > 0 ? 'to the east' : 'to the west')
+            : (dy > 0 ? 'to the south' : 'to the north');
+
+          const displayName = f.name || f.type || 'object';
+          context += `- ${displayName} (${dist} steps ${direction})\n`;
+        });
+        context += '\n';
+      }
+    }
+
     // Add movement options
     context += `Movement Options:\n`;
     Object.entries(movementOptions).forEach(([direction, option]) => {
@@ -90,18 +118,41 @@ Player Position: Grid (${playerPosition.gridX || Math.floor(playerPosition.x / 2
       context += `- ${direction.toUpperCase()}: ${status}\n`;
     });
 
+    // Determine if interior or exterior based on map type
+    const isInterior = mapData.type === 'interior';
+    const mapTypeName = isInterior ? 'INTERIOR' : 'EXTERIOR';
+
     context += `\n### Narrative Instructions for Movement:
+**Map Type: ${mapTypeName}** - Adjust descriptions accordingly!
+
 - MOVEMENT COMMANDS ("I walk north", "I go east", "I walk south", "I walk west"):
   * Keep description BRIEF (2-3 sentences maximum, 40-60 words)
+  * **CRITICAL: Use SECOND PERSON ("You walk...", "You step...", "You pass...") - NEVER first person ("I walk")**
   * Focus on immediate surroundings and what Maria observes
-  * Mention 1-2 key landmarks, architectural details, or people she notices
   * Use vivid sensory details (sounds, smells, sights) but stay concise
   * DO NOT include long dialogues or complex interactions during simple movement
-  * Example: "Maria walks north along the dusty Calle de Plateros. The cathedral's unfinished towers loom ahead, scaffolding wrapped around its stone facade. A vendor calls out, selling tamales from a clay pot."
+  * DO NOT mention grid coordinates or game mechanics - stay in-character and historical
+
+${isInterior ?
+`**INTERIOR Movement** - Currently inside ${mapData.name || 'a building'}:
+  * Describe room features: furniture, walls, doors, windows, lighting
+  * Mention what she passes: counter, shelves, workbench, bed, chairs
+  * Note light sources: candles, windows, sunlight streaming in
+  * Include interior sounds: creaking floorboards, rustling fabric, distant voices
+  * Reference room names naturally: "shop floor", "laboratory", "bedroom"
+  * Example (SECOND PERSON): "You step toward the eastern wall of the shop floor, where sunlight streams through a narrow window. The wooden counter is to your left, its surface worn smooth from years of transactions. The laboratory door stands slightly ajar ahead."`
+:
+`**EXTERIOR Movement** - Currently outdoors in the city:
+  * Describe streets, buildings, landmarks, and urban features
+  * Mention people Maria passes: vendors, officials, pedestrians
+  * Include city sounds: church bells, vendors calling, horses clopping
+  * Note weather and light: dusty streets, colonial architecture, scaffolding
+  * Reference street names and buildings naturally
+  * Example (SECOND PERSON): "You walk north along the dusty Calle de Plateros. The cathedral's unfinished towers loom ahead, scaffolding wrapped around its stone facade. A vendor calls out, selling tamales from a clay pot."`}
+
 - If BLOCKED by obstacle, explain why in 1 sentence, then describe what Maria sees instead
-- Mention nearby locations naturally to give spatial awareness
-- Use compass directions (north, south, east, west) when describing positions
-- DO NOT mention grid coordinates or game mechanics - stay in-character and historical`;
+- Mention nearby locations naturally to give spatial awareness (see list above)
+- Use compass directions (north, south, east, west) when describing positions`;
 
     return context;
 
@@ -133,11 +184,13 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 - Patterns: "I walk [direction]", "I go [direction]", "go to [place]"
 - Set \`responseType: "movement"\`
 - Brief description in \`narrative\` field (2-3 sentences, 40-60 words)
+- **MUST use SECOND PERSON ("You walk...", "You step...") - NEVER first person ("I walk...") or third person ("Maria walks...")**
 
 **NARRATION MODE (DEFAULT)** - All other actions:
 - Player actions, NPC interactions, examining, choices, contracts, commands
 - Set \`responseType: "narration"\`
 - Full scene in \`narrative\` field (1-3 paragraphs)
+- **Use SECOND PERSON ("You examine...", "You say...", "You notice...")**
 - **Embed NPC dialogue naturally** using quotation marks
 - **Accurately represent player input** - don't contradict what they said
 - **Show consequences** - NPC responses, game events, what happens next
@@ -147,7 +200,7 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 \`\`\`json
 {
   "responseType": "movement",
-  "narrative": "Maria walks north along dusty Calle de Plateros. The cathedral's unfinished towers loom ahead, scaffolding wrapped around stone. A vendor calls out, selling tamales."
+  "narrative": "You walk north along the dusty Calle de Plateros. The cathedral's unfinished towers loom ahead, scaffolding wrapped around stone. A vendor calls out, selling tamales."
 }
 \`\`\`
 
@@ -288,8 +341,24 @@ When NPC requests treatment/purchase, STOP before Maria responds. Let player dec
 
 ### Entity Detection:
 List 2-3 most important interactive elements in "entities" array.
-**Include:** Named NPCs ("Don Luis"), unnamed characters ("a beggar"), important animals ("a stray dog barking at you"), important items ("a bloodstained letter"), significant locations ("the alley entrance")
-**Exclude:** Abstract concepts, weather/atmosphere, non-interactive objects, generic descriptions
+
+**Include ONLY:**
+- Named NPCs ("Don Luis", "Señora Beatriz")
+- Unnamed characters with narrative significance ("a beggar blocking the path", "a messenger with urgent news")
+- Important animals that are central to the scene ("a stray dog barking at you")
+- Significant items that are plot-relevant ("a bloodstained letter", "a mysterious vial")
+- Key locations ("the alley entrance", "the Cathedral")
+
+**EXCLUDE (Do NOT list as entities):**
+- Currency amounts ("three reales", "10 pesos", "silver coins")
+- Generic objects mentioned in passing ("the door", "the sun", "thread", "cloth")
+- Abstract concepts ("fear", "urgency", "hope")
+- Weather/atmosphere ("rain", "heat", "dust")
+- Body parts or common items ("hands", "eyes", "a chair")
+- Trivial possessions that aren't plot-critical ("her shawl", "his hat")
+- Generic descriptions ("common clothes", "worn sandals")
+
+**Guideline:** Only include entities the player might want to click on or interact with meaningfully
 
 **Field rules:**
 - "text": Must match narrative EXACTLY for highlighting
@@ -333,6 +402,50 @@ List 2-3 most important interactive elements in "entities" array.
 ${core.tone || 'Clear, concise prose. No purple language. Interesting details, historically vivid touches. 1-3 paragraphs max.'}
 
 ${mechanics.commands ? `\n### Commands Available:\n${mechanics.commands}` : ''}
+
+### Narrative Choice Structure (CRITICAL - JSON FORMAT):
+**IMPORTANT:** The choice question MUST be placed INSIDE the "narrative" field of your JSON response, NOT after the closing brace.
+
+**Correct structure:**
+{
+  "narrative": "She shifts her weight nervously. **Will you examine the child, or decline the request?**",
+  "entities": [...]
+}
+
+**WRONG - DO NOT DO THIS:**
+{
+  "narrative": "She shifts her weight nervously.",
+  "entities": [...]
+}
+**Will you examine the child?**  ← WRONG! This breaks JSON parsing!
+
+**Format Rules:**
+- End the "narrative" field's text content with a bolded choice question
+- Use bold markdown: **Will you [option A], or [option B]?**
+- Support 1-3 choices:
+  - Single choice (yes/no implicit): "**Will you see who is there?**"
+  - Two choices: "**Will you see who is there, or ignore them?**"
+  - Three choices: "**Will you greet them, ask what they need, or turn away?**"
+
+**Complete Examples:**
+{
+  "narrative": "The door creaks open. A figure stands in shadow. **Will you see who is there, or ignore them?**",
+  "entities": [...]
+}
+
+{
+  "narrative": "She waits for your response, hands clasped. **Do you accept her offer, or decline politely?**",
+  "entities": [...]
+}
+
+**Guidelines:**
+- Make choices contextual to the narrative (not generic)
+- Use active verbs (see, speak, go, refuse, accept, examine, help, etc.)
+- Keep options brief (3-7 words each)
+- Natural language, not game commands
+- Make the question feel organic to the story, not mechanical
+
+**This ending question structure is REQUIRED for all narrative responses.** The question MUST be inside the JSON "narrative" field.
 
 ### Historical Context:
 ${historical.accuracy || 'Maintain accuracy. No anachronisms. Use period terminology.'}

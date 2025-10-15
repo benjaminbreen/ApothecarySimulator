@@ -19,17 +19,27 @@ const MethodDropZone = ({ method, ingredients = [], onDrop, isLoading }) => {
   const image = hasIngredients ? method.activeImage : method.image;
 
   return (
-    <div className="flex flex-col">
-      {/* Method Name */}
-      <div className="mb-2">
-        <h4 className="font-sans text-sm font-semibold text-ink-900 dark:text-amber-100 tracking-wide">
+    <div className="flex flex-col relative">
+      {/* Ingredient Count Badge - Top Right */}
+      {hasIngredients && (
+        <div className="absolute -top-2 -right-2 z-30 min-w-[2rem] h-[2rem] px-2 flex items-center justify-center rounded-full text-sm font-bold shadow-xl animate-bounce"
+          style={{
+            background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+            color: '#fff',
+            border: '2px solid #fff',
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.5)',
+            textShadow: '0 1px 2px rgba(0, 0, 0, 0.4)',
+          }}
+        >
+          {ingredients.length}
+        </div>
+      )}
+
+      {/* Method Name Only */}
+      <div className="mb-3 bg-gradient-to-r from-amber-100/50 via-amber-50/30 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/30 dark:to-slate-800/50 rounded-lg px-3 py-2 border border-amber-300/30 dark:border-amber-600/20">
+        <h4 className="font-display text-xl font-bold text-ink-900 dark:text-amber-100 tracking-wide text-center">
           {method.name}
         </h4>
-        {method.timeCost && (
-          <p className="text-xs text-ink-500 dark:text-amber-300/60 font-sans">
-            {method.timeCost} hour{method.timeCost !== 1 ? 's' : ''}
-          </p>
-        )}
       </div>
 
       {/* Drop Zone */}
@@ -38,12 +48,13 @@ const MethodDropZone = ({ method, ingredients = [], onDrop, isLoading }) => {
         className={`
           relative aspect-square rounded-2xl overflow-hidden border-4 transition-all duration-300 group
           ${isOver && canDrop
-            ? 'border-amber-500 dark:border-amber-400 shadow-2xl shadow-amber-500/50 scale-105'
+            ? 'border-amber-500 dark:border-amber-400 shadow-2xl shadow-amber-500/50 scale-105 animate-pulse'
             : hasIngredients
             ? 'border-amber-600/60 dark:border-amber-500/40 shadow-xl'
-            : 'border-amber-700/30 dark:border-amber-600/20 shadow-lg'
+            : 'border-amber-700/30 dark:border-amber-600/20 shadow-lg hover:shadow-2xl'
           }
-          ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-amber-500/70 dark:hover:border-amber-400/50'}
+          ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-amber-500/70 dark:hover:border-amber-400/50 hover:scale-[1.02]'}
+          ${!hasIngredients && !isOver ? 'animate-subtle-pulse' : ''}
         `}
         style={{
           backgroundImage: `url(${image})`,
@@ -96,24 +107,38 @@ const MethodDropZone = ({ method, ingredients = [], onDrop, isLoading }) => {
           <div className="absolute inset-0 bg-amber-400/30 dark:bg-amber-300/20 backdrop-blur-sm z-20 border-4 border-amber-400 dark:border-amber-300 animate-pulse"></div>
         )}
 
-        {/* Hover Tooltip */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none">
-          <div className="bg-ink-900/90 dark:bg-slate-900/90 backdrop-blur-md rounded-lg p-2.5 border border-amber-500/40">
-            <p className="text-xs font-sans italic text-amber-100/90 dark:text-amber-50/90 leading-snug">
-              {method.caption}
-            </p>
+        {/* Hover Tooltip with costs */}
+        {!hasIngredients && (
+          <div className="absolute inset-x-0 bottom-3 px-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 pointer-events-none transform translate-y-2 group-hover:translate-y-0">
+            <div className="bg-ink-900/98 dark:bg-slate-900/98 backdrop-blur-md rounded-lg p-3 border border-amber-500/50 shadow-xl">
+              <p className="text-sm font-serif italic text-amber-100 dark:text-amber-50 leading-relaxed mb-2">
+                {method.caption}
+              </p>
+              <div className="flex items-center justify-center gap-3 pt-2 border-t border-amber-500/30">
+                {method.timeCost && (
+                  <span className="text-xs text-amber-200/90 font-sans font-medium">
+                    Time: {method.timeCost} hour{method.timeCost !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {method.energyCost && (
+                  <span className="text-xs text-amber-200/90 font-sans font-medium">
+                    Energy: {method.energyCost}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Ingredient Count */}
-      {hasIngredients && (
-        <div className="mt-2 text-center">
-          <span className="inline-block px-2 py-0.5 bg-botanical-100 dark:bg-emerald-900/40 text-botanical-800 dark:text-emerald-300 rounded text-xs font-sans font-medium">
-            {ingredients.length} ingredient{ingredients.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-      )}
+        {/* Success feedback animation */}
+        {hasIngredients && (
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-6xl animate-ping opacity-20">
+              ✨
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

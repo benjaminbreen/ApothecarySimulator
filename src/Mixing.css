@@ -989,3 +989,19 @@ box-shadow: 0 4px 15px rgba(255, 165, 0, 0.2), 0 4px 10px rgba(0, 0, 0, 0.8);
 .mixing-container.loading {
   animation: glow 3s infinite ease-in-out;
 }
+
+/* Subtle pulse animation for empty method drop zones */
+@keyframes animate-subtle-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(0.995);
+  }
+}
+
+.animate-subtle-pulse {
+  animation: animate-subtle-pulse 3s ease-in-out infinite;
+}

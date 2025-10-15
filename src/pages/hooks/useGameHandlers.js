@@ -14,6 +14,7 @@ import { relationshipGraph } from '../../core/entities/RelationshipGraph';
 import { applyRelationshipToReputation } from '../../core/systems/reputationFeedback';
 import { getXPForNextLevel, getPlayerTitle } from '../../core/systems/levelingSystem';
 import { resolvePortrait } from '../../core/services/portraitResolver';
+import { parseNarrativeChoices } from '../../utils/narrativeParser';
 
 export function useGameHandlers({
   // State setters
@@ -74,6 +75,7 @@ export function useGameHandlers({
   setPendingContract,
   setIsContractModalOpen,
   setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
+  setDynamicChips, // Dynamic action chips from narrative parsing
 
   // State values
   energy,
@@ -438,11 +440,12 @@ export function useGameHandlers({
   }, [setUserInput]);
 
   // MAIN SUBMIT HANDLER
-  const handleSubmit = useCallback(async (e) => {
+  const handleSubmit = useCallback(async (e, actionOverride = null) => {
     e.preventDefault();
     setIsLoading(true);
 
-    let narrativeText = userInput.trim().toLowerCase();
+    // Use override if provided (from chip clicks), otherwise fall back to userInput state
+    let narrativeText = (actionOverride || userInput).trim().toLowerCase();
 
     // Handle command shortcuts
     if (narrativeText === '#prescribe') {
@@ -638,7 +641,12 @@ export function useGameHandlers({
 
       // NEW PHASE 1: Handle LLM-selected portrait (replaces complex portrait resolution)
       let primaryPortraitFile = null;
-      if (result.primaryPortrait) {
+
+      // SPECIAL CASE: Turn 1 always shows the entrance image (door opening scene)
+      if (turnNumber === 1) {
+        primaryPortraitFile = 'ui/boticaentrance.png';
+        console.log('[Portrait] Turn 1: Using entrance image (hardcoded override)');
+      } else if (result.primaryPortrait) {
         console.log('[Portrait] LLM selected portrait:', result.primaryPortrait);
         primaryPortraitFile = result.primaryPortrait;
       } else {
@@ -767,6 +775,18 @@ export function useGameHandlers({
 
       // Display narrative
       setHistoryOutput(result.narrative);
+
+      // Parse narrative for dynamic action chips
+      if (result.narrative && setDynamicChips) {
+        const parsedChips = parseNarrativeChoices(result.narrative);
+        if (parsedChips) {
+          console.log('[Dynamic Chips] Parsed choices from narrative:', parsedChips.map(c => c.label).join(', '));
+          setDynamicChips(parsedChips);
+        } else {
+          console.log('[Dynamic Chips] No choice pattern detected, using defaults');
+          setDynamicChips(null);
+        }
+      }
 
       // Store entities for historical context panel
       if (result.entities && result.entities.length > 0) {
@@ -916,13 +936,18 @@ export function useGameHandlers({
       // TIMING FIX: Only show card when system announcement confirms contract is ready
       // This prevents premature card display on first NPC mention (Turn 1)
       // and ensures card appears when negotiation is actually finalized (Turn 2-3)
+      // TURN 1 BLOCK: Never show contract offers on Turn 1 (initial door opening scene)
       if (result.contractOffer &&
           result.contractOffer.type &&
           result.contractOffer.type !== 'null' &&
-          result.systemAnnouncements?.some(msg => msg.toLowerCase().includes('contract'))) {
+          result.systemAnnouncements?.some(msg => msg.toLowerCase().includes('contract')) &&
+          turnNumber >= 2) {
         console.log('[Contract] Offer finalized and ready for player decision:', result.contractOffer.type, result.contractOffer);
         setPendingContract(result.contractOffer);
         // Note: Modal is NOT auto-opened, user must click the contract card
+      } else if (result.contractOffer && result.contractOffer.type && result.contractOffer.type !== 'null' && turnNumber < 2) {
+        // Turn 1 - suppress contract offers
+        console.log('[Contract] Turn 1 detected - suppressing contract offer until Turn 2+');
       } else if (result.contractOffer && result.contractOffer.type && result.contractOffer.type !== 'null') {
         // Contract detected but not yet finalized (no system announcement)
         console.log('[Contract] Offer detected but not yet finalized (waiting for negotiation):', result.contractOffer.type);
@@ -1011,7 +1036,10 @@ export function useGameHandlers({
   // ARROW KEY MOVEMENT HANDLER
   const handleMovement = useCallback(async (direction) => {
     // Map direction to movement delta and text
-    const MOVEMENT_STEP = 50;
+    // Use larger steps for interior maps (100px) vs exterior (50px) for better coverage
+    const isInterior = currentMapData?.type === 'interior';
+    const MOVEMENT_STEP = isInterior ? 100 : 50;
+
     const movements = {
       north: { dx: 0, dy: -MOVEMENT_STEP, text: 'I walk north' },
       south: { dx: 0, dy: MOVEMENT_STEP, text: 'I walk south' },
@@ -1021,6 +1049,30 @@ export function useGameHandlers({
 
     const movement = movements[direction];
     if (!movement) return;
+
+    // PRE-VALIDATE MOVEMENT: Check if move is blocked before calling LLM
+    if (currentMapData && currentMapId) {
+      const { getGridSystem } = await import('../../features/map/services/gridMovementSystem');
+      const gridSystem = getGridSystem(currentMapId, currentMapData);
+      const validation = gridSystem.validateMove(playerPosition, direction);
+
+      if (!validation.valid) {
+        // Movement blocked - show system message instead of calling LLM
+        console.log('[Movement] Blocked by:', validation.reason);
+
+        const blockedMessage = `*That way is not accessible.*`;
+
+        // Update UI with system message
+        setHistoryOutput(blockedMessage);
+        setConversationHistory(prev => [
+          ...prev,
+          { role: 'system', content: blockedMessage }
+        ]);
+
+        // Don't update position, don't call LLM
+        return;
+      }
+    }
 
     // Calculate new position for visual feedback
     const newPosition = {
@@ -1055,6 +1107,7 @@ export function useGameHandlers({
         wealth: currentWealth,
         mapData: currentMapData,
         playerPosition: playerPosition,
+        currentMapId: currentMapId, // CRITICAL: Pass as top-level param for map context
         npcPositions,
         playerSkills,
         journal,
@@ -1097,6 +1150,18 @@ export function useGameHandlers({
       // Update narrative output
       setHistoryOutput(result.narrative);
 
+      // Parse narrative for dynamic action chips
+      if (result.narrative && setDynamicChips) {
+        const parsedChips = parseNarrativeChoices(result.narrative);
+        if (parsedChips) {
+          console.log('[Dynamic Chips] Parsed choices from dialogue:', parsedChips.map(c => c.label).join(', '));
+          setDynamicChips(parsedChips);
+        } else {
+          console.log('[Dynamic Chips] No choice pattern detected in dialogue, using defaults');
+          setDynamicChips(null);
+        }
+      }
+
       // Handle game state updates
       if (result.gameState) {
         // Handle inventory changes properly (don't call updateInventory with null)
@@ -1106,9 +1171,30 @@ export function useGameHandlers({
           }
         }
 
-        // Update location if it changed
-        if (result.gameState.location) {
-          updateLocation(result.gameState.location);
+        // Update location if it changed (but NOT during simple interior movement)
+        // Block movement narration patterns, allow all other location changes
+        if (result.gameState.location && result.gameState.location !== gameState.location) {
+          const newLocation = result.gameState.location;
+
+          // Patterns that indicate movement narration (NOT actual location changes)
+          const movementPatterns = [
+            /^heading\s+(north|south|east|west)/i,
+            /^walking\s+(north|south|east|west)/i,
+            /^moving\s+(north|south|east|west)/i,
+            /^going\s+(north|south|east|west)/i,
+            /^(north|south|east|west)$/i,
+            /^you\s+(walk|move|go|head)/i
+          ];
+
+          const isMovementNarration = movementPatterns.some(pattern => pattern.test(newLocation));
+
+          if (!isMovementNarration) {
+            console.log('[Movement] Valid location change detected:', newLocation);
+            updateLocation(newLocation);
+          } else {
+            console.log('[Movement] Ignoring movement narration (not a location):', newLocation);
+            // Don't update location - this prevents map switching during interior movement
+          }
         }
 
         // Update time/date if they changed

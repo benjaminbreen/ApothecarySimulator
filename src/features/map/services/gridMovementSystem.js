@@ -62,12 +62,13 @@ export class GridMovementSystem {
     // Furniture is obstacles (interior maps)
     if (this.mapData.furniture) {
       this.mapData.furniture.forEach(furniture => {
-        const cells = this.rectToGridCells(
-          furniture.x,
-          furniture.y,
-          furniture.width,
-          furniture.height
-        );
+        // Handle both formats: {x, y, width, height} and {position: [x, y], size: [w, h]}
+        const x = furniture.x !== undefined ? furniture.x : (furniture.position ? furniture.position[0] : 0);
+        const y = furniture.y !== undefined ? furniture.y : (furniture.position ? furniture.position[1] : 0);
+        const width = furniture.width !== undefined ? furniture.width : (furniture.size ? furniture.size[0] : 40);
+        const height = furniture.height !== undefined ? furniture.height : (furniture.size ? furniture.size[1] : 40);
+
+        const cells = this.rectToGridCells(x, y, width, height);
         cells.forEach(cell => obstacles.add(`${cell.x},${cell.y}`));
       });
     }
@@ -198,10 +199,13 @@ export class GridMovementSystem {
     // Check furniture
     if (this.mapData.furniture) {
       for (const furniture of this.mapData.furniture) {
-        const cells = this.rectToGridCells(
-          furniture.x, furniture.y,
-          furniture.width, furniture.height
-        );
+        // Handle both formats: {x, y, width, height} and {position: [x, y], size: [w, h]}
+        const x = furniture.x !== undefined ? furniture.x : (furniture.position ? furniture.position[0] : 0);
+        const y = furniture.y !== undefined ? furniture.y : (furniture.position ? furniture.position[1] : 0);
+        const width = furniture.width !== undefined ? furniture.width : (furniture.size ? furniture.size[0] : 40);
+        const height = furniture.height !== undefined ? furniture.height : (furniture.size ? furniture.size[1] : 40);
+
+        const cells = this.rectToGridCells(x, y, width, height);
         if (cells.some(c => c.x === gridX && c.y === gridY)) {
           return `${furniture.type || 'furniture'} blocks the path`;
         }
@@ -376,24 +380,69 @@ export class GridMovementSystem {
       });
     }
 
+    // Check rooms (interior maps) - add as destinations
+    if (this.mapData.rooms) {
+      this.mapData.rooms.forEach(room => {
+        // Calculate room center from polygon
+        if (room.polygon && room.polygon.length > 0) {
+          const centerX = room.polygon.reduce((sum, p) => sum + p[0], 0) / room.polygon.length;
+          const centerY = room.polygon.reduce((sum, p) => sum + p[1], 0) / room.polygon.length;
+
+          const roomGrid = this.pixelToGrid(centerX, centerY);
+          const distance = Math.abs(gridX - roomGrid.gridX) +
+                          Math.abs(gridY - roomGrid.gridY);
+
+          if (distance <= radius) {
+            nearby.push({
+              name: room.name || room.id,
+              type: 'room',
+              distance,
+              direction: this.getDirection(gridX, gridY, roomGrid.gridX, roomGrid.gridY)
+            });
+          }
+        }
+      });
+    }
+
     // Check doors (interior maps)
     if (this.mapData.doors) {
       this.mapData.doors.forEach(door => {
-        const doorCenter = {
-          x: (door.x1 + door.x2) / 2,
-          y: (door.y1 + door.y2) / 2
-        };
+        let doorCenter;
+
+        // Handle both door formats: {x1, y1, x2, y2} and {position: [x, y]}
+        if (door.position && Array.isArray(door.position)) {
+          doorCenter = {
+            x: door.position[0],
+            y: door.position[1]
+          };
+        } else if (door.x1 !== undefined && door.y1 !== undefined) {
+          doorCenter = {
+            x: (door.x1 + door.x2) / 2,
+            y: (door.y1 + door.y2) / 2
+          };
+        } else {
+          // Skip doors without proper position data
+          return;
+        }
+
         const doorGrid = this.pixelToGrid(doorCenter.x, doorCenter.y);
         const distance = Math.abs(gridX - doorGrid.gridX) +
                         Math.abs(gridY - doorGrid.gridY);
 
         if (distance <= radius) {
+          // Format name: "Laboratory" instead of "lab-door"
+          let displayName = door.to || door.id || 'door';
+          if (displayName === 'shop-floor') displayName = 'Shop Floor';
+          else if (displayName === 'laboratory') displayName = 'Laboratory';
+          else if (displayName === 'bedroom') displayName = 'Bedroom';
+          else if (displayName === 'street') displayName = 'Street';
+
           nearby.push({
-            name: door.id || 'door',
+            name: displayName,
             type: 'door',
             distance,
             direction: this.getDirection(gridX, gridY, doorGrid.gridX, doorGrid.gridY),
-            locked: door.locked
+            locked: door.isLocked || door.locked
           });
         }
       });

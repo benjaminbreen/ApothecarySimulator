@@ -1,28 +1,30 @@
 /**
- * NPC Modal - Enhanced Design with Dark Mode
+ * NPC Modal - Professional Redesign
  *
  * Features:
- * - Tab navigation (Overview/Personality/Biography)
- * - Collapsible sections with InfoCard and PropertySection
- * - Glassomorphic parchment aesthetic
+ * - Large portrait image on left
+ * - React-icons instead of emojis
+ * - Professional typography and spacing
+ * - Better information hierarchy
+ * - Glassomorphic aesthetic matching ItemModal
  * - Comprehensive dark mode support
- * - Better typography and organization
  */
 
 import React, { useState, useMemo } from 'react';
 import { adaptEntityForNPCModal } from '../../core/entities/entityAdapter';
+import { FaUser, FaTheaterMasks, FaBookOpen, FaChevronDown, FaChevronUp, FaTshirt, FaLandmark, FaBrain, FaBalanceScale, FaCalendarAlt, FaLock } from 'react-icons/fa';
 
-export default function NPCModal({ isOpen, onClose, npc }) {
+export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = null }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedSections, setExpandedSections] = useState({
-    appearance: false,
+    appearance: true,
     clothing: false,
     personality: false,
     social: false,
     humors: false,
     bigFive: false,
-    traits: false,
-    biography: false,
+    traits: true,
+    biography: true,
     events: false
   });
 
@@ -52,6 +54,19 @@ export default function NPCModal({ isOpen, onClose, npc }) {
   const social = adaptedNpc.social;
   const biography = adaptedNpc.biography;
 
+  // Determine portrait to show
+  // Priority: 1) botica interior, 2) primaryPortraitFile, 3) npc visual image
+  let portraitUrl = null;
+  if (primaryPortraitFile) {
+    if (primaryPortraitFile.startsWith('ui/')) {
+      portraitUrl = `/${primaryPortraitFile}`;
+    } else {
+      portraitUrl = `/portraits/${primaryPortraitFile}`;
+    }
+  } else if (adaptedNpc.visual?.image) {
+    portraitUrl = adaptedNpc.visual.image;
+  }
+
   // Toggle expandable sections
   const toggleSection = (sectionId) => {
     setExpandedSections(prev => ({
@@ -61,106 +76,190 @@ export default function NPCModal({ isOpen, onClose, npc }) {
   };
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: '👤' },
-    { id: 'personality', label: 'Personality', icon: '🎭' },
-    { id: 'biography', label: 'Biography', icon: '📜' }
+    { id: 'overview', label: 'Overview', icon: FaUser },
+    { id: 'personality', label: 'Personality', icon: FaTheaterMasks },
+    { id: 'biography', label: 'Biography', icon: FaBookOpen }
   ];
+
+  const isDark = document.documentElement.classList.contains('dark');
 
   return (
     <div
       className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      {/* Modal Container - FIXED DIMENSIONS */}
+      {/* Modal Container */}
       <div
-        className="relative w-full max-w-5xl h-[85vh] bg-gradient-to-br from-parchment-50 via-white to-parchment-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl dark:shadow-dark-elevation-4 border-2 border-ink-200 dark:border-slate-700 overflow-hidden flex flex-col transition-colors duration-300"
+        className="relative w-full max-w-6xl h-[88vh] rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300"
         onClick={(e) => e.stopPropagation()}
+        style={{
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 50%, rgba(15, 23, 42, 0.98) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 252, 247, 0.95) 50%, rgba(255, 255, 255, 0.98) 100%)',
+          backdropFilter: 'blur(16px) saturate(120%)',
+          WebkitBackdropFilter: 'blur(16px) saturate(120%)',
+          border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)',
+          boxShadow: isDark
+            ? '0 24px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+            : '0 24px 80px rgba(61, 47, 36, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9)',
+        }}
       >
 
-        {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b-2 border-ink-200 dark:border-slate-700 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-slate-800 dark:to-slate-700 transition-colors duration-300">
-          <div className="flex items-center gap-4">
-            {adaptedNpc.visual?.image && (
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-50 p-2 rounded-lg transition-all duration-150 hover:bg-ink-100 dark:hover:bg-slate-700"
+          style={{
+            background: isDark ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+            border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)'
+          }}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"
+            style={{ color: isDark ? '#cbd5e1' : '#3d2817' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        {/* Header with Portrait */}
+        <div className="flex-shrink-0 flex items-stretch border-b transition-colors duration-300"
+          style={{
+            background: isDark
+              ? 'linear-gradient(to right, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9))'
+              : 'linear-gradient(to right, rgba(252, 250, 247, 0.95), rgba(248, 246, 241, 0.9))',
+            borderColor: isDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.3)'
+          }}>
+
+          {/* Portrait Section */}
+          {portraitUrl && (
+            <div className="flex-shrink-0 w-64 h-52 relative overflow-hidden">
               <img
-                src={adaptedNpc.visual.image}
+                src={portraitUrl}
                 alt={adaptedNpc.name}
-                className="w-16 h-16 rounded-lg object-cover border-2 border-ink-300 dark:border-slate-600 shadow-md"
+                className="w-full h-full object-cover"
+                style={{
+                  boxShadow: isDark
+                    ? 'inset 0 0 30px rgba(0, 0, 0, 0.5)'
+                    : 'inset 0 0 30px rgba(0, 0, 0, 0.1)'
+                }}
               />
-            )}
-            <div>
-              <h2 className="text-3xl font-bold text-ink-900 dark:text-parchment-100 font-serif transition-colors duration-300">
+              {/* Subtle gradient overlay for depth */}
+              <div className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: isDark
+                    ? 'linear-gradient(to right, transparent 0%, rgba(15, 23, 42, 0.3) 100%)'
+                    : 'linear-gradient(to right, transparent 0%, rgba(252, 250, 247, 0.3) 100%)'
+                }}
+              />
+            </div>
+          )}
+
+          {/* Header Info */}
+          <div className="flex-1 flex items-center px-8 py-6">
+            <div className="flex-1">
+              <h2 className="text-4xl font-bold text-ink-900 dark:text-parchment-100 font-serif mb-2 transition-colors duration-300">
                 {adaptedNpc.name}
               </h2>
-              <p className="text-sm text-ink-600 dark:text-slate-400 font-sans transition-colors duration-300">
+              <p className="text-lg text-ink-600 dark:text-slate-400 font-sans mb-4 transition-colors duration-300">
                 {social?.occupation || adaptedNpc.occupation || 'Resident of Mexico City'}
               </p>
+
+              {/* Quick Info Pills */}
+              <div className="flex flex-wrap gap-2">
+                {(appearance?.age || adaptedNpc.age) && (
+                  <span className="px-3 py-1.5 rounded-full text-sm font-semibold transition-colors duration-300"
+                    style={{
+                      background: isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+                      color: isDark ? '#93c5fd' : '#1e40af',
+                      border: isDark ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(59, 130, 246, 0.2)'
+                    }}>
+                    {appearance?.age || adaptedNpc.age}
+                  </span>
+                )}
+                {(appearance?.gender || adaptedNpc.gender) && (
+                  <span className="px-3 py-1.5 rounded-full text-sm font-semibold capitalize transition-colors duration-300"
+                    style={{
+                      background: isDark ? 'rgba(168, 85, 247, 0.2)' : 'rgba(168, 85, 247, 0.1)',
+                      color: isDark ? '#c4b5fd' : '#6b21a8',
+                      border: isDark ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid rgba(168, 85, 247, 0.2)'
+                    }}>
+                    {appearance?.gender || adaptedNpc.gender}
+                  </span>
+                )}
+                {(social?.class || adaptedNpc.class) && (
+                  <span className="px-3 py-1.5 rounded-full text-sm font-semibold capitalize transition-colors duration-300"
+                    style={{
+                      background: isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.1)',
+                      color: isDark ? '#fbbf24' : '#92400e',
+                      border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(245, 158, 11, 0.2)'
+                    }}>
+                    {social?.class || adaptedNpc.class}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-white/50 dark:hover:bg-slate-700 transition-colors"
-            aria-label="Close"
-          >
-            <svg className="w-6 h-6 text-ink-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex-shrink-0 flex border-b-2 border-ink-100 dark:border-slate-700 bg-white dark:bg-slate-800 transition-colors duration-300">
-          {tabs.map((tab, idx) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 px-6 py-3 font-semibold text-sm uppercase tracking-wide transition-all duration-200 font-sans ${
-                activeTab === tab.id
-                  ? 'text-amber-700 dark:text-amber-400 bg-gradient-to-b from-amber-50 to-white dark:from-slate-700 dark:to-slate-800 border-b-4 border-amber-600 dark:border-amber-500'
-                  : 'text-ink-600 dark:text-slate-400 hover:bg-amber-50/50 dark:hover:bg-slate-700/50'
-              }`}
-              style={{
-                borderLeft: idx > 0 ? '1px solid' : 'none',
-                borderColor: 'rgba(0, 0, 0, 0.05)'
-              }}
-            >
-              <span className="mr-2">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex-shrink-0 flex border-b transition-colors duration-300"
+          style={{
+            background: isDark ? 'rgba(30, 41, 59, 0.5)' : 'rgba(255, 255, 255, 0.5)',
+            borderColor: isDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.3)'
+          }}>
+          {tabs.map((tab, idx) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="flex-1 px-6 py-4 font-semibold text-sm uppercase tracking-wider transition-all duration-200 relative font-sans flex items-center justify-center gap-2"
+                style={{
+                  fontWeight: isActive ? 700 : 600,
+                  letterSpacing: '0.1em',
+                  color: isActive
+                    ? (isDark ? '#fbbf24' : '#15803d')
+                    : (isDark ? '#94a3b8' : '#6b5a47'),
+                  background: isActive
+                    ? (isDark
+                      ? 'linear-gradient(to bottom, rgba(51, 65, 85, 0.8), rgba(30, 41, 59, 0.6))'
+                      : 'linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(252, 250, 247, 0.8))')
+                    : 'transparent',
+                  borderLeft: idx > 0 ? (isDark ? '1px solid rgba(71, 85, 105, 0.2)' : '1px solid rgba(209, 213, 219, 0.2)') : 'none',
+                  borderBottom: isActive
+                    ? (isDark ? '3px solid #fbbf24' : '3px solid #15803d')
+                    : '3px solid transparent'
+                }}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Content Area - FIXED HEIGHT with scroll */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-gradient-to-b from-parchment-50 to-white dark:from-slate-900 dark:to-slate-800 transition-colors duration-300">
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar transition-colors duration-300"
+          style={{
+            background: isDark
+              ? 'linear-gradient(to bottom, rgba(15, 23, 42, 0.6), rgba(30, 41, 59, 0.5))'
+              : 'linear-gradient(to bottom, rgba(249, 245, 235, 0.6), rgba(255, 255, 255, 0.5))'
+          }}>
 
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
-            <div className="p-6 space-y-4">
+            <div className="p-8 space-y-6">
 
-              {/* Quick Info Grid */}
-              <div className="grid grid-cols-3 gap-4">
-                {(appearance?.age || adaptedNpc.age) && (
-                  <div className="px-4 py-3 rounded-lg bg-white dark:bg-slate-800 border border-ink-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
-                    <div className="text-xs text-ink-500 dark:text-slate-500 font-semibold mb-1 uppercase tracking-wide">Age</div>
-                    <div className="text-lg text-ink-900 dark:text-parchment-100 font-semibold transition-colors duration-300">{appearance?.age || adaptedNpc.age}</div>
-                  </div>
-                )}
-                {(appearance?.gender || adaptedNpc.gender) && (
-                  <div className="px-4 py-3 rounded-lg bg-white dark:bg-slate-800 border border-ink-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
-                    <div className="text-xs text-ink-500 dark:text-slate-500 font-semibold mb-1 uppercase tracking-wide">Gender</div>
-                    <div className="text-lg text-ink-900 dark:text-parchment-100 font-semibold capitalize transition-colors duration-300">{appearance?.gender || adaptedNpc.gender}</div>
-                  </div>
-                )}
-                {(social?.class || adaptedNpc.class) && (
-                  <div className="px-4 py-3 rounded-lg bg-white dark:bg-slate-800 border border-ink-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
-                    <div className="text-xs text-ink-500 dark:text-slate-500 font-semibold mb-1 uppercase tracking-wide">Class</div>
-                    <div className="text-lg text-ink-900 dark:text-parchment-100 font-semibold capitalize transition-colors duration-300">{social?.class || adaptedNpc.class}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
+              {/* Description Card */}
               {adaptedNpc.description && (
-                <div className="p-4 rounded-lg bg-gradient-to-br from-amber-50 to-orange-50 dark:from-slate-800 dark:to-slate-700 border border-amber-200 dark:border-slate-600 shadow-sm transition-colors duration-300">
+                <div className="p-5 rounded-xl shadow-sm transition-colors duration-300"
+                  style={{
+                    background: isDark
+                      ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(51, 65, 85, 0.6) 100%)'
+                      : 'linear-gradient(135deg, rgba(254, 252, 247, 0.95) 0%, rgba(249, 245, 235, 0.9) 100%)',
+                    border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(217, 199, 171, 0.4)'
+                  }}>
                   <p className="text-base text-ink-700 dark:text-slate-300 leading-relaxed font-serif transition-colors duration-300">
                     {adaptedNpc.description}
                   </p>
@@ -171,12 +270,12 @@ export default function NPCModal({ isOpen, onClose, npc }) {
               {appearance && (
                 <InfoCard
                   title="Appearance"
-                  icon="👤"
+                  icon={FaUser}
                   expanded={expandedSections.appearance}
                   onToggle={() => toggleSection('appearance')}
                   color="blue"
                 >
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-3 text-sm">
                     {appearance.height && (
                       <PropertyRow label="Height" value={appearance.height} />
                     )}
@@ -202,11 +301,16 @@ export default function NPCModal({ isOpen, onClose, npc }) {
                       <PropertyRow label="Facial Hair" value={appearance.hair.facialHair} />
                     )}
                     {appearance.distinguishingFeatures && Array.isArray(appearance.distinguishingFeatures) && appearance.distinguishingFeatures.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-ink-200 dark:border-slate-700">
-                        <p className="font-semibold text-ink-900 dark:text-parchment-100 mb-2 transition-colors duration-300">Distinguishing Features:</p>
-                        <ul className="list-disc list-inside space-y-1 text-ink-600 dark:text-slate-400 transition-colors duration-300">
+                      <div className="mt-4 pt-4 border-t border-ink-200 dark:border-slate-700">
+                        <p className="font-semibold text-ink-900 dark:text-parchment-100 mb-2 text-xs uppercase tracking-wide transition-colors duration-300">
+                          Distinguishing Features
+                        </p>
+                        <ul className="space-y-1.5 text-ink-600 dark:text-slate-400 transition-colors duration-300">
                           {appearance.distinguishingFeatures.map((feature, idx) => (
-                            <li key={idx}>{feature.description || feature.location}</li>
+                            <li key={idx} className="flex items-start gap-2">
+                              <span className="text-emerald-500 dark:text-emerald-400 mt-0.5">•</span>
+                              <span>{feature.description || feature.location}</span>
+                            </li>
                           ))}
                         </ul>
                       </div>
@@ -219,12 +323,12 @@ export default function NPCModal({ isOpen, onClose, npc }) {
               {clothing && (
                 <InfoCard
                   title="Clothing & Style"
-                  icon="👔"
+                  icon={FaTshirt}
                   expanded={expandedSections.clothing}
                   onToggle={() => toggleSection('clothing')}
                   color="purple"
                 >
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-3 text-sm">
                     {clothing.style && (
                       <PropertyRow label="Style" value={clothing.style} />
                     )}
@@ -232,30 +336,43 @@ export default function NPCModal({ isOpen, onClose, npc }) {
                       <PropertyRow label="Quality" value={clothing.quality} />
                     )}
                     {clothing.items && Array.isArray(clothing.items) && clothing.items.length > 0 && (
-                      <div className="mt-3">
-                        <p className="font-semibold text-ink-900 dark:text-parchment-100 mb-2 transition-colors duration-300">Garments:</p>
-                        <ul className="space-y-2">
+                      <div className="mt-4">
+                        <p className="font-semibold text-ink-900 dark:text-parchment-100 mb-3 text-xs uppercase tracking-wide transition-colors duration-300">
+                          Garments
+                        </p>
+                        <div className="space-y-2">
                           {clothing.items.map((item, idx) => (
-                            <li key={idx} className="pl-4 border-l-2 border-purple-300 dark:border-purple-700">
-                              <span className="font-medium text-ink-700 dark:text-slate-300 transition-colors duration-300">{item.type}</span>
-                              {item.color && <span className="text-ink-600 dark:text-slate-400 transition-colors duration-300"> - {item.color}</span>}
+                            <div key={idx} className="p-3 rounded-lg transition-colors duration-300"
+                              style={{
+                                background: isDark ? 'rgba(168, 85, 247, 0.08)' : 'rgba(168, 85, 247, 0.05)',
+                                border: isDark ? '1px solid rgba(168, 85, 247, 0.2)' : '1px solid rgba(168, 85, 247, 0.15)'
+                              }}>
+                              <span className="font-semibold text-ink-700 dark:text-slate-300 transition-colors duration-300">
+                                {item.type}
+                              </span>
+                              {item.color && <span className="text-ink-600 dark:text-slate-400 transition-colors duration-300"> • {item.color}</span>}
                               {item.material && <span className="text-ink-500 dark:text-slate-500 text-xs transition-colors duration-300"> ({item.material})</span>}
                               {item.decorations && Array.isArray(item.decorations) && item.decorations.length > 0 && (
                                 <div className="text-xs text-purple-600 dark:text-purple-400 mt-1 transition-colors duration-300">
                                   Decorations: {item.decorations.join(', ')}
                                 </div>
                               )}
-                            </li>
+                            </div>
                           ))}
-                        </ul>
+                        </div>
                       </div>
                     )}
                     {clothing.accessories && Array.isArray(clothing.accessories) && clothing.accessories.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-ink-200 dark:border-slate-700">
-                        <p className="font-semibold text-ink-900 dark:text-parchment-100 mb-2 transition-colors duration-300">Accessories:</p>
-                        <ul className="list-disc list-inside space-y-1 text-ink-600 dark:text-slate-400 transition-colors duration-300">
+                      <div className="mt-4 pt-4 border-t border-ink-200 dark:border-slate-700">
+                        <p className="font-semibold text-ink-900 dark:text-parchment-100 mb-2 text-xs uppercase tracking-wide transition-colors duration-300">
+                          Accessories
+                        </p>
+                        <ul className="space-y-1.5 text-ink-600 dark:text-slate-400 transition-colors duration-300">
                           {clothing.accessories.map((accessory, idx) => (
-                            <li key={idx}>{accessory}</li>
+                            <li key={idx} className="flex items-start gap-2">
+                              <span className="text-purple-500 dark:text-purple-400 mt-0.5">•</span>
+                              <span>{accessory}</span>
+                            </li>
                           ))}
                         </ul>
                       </div>
@@ -268,12 +385,12 @@ export default function NPCModal({ isOpen, onClose, npc }) {
               {social && (
                 <InfoCard
                   title="Social Standing"
-                  icon="🏛️"
+                  icon={FaLandmark}
                   expanded={expandedSections.social}
                   onToggle={() => toggleSection('social')}
                   color="green"
                 >
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-3 text-sm">
                     {social.casta && (
                       <PropertyRow label="Casta" value={social.casta} />
                     )}
@@ -297,13 +414,13 @@ export default function NPCModal({ isOpen, onClose, npc }) {
 
           {/* PERSONALITY TAB */}
           {activeTab === 'personality' && (
-            <div className="p-6 space-y-4">
+            <div className="p-8 space-y-6">
 
               {/* Personality Traits */}
               {adaptedNpc.personality?.traits && Array.isArray(adaptedNpc.personality.traits) && (
                 <InfoCard
                   title="Character Traits"
-                  icon="✨"
+                  icon={FaTheaterMasks}
                   expanded={expandedSections.traits}
                   onToggle={() => toggleSection('traits')}
                   color="purple"
@@ -312,7 +429,12 @@ export default function NPCModal({ isOpen, onClose, npc }) {
                     {adaptedNpc.personality.traits.map((trait, idx) => (
                       <span
                         key={idx}
-                        className="px-3 py-1.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 text-sm font-medium border border-purple-200 dark:border-purple-700 transition-colors duration-300"
+                        className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors duration-300"
+                        style={{
+                          background: isDark ? 'rgba(168, 85, 247, 0.2)' : 'rgba(168, 85, 247, 0.12)',
+                          color: isDark ? '#e9d5ff' : '#6b21a8',
+                          border: isDark ? '1px solid rgba(168, 85, 247, 0.4)' : '1px solid rgba(168, 85, 247, 0.3)'
+                        }}
                       >
                         {trait}
                       </span>
@@ -325,13 +447,13 @@ export default function NPCModal({ isOpen, onClose, npc }) {
               {temperament && (
                 <InfoCard
                   title="Humoral Temperament"
-                  icon="⚖️"
+                  icon={FaBalanceScale}
                   expanded={expandedSections.humors}
                   onToggle={() => toggleSection('humors')}
                   color="amber"
                 >
-                  <div className="space-y-4">
-                    <p className="text-lg font-semibold text-ink-900 dark:text-parchment-100 capitalize transition-colors duration-300">
+                  <div className="space-y-5">
+                    <p className="text-xl font-semibold text-ink-900 dark:text-parchment-100 capitalize transition-colors duration-300">
                       {temperament.primary}
                       {temperament.secondary && (
                         <span className="text-base text-ink-600 dark:text-slate-400 font-normal transition-colors duration-300">
@@ -341,31 +463,39 @@ export default function NPCModal({ isOpen, onClose, npc }) {
                     </p>
 
                     {/* Humor bars */}
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {Object.entries(temperament.humors).map(([humor, value]) => (
                         <div key={humor}>
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-sm text-ink-700 dark:text-slate-300 capitalize font-medium transition-colors duration-300">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm text-ink-700 dark:text-slate-300 capitalize font-semibold transition-colors duration-300">
                               {humor === 'yellowBile' ? 'Yellow Bile' : humor === 'blackBile' ? 'Black Bile' : humor}
                             </span>
-                            <span className="text-sm text-ink-600 dark:text-slate-400 font-mono transition-colors duration-300">{value}%</span>
+                            <span className="text-sm text-ink-600 dark:text-slate-400 font-mono font-semibold transition-colors duration-300">{value}%</span>
                           </div>
-                          <div className="h-2 bg-gray-200 dark:bg-slate-700 rounded-full overflow-hidden transition-colors duration-300">
+                          <div className="h-3 rounded-full overflow-hidden transition-colors duration-300"
+                            style={{
+                              background: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(229, 231, 235, 0.8)'
+                            }}>
                             <div
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                humor === 'blood' ? 'bg-red-500' :
-                                humor === 'yellowBile' ? 'bg-yellow-500' :
-                                humor === 'blackBile' ? 'bg-gray-600' :
-                                'bg-blue-500'
-                              }`}
-                              style={{ width: `${value}%` }}
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${value}%`,
+                                background: humor === 'blood' ? 'linear-gradient(to right, #ef4444, #dc2626)' :
+                                          humor === 'yellowBile' ? 'linear-gradient(to right, #eab308, #ca8a04)' :
+                                          humor === 'blackBile' ? 'linear-gradient(to right, #6b7280, #4b5563)' :
+                                          'linear-gradient(to right, #3b82f6, #2563eb)'
+                              }}
                             />
                           </div>
                         </div>
                       ))}
                     </div>
 
-                    <div className="mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 transition-colors duration-300">
+                    <div className="mt-5 p-4 rounded-lg transition-colors duration-300"
+                      style={{
+                        background: isDark ? 'rgba(245, 158, 11, 0.1)' : 'rgba(254, 243, 199, 0.5)',
+                        border: isDark ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)'
+                      }}>
                       <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed transition-colors duration-300">
                         According to Galenic medicine, this individual's temperament reflects the balance of the four humors within their body.
                       </p>
@@ -377,32 +507,52 @@ export default function NPCModal({ isOpen, onClose, npc }) {
               {/* Big Five */}
               {bigFive && (
                 <InfoCard
-                  title="Psychological Profile (Big Five)"
-                  icon="🧠"
+                  title="Psychological Profile"
+                  icon={FaBrain}
                   expanded={expandedSections.bigFive}
                   onToggle={() => toggleSection('bigFive')}
                   color="blue"
                 >
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 transition-colors duration-300">
-                      <div className="text-xs text-blue-700 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wide transition-colors duration-300">Openness</div>
-                      <div className="text-2xl font-bold text-blue-900 dark:text-blue-300 font-mono transition-colors duration-300">{bigFive.openness}</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded-lg transition-colors duration-300"
+                      style={{
+                        background: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(219, 234, 254, 0.6)',
+                        border: isDark ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)'
+                      }}>
+                      <div className="text-xs text-blue-700 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Openness</div>
+                      <div className="text-3xl font-bold text-blue-900 dark:text-blue-300 font-mono transition-colors duration-300">{bigFive.openness}</div>
                     </div>
-                    <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 transition-colors duration-300">
-                      <div className="text-xs text-green-700 dark:text-green-400 font-semibold mb-1 uppercase tracking-wide transition-colors duration-300">Conscientiousness</div>
-                      <div className="text-2xl font-bold text-green-900 dark:text-green-300 font-mono transition-colors duration-300">{bigFive.conscientiousness}</div>
+                    <div className="p-4 rounded-lg transition-colors duration-300"
+                      style={{
+                        background: isDark ? 'rgba(34, 197, 94, 0.15)' : 'rgba(220, 252, 231, 0.6)',
+                        border: isDark ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(34, 197, 94, 0.3)'
+                      }}>
+                      <div className="text-xs text-green-700 dark:text-green-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Conscientiousness</div>
+                      <div className="text-3xl font-bold text-green-900 dark:text-green-300 font-mono transition-colors duration-300">{bigFive.conscientiousness}</div>
                     </div>
-                    <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 transition-colors duration-300">
-                      <div className="text-xs text-purple-700 dark:text-purple-400 font-semibold mb-1 uppercase tracking-wide transition-colors duration-300">Extroversion</div>
-                      <div className="text-2xl font-bold text-purple-900 dark:text-purple-300 font-mono transition-colors duration-300">{bigFive.extroversion}</div>
+                    <div className="p-4 rounded-lg transition-colors duration-300"
+                      style={{
+                        background: isDark ? 'rgba(168, 85, 247, 0.15)' : 'rgba(243, 232, 255, 0.6)',
+                        border: isDark ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid rgba(168, 85, 247, 0.3)'
+                      }}>
+                      <div className="text-xs text-purple-700 dark:text-purple-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Extroversion</div>
+                      <div className="text-3xl font-bold text-purple-900 dark:text-purple-300 font-mono transition-colors duration-300">{bigFive.extroversion}</div>
                     </div>
-                    <div className="p-3 rounded-lg bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800 transition-colors duration-300">
-                      <div className="text-xs text-pink-700 dark:text-pink-400 font-semibold mb-1 uppercase tracking-wide transition-colors duration-300">Agreeableness</div>
-                      <div className="text-2xl font-bold text-pink-900 dark:text-pink-300 font-mono transition-colors duration-300">{bigFive.agreeableness}</div>
+                    <div className="p-4 rounded-lg transition-colors duration-300"
+                      style={{
+                        background: isDark ? 'rgba(236, 72, 153, 0.15)' : 'rgba(252, 231, 243, 0.6)',
+                        border: isDark ? '1px solid rgba(236, 72, 153, 0.3)' : '1px solid rgba(236, 72, 153, 0.3)'
+                      }}>
+                      <div className="text-xs text-pink-700 dark:text-pink-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Agreeableness</div>
+                      <div className="text-3xl font-bold text-pink-900 dark:text-pink-300 font-mono transition-colors duration-300">{bigFive.agreeableness}</div>
                     </div>
-                    <div className="col-span-2 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 transition-colors duration-300">
-                      <div className="text-xs text-red-700 dark:text-red-400 font-semibold mb-1 uppercase tracking-wide transition-colors duration-300">Neuroticism</div>
-                      <div className="text-2xl font-bold text-red-900 dark:text-red-300 font-mono transition-colors duration-300">{bigFive.neuroticism}</div>
+                    <div className="col-span-2 p-4 rounded-lg transition-colors duration-300"
+                      style={{
+                        background: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(254, 226, 226, 0.6)',
+                        border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
+                      }}>
+                      <div className="text-xs text-red-700 dark:text-red-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Neuroticism</div>
+                      <div className="text-3xl font-bold text-red-900 dark:text-red-300 font-mono transition-colors duration-300">{bigFive.neuroticism}</div>
                     </div>
                   </div>
                 </InfoCard>
@@ -412,18 +562,18 @@ export default function NPCModal({ isOpen, onClose, npc }) {
 
           {/* BIOGRAPHY TAB */}
           {activeTab === 'biography' && (
-            <div className="p-6 space-y-4">
+            <div className="p-8 space-y-6">
 
               {/* Life History */}
               {biography && (
                 <InfoCard
                   title="Life History"
-                  icon="📖"
+                  icon={FaBookOpen}
                   expanded={expandedSections.biography}
                   onToggle={() => toggleSection('biography')}
                   color="blue"
                 >
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-3 text-sm">
                     {biography.birthplace && (
                       <PropertyRow label="Birthplace" value={biography.birthplace} />
                     )}
@@ -448,7 +598,7 @@ export default function NPCModal({ isOpen, onClose, npc }) {
               {biography && biography.majorEvents && Array.isArray(biography.majorEvents) && biography.majorEvents.length > 0 && (
                 <InfoCard
                   title="Major Life Events"
-                  icon="📅"
+                  icon={FaCalendarAlt}
                   expanded={expandedSections.events}
                   onToggle={() => toggleSection('events')}
                   color="green"
@@ -457,9 +607,13 @@ export default function NPCModal({ isOpen, onClose, npc }) {
                     {biography.majorEvents.map((event, idx) => (
                       <div
                         key={idx}
-                        className="pl-4 border-l-4 border-green-400 dark:border-green-600 py-2"
+                        className="pl-5 py-3 rounded-lg transition-colors duration-300"
+                        style={{
+                          background: isDark ? 'rgba(34, 197, 94, 0.08)' : 'rgba(34, 197, 94, 0.05)',
+                          borderLeft: isDark ? '4px solid #10b981' : '4px solid #22c55e'
+                        }}
                       >
-                        <div className="text-xs text-green-700 dark:text-green-400 font-semibold mb-1 transition-colors duration-300">{event.year}</div>
+                        <div className="text-xs text-green-700 dark:text-green-400 font-bold mb-1 uppercase tracking-wide transition-colors duration-300">{event.year}</div>
                         <div className="text-sm text-ink-700 dark:text-slate-300 leading-relaxed transition-colors duration-300">{event.event}</div>
                       </div>
                     ))}
@@ -469,9 +623,15 @@ export default function NPCModal({ isOpen, onClose, npc }) {
 
               {/* Secrets */}
               {biography && biography.secrets && Array.isArray(biography.secrets) && biography.secrets.length > 0 && (
-                <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 shadow-md transition-colors duration-300">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">🤫</span>
+                <div className="p-5 rounded-xl shadow-sm transition-colors duration-300"
+                  style={{
+                    background: isDark
+                      ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%)'
+                      : 'linear-gradient(135deg, rgba(254, 243, 199, 0.6) 0%, rgba(253, 230, 138, 0.4) 100%)',
+                    border: isDark ? '2px solid rgba(245, 158, 11, 0.4)' : '2px solid rgba(245, 158, 11, 0.4)'
+                  }}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <FaLock className="text-2xl text-amber-700 dark:text-amber-400" />
                     <h3 className="text-lg font-bold text-amber-900 dark:text-amber-300 transition-colors duration-300">Secret</h3>
                   </div>
                   {biography.secrets.map((secret, idx) => (
@@ -483,9 +643,13 @@ export default function NPCModal({ isOpen, onClose, npc }) {
               )}
 
               {/* Historical Context Note */}
-              <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 transition-colors duration-300">
-                <p className="text-xs font-semibold mb-2 uppercase tracking-wide text-blue-700 dark:text-blue-400 transition-colors duration-300">
-                  💡 Historical Context
+              <div className="p-5 rounded-xl transition-colors duration-300"
+                style={{
+                  background: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(239, 246, 255, 0.6)',
+                  border: isDark ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)'
+                }}>
+                <p className="text-xs font-bold mb-2 uppercase tracking-wider text-blue-700 dark:text-blue-400 transition-colors duration-300">
+                  Historical Context
                 </p>
                 <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed transition-colors duration-300">
                   This character exists within the complex social hierarchy of 1680 Mexico City, where casta, class, and occupation
@@ -500,38 +664,28 @@ export default function NPCModal({ isOpen, onClose, npc }) {
       {/* Scrollbar Styles */}
       <style jsx>{`
         .custom-scrollbar::-webkit-scrollbar {
-          width: 10px;
+          width: 12px;
         }
 
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.05);
-          border-radius: 5px;
+          background: ${isDark ? 'rgba(15, 23, 42, 0.3)' : 'rgba(249, 245, 235, 0.5)'};
+          border-radius: 6px;
         }
 
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(139, 92, 46, 0.3);
-          border-radius: 5px;
+          background: ${isDark
+            ? 'linear-gradient(to bottom, rgba(71, 85, 105, 0.6), rgba(51, 65, 85, 0.4))'
+            : 'linear-gradient(to bottom, rgba(217, 199, 171, 0.6), rgba(197, 176, 146, 0.4))'};
+          border-radius: 6px;
           border: 2px solid transparent;
           background-clip: padding-box;
         }
 
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(139, 92, 46, 0.5);
+          background: ${isDark
+            ? 'linear-gradient(to bottom, rgba(71, 85, 105, 0.8), rgba(51, 65, 85, 0.6))'
+            : 'linear-gradient(to bottom, rgba(217, 199, 171, 0.8), rgba(197, 176, 146, 0.6))'};
           background-clip: padding-box;
-        }
-
-        @media (prefers-color-scheme: dark) {
-          .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-          }
-
-          .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(203, 213, 225, 0.3);
-          }
-
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: rgba(203, 213, 225, 0.5);
-          }
         }
       `}</style>
     </div>
@@ -539,58 +693,68 @@ export default function NPCModal({ isOpen, onClose, npc }) {
 }
 
 // InfoCard Component - Collapsible card with colored accents
-function InfoCard({ title, icon, color, children, expanded, onToggle }) {
-  const colorClasses = {
+function InfoCard({ title, icon: Icon, color, children, expanded, onToggle }) {
+  const isDark = document.documentElement.classList.contains('dark');
+
+  const colorConfig = {
     blue: {
-      bg: 'bg-blue-50 dark:bg-blue-900/20',
-      border: 'border-blue-200 dark:border-blue-800',
-      text: 'text-blue-800 dark:text-blue-300',
-      hoverBg: 'hover:bg-blue-100 dark:hover:bg-blue-900/30'
+      bg: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(239, 246, 255, 0.6)',
+      border: isDark ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.25)',
+      text: isDark ? '#93c5fd' : '#1e40af',
+      hoverBg: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(219, 234, 254, 0.8)'
     },
     purple: {
-      bg: 'bg-purple-50 dark:bg-purple-900/20',
-      border: 'border-purple-200 dark:border-purple-800',
-      text: 'text-purple-800 dark:text-purple-300',
-      hoverBg: 'hover:bg-purple-100 dark:hover:bg-purple-900/30'
+      bg: isDark ? 'rgba(168, 85, 247, 0.1)' : 'rgba(243, 232, 255, 0.6)',
+      border: isDark ? 'rgba(168, 85, 247, 0.3)' : 'rgba(168, 85, 247, 0.25)',
+      text: isDark ? '#e9d5ff' : '#6b21a8',
+      hoverBg: isDark ? 'rgba(168, 85, 247, 0.15)' : 'rgba(233, 213, 255, 0.8)'
     },
     green: {
-      bg: 'bg-green-50 dark:bg-green-900/20',
-      border: 'border-green-200 dark:border-green-800',
-      text: 'text-green-800 dark:text-green-300',
-      hoverBg: 'hover:bg-green-100 dark:hover:bg-green-900/30'
+      bg: isDark ? 'rgba(34, 197, 94, 0.1)' : 'rgba(240, 253, 244, 0.6)',
+      border: isDark ? 'rgba(34, 197, 94, 0.3)' : 'rgba(34, 197, 94, 0.25)',
+      text: isDark ? '#86efac' : '#15803d',
+      hoverBg: isDark ? 'rgba(34, 197, 94, 0.15)' : 'rgba(220, 252, 231, 0.8)'
     },
     amber: {
-      bg: 'bg-amber-50 dark:bg-amber-900/20',
-      border: 'border-amber-200 dark:border-amber-800',
-      text: 'text-amber-800 dark:text-amber-300',
-      hoverBg: 'hover:bg-amber-100 dark:hover:bg-amber-900/30'
+      bg: isDark ? 'rgba(245, 158, 11, 0.1)' : 'rgba(254, 243, 199, 0.6)',
+      border: isDark ? 'rgba(245, 158, 11, 0.3)' : 'rgba(245, 158, 11, 0.25)',
+      text: isDark ? '#fcd34d' : '#92400e',
+      hoverBg: isDark ? 'rgba(245, 158, 11, 0.15)' : 'rgba(253, 230, 138, 0.8)'
     }
   };
 
-  const colors = colorClasses[color] || colorClasses.blue;
+  const colors = colorConfig[color] || colorConfig.blue;
 
   return (
-    <div className={`rounded-lg border-2 ${colors.border} ${colors.bg} overflow-hidden shadow-sm transition-all duration-300`}>
+    <div className="rounded-xl overflow-hidden shadow-sm transition-all duration-300"
+      style={{
+        background: colors.bg,
+        border: `1px solid ${colors.border}`
+      }}>
       <button
         onClick={onToggle}
-        className={`w-full px-4 py-3 flex items-center justify-between transition-colors ${colors.hoverBg}`}
+        className="w-full px-5 py-4 flex items-center justify-between transition-all duration-200"
+        style={{
+          background: expanded ? colors.hoverBg : 'transparent'
+        }}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{icon}</span>
-          <h3 className={`text-base font-bold ${colors.text} transition-colors duration-300`}>{title}</h3>
+        <div className="flex items-center gap-3">
+          <Icon className="text-xl" style={{ color: colors.text }} />
+          <h3 className="text-base font-bold uppercase tracking-wide" style={{ color: colors.text }}>
+            {title}
+          </h3>
         </div>
-        <svg
-          className={`w-5 h-5 transition-transform duration-200 ${colors.text}`}
-          style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        {expanded ? (
+          <FaChevronUp className="w-4 h-4 transition-transform duration-200" style={{ color: colors.text }} />
+        ) : (
+          <FaChevronDown className="w-4 h-4 transition-transform duration-200" style={{ color: colors.text }} />
+        )}
       </button>
       {expanded && (
-        <div className="px-4 pb-4 bg-white dark:bg-slate-800/50 transition-colors duration-300">
+        <div className="px-5 pb-5 transition-colors duration-300"
+          style={{
+            background: isDark ? 'rgba(30, 41, 59, 0.5)' : 'rgba(255, 255, 255, 0.7)'
+          }}>
           {children}
         </div>
       )}
@@ -601,8 +765,8 @@ function InfoCard({ title, icon, color, children, expanded, onToggle }) {
 // PropertyRow Component - Label-value pair
 function PropertyRow({ label, value }) {
   return (
-    <div className="flex justify-between items-start py-1">
-      <span className="text-ink-600 dark:text-slate-400 font-medium transition-colors duration-300">{label}:</span>
+    <div className="flex justify-between items-start py-2 border-b border-ink-100 dark:border-slate-700 last:border-0 transition-colors duration-300">
+      <span className="text-ink-600 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider transition-colors duration-300">{label}</span>
       <span className="text-ink-900 dark:text-parchment-100 font-semibold text-right transition-colors duration-300">{value}</span>
     </div>
   );

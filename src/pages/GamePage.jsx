@@ -1,7 +1,7 @@
 // GamePage.jsx
 // Main game page component
 
-import React, { useState, useEffect, useCallback, Suspense, lazy} from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy} from 'react';
 import { useParams } from 'react-router-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -57,6 +57,8 @@ import { NPCTracker } from '../core/agents/EntityAgent';
 import { entityManager } from '../core/entities/EntityManager';
 import { useNPCPositions } from '../features/map/hooks/useNPCPositions';
 import EntityList from '../EntityList';
+import { parseNarrativeChoices } from '../utils/narrativeParser';
+import { getGridSystem } from '../features/map/services/gridMovementSystem';
 
 // Maria portrait images
 import mariaDetermined from '../assets/mariadetermined.jpg';
@@ -134,24 +136,52 @@ const GameContent = () => {
   const [transactionManager] = useState(() => getTransactionManager(scenarioId || '1680-mexico-city'));
 
   // Player position and map tracking
-  const [playerPosition, setPlayerPosition] = useState({ x: 500, y: 620, gridX: 25, gridY: 31 }); // Default: inside shop floor near entrance
+  const [playerPosition, setPlayerPosition] = useState({ x: 400, y: 450, gridX: 25, gridY: 27 }); // Default: behind counter on shop floor
   const [currentMapData, setCurrentMapData] = useState(null);
-  const [currentMapId, setCurrentMapId] = useState('botica-de-la-amargura');
+  const [currentMapId, setCurrentMapId] = useState('botica-interior'); // Interior map ID
 
-  // Update player position based on location (for exterior map display)
+  // Load map data when map ID changes
+  useEffect(() => {
+    if (scenario?.maps && currentMapId) {
+      // Check both interior and exterior maps
+      let mapData = scenario.maps.interior?.[currentMapId] || scenario.maps.exterior?.[currentMapId];
+
+      if (mapData) {
+        console.log('[GamePage] Loading map data for:', currentMapId);
+        setCurrentMapData(mapData);
+      } else {
+        console.warn('[GamePage] No map data found for:', currentMapId);
+      }
+    }
+  }, [currentMapId, scenario]);
+
+  // Update player position based on location changes (ONLY when location actually changes, not during movement)
+  const [previousLocation, setPreviousLocation] = React.useState(gameState.location);
+
   useEffect(() => {
     const location = gameState.location;
 
-    // If location is "Botica de la Amargura" (exterior map view)
-    if (location && location.includes('Botica') && location.includes('Mexico City')) {
-      // Set position to botica building center on exterior map
-      setPlayerPosition({ x: 1350, y: 917, gridX: 0, gridY: 0 });
+    // Only reset position if location actually changed (not just re-rendering)
+    if (location !== previousLocation) {
+      console.log('[GamePage] Location changed from', previousLocation, 'to', location);
+
+      // If location is "Botica de la Amargura, Mexico City" (exterior map view)
+      if (location && location.includes('Botica') && location.includes('Mexico City')) {
+        // Set position to botica building center on exterior map
+        console.log('[GamePage] Switching to exterior map position');
+        setPlayerPosition({ x: 1350, y: 917, gridX: 0, gridY: 0 });
+        setCurrentMapId('mexico-city-center');
+      }
+      // For interior locations, use interior starting position
+      else if (location && location.includes('Botica') && !location.includes('Mexico City')) {
+        console.log('[GamePage] Switching to interior map position');
+        setPlayerPosition({ x: 500, y: 550, gridX: 25, gridY: 27 });
+        setCurrentMapId('botica-interior');
+      }
+
+      setPreviousLocation(location);
     }
-    // For interior locations, use default interior position
-    else if (location && location.includes('Botica') && !location.includes('Mexico City')) {
-      setPlayerPosition({ x: 500, y: 620, gridX: 25, gridY: 31 });
-    }
-  }, [gameState.location]);
+  }, [gameState.location, previousLocation]);
 
   // NPC position tracking (real-time updates every 100ms)
   const {
@@ -161,6 +191,30 @@ const GameContent = () => {
     initializeNPCs,
     refresh: refreshNPCPositions
   } = useNPCPositions({ mapId: currentMapId, updateInterval: 100 });
+
+  // Calculate nearby locations for "Go somewhere" dropdown
+  const nearbyLocations = useMemo(() => {
+    if (!currentMapData || !playerPosition) {
+      console.log('[GamePage] nearbyLocations empty: missing map data or position', {
+        hasMapData: !!currentMapData,
+        hasPosition: !!playerPosition
+      });
+      return [];
+    }
+
+    try {
+      const gridSystem = getGridSystem(currentMapId, currentMapData);
+      const nearby = gridSystem.getNearbyLocations(playerPosition, 5);
+
+      // Return top 5 closest
+      const top5 = nearby.slice(0, 5);
+      console.log('[GamePage] Calculated nearby locations:', top5);
+      return top5;
+    } catch (error) {
+      console.error('[GamePage] Error getting nearby locations:', error);
+      return [];
+    }
+  }, [currentMapData, playerPosition, currentMapId]);
 
   // UI state
   const [isJournalOpen, setIsJournalOpen] = useState(false);
@@ -198,6 +252,9 @@ const GameContent = () => {
 
   // PHASE 1: Primary portrait file (LLM-selected portrait)
   const [primaryPortraitFile, setPrimaryPortraitFile] = useState(null);
+
+  // Dynamic action chips from narrative parser
+  const [dynamicChips, setDynamicChips] = useState(null);
 
   // Narration settings state
   const [narrationFontSize, setNarrationFontSize] = useState('text-base');
@@ -510,6 +567,13 @@ const GameContent = () => {
           }
         ]);
         setHistoryOutput(scenario.initialNarrative);
+
+        // Parse initial narrative for dynamic chips
+        const parsedChips = parseNarrativeChoices(scenario.initialNarrative);
+        if (parsedChips) {
+          console.log('[GamePage] Parsed initial narrative choices:', parsedChips.map(c => c.label).join(', '));
+          setDynamicChips(parsedChips);
+        }
       }
     }
   }, []); // Only run once on mount
@@ -574,6 +638,7 @@ const GameContent = () => {
     setPendingContract,
     setIsContractModalOpen,
     setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
+    setDynamicChips, // Dynamic action chips from narrative parsing
 
     // State values
     energy: gameState.energy,  // From gameState
@@ -1006,6 +1071,8 @@ const GameContent = () => {
                     disabled={isLoading}
                     onQuickAction={handleQuickAction}
                     onItemDrop={handleItemDrop}
+                    dynamicChips={dynamicChips}
+                    nearbyLocations={nearbyLocations}
                   />
                 </div>
               )}
@@ -1187,10 +1254,13 @@ const GameContent = () => {
           // Portrait and scenario
           getStatusImage={getStatusImage}
           scenarioId={scenarioId}
+          primaryPortraitFile={primaryPortraitFile}
 
           // Tab control (for dev panel)
           setActiveTab={setActiveTab}
           setActivePatient={setActivePatient}
+          setPatientDialogue={setPatientDialogue}
+          setGameState={setGameState}
         />
 
         {/* Level Up Notification */}

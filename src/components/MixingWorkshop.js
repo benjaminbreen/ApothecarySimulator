@@ -46,6 +46,7 @@ const MixingWorkshop = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hoveredSimple, setHoveredSimple] = useState(null);
+  const [inventoryPage, setInventoryPage] = useState(0);
 
   // Define all methods
   const allMethods = [
@@ -126,6 +127,8 @@ const MixingWorkshop = ({
     setError(null);
 
     const systemPrompt = `
+CRITICAL: You must respond with ONLY a valid JSON object. No markdown, no code fences, no explanatory text - ONLY the raw JSON object.
+
 You are a 1680s iatrochemist tasked with simulating the process of creating compound drugs based on real principles of "chymical medicine." Some potential compound drug names: Balsamum Lucatelli, Elixir Proprietatis, Theriac, Sal Volatile Oleosum, Aurum Potabile, Emetic Wine, Gascon's Powder, Tinctura Antimonii, Elixir de Paracelso, Balsamo Peruviano, Salt of Mallow, Pulvis Cephalico, Hysteric Water, Cinnamon Water, Aqua Celestis, Camphorated Wine Spirit, Volatile Spirit, Aqua Vitae, Tinctura Opii Crocata, Plague Water, Mercurius Dulcis, Balsam of Sulphur, Aqua Mercurialis, Camphorated Oil, Quicksilver Liniment, Mithridate.
 
 When provided with two or more simple ingredients (materia medica) and a compounding method, you must generate a historically plausible compound drug. Mention if it is toxic in the description. Toxic drugs can be usable purgatives (classified as "Vomitorios").
@@ -170,7 +173,7 @@ When provided with ingredients and a compounding method, return a JSON object wi
   "quantity": "1"
 }
 
-IMPORTANT: Ensure your response is a valid JSON object. Do not include any text outside the JSON structure.
+CRITICAL REMINDER: Return ONLY the raw JSON object above. Do not wrap it in markdown code fences (no \`\`\`json), do not add explanatory text, and do not include comments. Your entire response must be valid JSON that can be parsed directly.
     `;
 
     const userInput = `
@@ -184,13 +187,42 @@ Compounding Method: ${selectedMethod}
         { role: 'user', content: userInput }
       ];
 
-      const data = await createChatCompletion(messages, 0.9);
+      const data = await createChatCompletion(
+        messages,
+        0.9,           // temperature
+        1000,          // maxTokens
+        { type: 'json_object' }  // responseFormat - enforce JSON output
+      );
       let compoundData;
 
+      // DEBUG: Log raw LLM response to diagnose JSON parsing issues
+      console.log('=== MIXING WORKSHOP DEBUG ===');
+      console.log('RAW LLM RESPONSE:', data.choices[0].message.content);
+      console.log('RESPONSE LENGTH:', data.choices[0].message.content.length);
+      console.log('FIRST 200 CHARS:', data.choices[0].message.content.substring(0, 200));
+      console.log('LAST 200 CHARS:', data.choices[0].message.content.substring(data.choices[0].message.content.length - 200));
+      console.log('============================');
+
       try {
-        compoundData = JSON.parse(data.choices[0].message.content);
+        // Defensive JSON parsing: strip markdown code fences and extra whitespace
+        let rawContent = data.choices[0].message.content.trim();
+
+        // Remove markdown code fences (```json ... ``` or ``` ... ```)
+        if (rawContent.startsWith('```')) {
+          rawContent = rawContent.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+        }
+
+        // Remove any leading/trailing explanatory text before/after JSON object
+        const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          rawContent = jsonMatch[0];
+        }
+
+        console.log('[MixingWorkshop] Sanitized JSON:', rawContent.substring(0, 100) + '...');
+        compoundData = JSON.parse(rawContent);
       } catch (error) {
         console.error('Error parsing JSON:', error);
+        console.error('Attempted to parse:', data.choices[0].message.content);
         throw new Error('Invalid JSON');
       }
 
@@ -355,9 +387,9 @@ Compounding Method: ${selectedMethod}
           {/* Main Content */}
           <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
 
-            {/* Instructions */}
-            <div className="bg-botanical-50/60 dark:bg-emerald-900/10 border border-botanical-200/50 dark:border-emerald-700/20 rounded-lg p-3 mb-4">
-              <p className="text-sm text-ink-700 dark:text-amber-100/80 font-sans leading-snug text-center">
+            {/* Instructions - Clean typography */}
+            <div className="bg-gradient-to-r from-amber-50 via-parchment-50 to-amber-50 dark:from-slate-800/40 dark:via-slate-700/30 dark:to-slate-800/40 border-l-4 border-r-4 border-amber-600/60 dark:border-amber-500/50 rounded-lg px-6 py-4 mb-6 shadow-sm">
+              <p className="font-serif text-lg text-ink-800 dark:text-amber-100 leading-relaxed text-center italic">
                 Drag ingredients onto a method below. Each produces different results based on humoral theory.
               </p>
             </div>
@@ -379,63 +411,85 @@ Compounding Method: ${selectedMethod}
               </div>
             )}
 
-            {/* Method Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-              {availableMethods.map(method => (
-                <MethodDropZone
-                  key={method.name}
-                  method={method}
-                  ingredients={selectedSimples[method.name] || []}
-                  onDrop={handleDrop}
-                  isLoading={isLoading}
-                />
-              ))}
-            </div>
-
-            {/* Inventory Section */}
-            <div className="bg-ink-50/50 dark:bg-slate-800/30 rounded-xl p-4 border border-ink-200/30 dark:border-slate-600/30">
-              <h3 className="font-sans text-sm font-semibold uppercase tracking-wider text-ink-600 dark:text-amber-200/70 mb-3 flex items-center gap-2">
-                <span>Inventory</span>
-                <span className="text-xs font-normal text-ink-500 dark:text-amber-300/50 normal-case">
-                  ({simples.length} items)
-                </span>
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
-                {simples.map(simple => (
-                  <DraggableIngredient
-                    key={simple.id}
-                    simple={simple}
-                    onHover={setHoveredSimple}
-                    onLeave={() => setHoveredSimple(null)}
-                    isDisabled={isLoading}
+            {/* Method Grid - Centered and responsive */}
+            <div className="flex justify-center mb-8">
+              <div className={`grid gap-6 w-full ${
+                availableMethods.length === 1 ? 'grid-cols-1 max-w-md' :
+                availableMethods.length === 2 ? 'grid-cols-1 md:grid-cols-2 max-w-3xl' :
+                availableMethods.length === 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-w-5xl' :
+                availableMethods.length === 4 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 max-w-6xl' :
+                'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 max-w-7xl'
+              }`}>
+                {availableMethods.map(method => (
+                  <MethodDropZone
+                    key={method.name}
+                    method={method}
+                    ingredients={selectedSimples[method.name] || []}
+                    onDrop={handleDrop}
+                    isLoading={isLoading}
                   />
                 ))}
               </div>
-              {simples.length === 0 && (
+            </div>
+
+            {/* Inventory Section - Paginated */}
+            <div className="bg-ink-50/50 dark:bg-slate-800/30 rounded-xl p-4 border border-ink-200/30 dark:border-slate-600/30">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-serif text-base font-bold text-ink-800 dark:text-amber-100 flex items-center gap-2">
+                  <span>Materia Medica</span>
+                  <span className="text-sm font-normal text-ink-500 dark:text-amber-300/60">
+                    ({simples.length} items)
+                  </span>
+                </h3>
+                {simples.length > 14 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setInventoryPage(Math.max(0, inventoryPage - 1))}
+                      disabled={inventoryPage === 0}
+                      className="p-1.5 rounded-lg bg-amber-100 dark:bg-slate-700 text-ink-800 dark:text-amber-100 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-200 dark:hover:bg-slate-600 transition-all"
+                      aria-label="Previous page"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <span className="text-xs text-ink-600 dark:text-amber-300/70 font-sans">
+                      {inventoryPage + 1} / {Math.ceil(simples.length / 14)}
+                    </span>
+                    <button
+                      onClick={() => setInventoryPage(Math.min(Math.ceil(simples.length / 14) - 1, inventoryPage + 1))}
+                      disabled={inventoryPage >= Math.ceil(simples.length / 14) - 1}
+                      className="p-1.5 rounded-lg bg-amber-100 dark:bg-slate-700 text-ink-800 dark:text-amber-100 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-200 dark:hover:bg-slate-600 transition-all"
+                      aria-label="Next page"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+              {simples.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-lg text-ink-500 dark:text-amber-300/50 font-serif italic">
                     Your inventory is empty. Purchase ingredients from the market to begin mixing.
                   </p>
                 </div>
+              ) : (
+                <div className="grid grid-cols-7 gap-3 h-auto" style={{ gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }}>
+                  {simples.slice(inventoryPage * 14, (inventoryPage + 1) * 14).map(simple => (
+                    <DraggableIngredient
+                      key={simple.id}
+                      simple={simple}
+                      onHover={setHoveredSimple}
+                      onLeave={() => setHoveredSimple(null)}
+                      isDisabled={isLoading}
+                    />
+                  ))}
+                </div>
               )}
             </div>
 
-            {/* Hover Tooltip */}
-            {hoveredSimple && (
-              <div className="fixed top-1/2 right-8 transform -translate-y-1/2 z-50 pointer-events-none">
-                <div className="bg-ink-900/95 dark:bg-slate-800/95 border border-amber-500/40 rounded-lg p-3 shadow-xl max-w-xs backdrop-blur-sm">
-                  <h4 className="font-sans text-base font-semibold text-amber-100 dark:text-amber-50 mb-2">
-                    {hoveredSimple.name}
-                  </h4>
-                  <div className="space-y-1 text-xs text-amber-200/80 dark:text-amber-100/80 font-sans">
-                    <p><span className="font-medium">Price:</span> {hoveredSimple.price} reales</p>
-                    <p><span className="font-medium">Quantity:</span> {hoveredSimple.quantity}</p>
-                    <p><span className="font-medium">Qualities:</span> {hoveredSimple.humoralQualities}</p>
-                    <p><span className="font-medium">Effects:</span> {hoveredSimple.medicinalEffects}</p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Footer */}

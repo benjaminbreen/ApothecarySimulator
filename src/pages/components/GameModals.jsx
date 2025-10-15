@@ -163,6 +163,7 @@ export function GameModals({
   // Portrait and scenario
   getStatusImage,
   scenarioId,
+  primaryPortraitFile, // PHASE 1: LLM-selected portrait
 
   // Tab control (for dev panel)
   setActiveTab,
@@ -415,6 +416,7 @@ export function GameModals({
           setSelectedNPC(null);
         }}
         npc={selectedNPC}
+        primaryPortraitFile={primaryPortraitFile}
       />
 
       {/* Item Modal Enhanced */}

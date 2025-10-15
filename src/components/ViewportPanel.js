@@ -25,7 +25,8 @@ const ViewportPanel = ({
   onMapClick = null, // Callback when map is clicked to open modal
   discoveredBooks = [], // Books discovered during gameplay
   onBookClick = null, // Callback when book is clicked
-  narrativeTurn = '' // Most recent narrative turn for Study tab
+  narrativeTurn = '', // Most recent narrative turn for Study tab
+  primaryPortraitFile = null // Primary portrait filename for status detection
 }) => {
   const defaultTab = npcPresent ? 'portrait' : 'map';
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -214,7 +215,9 @@ const ViewportPanel = ({
                   </div>
                 </button>
                 <h3 className="font-serif text-lg font-bold text-ink-900 dark:text-amber-400 uppercase tracking-wide mb-0.5 transition-colors duration-300">{npcName}</h3>
-                <p className="text-sm text-ink-400 dark:text-parchment-300 font-sans italic transition-colors duration-300">In Conversation</p>
+                <p className="text-sm text-ink-400 dark:text-parchment-300 font-sans italic transition-colors duration-300">
+                  {primaryPortraitFile === 'ui/boticaentrance.png' ? 'At the Door' : 'In Conversation'}
+                </p>
                 {npcData && (
                   <p className="text-xs font-sans mt-0.5 transition-colors duration-300 tracking-wide" style={{
                     color: 'var(--tw-prose-body)',

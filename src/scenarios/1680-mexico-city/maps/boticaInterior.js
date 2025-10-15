@@ -14,6 +14,7 @@ export default {
     width: 1000,  // Increased to add margin around house
     height: 800
   },
+  startPosition: [500, 550], // Behind counter on shop floor
 
   // Rooms - Simplified to 3 larger, clearer spaces with margin around house
   rooms: [

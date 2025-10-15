@@ -1,6 +1,15 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useDrop } from 'react-dnd';
+import {
+  FaSearchPlus,
+  FaQuestion,
+  FaWalking,
+  FaBook,
+  FaClock,
+} from 'react-icons/fa';
+import { getDefaultChips } from '../utils/narrativeParser';
+import { LocationDropdown } from './LocationDropdown';
 
 // Tooltip component that renders via Portal
 const Tooltip = ({ children, targetRef, colorScheme, show }) => {
@@ -62,9 +71,13 @@ const InputArea = ({
   handleSubmit,
   disabled = false,
   onQuickAction,
-  onItemDrop // New callback for when an item is dropped
+  onItemDrop, // New callback for when an item is dropped
+  dynamicChips = null, // Array of dynamic action chips from narrative parser
+  nearbyLocations = [], // Array of nearby locations for "Go somewhere" dropdown
 }) => {
   const inputRef = useRef(null);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [locationDropdownTarget, setLocationDropdownTarget] = useState(null);
 
   // Drop zone for inventory items
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
@@ -91,66 +104,84 @@ const InputArea = ({
     }
   };
 
-  // Quick action buttons - more subtle and contextual
-  const quickActions = [
-    {
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-      ),
-      label: 'Examine',
-      action: 'examine inventory',
-      tooltip: 'Inspect your possessions and ingredients'
-    },
-    {
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-      ),
-      label: 'Ask',
-      action: 'ask about ',
-      tooltip: 'Inquire about people, places, or things'
-    },
-    {
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-        </svg>
-      ),
-      label: 'Go somewhere',
-      action: 'go to ',
-      tooltip: 'Travel to a different location in the city'
-    },
-    {
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-      ),
-      label: 'Study',
-      action: 'consult my books',
-      tooltip: 'Consult medical texts and references'
-    },
-    {
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      label: 'Wait',
-      action: 'wait and observe',
-      tooltip: 'Pass time and observe your surroundings'
-    },
-  ];
+  // Determine which chips to display: dynamic (from narrative) or default
+  const defaultChipConfigs = getDefaultChips();
 
-  const handleQuickAction = (action) => {
-    if (onQuickAction) {
-      onQuickAction(action);
-    } else {
-      setUserInput(action);
+  // If we have dynamic chips, use first 2-3 from narrative, then only show "Go somewhere"
+  let quickActions;
+  if (dynamicChips && dynamicChips.length > 0) {
+    // Use dynamic chips (2-3 from narrative)
+    const dynamicMapped = dynamicChips.slice(0, 3).map(chip => ({
+      icon: chip.icon, // React component from narrativeParser
+      label: chip.label,
+      action: chip.action,
+      tooltip: chip.label, // Use label as tooltip for dynamic chips
+      isDynamic: true,
+    }));
+
+    // When dynamic chips are present, only show "Go somewhere" as the additional option
+    const goSomewhereChip = defaultChipConfigs.find(chip => chip.label === 'Go somewhere');
+    const additionalChips = goSomewhereChip ? [{
+      icon: goSomewhereChip.icon,
+      label: goSomewhereChip.label,
+      action: goSomewhereChip.action,
+      tooltip: goSomewhereChip.tooltip,
+      isDynamic: false,
+      isGoSomewhere: true, // Special flag for location dropdown
+    }] : [];
+
+    quickActions = [...dynamicMapped, ...additionalChips];
+  } else {
+    // Use all defaults
+    quickActions = defaultChipConfigs.map(chip => ({
+      icon: chip.icon,
+      label: chip.label,
+      action: chip.action,
+      tooltip: chip.tooltip,
+      isDynamic: false,
+      isGoSomewhere: chip.label === 'Go somewhere', // Flag for special handling
+    }));
+  }
+
+  const handleQuickAction = (action, isGoSomewhere, chipRef) => {
+    console.log('[InputArea] handleQuickAction called:', { action, isGoSomewhere, nearbyLocationsCount: nearbyLocations.length });
+
+    // Special handling for "Go somewhere" - show location dropdown
+    if (isGoSomewhere && nearbyLocations.length > 0) {
+      console.log('[InputArea] Opening location dropdown');
+      setLocationDropdownTarget(chipRef);
+      setShowLocationDropdown(true);
+      return;
     }
+
+    // If no locations available, fall through to normal action
+    if (isGoSomewhere && nearbyLocations.length === 0) {
+      console.log('[InputArea] No locations available, using default action');
+    }
+
+    // Normal action handling - populate input for visual feedback
+    setUserInput(action);
+
+    // Auto-submit with action text directly (avoids React state race condition)
+    setTimeout(() => {
+      // Create a fake event object for handleSubmit
+      const fakeEvent = { preventDefault: () => {} };
+      handleSubmit(fakeEvent, action);  // Pass action directly as override
+    }, 100);
+  };
+
+  const handleLocationSelect = (location) => {
+    const action = `go to ${location.name}`;
+    console.log('[InputArea] Location selected:', action);
+
+    // Populate input for visual feedback
+    setUserInput(action);
+
+    // Auto-submit with action text directly (avoids React state race condition)
+    setTimeout(() => {
+      const fakeEvent = { preventDefault: () => {} };
+      handleSubmit(fakeEvent, action);  // Pass action directly as override
+    }, 100);
   };
 
   const dropIndicatorClasses = isOver && canDrop
@@ -233,16 +264,25 @@ const InputArea = ({
               chipRefs.current[refKey] = { current: null };
             }
 
+            // Determine border color: dynamic chips get special highlight
+            const borderColor = qa.isDynamic
+              ? (isDark ? 'rgba(251, 191, 36, 0.5)' : 'rgba(16, 185, 129, 0.5)')
+              : 'transparent';
+
+            const hoverBorderColor = qa.isDynamic
+              ? (isDark ? 'rgba(251, 191, 36, 0.7)' : 'rgba(16, 185, 129, 0.7)')
+              : (isDark ? 'rgba(251, 191, 36, 0.3)' : 'rgba(16, 185, 129, 0.3)');
+
             return (
               <div key={idx} className="relative group">
                 <button
                   ref={(el) => chipRefs.current[refKey].current = el}
                   type="button"
-                  onClick={() => handleQuickAction(qa.action)}
+                  onClick={() => handleQuickAction(qa.action, qa.isGoSomewhere, chipRefs.current[refKey])}
                   onMouseEnter={() => setHoveredAction(idx)}
                   onMouseLeave={() => setHoveredAction(null)}
                   disabled={disabled}
-                  className="px-3 py-1.5 relative overflow-hidden rounded-lg text-xs text-ink-700 dark:text-parchment-300 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 font-sans font-medium shadow-elevation-1 dark:shadow-dark-elevation-1 hover:shadow-elevation-2 dark:hover:shadow-glow-amber active:scale-95 border border-transparent hover:border-emerald-400/30 dark:hover:border-amber-500/30"
+                  className={`px-3 py-1.5 relative overflow-hidden rounded-lg text-xs text-ink-700 dark:text-parchment-300 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 font-sans font-medium shadow-elevation-1 dark:shadow-dark-elevation-1 hover:shadow-elevation-2 dark:hover:shadow-glow-amber active:scale-95 border ${qa.isDynamic ? 'border-emerald-400/50 dark:border-amber-500/50' : 'border-transparent hover:border-emerald-400/30 dark:hover:border-amber-500/30'}`}
                   aria-label={qa.label}
                   style={{
                     background: isDark
@@ -259,9 +299,9 @@ const InputArea = ({
                         : 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.05) 100%)',
                     }}
                   />
-                  {/* Content */}
+                  {/* Content - React Icon component */}
                   <span className="relative z-10 transition-colors duration-300 group-hover:text-emerald-700 dark:group-hover:text-amber-400">
-                    {qa.icon}
+                    {React.createElement(qa.icon, { className: "w-4 h-4" })}
                   </span>
                   <span className="relative z-10 transition-colors duration-300 group-hover:text-emerald-700 dark:group-hover:text-amber-400">
                     {qa.label}
@@ -289,6 +329,15 @@ const InputArea = ({
           </div>
         </div>
       </form>
+
+      {/* Location Dropdown */}
+      <LocationDropdown
+        show={showLocationDropdown}
+        onClose={() => setShowLocationDropdown(false)}
+        onSelectLocation={handleLocationSelect}
+        nearbyLocations={nearbyLocations}
+        targetRef={locationDropdownTarget}
+      />
     </div>
   );
 };

@@ -141,6 +141,13 @@ const ContextPanel = ({
   const getPortraitUrl = React.useMemo(() => {
     if (primaryPortraitFile) {
       console.log('[ContextPanel] ✓ Using LLM portrait:', primaryPortraitFile);
+
+      // Special case: UI images (like boticaentrance.png) are in /ui/, not /portraits/
+      if (primaryPortraitFile.startsWith('ui/')) {
+        return `/${primaryPortraitFile}`;
+      }
+
+      // Normal portraits are in /portraits/
       return `/portraits/${primaryPortraitFile}`;
     }
 
@@ -239,6 +246,7 @@ const ContextPanel = ({
           discoveredBooks={discoveredBooks}
           onBookClick={onBookClick}
           narrativeTurn={recentNarrativeTurn}
+          primaryPortraitFile={primaryPortraitFile}
         />
       </div>
 
