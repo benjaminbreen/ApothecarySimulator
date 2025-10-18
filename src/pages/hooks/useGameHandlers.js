@@ -4,23 +4,28 @@
 import { useCallback, useRef } from 'react';
 import { orchestrateTurn } from '../../core/agents/AgentOrchestrator';
 import { processPatientDialogue } from '../../core/agents/PatientDialogueAgent';
+import { extractPatientContext } from '../../core/agents/PatientContextExtractor';
 import { enrichPatientData } from '../../core/entities/PatientEnrichment';
 import { entityManager } from '../../core/entities/EntityManager';
 import { createChatCompletion } from '../../core/services/llmService';
 import { buildSystemPrompt } from '../../prompts/promptModules';
 import { scenarioLoader } from '../../core/services/scenarioLoader';
+import { buildLocationRegistry, matchLocation } from '../../features/map/services/locationRegistry';
 import resourceManager from '../../systems/ResourceManager';
 import { relationshipGraph } from '../../core/entities/RelationshipGraph';
 import { applyRelationshipToReputation } from '../../core/systems/reputationFeedback';
 import { getXPForNextLevel, getPlayerTitle } from '../../core/systems/levelingSystem';
 import { resolvePortrait } from '../../core/services/portraitResolver';
 import { parseNarrativeChoices } from '../../utils/narrativeParser';
+import { generateNextSteps } from '../../core/services/nextStepsGenerator';
+import { mapNPCFactionToSystemFaction } from '../../core/systems/reputationSystem';
 
 export function useGameHandlers({
   // State setters
   setWealth,  // Changed from setWealth - now uses gameState
-  setMariaStatus,
+  setGameState, // For updating gameState fields like status
   setReputation,
+  updateReputation, // Faction-based reputation updates
   setIncorporatedContent,
   setShowIncorporatePopup,
   setIsJournalOpen,
@@ -62,6 +67,8 @@ export function useGameHandlers({
   setCurrentPrescriptionType,
   setNPCPosition,
   setPlayerPosition,
+  setPlayerFacing,
+  setCurrentMapId,
   setIsModernInventoryOpen,
   setUserActions,
   setActiveTab,
@@ -74,6 +81,11 @@ export function useGameHandlers({
   setIsPatientRosterOpen,
   setPendingContract,
   setIsContractModalOpen,
+  setPendingExitData, // Exit confirmation system
+  setShowExitConfirmation, // Exit confirmation system
+  setTradingNPC, // Trade system
+  setTradeMode, // Trade system
+  setPendingSimpleInteraction, // Simple interaction system
   setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
   setDynamicChips, // Dynamic action chips from narrative parsing
 
@@ -93,6 +105,7 @@ export function useGameHandlers({
   reputationEmoji,
   currentMapData,
   playerPosition,
+  playerFacing,
   currentMapId,
   npcPositions,
   activeTab,
@@ -110,6 +123,11 @@ export function useGameHandlers({
   addCompoundToInventory,
   refreshInventory,
   toggleShopSign,
+  updateEnergy,
+  addTradeOpportunity, // Trade system
+  removeTradeOpportunity, // Trade system
+  addTradeTransaction, // Trade system
+  cleanupExpiredOpportunities, // Trade system
 
   // Leveling system
   awardXP,
@@ -121,6 +139,21 @@ export function useGameHandlers({
     if (!input || !target) return false;
     return target.toLowerCase().includes(input.toLowerCase());
   };
+
+  // Helper: Add entry/entries to conversation history with automatic timestamps
+  const addToHistory = useCallback((...entries) => {
+    const timestampedEntries = entries.map(entry => ({
+      ...entry,
+      timestamp: {
+        time: gameState.time,
+        date: gameState.date
+      }
+    }));
+    setConversationHistory(prev => [...prev, ...timestampedEntries]);
+  }, [gameState.time, gameState.date, setConversationHistory]);
+
+  // Track current building entrance point for exits
+  const currentBuildingRef = useRef(null);
 
   // Track previous portrait entity for smooth transitions (persists across renders)
   const previousPortraitEntityRef = useRef(null);
@@ -161,9 +194,7 @@ export function useGameHandlers({
     return isAnimal || isObject;
   };
 
-  const handleStatusChange = (newStatus) => {
-    setMariaStatus(newStatus);
-  };
+  // handleStatusChange removed - portrait now calculated dynamically in GamePage via getMariaPortrait()
 
   const handleReputationChange = (newReputation) => {
     // Note: Reputation is now managed by useReputation hook in GamePage
@@ -256,9 +287,8 @@ export function useGameHandlers({
 
     setHealth(finalHealth);
 
-    // Update status based on resources
-    const newStatus = resourceManager.getStatusDescription(finalHealth, newEnergy);
-    setMariaStatus(newStatus);
+    // Note: Maria's portrait is calculated dynamically in GamePage via getMariaPortrait()
+    // No need to update status here
 
     // Check for warnings
     const energyWarning = resourceManager.getEnergyWarning(newEnergy);
@@ -306,7 +336,7 @@ export function useGameHandlers({
     setActiveEffects(newEffects);
 
     return { energyWarning, healthWarning, healthDecrease: healthUpdate.decrease, reasons: healthUpdate.reasons };
-  }, [energy, health, currentWealth, consecutiveLowEnergyTurns, setEnergy, setConsecutiveLowEnergyTurns, setHealth, setMariaStatus, setActiveEffects]);
+  }, [energy, health, currentWealth, consecutiveLowEnergyTurns, setEnergy, setConsecutiveLowEnergyTurns, setHealth, setActiveEffects]);
 
   // EAT HANDLER
   const handleEat = useCallback((meal) => {
@@ -318,14 +348,14 @@ export function useGameHandlers({
     });
 
     const eatMessage = `*Maria ate ${meal.quality === 'good' ? 'a hearty meal' : meal.quality === 'adequate' ? 'a simple meal' : 'meager rations'}. ${meal.message}*`;
-    setConversationHistory(prev => [...prev, { role: 'system', content: eatMessage }]);
+    addToHistory({ role: 'system', content: eatMessage });
 
     addJournalEntry({
       turnNumber,
       date: gameState.date,
       entry: `Ate a meal (${meal.cost} reales). Energy restored by ${meal.energy}.`
     });
-  }, [applyResourceChanges, turnNumber, gameState.date, setWealth, setConversationHistory]);
+  }, [applyResourceChanges, turnNumber, gameState.date, setWealth, addToHistory]);
 
   // FORAGE HANDLER
   const handleForageComplete = useCallback(async (forageResult) => {
@@ -355,7 +385,7 @@ export function useGameHandlers({
       }
 
       const forageMessage = `*You foraged at ${gameState.location} and found ${forageResult.quantity}x ${item.name}. ${item.message || ''}*`;
-      setConversationHistory(prev => [...prev, { role: 'system', content: forageMessage }]);
+      addToHistory({ role: 'system', content: forageMessage });
     } else if (forageResult.foundNothing) {
       addJournalEntry({
         turnNumber,
@@ -364,7 +394,7 @@ export function useGameHandlers({
       });
 
       const forageMessage = `*You searched ${gameState.location} for useful materials, but found nothing of value.*`;
-      setConversationHistory(prev => [...prev, { role: 'system', content: forageMessage }]);
+      addToHistory({ role: 'system', content: forageMessage });
     }
 
     // Award XP for foraging (+1 XP per forage, regardless of result)
@@ -490,6 +520,152 @@ export function useGameHandlers({
       return;
     }
 
+    // Helper: Detect if a phrase is a player movement command vs dialogue/NPC-directed/narrative action
+    const isPlayerMovementCommand = (text, phrase) => {
+      // 1. Exclude if phrase is in quotation marks (dialogue)
+      const quotedPattern = new RegExp(`["']([^"']*${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^"']*)["']`, 'i');
+      if (quotedPattern.test(text)) {
+        return false;
+      }
+
+      // 2. Exclude if directed at NPC (tell/ask/order X to Y)
+      const npcDirectivePattern = /(?:tell|ask|order|command|instruct|say to)\s+(?:him|her|them|the\s+\w+|\w+)\s+to/i;
+      const npcDirectiveMatch = text.match(npcDirectivePattern);
+      if (npcDirectiveMatch) {
+        const directiveIndex = text.indexOf(npcDirectiveMatch[0]);
+        const phraseIndex = text.indexOf(phrase);
+        if (phraseIndex > directiveIndex) {
+          return false; // Phrase comes after directive, so it's directed at NPC
+        }
+      }
+
+      // 3. Exclude if using comma-addressing (e.g., "soldier, go outside")
+      if (/^\w+,\s+/.test(text)) {
+        return false;
+      }
+
+      // 4. Exclude if it's a narrative action (contains action verbs after "go")
+      // e.g., "go see who it is", "go check on X", "go investigate", "go find out"
+      const narrativeActionPattern = /\b(?:go|walk|head)\s+(?:see|check|investigate|find|look|talk|speak|ask|tell|help|assist|answer|greet|meet)\b/i;
+      if (narrativeActionPattern.test(text)) {
+        return false;
+      }
+
+      // 5. Phrase should appear near the start (within first 30 chars) for imperative commands
+      const phraseIndex = text.indexOf(phrase);
+      if (phraseIndex > 30) {
+        return false;
+      }
+
+      return true; // Passes all checks - this is a player movement command
+    };
+
+    // Handle "go outside" / "leave" commands when inside the botica
+    const exitPhrases = ['go outside', 'leave', 'exit', 'go out', 'step outside', 'walk outside'];
+    const isExitCommand = exitPhrases.some(phrase =>
+      narrativeText.includes(phrase) && isPlayerMovementCommand(narrativeText, phrase)
+    );
+    const isInsideBotica = gameState.location?.includes('Botica de la Amargura');
+
+    if (isExitCommand && isInsideBotica) {
+      console.log('[Exit] Showing exit confirmation card');
+
+      // Store exit data for later execution
+      setPendingExitData({
+        location: 'Mexico City',
+        mapId: 'mexico-city-center',
+        position: { x: 1350, y: 930, gridX: 67, gridY: 46 },
+        exitMessage: "You step outside into the bustling streets of Mexico City.",
+        locationName: "Botica de la Amargura",
+        gameTime: gameState.time
+      });
+
+      // Show confirmation card
+      setShowExitConfirmation(true);
+      setUserInput('');
+      setIsLoading(false);
+
+      // Don't continue with exit or LLM processing
+      return;
+    }
+
+    // Handle "go inside" / "enter" commands when outside near the botica
+    const enterPhrases = ['go inside', 'enter', 'go in', 'step inside', 'walk inside', 'enter shop', 'enter botica'];
+    const isEnterCommand = enterPhrases.some(phrase =>
+      narrativeText.includes(phrase) && isPlayerMovementCommand(narrativeText, phrase)
+    );
+    const isOutsideBotica = !gameState.location?.includes('Botica de la Amargura') &&
+                            (narrativeText.includes('botica') || narrativeText.includes('shop') || narrativeText.includes('home'));
+
+    if (isEnterCommand && isOutsideBotica) {
+      console.log('[Enter] Player entering Botica de la Amargura');
+
+      // Update location to interior
+      updateLocation('Botica de la Amargura, Mexico City');
+
+      // Switch to interior map
+      setCurrentMapId('botica-interior');
+
+      // Position player at the starting interior position (behind counter on shop floor, north side)
+      setPlayerPosition({ x: 510, y: 480, gridX: 25, gridY: 24 });
+
+      // Show simple system message instead of calling LLM
+      const enterMessage = "You step inside the Botica de la Amargura. The familiar scent of herbs and compounds fills the air.";
+      setHistoryOutput(enterMessage);
+      addToHistory({ role: 'assistant', content: enterMessage });
+      setUserInput('');
+      setUserActions(prev => [...prev, actionOverride || userInput]);
+      setIsLoading(false);
+
+      // Don't continue with LLM turn processing
+      return;
+    }
+
+    // Handle natural language navigation to specific locations (interior only)
+    const navigationPatterns = [
+      { phrases: ['go to laboratory', 'walk to laboratory', 'head to laboratory', 'enter laboratory'], position: { x: 700, y: 250, gridX: 35, gridY: 12 }, room: 'Laboratory' },
+      { phrases: ['go to bedroom', 'walk to bedroom', 'head to bedroom', 'enter bedroom'], position: { x: 300, y: 250, gridX: 15, gridY: 12 }, room: 'Bedroom' },
+      { phrases: ['go to shop floor', 'walk to shop', 'go to counter', 'walk to counter'], position: { x: 510, y: 480, gridX: 25, gridY: 24 }, room: 'Shop Floor' },
+      { phrases: ['go to door', 'walk to door', 'go to entrance', 'walk to entrance'], position: { x: 400, y: 670, gridX: 20, gridY: 33 }, room: 'Shop Floor' },
+      { phrases: ['go to workbench', 'walk to workbench'], position: { x: 640, y: 210, gridX: 32, gridY: 10 }, room: 'Laboratory' },
+      { phrases: ['go to bed', 'walk to bed'], position: { x: 350, y: 200, gridX: 17, gridY: 10 }, room: 'Bedroom' },
+      { phrases: ['go to bookshelf', 'walk to bookshelf'], position: { x: 140, y: 260, gridX: 7, gridY: 13 }, room: 'Bedroom' }
+    ];
+
+    const matchedNavigation = navigationPatterns.find(pattern =>
+      pattern.phrases.some(phrase => narrativeText.includes(phrase))
+    );
+
+    if (matchedNavigation && isInsideBotica) {
+      console.log(`[Navigation] Moving to ${matchedNavigation.room}`);
+
+      // Update player position
+      setPlayerPosition(matchedNavigation.position);
+
+      // Update facing direction based on movement direction
+      const dx = matchedNavigation.position.x - playerPosition.x;
+      const dy = matchedNavigation.position.y - playerPosition.y;
+
+      // Determine primary direction (larger delta wins)
+      if (Math.abs(dx) > Math.abs(dy)) {
+        setPlayerFacing(dx > 0 ? 90 : 270); // East or West
+      } else if (Math.abs(dy) > 0) {
+        setPlayerFacing(dy > 0 ? 180 : 0); // South or North
+      }
+      // If no movement (already at target), don't change facing
+
+      // Show simple system message
+      const navMessage = `You walk to the ${matchedNavigation.room.toLowerCase()}.`;
+      setHistoryOutput(navMessage);
+      setConversationHistory(prev => [...prev, { role: 'assistant', content: navMessage }]);
+      setUserInput('');
+      setUserActions(prev => [...prev, actionOverride || userInput]);
+      setIsLoading(false);
+
+      // Don't continue with LLM turn processing
+      return;
+    }
+
     if (userInput.trim().toLowerCase() === '#ledger') {
       // Check if player has Bookkeeping skill
       const bookkeepingLevel = playerSkills?.knownSkills?.bookkeeping?.level || 0;
@@ -590,6 +766,7 @@ export function useGameHandlers({
         wealth: currentWealth,
         mapData: currentMapData,
         playerPosition: playerPosition,
+        playerFacing: playerFacing,
         currentMapId: currentMapId,
         playerSkills: playerSkills,
         journal: journal,
@@ -641,25 +818,29 @@ export function useGameHandlers({
 
       // NEW PHASE 1: Handle LLM-selected portrait (replaces complex portrait resolution)
       let primaryPortraitFile = null;
+      let portraitForHistory = null; // Separate value for conversation history context
 
       // SPECIAL CASE: Turn 1 always shows the entrance image (door opening scene)
+      // BUT we store the LLM's original portrait for conversation history
       if (turnNumber === 1) {
-        primaryPortraitFile = 'ui/boticaentrance.png';
-        console.log('[Portrait] Turn 1: Using entrance image (hardcoded override)');
+        primaryPortraitFile = 'ui/boticaentrance.png'; // Show entrance to user
+        portraitForHistory = result.primaryPortrait; // Store LLM's selection for context
+        console.log('[Portrait] Turn 1: Displaying entrance image, but storing LLM portrait for history:', portraitForHistory);
       } else if (result.primaryPortrait) {
         console.log('[Portrait] LLM selected portrait:', result.primaryPortrait);
         primaryPortraitFile = result.primaryPortrait;
+        portraitForHistory = result.primaryPortrait;
       } else {
         console.log('[Portrait] No portrait this turn - map will be shown');
       }
 
-      // Store in state for ContextPanel to use
+      // Store in state for ContextPanel to use (what user sees)
       setPrimaryPortraitFile(primaryPortraitFile);
 
-      // Store portrait filename for next turn's consistency check
-      if (primaryPortraitFile) {
-        recentPortraitRef.current = primaryPortraitFile;
-        console.log('[Portrait] Storing portrait for next turn:', primaryPortraitFile);
+      // Store LLM's portrait selection for conversation history context (what LLM learns from)
+      if (portraitForHistory) {
+        recentPortraitRef.current = portraitForHistory;
+        console.log('[Portrait] Storing portrait for next turn context:', portraitForHistory);
       }
 
       // PATIENT HANDLING: If entity is a patient, validate LLM used them correctly
@@ -836,7 +1017,16 @@ export function useGameHandlers({
         });
       }
 
-      setConversationHistory(newHistory);
+      // Add timestamps to all new history entries
+      const timestampedHistory = newHistory.map(entry => ({
+        ...entry,
+        timestamp: {
+          time: gameState.time,
+          date: gameState.date
+        }
+      }));
+
+      setConversationHistory(timestampedHistory);
       setTurnNumber(result.turnNumber || turnNumber + 1);
 
       // Handle game state updates
@@ -844,16 +1034,78 @@ export function useGameHandlers({
         if (result.gameState.wealth !== undefined) {
           setWealth(result.gameState.wealth);
         }
+        // Update status for tooltip and next turn's StateAgent prompt
         if (result.gameState.status) {
-          setMariaStatus(result.gameState.status);
+          setGameState(prev => ({ ...prev, status: result.gameState.status }));
+          console.log('[State] Updated status:', result.gameState.status);
         }
         if (result.gameState.reputation) {
           // Reputation updates from LLM temporarily disabled during migration
           console.log('[useGameHandlers] LLM reputation update (ignored):', result.gameState.reputation);
         }
-        if (result.gameState.location) {
-          updateLocation(result.gameState.location);
+
+        // Handle location changes with coordinate matching
+        if (result.gameState.location && result.gameState.location !== gameState.location) {
+          console.log('[Location Change] StateAgent returned:', result.gameState.location);
+          console.log('[Location Change] Current location:', gameState.location);
+
+          // Build registry and try to match
+          const scenario = scenarioLoader.getScenario(gameState.scenarioId || '1680-mexico-city');
+          const registry = buildLocationRegistry(scenario, currentMapId);
+          const locationMatch = matchLocation(result.gameState.location, registry);
+
+          if (locationMatch) {
+            console.log('[Location Change] ✓ Matched to registry:', locationMatch);
+
+            // Update map if different
+            if (locationMatch.mapId !== currentMapId) {
+              console.log('[Location Change] Switching map:', currentMapId, '→', locationMatch.mapId);
+              setCurrentMapId(locationMatch.mapId);
+            }
+
+            // Calculate spawn position
+            let spawnX, spawnY;
+
+            // For building entrances (entering interior), use interiorSpawn if available
+            if (locationMatch.type === 'building' && locationMatch.interiorSpawn) {
+              [spawnX, spawnY] = locationMatch.interiorSpawn;
+              console.log('[Location Change] Using interior spawn point:', spawnX, spawnY);
+            } else {
+              // For rooms and exits, use the position directly
+              spawnX = locationMatch.position.x;
+              spawnY = locationMatch.position.y;
+              console.log('[Location Change] Using standard spawn point:', spawnX, spawnY);
+            }
+
+            // Calculate grid position from spawn point
+            const gridX = Math.floor(spawnX / 20);
+            const gridY = Math.floor(spawnY / 20);
+
+            setPlayerPosition({
+              x: spawnX,
+              y: spawnY,
+              gridX,
+              gridY
+            });
+
+            // Update location text
+            updateLocation(locationMatch.fullName);
+
+            console.log('[Location Change] ✓ Teleported to:', {
+              location: locationMatch.fullName,
+              mapId: locationMatch.mapId,
+              position: { x: spawnX, y: spawnY, gridX, gridY }
+            });
+          } else {
+            // No match - just update text, keep current position
+            console.log('[Location Change] No registry match, updating text only');
+            updateLocation(result.gameState.location);
+          }
+        } else if (result.gameState.location) {
+          // Location same as before, no change needed
+          console.log('[Location Change] Location unchanged:', result.gameState.location);
         }
+
         if (result.gameState.time && result.gameState.date) {
           advanceTime({
             time: result.gameState.time,
@@ -862,13 +1114,18 @@ export function useGameHandlers({
           });
         }
         // Update player position if movement occurred (with validation)
+        // Only accept position updates with valid pixel coordinates (x, y)
+        // Ignore grid-only coordinates from StateAgent - we manage position ourselves
         if (result.gameState.position &&
             typeof result.gameState.position.x === 'number' &&
-            typeof result.gameState.position.y === 'number') {
+            typeof result.gameState.position.y === 'number' &&
+            !isNaN(result.gameState.position.x) &&
+            !isNaN(result.gameState.position.y)) {
           setPlayerPosition(result.gameState.position);
           console.log(`[Movement] Player moved to: (${result.gameState.position.x}, ${result.gameState.position.y})`);
         } else if (result.gameState.position) {
-          console.warn('[Movement] Invalid position received:', result.gameState.position);
+          console.log('[Position] Ignoring incomplete position data from StateAgent:', result.gameState.position);
+          // Keep current position - StateAgent doesn't have enough info to update it
         }
       }
 
@@ -960,6 +1217,32 @@ export function useGameHandlers({
         }
       }
 
+      // Trade Opportunity Processing
+      // Add trade opportunities from narrative when NPC expresses buy/sell interest
+      if (result.tradeOpportunity &&
+          result.tradeOpportunity.type &&
+          result.tradeOpportunity.type !== 'null' &&
+          turnNumber >= 2) {
+        console.log('[Trade] Opportunity detected:', result.tradeOpportunity.type, result.tradeOpportunity);
+        addTradeOpportunity(result.tradeOpportunity);
+      }
+
+      // Clean up expired trade opportunities
+      cleanupExpiredOpportunities();
+
+      // Simple Interaction Processing
+      // Detect fast gameplay loops (service offers, donations, competitive checks, etc.)
+      if (result.simpleInteraction &&
+          result.simpleInteraction.type &&
+          result.simpleInteraction.type !== 'null') {
+        console.log('[SimpleInteraction] Detected:', result.simpleInteraction.type, result.simpleInteraction);
+        setPendingSimpleInteraction(result.simpleInteraction);
+      } else if (result.simpleInteraction && result.simpleInteraction.type === 'null') {
+        // Clear any previous simple interaction when none is active
+        console.log('[SimpleInteraction] No active interaction, clearing previous');
+        setPendingSimpleInteraction(null);
+      }
+
       // Add journal entry
       if (result.journalEntry) {
         setJournal(prevJournal => [...prevJournal, { content: result.journalEntry, type: 'auto' }]);
@@ -981,6 +1264,21 @@ export function useGameHandlers({
         actionType = 'travel';
       } else if (lowerInput.includes('buy') || lowerInput.includes('purchase') || lowerInput.includes('shop')) {
         actionType = 'buy';
+      }
+
+      // Apply minimal energy cost for narrative turns (1 energy per turn)
+      // This represents mental fatigue from conversation/thinking
+      if (actionType === 'chat') {
+        const currentEnergy = energy || 50;
+        const newEnergy = Math.max(0, currentEnergy - 1);
+        updateEnergy(newEnergy);
+        console.log('[Energy] Narrative turn cost: -1 energy');
+      }
+
+      // If StateAgent didn't advance time, add default 5 minutes for conversational turn
+      if (!result.gameState?.time && actionType === 'chat') {
+        advanceTime({ minutes: 5 });
+        console.log('[Time] Default narrative turn: +5 minutes');
       }
 
       applyResourceChanges(actionType);
@@ -1019,7 +1317,6 @@ export function useGameHandlers({
     setIsPrescribePopupOpen,
     setIsSleepOpen,
     setWealth,
-    setMariaStatus,
     applyResourceChanges,
     setUserActions,
     setIsEatOpen,
@@ -1030,15 +1327,34 @@ export function useGameHandlers({
     currentMapId,
     npcPositions,
     setPlayerPosition,
-    setGameLog
+    setCurrentMapId,
+    setGameLog,
+    energy,
+    updateEnergy
   ]);
 
   // ARROW KEY MOVEMENT HANDLER
   const handleMovement = useCallback(async (direction) => {
+    // CRITICAL: Load map data fresh to avoid stale closure values
+    // This prevents race conditions when exiting building then immediately moving
+    const scenario = scenarioLoader.getScenario(gameState.scenarioId || '1680-mexico-city');
+    const freshMapData = scenario?.maps?.interior?.[currentMapId] || scenario?.maps?.exterior?.[currentMapId];
+
+    if (!freshMapData) {
+      console.error('[Movement] No map data found for:', currentMapId);
+      return;
+    }
+
+    console.log('[Movement] Using fresh map data:', {
+      mapId: currentMapId,
+      mapType: freshMapData.type,
+      bounds: freshMapData.bounds
+    });
+
     // Map direction to movement delta and text
-    // Use larger steps for interior maps (100px) vs exterior (50px) for better coverage
-    const isInterior = currentMapData?.type === 'interior';
-    const MOVEMENT_STEP = isInterior ? 100 : 50;
+    // Use larger steps for interior maps (150px) vs exterior (50px) for better coverage
+    const isInterior = freshMapData?.type === 'interior';
+    const MOVEMENT_STEP = isInterior ? 110 : 50;
 
     const movements = {
       north: { dx: 0, dy: -MOVEMENT_STEP, text: 'I walk north' },
@@ -1050,11 +1366,44 @@ export function useGameHandlers({
     const movement = movements[direction];
     if (!movement) return;
 
+    // EXIT ZONE DETECTION: Check if player is trying to exit through main entrance
+    // This must happen BEFORE grid validation (which would block the move)
+    if (isInterior && currentMapId === 'botica-interior' && direction === 'south') {
+      const mainEntranceDoor = { x: 400, y: 700, width: 60 };
+      const exitZoneRadius = 120; // Detection radius in pixels
+
+      const distanceToExit = Math.sqrt(
+        Math.pow(playerPosition.x - mainEntranceDoor.x, 2) +
+        Math.pow(playerPosition.y - mainEntranceDoor.y, 2)
+      );
+
+      if (distanceToExit <= exitZoneRadius) {
+        console.log('[Exit] Player near main entrance, moving south - showing exit confirmation');
+
+        // Store exit data for later execution
+        setPendingExitData({
+          location: 'Mexico City',
+          mapId: 'mexico-city-center',
+          position: { x: 1350, y: 930, gridX: 67, gridY: 46 },
+          exitMessage: "You step outside into the bustling streets of Mexico City.",
+          locationName: "Botica de la Amargura",
+          gameTime: gameState.time
+        });
+
+        // Show confirmation card
+        setShowExitConfirmation(true);
+
+        // Don't continue with movement or LLM processing
+        return;
+      }
+    }
+
     // PRE-VALIDATE MOVEMENT: Check if move is blocked before calling LLM
-    if (currentMapData && currentMapId) {
+    let newPosition;
+    if (freshMapData && currentMapId) {
       const { getGridSystem } = await import('../../features/map/services/gridMovementSystem');
-      const gridSystem = getGridSystem(currentMapId, currentMapData);
-      const validation = gridSystem.validateMove(playerPosition, direction);
+      const gridSystem = getGridSystem(currentMapId, freshMapData);
+      const validation = gridSystem.validateMove(playerPosition, direction, MOVEMENT_STEP);
 
       if (!validation.valid) {
         // Movement blocked - show system message instead of calling LLM
@@ -1064,25 +1413,73 @@ export function useGameHandlers({
 
         // Update UI with system message
         setHistoryOutput(blockedMessage);
-        setConversationHistory(prev => [
-          ...prev,
-          { role: 'system', content: blockedMessage }
-        ]);
+        addToHistory({ role: 'system', content: blockedMessage });
 
         // Don't update position, don't call LLM
         return;
       }
+
+      // Use the grid-aligned validated position (prevents wall phasing)
+      newPosition = validation.newPosition;
+      console.log('[Movement] Position update:', {
+        old: { x: playerPosition.x, y: playerPosition.y, gridX: playerPosition.gridX, gridY: playerPosition.gridY },
+        new: newPosition,
+        direction,
+        distance: MOVEMENT_STEP
+      });
+    } else {
+      // Fallback: manual calculation if no map data available
+      newPosition = {
+        ...playerPosition,
+        x: playerPosition.x + movement.dx,
+        y: playerPosition.y + movement.dy
+      };
+      console.log('[Movement] No map data, using fallback position:', newPosition);
     }
 
-    // Calculate new position for visual feedback
-    const newPosition = {
-      ...playerPosition,
-      x: playerPosition.x + movement.dx,
-      y: playerPosition.y + movement.dy
+    // Calculate new facing direction
+    const directionToDegrees = {
+      north: 0,
+      east: 90,
+      south: 180,
+      west: 270
+    };
+    const newFacing = directionToDegrees[direction] !== undefined ? directionToDegrees[direction] : playerFacing;
+
+    // Update player position and facing immediately for visual feedback
+    setPlayerPosition(newPosition);
+    setPlayerFacing(newFacing);
+
+    // Calculate new time (add 5 minutes for movement)
+    const addMinutesToTime = (timeStr, dateStr, minutes) => {
+      try {
+        const dateTime = new Date(`${dateStr} ${timeStr}`);
+        dateTime.setMinutes(dateTime.getMinutes() + minutes);
+
+        const newTime = dateTime.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+
+        const newDate = dateTime.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric'
+        });
+
+        return { time: newTime, date: newDate };
+      } catch (error) {
+        console.error('[Movement] Time calculation error:', error);
+        return { time: timeStr, date: dateStr };
+      }
     };
 
-    // Update player position immediately for visual feedback
-    setPlayerPosition(newPosition);
+    const { time: newTime, date: newDate } = addMinutesToTime(
+      gameState.time,
+      gameState.date,
+      5
+    );
 
     // Set loading state
     setIsLoading(true);
@@ -1098,15 +1495,18 @@ export function useGameHandlers({
         conversationHistory,
         gameState: {
           ...gameState,
-          position: playerPosition,
-          currentMap: currentMapId
+          position: newPosition, // Use new position
+          currentMap: currentMapId,
+          time: newTime, // Use incremented time
+          date: newDate
         },
         turnNumber,
         recentNPCs: npcTracker.getRecentNPCs(),
         reputation: reputation,
         wealth: currentWealth,
-        mapData: currentMapData,
-        playerPosition: playerPosition,
+        mapData: freshMapData, // Use fresh map data, not stale state
+        playerPosition: newPosition, // CRITICAL: Pass new position, not old state
+        playerFacing: newFacing, // CRITICAL: Pass new facing, not old state
         currentMapId: currentMapId, // CRITICAL: Pass as top-level param for map context
         npcPositions,
         playerSkills,
@@ -1136,8 +1536,7 @@ export function useGameHandlers({
 
       // Update conversation history
       // Mark movement commands as hidden so they don't display in narrative panel
-      setConversationHistory(prev => [
-        ...prev,
+      addToHistory(
         { role: 'user', content: movement.text, isMovement: true, hidden: true },
         {
           role: 'assistant',
@@ -1145,7 +1544,7 @@ export function useGameHandlers({
           responseType: result.responseType || 'movement',
           primaryPortrait: result.primaryPortrait || null
         }
-      ]);
+      );
 
       // Update narrative output
       setHistoryOutput(result.narrative);
@@ -1171,44 +1570,26 @@ export function useGameHandlers({
           }
         }
 
-        // Update location if it changed (but NOT during simple interior movement)
-        // Block movement narration patterns, allow all other location changes
-        if (result.gameState.location && result.gameState.location !== gameState.location) {
-          const newLocation = result.gameState.location;
-
-          // Patterns that indicate movement narration (NOT actual location changes)
-          const movementPatterns = [
-            /^heading\s+(north|south|east|west)/i,
-            /^walking\s+(north|south|east|west)/i,
-            /^moving\s+(north|south|east|west)/i,
-            /^going\s+(north|south|east|west)/i,
-            /^(north|south|east|west)$/i,
-            /^you\s+(walk|move|go|head)/i
-          ];
-
-          const isMovementNarration = movementPatterns.some(pattern => pattern.test(newLocation));
-
-          if (!isMovementNarration) {
-            console.log('[Movement] Valid location change detected:', newLocation);
-            updateLocation(newLocation);
-          } else {
-            console.log('[Movement] Ignoring movement narration (not a location):', newLocation);
-            // Don't update location - this prevents map switching during interior movement
-          }
-        }
-
-        // Update time/date if they changed
-        if (result.gameState.time && result.gameState.date) {
-          advanceTime({
-            time: result.gameState.time,
-            date: result.gameState.date,
-            location: result.gameState.location || gameState.location
-          });
-        }
+        // CRITICAL: NEVER update location during arrow key movement
+        // Arrow keys should ONLY move within the current map, never trigger map switches
+        // Location changes should ONLY happen via:
+        // - Explicit "exit"/"leave" commands (handled separately above)
+        // - Natural language like "go outside" (handled separately above)
+        // - Clicking exit button on map
+        // The StateAgent shouldn't be touching location during simple arrow key movement
+        console.log('[Movement] Ignoring any location updates from StateAgent during arrow key movement');
 
         // DON'T overwrite position during movement - we already set it manually above
         // The LLM doesn't track pixel coordinates, so its position data would be stale
       }
+
+      // Update time/date - ALWAYS add 5 minutes for movement (even if no gameState returned)
+      // This happens regardless of LLM output
+      advanceTime({
+        time: newTime,
+        date: newDate,
+        location: gameState.location
+      });
 
       // Increment turn
       setTurnNumber(prevTurn => prevTurn + 1);
@@ -1224,10 +1605,7 @@ export function useGameHandlers({
       setHistoryOutput(errorMessage);
 
       // Add error to conversation history
-      setConversationHistory(prev => [
-        ...prev,
-        { role: 'system', content: errorMessage }
-      ]);
+      addToHistory({ role: 'system', content: errorMessage });
 
       // Revert position on error
       setPlayerPosition(playerPosition);
@@ -1236,6 +1614,7 @@ export function useGameHandlers({
     }
   }, [
     setPlayerPosition,
+    setCurrentMapId,
     setIsLoading,
     setUserInput,
     setUserActions,
@@ -1253,7 +1632,7 @@ export function useGameHandlers({
     playerSkills,
     journal,
     setPrimaryPortraitFile,
-    setConversationHistory,
+    addToHistory,
     setHistoryOutput,
     updateInventory,
     updateLocation,
@@ -1305,9 +1684,52 @@ export function useGameHandlers({
         case 'rest':
           setIsRestDurationOpen(true);
           break;
-        case 'bargain':
+        case 'bargain': {
+          // Context-aware trading: detect if at market, with NPC, or viewing full inventory
+          const location = gameState?.location || '';
+          const locationLower = location.toLowerCase();
+
+          // Check if location is a market
+          const marketKeywords = ['market', 'tianguis', 'plaza', 'mercado', 'bazaar', 'trade'];
+          const isAtMarket = marketKeywords.some(keyword => locationLower.includes(keyword));
+
+          // Get recent NPCs to check if we're interacting with someone
+          const recentNPCs = npcTracker.getRecentNPCs();
+          const recentNPC = recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
+
+          // Check if there's a trade opportunity for this NPC
+          const tradeOpportunity = gameState.tradeOpportunities?.find(
+            opp => opp.npcName === recentNPC
+          );
+
+          if (tradeOpportunity) {
+            // If there's an active trade opportunity, use NPC mode with that opportunity
+            console.log('[Trade] Opening trade with NPC from opportunity:', tradeOpportunity.npcName);
+            setTradingNPC(tradeOpportunity);
+            setTradeMode('npc');
+          } else if (recentNPC && !isAtMarket) {
+            // If interacting with NPC but not at market, use NPC trade mode
+            console.log('[Trade] Opening trade with recent NPC:', recentNPC);
+            setTradingNPC({
+              npcName: recentNPC,
+              type: 'both', // Allow both buying and selling
+              interest: { items: [], reason: 'General trade', urgency: 'moderate', priceMultiplier: 1.0 },
+              offering: { items: [] }
+            });
+            setTradeMode('npc');
+          } else if (isAtMarket) {
+            // If at a market, use market mode
+            console.log('[Trade] Opening market trade at:', location);
+            setTradeMode('market');
+          } else {
+            // Default: Full inventory mode (no market, no NPC)
+            console.log('[Trade] Opening full inventory mode');
+            setTradeMode('inventory');
+          }
+
           setIsBuyOpen(true);
           break;
+        }
         case 'accounts':
           setIsLedgerOpen(true);
           break;
@@ -1466,11 +1888,30 @@ export function useGameHandlers({
     try {
       console.log('[handleAskQuestion] Processing question for:', activePatient.name);
 
+      // Extract narrative context if not already cached
+      // This ensures patient knows about family, occupation, symptoms mentioned in narrative
+      if (!activePatient.narrativeContext) {
+        console.log('[handleAskQuestion] Extracting narrative context from conversation history...');
+        const context = await extractPatientContext(activePatient, conversationHistory);
+
+        if (context) {
+          activePatient.narrativeContext = context;
+          // Persist to EntityManager for future use
+          entityManager.update(activePatient.id, activePatient);
+          console.log('[handleAskQuestion] Cached narrative context:', context);
+        } else {
+          console.log('[handleAskQuestion] No narrative context found');
+        }
+      } else {
+        console.log('[handleAskQuestion] Using cached narrative context');
+      }
+
       // Use PatientDialogueAgent to get response with structured data extraction
       const result = await processPatientDialogue({
         patient: activePatient,
         question,
-        conversationHistory: patientDialogue
+        conversationHistory: patientDialogue,
+        narrativeContext: activePatient.narrativeContext // Pass extracted context
       });
 
       const { dialogue, patientDataUpdates } = result;
@@ -1525,18 +1966,28 @@ export function useGameHandlers({
       });
 
       // Add to main conversation history so LLM has context for future turns
-      setConversationHistory(prev => [
-        ...prev,
+      addToHistory(
         { role: 'user', content: `Maria asked ${activePatient.name}: "${question}"` },
         { role: 'assistant', content: dialogue },
         { role: 'system', content: `*[PATIENT EXAMINATION] ${newSymptoms.length > 0 ? `Discovered symptoms: ${newSymptoms.map(s => s.name).join(', ')}` : 'Gathering patient information'}*` }
-      ]);
+      );
+
+      // Apply minimal energy cost for patient Q&A (1 energy per question)
+      // Represents mental focus during examination
+      const currentEnergy = energy || 50;
+      const newEnergy = Math.max(0, currentEnergy - 1);
+      updateEnergy(newEnergy);
+      console.log('[Energy] Patient Q&A cost: -1 energy');
+
+      // Advance time by 5 minutes per question
+      advanceTime({ minutes: 5 });
+      console.log('[Time] Patient Q&A: +5 minutes');
 
     } catch (error) {
       console.error('[Ask Question] Error:', error);
       toast.error('Failed to get patient response. Please try again.');
     }
-  }, [activePatient, patientDialogue, setPatientDialogue, scenarioId, addJournalEntry, turnNumber, gameState.date, toast, setConversationHistory]);
+  }, [activePatient, patientDialogue, setPatientDialogue, scenarioId, addJournalEntry, turnNumber, gameState.date, toast, setConversationHistory, energy, updateEnergy, advanceTime, conversationHistory, gameState.time]);
 
   // Helper: Build prompt for item action
   const buildItemActionPrompt = useCallback((action, item, npc, npcEntity, affinity, gameState) => {
@@ -1947,10 +2398,477 @@ Generate the transition narrative.`;
     setIsContractModalOpen(false);
   }, [setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast, setPendingContract, setIsContractModalOpen]);
 
+  // EXPLICIT ENTER BUILDING HANDLER (for clicking building on map)
+  const handleEnterBuilding = useCallback((buildingData) => {
+    console.log('[Enter Button] Player entering building:', buildingData);
+
+    if (!buildingData || !buildingData.hasInterior) {
+      console.warn('[Enter Button] Building has no interior:', buildingData);
+      return;
+    }
+
+    // Temporarily disable input during transition
+    setIsLoading(true);
+
+    // Load the scenario to access maps
+    const scenario = scenarioLoader.getScenario(scenarioId);
+    if (!scenario || !scenario.maps) {
+      console.error('[Enter Button] Cannot load scenario maps');
+      setIsLoading(false);
+      return;
+    }
+
+    // Get the interior map data
+    const interiorMapId = buildingData.hasInterior;
+    const interiorMap = scenario.maps.interior[interiorMapId];
+
+    if (!interiorMap) {
+      console.error('[Enter Button] Interior map not found:', interiorMapId);
+      setIsLoading(false);
+      return;
+    }
+
+    // Store building data for exit handling
+    currentBuildingRef.current = buildingData;
+
+    // Get spawn position from interior map (or use default)
+    const spawnPosition = interiorMap.startPosition || [400, 400];
+    const [spawnX, spawnY] = spawnPosition;
+
+    // Update all states for interior map
+    const buildingName = buildingData.fullName || buildingData.name;
+    updateLocation(`${buildingName}, Mexico City`);
+    setCurrentMapId(interiorMapId);
+    setPlayerPosition({ x: spawnX, y: spawnY });
+
+    // Generate dynamic enter message based on building type
+    let enterMessage = `You step inside the ${buildingName}.`;
+    if (buildingData.type === 'church') {
+      enterMessage = `You enter the ${buildingName}. The vast sacred space echoes with whispered prayers, and the scent of incense fills the air.`;
+    } else if (buildingData.type === 'government') {
+      enterMessage = `You step into the ${buildingName}. The grand halls speak of colonial power and authority.`;
+    } else if (buildingData.type === 'market') {
+      enterMessage = `You enter the ${buildingName}. The bustling market is alive with vendors calling out their wares and the mingled scents of food, spices, and goods.`;
+    } else if (buildingData.type === 'residence') {
+      enterMessage = `You step into the ${buildingName}. The ${buildingData.subtype === 'humble' ? 'cramped space' : 'modest rooms'} speak of daily life in colonial Mexico City.`;
+    }
+
+    setHistoryOutput(enterMessage);
+    setConversationHistory(prev => [
+      ...prev,
+      { role: 'system', content: `*[LOCATION CHANGE] Maria enters ${buildingName}. Interior: ${interiorMapId}*` },
+      { role: 'assistant', content: enterMessage }
+    ]);
+
+    // Add to user actions for context
+    setUserActions(prev => [...prev, `enter ${buildingData.name.toLowerCase()}`]);
+
+    // Small delay to ensure all states sync, then re-enable input
+    setTimeout(() => {
+      setIsLoading(false);
+      console.log('[Enter Button] Transition complete');
+    }, 100);
+  }, [
+    scenarioId,
+    updateLocation,
+    setCurrentMapId,
+    setPlayerPosition,
+    setHistoryOutput,
+    setConversationHistory,
+    setUserActions,
+    setIsLoading
+  ]);
+
+  // EXPLICIT EXIT BUILDING HANDLER (for Exit button on map)
+  const handleExitBuilding = useCallback(() => {
+    console.log('[Exit Button] Player exiting to exterior');
+
+    // Temporarily disable input during transition
+    setIsLoading(true);
+
+    // Get building data from ref (stored when entering)
+    const building = currentBuildingRef.current;
+
+    // Determine exit position (use building's entrancePoint or default)
+    let exitPosition = { x: 1350, y: 930 }; // Default to botica position
+
+    if (building && building.entrancePoint) {
+      exitPosition = building.entrancePoint;
+    }
+
+    // Update all states for exterior map
+    updateLocation('Mexico City');
+    setCurrentMapId('mexico-city-center');
+    setPlayerPosition(exitPosition);
+
+    // Generate dynamic exit message based on building type
+    const buildingName = building ? (building.name || 'the building') : 'the building';
+    let exitMessage = `You step outside into the bustling streets of Mexico City.`;
+
+    if (building) {
+      if (building.type === 'church') {
+        exitMessage = `You exit the ${buildingName} and step into the sunlight. The sounds of the city replace the sacred silence.`;
+      } else if (building.type === 'government') {
+        exitMessage = `You leave the ${buildingName} and return to the streets. The weight of colonial authority fades behind you.`;
+      } else if (building.type === 'market') {
+        exitMessage = `You exit the ${buildingName} into the open air. The market bustle continues around you.`;
+      } else if (building.type === 'residence') {
+        exitMessage = `You step out of the ${buildingName} back into the street.`;
+      } else {
+        exitMessage = `You exit the ${buildingName} into the streets of Mexico City.`;
+      }
+    }
+
+    setHistoryOutput(exitMessage);
+    setConversationHistory(prev => [
+      ...prev,
+      { role: 'system', content: `*[LOCATION CHANGE] Maria exits ${buildingName} and is now standing outside in Mexico City. Position: (${exitPosition.x}, ${exitPosition.y})*` },
+      { role: 'assistant', content: exitMessage }
+    ]);
+
+    // Add to user actions for context
+    setUserActions(prev => [...prev, 'exit building']);
+
+    // Small delay to ensure all states sync, then re-enable input
+    setTimeout(() => {
+      setIsLoading(false);
+      console.log('[Exit Button] Transition complete');
+    }, 100);
+  }, [
+    updateLocation,
+    setCurrentMapId,
+    setPlayerPosition,
+    setHistoryOutput,
+    setConversationHistory,
+    setUserActions,
+    setIsLoading
+  ]);
+
+  // Handle accepting trade opportunity
+  const handleAcceptTrade = useCallback((opportunity) => {
+    console.log('[Trade] Accepted trade opportunity:', opportunity);
+
+    // Set the trading NPC and mode
+    setTradingNPC(opportunity);
+    setTradeMode('npc');
+
+    // Open the trade modal (this will be connected to TradeModal via isBuyOpen or a new isTradeOpen state)
+    // For now, using isBuyOpen as it's the existing trade modal trigger
+    setIsBuyOpen(true);
+
+    // Log to conversation history
+    setConversationHistory(prev => [...prev,
+      { role: 'system', content: `*[TRADE OPENED] Maria opens trade with ${opportunity.npcName}.*` }
+    ]);
+
+    toast.success(`Opening trade with ${opportunity.npcName}`, { duration: 2000 });
+  }, [setTradingNPC, setTradeMode, setIsBuyOpen, setConversationHistory, toast]);
+
+  // Handle declining trade opportunity
+  const handleDeclineTrade = useCallback((opportunityId) => {
+    console.log('[Trade] Declined trade opportunity:', opportunityId);
+
+    // Remove the opportunity
+    removeTradeOpportunity(opportunityId);
+
+    // Log to conversation history
+    setConversationHistory(prev => [...prev,
+      { role: 'system', content: `*[TRADE DECLINED] Maria declined the trade offer.*` }
+    ]);
+
+    toast.info('Trade opportunity declined.', { duration: 2000 });
+  }, [removeTradeOpportunity, setConversationHistory, toast]);
+
+  // Handle simple interaction choices (service offers, donations, competitive checks, info exchange)
+  const handleSimpleInteractionChoice = useCallback(async (action, interaction) => {
+    console.log('[SimpleInteraction] Player chose:', action, interaction);
+
+    const { type, npcName } = interaction;
+
+    // Detect if this is a dismissal action (NPC should be removed from tracking)
+    const isDismissal = ['refuse', 'decline', 'not_now', 'not_today', 'no_thanks'].includes(action.toLowerCase());
+
+    // Determine time increment based on interaction type
+    const timeIncrements = {
+      service_offer: 5,
+      donation_request: 5,
+      competitive_check: 10,
+      information_exchange: 5,
+      social_visit: 15
+    };
+    const timeIncrement = timeIncrements[type] || 5;
+
+    // Process action based on type
+    let journalText = '';
+    let reputationChange = 0;
+    let xpAmount = 1; // Base XP for simple interactions
+
+    switch (type) {
+      case 'service_offer': {
+        const { item, price } = interaction.offer;
+        if (action === 'buy') {
+          // Deduct wealth
+          setWealth(prev => prev - price);
+          // Add item to inventory
+          updateInventory(item, 1, `purchased from ${npcName}`);
+          journalText = `Purchased ${item} from ${npcName} for ${price} reales.`;
+          toast.success(`Bought ${item} for ${price} reales`, { duration: 2000 });
+        } else {
+          journalText = `Declined to purchase ${item} from ${npcName}.`;
+          toast.info('Purchase declined', { duration: 1500 });
+        }
+        break;
+      }
+
+      case 'donation_request': {
+        const { item, reputationImpact } = interaction.request;
+        if (action === 'donate') {
+          // Remove item from inventory
+          updateInventory(item, -1, `donated to ${npcName}`);
+          reputationChange = reputationImpact.donate;
+          journalText = `Donated ${item} to ${npcName}. A small act of charity.`;
+          toast.success(`Donated ${item}. Reputation +${reputationChange}`, { duration: 2500 });
+        } else {
+          reputationChange = reputationImpact.refuse;
+          journalText = `Refused ${npcName}'s request for charity.`;
+          toast.warning(`Refused donation. Reputation ${reputationChange}`, { duration: 2000 });
+        }
+        break;
+      }
+
+      case 'competitive_check': {
+        const { targetItem, offeredPrice, actualValue } = interaction.competitive;
+        if (action === 'sell_lowball') {
+          // Sell at lowball price
+          updateInventory(targetItem, -1, `sold to ${npcName}`);
+          setWealth(prev => prev + offeredPrice);
+          reputationChange = -2; // Slight reputation hit for appearing desperate
+          journalText = `Sold ${targetItem} to ${npcName} for ${offeredPrice} reales (below market value).`;
+          toast.warning(`Sold for ${offeredPrice} reales. Market value was ${actualValue}`, { duration: 3000 });
+        } else if (action === 'demand_fair') {
+          // Demand fair price - competitive check passed
+          updateInventory(targetItem, -1, `sold to ${npcName}`);
+          setWealth(prev => prev + actualValue);
+          reputationChange = +3; // Reputation boost for standing firm
+          xpAmount = 2; // Extra XP for good business sense
+          journalText = `Refused lowball offer and sold ${targetItem} to ${npcName} for fair price (${actualValue} reales).`;
+          toast.success(`Sold for fair price: ${actualValue} reales! +3 reputation`, { duration: 3000 });
+        } else {
+          // Dismiss the rival
+          reputationChange = +1; // Small reputation boost for refusing to engage
+          journalText = `Dismissed ${npcName}'s attempt to undercut prices.`;
+          toast.info('Dismissed rival apothecary', { duration: 2000 });
+        }
+        break;
+      }
+
+      case 'information_exchange': {
+        const { topic, cost } = interaction.information;
+        if (action === 'pay') {
+          // Parse cost (could be "1 real", "1 bread", etc.)
+          const coinMatch = cost.match(/(\d+)\s*(real|reale)/i);
+          if (coinMatch) {
+            const coinCost = parseInt(coinMatch[1]);
+            setWealth(prev => prev - coinCost);
+            journalText = `Paid ${coinCost} reales to ${npcName} for information about ${topic}.`;
+            toast.success(`Learned about ${topic}`, { duration: 2500 });
+          } else {
+            // Item cost - extract item name
+            const itemMatch = cost.match(/(\d+)\s+(\w+)/i);
+            if (itemMatch) {
+              const itemName = itemMatch[2];
+              updateInventory(itemName, -1, `paid to ${npcName} for information`);
+              journalText = `Paid ${itemName} to ${npcName} for information about ${topic}.`;
+              toast.success(`Learned about ${topic}`, { duration: 2500 });
+            }
+          }
+          xpAmount = 2; // Extra XP for gaining knowledge
+
+          // Generate follow-up narrative revealing the information
+          // This is a CRITICAL fix - information_exchange needs continuation narrative
+          const shouldGenerateNarrative = true;
+          if (shouldGenerateNarrative) {
+            console.log('[SimpleInteraction] Information accepted - will generate follow-up narrative');
+          }
+        } else {
+          journalText = `Refused to pay ${npcName} for information about ${topic}.`;
+          toast.info('Declined information', { duration: 1500 });
+        }
+        break;
+      }
+
+      case 'social_visit': {
+        // Social visits are just conversational, no resource exchange
+        journalText = `Spent time with ${npcName}. ${interaction.social.purpose}`;
+        reputationChange = +2; // Small reputation boost for maintaining relationships
+        toast.info(`Visit with ${npcName} complete`, { duration: 2000 });
+        break;
+      }
+
+      default:
+        console.warn('[SimpleInteraction] Unknown interaction type:', type);
+        journalText = `Interaction with ${npcName} complete.`;
+    }
+
+    // Apply faction-based reputation change
+    if (reputationChange !== 0 && npcName) {
+      // Look up NPC entity to get their faction
+      const npcEntity = entityManager.getByName(npcName);
+
+      if (npcEntity) {
+        // Get NPC's casta or faction
+        const casta = npcEntity.social?.casta || npcEntity.appearance?.casta;
+        const npcFaction = npcEntity.social?.faction;
+
+        // Map casta to faction if no explicit faction set
+        let factionToUpdate = null;
+        if (npcFaction) {
+          factionToUpdate = mapNPCFactionToSystemFaction(npcFaction);
+        } else if (casta) {
+          // Map common castas to factions
+          const castaLower = casta.toLowerCase();
+          if (castaLower.includes('indígena') || castaLower.includes('indigenous') || castaLower.includes('indio')) {
+            factionToUpdate = 'indigenous';
+          } else if (castaLower.includes('español') || castaLower.includes('peninsular')) {
+            factionToUpdate = 'elite';
+          } else if (castaLower.includes('criollo')) {
+            factionToUpdate = 'elite';
+          } else if (castaLower.includes('mestizo') || castaLower.includes('mulato')) {
+            factionToUpdate = 'commonFolk';
+          } else if (castaLower.includes('africano')) {
+            factionToUpdate = 'commonFolk';
+          }
+        }
+
+        if (factionToUpdate) {
+          const actionType = type === 'donation_request' ?
+            (reputationChange > 0 ? 'charity' : 'refusal') :
+            'interaction';
+          updateReputation(factionToUpdate, reputationChange, `${actionType} with ${npcName}`);
+          console.log(`[SimpleInteraction] Updated ${factionToUpdate} reputation by ${reputationChange}`);
+        } else {
+          console.warn('[SimpleInteraction] Could not determine faction for NPC:', npcName);
+        }
+      } else {
+        console.warn('[SimpleInteraction] NPC not found in EntityManager:', npcName);
+      }
+    }
+
+    // Award XP
+    awardXP(xpAmount, `simple_interaction_${type}`);
+
+    // Advance time
+    advanceTime({ minutes: timeIncrement });
+
+    // Add journal entry
+    addJournalEntry({
+      turnNumber,
+      date: gameState.date,
+      entry: journalText
+    });
+
+    // Add to conversation history
+    setConversationHistory(prev => [...prev, {
+      role: 'system',
+      content: `*[SIMPLE INTERACTION] ${journalText}*`
+    }]);
+
+    // Clear the pending interaction
+    setPendingSimpleInteraction(null);
+
+    // If this was information_exchange acceptance, generate continuation narrative
+    if (type === 'information_exchange' && action === 'pay') {
+      console.log('[SimpleInteraction] Generating information reveal narrative');
+
+      try {
+        const infoPrompt = `You are narrating a historical RPG set in 1680 Mexico City. Maria de Lima, a converso apothecary, just paid ${npcName} for information about ${interaction.information.topic}.
+
+Generate a SHORT continuation (2-3 sentences) revealing what ${npcName} tells Maria. Make it specific, useful, and potentially dangerous knowledge. End with a reflective line about what Maria will do with this information.
+
+**Keep it under 80 words.**`;
+
+        const infoMessages = [
+          { role: 'system', content: 'You are a historical fiction narrator. Generate brief, evocative continuations.' },
+          { role: 'user', content: infoPrompt }
+        ];
+
+        const infoResponse = await createChatCompletion(
+          infoMessages,
+          0.8, // Creative but focused
+          200, // Short response
+          null,
+          { agent: 'InfoReveal' }
+        );
+
+        const revealNarrative = infoResponse.choices[0].message.content.trim();
+
+        // Add to conversation history
+        setConversationHistory(prev => [...prev, {
+          role: 'assistant',
+          content: revealNarrative
+        }]);
+
+        console.log('[SimpleInteraction] Information revealed:', revealNarrative.substring(0, 100));
+      } catch (error) {
+        console.error('[SimpleInteraction] Failed to generate information reveal:', error);
+      }
+    }
+
+    // If this was a dismissal, remove NPC from tracking and generate "Next Steps"
+    if (isDismissal && npcName) {
+      console.log('[SimpleInteraction] Dismissal detected, removing NPC and generating Next Steps');
+
+      // Remove NPC from tracker so they don't appear again immediately
+      npcTracker.removeNPC(npcName);
+
+      // Clear the portrait
+      setPrimaryPortraitFile(null);
+
+      // Generate "Next Steps" narrative
+      try {
+        const nextStepsNarrative = await generateNextSteps({
+          playerAction: journalText,
+          gameState,
+          recentEvents: journal,
+          scenarioId
+        });
+
+        // Add to conversation history with special responseType
+        setConversationHistory(prev => [...prev, {
+          role: 'assistant',
+          content: nextStepsNarrative,
+          responseType: 'next_steps' // Special type for question mark icon
+        }]);
+
+        console.log('[SimpleInteraction] Next Steps generated:', nextStepsNarrative);
+      } catch (error) {
+        console.error('[SimpleInteraction] Failed to generate Next Steps:', error);
+        // Fallback: just clear the portrait and continue
+      }
+    }
+
+  }, [
+    setWealth,
+    updateInventory,
+    updateReputation,
+    awardXP,
+    advanceTime,
+    addJournalEntry,
+    turnNumber,
+    gameState,
+    scenarioId,
+    journal,
+    npcTracker,
+    setConversationHistory,
+    setPendingSimpleInteraction,
+    setPrimaryPortraitFile,
+    toast
+  ]);
+
   // Return all handlers
   return {
     handleWealthChange,
-    handleStatusChange,
+
     handleReputationChange,
     handleIncorporate,
     toggleJournal,
@@ -1981,6 +2899,11 @@ Generate the transition narrative.`;
     handleAcceptTreatment,
     handleAcceptSale,
     handleDeclineContract,
+    handleAcceptTrade,
+    handleDeclineTrade,
+    handleSimpleInteractionChoice,
     handleMovement,
+    handleEnterBuilding,
+    handleExitBuilding,
   };
 }

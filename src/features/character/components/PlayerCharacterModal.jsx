@@ -67,6 +67,62 @@ export default function PlayerCharacterModal({
   const [breadcrumb, setBreadcrumb] = useState(null); // For navigation back from SkillsModal
   const [showProgressionTree, setShowProgressionTree] = useState(false);
 
+  // Easter egg: Portrait cycling on click
+  const allMariaPortraits = [
+    '/maria/marianormal.jpg',
+    '/maria/mariacurious.jpg',
+    '/maria/mariahappy.jpg',
+    '/maria/mariadelighted.jpg',
+    '/maria/mariadetermined.jpg',
+    '/maria/mariaslightlytired.jpg',
+    '/maria/mariaveryslightlytired.jpg',
+    '/maria/mariatired.jpg',
+    '/maria/mariaverytired.jpg',
+    '/maria/mariaextremelytired.jpg',
+    '/maria/mariasad.jpg',
+    '/maria/mariadejected.jpg',
+    '/maria/mariaunhealthy.jpg',
+    '/maria/mariaveryunhealthy.jpg',
+  ];
+  const [currentPortraitIndex, setCurrentPortraitIndex] = useState(0);
+  const [isPortraitFading, setIsPortraitFading] = useState(false);
+
+  // Find initial index matching current portrait
+  React.useEffect(() => {
+    if (portraitSrc) {
+      const index = allMariaPortraits.findIndex(p => portraitSrc.includes(p.split('/').pop()));
+      if (index !== -1) {
+        setCurrentPortraitIndex(index);
+      }
+    }
+  }, [portraitSrc]);
+
+  // Handle portrait click to cycle through expressions
+  const handlePortraitClick = () => {
+    setIsPortraitFading(true);
+
+    setTimeout(() => {
+      setCurrentPortraitIndex((prev) => (prev + 1) % allMariaPortraits.length);
+      setIsPortraitFading(false);
+    }, 200); // Duration matches CSS transition
+  };
+
+  // Extract and format current expression name
+  const currentExpression = React.useMemo(() => {
+    const filename = allMariaPortraits[currentPortraitIndex].split('/').pop(); // "mariacurious.jpg"
+    const expressionRaw = filename.replace('maria', '').replace('.jpg', ''); // "curious"
+
+    // Handle multi-word expressions (e.g., "verytired" → "very tired")
+    const formatted = expressionRaw
+      .replace(/veryslightly/g, 'very slightly ')
+      .replace(/extremely/g, 'extremely ')
+      .replace(/very/g, 'very ')
+      .replace(/slightly/g, 'slightly ')
+      .trim();
+
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  }, [currentPortraitIndex]);
+
   // Handle ESC key to close
   React.useEffect(() => {
     const handleEscape = (e) => {
@@ -242,17 +298,37 @@ export default function PlayerCharacterModal({
               {/* Hero Section */}
               <div className="flex gap-6 items-start">
 
-                {/* Left: Portrait */}
+                {/* Left: Portrait (Easter Egg: Click to cycle expressions!) */}
                 <div className="flex-shrink-0">
-                  <img
-                    src={portraitSrc}
-                    alt={name}
-                    className="w-64 h-64 object-cover rounded-2xl border-4 shadow-elevation-3 transition-transform duration-base hover:scale-105"
-                    style={{
-                      borderColor: '#16a34a',
-                      filter: 'drop-shadow(0 0 20px rgba(22, 163, 74, 0.3))'
-                    }}
-                  />
+                  <div className="relative group">
+                    <img
+                      src={allMariaPortraits[currentPortraitIndex]}
+                      alt={name}
+                      onClick={handlePortraitClick}
+                      className="w-64 h-64 object-cover rounded-2xl border-4 shadow-elevation-3 transition-all duration-200 cursor-pointer hover:scale-105 hover:brightness-105"
+                      style={{
+                        borderColor: '#16a34a',
+                        filter: 'drop-shadow(0 0 20px rgba(22, 163, 74, 0.3))',
+                        opacity: isPortraitFading ? 0 : 1,
+                        transition: 'opacity 200ms ease-in-out, transform 200ms ease-out, brightness 200ms ease-out'
+                      }}
+                    />
+                    {/* Subtle hint on hover - positioned at bottom */}
+                    <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none flex items-end justify-center pb-4"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(22, 163, 74, 0.1) 0%, rgba(34, 197, 94, 0.15) 100%)'
+                      }}
+                    >
+                      <div className="text-white text-xs font-semibold px-3 py-1.5 rounded-full bg-emerald-600/80 backdrop-blur-sm shadow-lg">
+                        Click to change expression
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expression name display */}
+                  <p className="text-xs font-sans text-center text-ink-600 dark:text-ink-400 mt-2">
+                    Maria is {currentExpression.toLowerCase()}
+                  </p>
                 </div>
 
                 {/* Right: Info */}

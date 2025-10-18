@@ -70,6 +70,12 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       wealth: startingWealth,
       health: 85,
       energy: 62,
+      status: 'calm', // Emotional state from StateAgent (default: calm)
+      // Medical records system - tracks all patients Maria has actually treated
+      medicalRecords: {}, // { [patientId]: { patientInfo, sessions: [...] } }
+      // NPC Commerce system - tracks trade opportunities and history
+      tradeOpportunities: [], // Active trade opportunities from narrative
+      tradeHistory: {}, // { [npcId]: [transactions...] }
     };
   } catch (error) {
     console.error('Failed to load scenario, using fallback:', error);
@@ -103,6 +109,12 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       wealth: startingWealth,
       health: 85,
       energy: 62,
+      status: 'calm', // Emotional state from StateAgent (default: calm)
+      // Medical records system - tracks all patients Maria has actually treated
+      medicalRecords: {}, // { [patientId]: { patientInfo, sessions: [...] } }
+      // NPC Commerce system - tracks trade opportunities and history
+      tradeOpportunities: [], // Active trade opportunities from narrative
+      tradeHistory: {}, // { [npcId]: [transactions...] }
     };
   }
 };
@@ -362,6 +374,27 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
 
       newTime = summaryData.time;
       newDate = summaryData.date;
+    } else if (summaryData && summaryData.minutes !== undefined) {
+      // Handle incremental time advancement by minutes
+      const currentTime = new Date(`${prevState.date} ${prevState.time}`);
+      currentTime.setMinutes(currentTime.getMinutes() + summaryData.minutes);
+
+      newTime = currentTime.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      // Check if date rolled over to next day
+      const currentDate = new Date(prevState.date);
+      if (currentTime.toDateString() !== currentDate.toDateString()) {
+        newDate = currentTime.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric'
+        });
+        dayChanged = true;
+      }
     } else {
       const currentTime = new Date(`August 22, 1680 ${prevState.time}`);
       currentTime.setHours(currentTime.getHours() + 3); // Increment by 3 hours
@@ -611,6 +644,83 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
   }, []);
 
   // ============================================
+  // NPC COMMERCE SYSTEM
+  // ============================================
+
+  /**
+   * Add a trade opportunity
+   * @param {Object} opportunity - Trade opportunity object
+   */
+  const addTradeOpportunity = useCallback((opportunity) => {
+    setGameState(prev => ({
+      ...prev,
+      tradeOpportunities: [...prev.tradeOpportunities, {
+        ...opportunity,
+        id: `trade-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        turnOffered: prev.turnNumber,
+        expiresAtTurn: prev.turnNumber + 5 // Expires after 5 turns
+      }]
+    }));
+    console.log('[TradeSystem] Added trade opportunity:', opportunity.npcName);
+  }, []);
+
+  /**
+   * Remove a trade opportunity
+   * @param {string} opportunityId - Opportunity ID to remove
+   */
+  const removeTradeOpportunity = useCallback((opportunityId) => {
+    setGameState(prev => ({
+      ...prev,
+      tradeOpportunities: prev.tradeOpportunities.filter(opp => opp.id !== opportunityId)
+    }));
+  }, []);
+
+  /**
+   * Add a trade transaction to history
+   * @param {string} npcId - NPC ID
+   * @param {Object} transaction - Transaction data
+   */
+  const addTradeTransaction = useCallback((npcId, transaction) => {
+    setGameState(prev => {
+      const npcHistory = prev.tradeHistory[npcId] || [];
+      return {
+        ...prev,
+        tradeHistory: {
+          ...prev.tradeHistory,
+          [npcId]: [...npcHistory, {
+            ...transaction,
+            id: `transaction-${Date.now()}`,
+            turn: prev.turnNumber,
+            date: prev.date
+          }]
+        }
+      };
+    });
+    console.log('[TradeSystem] Added transaction:', transaction);
+  }, []);
+
+  /**
+   * Get trade history for an NPC
+   * @param {string} npcId - NPC ID
+   * @returns {Array} Transaction history
+   */
+  const getTradeHistory = useCallback((npcId) => {
+    return gameState.tradeHistory[npcId] || [];
+  }, [gameState.tradeHistory]);
+
+  /**
+   * Clean up expired trade opportunities
+   */
+  const cleanupExpiredOpportunities = useCallback(() => {
+    setGameState(prev => ({
+      ...prev,
+      tradeOpportunities: prev.tradeOpportunities.filter(
+        opp => opp.expiresAtTurn > prev.turnNumber
+      )
+    }));
+  }, []);
+
+  // ============================================
   // LEVELING & XP MANAGEMENT
   // ============================================
   // PROFESSION SYSTEM
@@ -622,24 +732,42 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
    * @param {number} playerLevel - Current player level (from playerSkills)
    */
   const chooseProfession = useCallback((professionId, playerLevel) => {
-    setGameState(prev => {
+    try {
+      console.log('[Profession] chooseProfession called with:', { professionId, playerLevel });
 
-      if (prev.chosenProfession) {
-        console.warn('[Profession] Profession already chosen:', prev.chosenProfession);
-        return prev;
-      }
+      setGameState(prev => {
+        if (prev.chosenProfession) {
+          console.warn('[Profession] Profession already chosen:', prev.chosenProfession);
+          return prev;
+        }
 
-      console.log(`[Profession] Chose profession: ${professionId}`);
+        console.log(`[Profession] Choosing profession: ${professionId}`);
 
-      // Update title to profession base title (requires playerLevel from playerSkills)
-      const newTitle = getPlayerTitle(playerLevel, professionId, {});
+        // Update title to profession base title (requires playerLevel from playerSkills)
+        let newTitle;
+        try {
+          newTitle = getPlayerTitle(playerLevel, professionId, {});
+          console.log('[Profession] Generated title:', newTitle);
+        } catch (titleError) {
+          console.error('[Profession] Error generating title:', titleError);
+          newTitle = 'Apothecary'; // Fallback title
+        }
 
-      return {
-        ...prev,
-        chosenProfession: professionId,
-        playerTitle: newTitle
-      };
-    });
+        const newState = {
+          ...prev,
+          chosenProfession: professionId,
+          playerTitle: newTitle
+        };
+
+        console.log('[Profession] Updated state:', newState);
+        return newState;
+      });
+
+      console.log('[Profession] State update completed successfully');
+    } catch (error) {
+      console.error('[Profession] Error in chooseProfession:', error);
+      throw error; // Re-throw so GamePage can handle it
+    }
   }, []);
 
   return {
@@ -686,5 +814,12 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
 
     // Profession system (level/XP managed by playerSkills)
     chooseProfession,
+
+    // NPC Commerce system
+    addTradeOpportunity,
+    removeTradeOpportunity,
+    addTradeTransaction,
+    getTradeHistory,
+    cleanupExpiredOpportunities,
   };
 };

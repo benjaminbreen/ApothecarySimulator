@@ -48,13 +48,32 @@ Use this to inform dialogue tone, willingness to help, and general demeanor.`;
 }
 
 /**
+ * Convert degrees to cardinal direction
+ * @param {number} degrees - Facing direction in degrees (0=N, 90=E, 180=S, 270=W)
+ * @returns {string} Cardinal direction
+ */
+function getCardinalDirection(degrees) {
+  const normalized = ((degrees % 360) + 360) % 360;
+  if (normalized >= 337.5 || normalized < 22.5) return 'North';
+  if (normalized >= 22.5 && normalized < 67.5) return 'Northeast';
+  if (normalized >= 67.5 && normalized < 112.5) return 'East';
+  if (normalized >= 112.5 && normalized < 157.5) return 'Southeast';
+  if (normalized >= 157.5 && normalized < 202.5) return 'South';
+  if (normalized >= 202.5 && normalized < 247.5) return 'Southwest';
+  if (normalized >= 247.5 && normalized < 292.5) return 'West';
+  if (normalized >= 292.5 && normalized < 337.5) return 'Northwest';
+  return 'North'; // Default
+}
+
+/**
  * Build map context for narrative generation
  * @param {Object} mapData - Current map data
  * @param {Object} playerPosition - Player's current position
+ * @param {number} playerFacing - Player facing direction in degrees (0=N, 90=E, 180=S, 270=W)
  * @param {string} currentMapId - Current map identifier
  * @returns {string} Formatted map context for LLM
  */
-function buildMapContext(mapData, playerPosition, currentMapId) {
+function buildMapContext(mapData, playerPosition, playerFacing, currentMapId) {
   if (!mapData || !playerPosition) {
     return '';
   }
@@ -68,9 +87,23 @@ function buildMapContext(mapData, playerPosition, currentMapId) {
     // Get movement options
     const movementOptions = gridSystem.getMovementOptions(playerPosition);
 
+    // Detect current room (for interior maps)
+    const currentRoom = gridSystem.getCurrentRoom(playerPosition);
+
+    // DEBUG: Log room detection for troubleshooting
+    if (mapData.type === 'interior') {
+      console.log('[NarrativeAgent] Room Detection:', {
+        position: `(${playerPosition.x}, ${playerPosition.y})`,
+        detectedRoom: currentRoom?.name || 'NONE',
+        mapName: mapData.name
+      });
+    }
+
     // Build context string
     let context = `\n### Spatial Context (Current Location):
 Player Position: Grid (${playerPosition.gridX || Math.floor(playerPosition.x / 20)}, ${playerPosition.gridY || Math.floor(playerPosition.y / 20)})
+${currentRoom ? `**Current Room: ${currentRoom.name}**` : ''}
+${playerFacing !== undefined ? `Player Facing: ${getCardinalDirection(playerFacing)}` : ''}
 
 `;
 
@@ -85,15 +118,28 @@ Player Position: Grid (${playerPosition.gridX || Math.floor(playerPosition.x / 2
 
     // Add nearby furniture for interior maps
     if (mapData.type === 'interior' && mapData.furniture) {
+      // Helper function to check if furniture is in the same room as player
+      const isFurnitureInCurrentRoom = (furniture) => {
+        if (!currentRoom) return true; // If no room detected, show all furniture
+
+        const fx = furniture.position ? furniture.position[0] : furniture.x;
+        const fy = furniture.position ? furniture.position[1] : furniture.y;
+
+        // Check if furniture center is in the same room polygon
+        return gridSystem.isPointInPolygon([fx, fy],
+          mapData.rooms.find(r => r.id === currentRoom.id)?.polygon || []);
+      };
+
       const nearbyFurniture = mapData.furniture.filter(f => {
         const fx = f.position ? f.position[0] : f.x;
         const fy = f.position ? f.position[1] : f.y;
         const dist = Math.abs(playerPosition.x - fx) + Math.abs(playerPosition.y - fy);
-        return dist < 200; // Within ~10 grid cells
+        // CRITICAL: Only show furniture in the same room as the player
+        return dist < 200 && isFurnitureInCurrentRoom(f);
       });
 
       if (nearbyFurniture.length > 0) {
-        context += `Nearby Objects/Furniture:\n`;
+        context += `Nearby Objects/Furniture (in ${currentRoom?.name || 'current area'}):\n`;
         nearbyFurniture.forEach(f => {
           const fx = f.position ? f.position[0] : f.x;
           const fy = f.position ? f.position[1] : f.y;
@@ -135,12 +181,14 @@ Player Position: Grid (${playerPosition.gridX || Math.floor(playerPosition.x / 2
 
 ${isInterior ?
 `**INTERIOR Movement** - Currently inside ${mapData.name || 'a building'}:
-  * Describe room features: furniture, walls, doors, windows, lighting
-  * Mention what she passes: counter, shelves, workbench, bed, chairs
+  ${currentRoom ? `* **CRITICAL**: You are in the **${currentRoom.name}** - ONLY describe furniture/features from this room!` : ''}
+  * ONLY describe furniture listed in "Nearby Objects/Furniture" above (already filtered to current room)
+  * DO NOT mention furniture from other rooms (e.g., don't mention counter when in Laboratory)
+  * Describe room features: walls, doors, windows, lighting specific to current room
   * Note light sources: candles, windows, sunlight streaming in
   * Include interior sounds: creaking floorboards, rustling fabric, distant voices
-  * Reference room names naturally: "shop floor", "laboratory", "bedroom"
-  * Example (SECOND PERSON): "You step toward the eastern wall of the shop floor, where sunlight streams through a narrow window. The wooden counter is to your left, its surface worn smooth from years of transactions. The laboratory door stands slightly ajar ahead."`
+  * Reference the current room name naturally when appropriate
+  * Example (SECOND PERSON): "You step toward the eastern wall of the ${currentRoom?.name.toLowerCase() || 'room'}, where sunlight streams through a narrow window."`
 :
 `**EXTERIOR Movement** - Currently outdoors in the city:
   * Describe streets, buildings, landmarks, and urban features
@@ -234,6 +282,17 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
     "appearance": "Physical description",
     "description": "Brief character summary"
   },
+  "simpleInteraction": {
+    "type": "service_offer|donation_request|competitive_check|information_exchange|social_visit|null",
+    "npcName": "Full NPC name",
+    "npcId": "kebab-case-id",
+    "npcPortrait": "/portraits/filename.jpg",
+    "offer": {"item": "string", "price": number, "description": "string", "stock": number},
+    "request": {"item": "string", "reason": "string", "urgency": "low|moderate|high", "reputationImpact": {"donate": number, "refuse": number}},
+    "competitive": {"targetItem": "string", "offeredPrice": number, "actualValue": number, "intent": "testing|spying|sabotage"},
+    "information": {"topic": "string", "cost": "string (e.g., '1 bread or 2 reales')", "value": "critical|useful|trivial"},
+    "social": {"purpose": "string", "mood": "friendly|concerned|urgent"}
+  },
   "requestNewPatient": "boolean - true if a new patient should arrive next turn, false otherwise",
   "patientContext": "string or null - Brief reason why patient is arriving (only if requestNewPatient is true). Examples: 'Morning rush at botica', 'Messenger sent by nobleman', 'Word of Maria's skill has spread'",
   "entities": [
@@ -252,6 +311,76 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
       }
     }
   ]
+}
+\`\`\`
+
+### Simple Interaction Field (simpleInteraction):
+**When the NPC has simpleInteractionType, populate this field with the interaction data.**
+
+**CRITICAL - NEVER USE simpleInteraction FOR MEDICAL SITUATIONS:**
+- ✗ Patients arriving with symptoms
+- ✗ Messengers requesting treatment for sick relatives
+- ✗ Anyone seeking medical consultation, diagnosis, or prescriptions
+- ✗ House call requests for the ill
+- ✗ Medical contract negotiations
+
+**ONLY USE simpleInteraction FOR NON-MEDICAL ENCOUNTERS:**
+- ✓ Water seller offering barrels (mundane goods)
+- ✓ Beggar asking for bread/coins (charity)
+- ✓ Rival apothecary testing prices (business)
+- ✓ Street urchin selling gossip (information)
+- ✓ Friend bringing books/warnings (social)
+
+**If the interaction involves illness, symptoms, or medical services → Set type to NULL.**
+
+**DEFAULT RULE: If the user prompt does NOT contain "SIMPLE INTERACTION MODE" instructions, set type to NULL.**
+This field should ONLY be populated when explicitly instructed to do so.
+
+Set type to null for normal interactions. Otherwise, extract the appropriate data:
+- **service_offer**: Water seller, food vendor → Extract item, price, description, stock
+- **donation_request**: Beggar asking for charity → Extract item, reason, urgency, reputationImpact (donate: +3 to +10, refuse: -3 to -10)
+- **competitive_check**: Rival testing prices → Extract targetItem, offeredPrice, actualValue, intent
+- **information_exchange**: STREET GOSSIP ONLY (street urchin selling rumors for 1-2 reales). DO NOT use for examining documents, helping with complex requests, or risky involvement. Only for buying simple gossip/rumors.
+- **social_visit**: Friend visiting → Extract purpose, mood
+
+**CRITICAL - DO NOT use simpleInteraction for:**
+- Examining forbidden/dangerous documents → use null (let narrative flow naturally)
+- Helping NPCs with specialized tasks (extraction, translation, etc.) → use null or contractOffer
+- Getting involved in risky/dangerous situations → use null (these are story decisions, not transactions)
+- Complex multi-turn interactions → use null (simple interactions are 1-click resolved)
+
+**Examples:**
+\`\`\`json
+{
+  "simpleInteraction": {
+    "type": "service_offer",
+    "npcName": "Pedro Vázquez",
+    "npcId": "pedro-vazquez",
+    "npcPortrait": "/portraits/mestizomalevendormiddleaged.jpg",
+    "offer": {
+      "item": "Water Barrel",
+      "price": 3,
+      "description": "Fresh from Chapultepec aqueduct",
+      "stock": 2
+    }
+  }
+}
+\`\`\`
+
+\`\`\`json
+{
+  "simpleInteraction": {
+    "type": "donation_request",
+    "npcName": "Widow Socorro",
+    "npcId": "widow-socorro",
+    "npcPortrait": "/portraits/elderlyfemaleindiapoor.jpg",
+    "request": {
+      "item": "bread",
+      "reason": "family starving",
+      "urgency": "high",
+      "reputationImpact": {"donate": 5, "refuse": -5}
+    }
+  }
 }
 \`\`\`
 
@@ -617,6 +746,7 @@ export async function generateNarrative({
   additionalQuestions = '',
   mapData = null,
   playerPosition = null,
+  playerFacing = null,
   currentMapId = null,
   reputation = null,
   playerSkills = null,
@@ -631,7 +761,7 @@ export async function generateNarrative({
 
     // Build map context if available
     const mapContext = mapData && playerPosition && currentMapId
-      ? buildMapContext(mapData, playerPosition, currentMapId)
+      ? buildMapContext(mapData, playerPosition, playerFacing, currentMapId)
       : '';
 
     // Build narrative prompt with map context
@@ -646,6 +776,44 @@ export async function generateNarrative({
     );
 
     const entityContext = selectedEntity ? buildEntityContext(selectedEntity, playerAction) : '';
+
+    // Build simple interaction context (if applicable)
+    let simpleInteractionContext = '';
+    if (selectedEntity?.simpleInteractionType) {
+      const interactionTypeExamples = {
+        service_offer: 'NPC offers mundane items for sale (water, firewood, food). Example: "Fresh water from the aqueduct, 3 reales per barrel!" Keep it SHORT (1-2 sentences). NO medical consultations.',
+        donation_request: 'NPC asks for charity (bread, medicine, coins). Example: "Please, señora, my children are starving. Just one loaf of bread?" Show urgency and dignity. NO medical consultations.',
+        competitive_check: 'Rival apothecary tests Maria with lowball offers or price scouting. Example: "I\'ll pay 8 reales for your European mercury." Be calculating and businesslike. NO medical consultations.',
+        information_exchange: 'Street urchin/gossip offers intel for payment. Example: "I know when the Inquisitor plans to visit... but I\'m hungry." Be coy and street-smart. NO medical consultations.',
+        social_visit: 'Friend brings warnings, books, or friendly conversation. Example: Sister Teresa arrives with herbs and concerns about Inquisition activity. Be warm but purposeful. NO medical consultations.'
+      };
+
+      const example = interactionTypeExamples[selectedEntity.simpleInteractionType] || '';
+
+      simpleInteractionContext = `
+**CRITICAL - SIMPLE INTERACTION MODE:**
+This is a FAST, SIMPLE interaction - NOT a medical consultation or complex negotiation.
+
+NPC Type: ${selectedEntity.simpleInteractionType}
+${example}
+
+**RULES FOR SIMPLE INTERACTIONS:**
+1. Keep narrative BRIEF (1-2 short paragraphs, 50-100 words MAX)
+2. Get straight to the point - what does the NPC want/offer?
+3. NO lengthy backstories, NO medical complaints about relatives
+4. NO complex negotiations - just a simple offer or request
+5. Player should be able to respond with a quick yes/no or simple choice
+6. This should feel like a quick street encounter, not a consultation
+
+**EXAMPLES TO FOLLOW:**
+✓ "A water seller stops at your door. 'Fresh water, 3 reales!' he calls cheerfully."
+✓ "An elderly woman approaches timidly. 'Please, señora... just one loaf of bread for my grandchildren?'"
+✗ "A man arrives saying his wife has the bloody flux and needs pomegranate bark..." (TOO MEDICAL)
+✗ "Pedro explains his wife's symptoms in great detail..." (TOO LONG, TOO COMPLEX)
+
+Generate a SHORT, SIMPLE interaction matching the type above.
+`;
+    }
 
     // Build reputation context
     const reputationContext = buildReputationContext(reputation, selectedEntity);
@@ -695,6 +863,7 @@ Recent Conversation:
 ${recentHistory}
 
 ${entityContext ? `\n${entityContext}\n` : ''}
+${simpleInteractionContext ? `\n${simpleInteractionContext}\n` : ''}
 ${recentPortraitContext}
 ${continuationContext}
 ${reputationContext}
@@ -772,6 +941,7 @@ Generate narrative response. Remember: JSON format, concise, historically accura
       showPortraitFor: narrativeData.showPortraitFor || null, // LLM portrait hint (old system)
       primaryPortrait: narrativeData.primaryPortrait || null, // PHASE 2: Direct portrait filename
       primaryNPC: narrativeData.primaryNPC || null, // PHASE 2: Complete NPC profile
+      simpleInteraction: narrativeData.simpleInteraction || null, // Simple interaction data (service offer, donation, etc.)
       requestNewPatient: narrativeData.requestNewPatient || false, // LLM controls patient flow
       patientContext: narrativeData.patientContext || null, // Reason for patient arrival
       entities: narrativeData.entities || [] // Entity list from LLM

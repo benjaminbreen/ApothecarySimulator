@@ -13,11 +13,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { entityManager } from '../../../core/entities/EntityManager';
 import { resolvePortrait } from '../../../core/services/portraitResolver';
+import MedicalRecordsManager from '../../../core/systems/medicalRecordsManager';
 
 export default function PatientRosterModal({
   isOpen,
   onClose,
-  onSelectPatient
+  onSelectPatient,
+  medicalRecords = {} // Medical records from game state
 }) {
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,10 +46,26 @@ export default function PatientRosterModal({
     }
   }, [isOpen]);
 
-  // Get all patients from EntityManager
+  // Get treated patients from medical records
   const allPatients = useMemo(() => {
-    return entityManager.getByType('patient') || [];
-  }, [isOpen]); // Re-fetch when modal opens
+    const treatedPatients = MedicalRecordsManager.getTreatedPatients(medicalRecords);
+
+    // Convert medical record format to patient entity format for compatibility
+    return treatedPatients.map(record => ({
+      id: record.patientId,
+      name: record.patientName,
+      age: record.age,
+      occupation: record.occupation,
+      portrait: record.portrait,
+      diagnosis: record.sessions[record.sessions.length - 1]?.diagnosis || 'No diagnosis',
+      symptoms: record.sessions[record.sessions.length - 1]?.symptoms || [],
+      memory: {
+        interactions: record.sessions
+      },
+      // Add medical record reference for easy access
+      medicalRecord: record
+    }));
+  }, [medicalRecords, isOpen]); // Re-compute when medical records change or modal opens
 
   // Filter patients based on search query
   const filteredPatients = useMemo(() => {

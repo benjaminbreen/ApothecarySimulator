@@ -1,13 +1,89 @@
 /**
  * POIModal - Place or Person of Interest Modal
- * Redesigned for elegance: compact, modern, two-column layout
+ * Redesigned: clean layout with LLM-generated vivid description
  */
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { entityManager } from '../core/entities/EntityManager';
 import { resolvePortrait } from '../core/services/portraitResolver';
+import { createChatCompletion } from '../core/services/llmService';
+import { getDetailImagePathSync } from '../utils/detailImageResolver';
 
 export function POIModal({ entity, isOpen, onClose, onAction }) {
+  const [vividDescription, setVividDescription] = useState('');
+  const [isLoadingDescription, setIsLoadingDescription] = useState(false);
+
+  // Cache for vivid descriptions (persists across modal open/close)
+  const descriptionCacheRef = useRef({});
+
+  // Generate vivid description when modal opens
+  useEffect(() => {
+    if (!isOpen || !entity) {
+      setVividDescription('');
+      return;
+    }
+
+    // Create cache key from entity name + type
+    const cacheKey = `${entity.name}-${entity.entityType || entity.type}`;
+
+    // Check if we already have a cached description
+    if (descriptionCacheRef.current[cacheKey]) {
+      setVividDescription(descriptionCacheRef.current[cacheKey]);
+      return;
+    }
+
+    setIsLoadingDescription(true);
+
+    // Contextual prompt based on entity type
+    const isDirectObservation = entityType === 'item' ||
+                                (entityType === 'location' && entity.locationType === 'Interior');
+
+    const systemPrompt = isDirectObservation
+      ? `You are a vivid scene describer for a historical RPG set in 1680s Mexico City.
+Given an entity description, write a SHORT (1-2 sentences max) vivid description in second person ("You see..." or "You examine...").
+Be immersive, sensory, and historically accurate. Use evocative language but keep it concise.`
+      : `You are a vivid scene describer for a historical RPG set in 1680s Mexico City.
+Given an entity description, write a SHORT (1-2 sentences max) evocative description.
+For locations, describe what you know or recall about the place. For people, describe who they are.
+Avoid "you see" unless it's something immediately visible. Be immersive and historically accurate.`;
+
+    const userPrompt = isDirectObservation
+      ? `Entity: ${entity.name}
+Type: ${entity.entityType || entity.type || 'unknown'}
+Description: ${entity.description || 'A person/place of interest'}
+
+Write a vivid second-person description (1-2 sentences) of what you see/examine.`
+      : `Entity: ${entity.name}
+Type: ${entity.entityType || entity.type || 'unknown'}
+Description: ${entity.description || 'A person/place of interest'}
+
+Write an evocative description (1-2 sentences). Use "You recall..." or "You know of..." for distant places. Describe people neutrally or as "You think about..."`;
+
+    // Correct function signature: createChatCompletion(messages, temperature, maxTokens, responseFormat, metadata)
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ];
+
+    createChatCompletion(messages, 0.7, 100, null, { agent: 'POIDescriber' })
+      .then(response => {
+        const text = response.choices[0].message.content.trim();
+        setVividDescription(text);
+        // Cache the description
+        descriptionCacheRef.current[cacheKey] = text;
+      })
+      .catch(error => {
+        console.error('[POIModal] Error generating vivid description:', error);
+        const fallbackText = `You see ${entity.name}. ${entity.description || ''}`;
+        setVividDescription(fallbackText);
+        // Cache the fallback too
+        descriptionCacheRef.current[cacheKey] = fallbackText;
+      })
+      .finally(() => {
+        setIsLoadingDescription(false);
+      });
+  }, [isOpen, entity]);
+
   if (!isOpen || !entity) return null;
 
   const entityType = entity.entityType || entity.type || 'unknown';
@@ -18,7 +94,14 @@ export function POIModal({ entity, isOpen, onClose, onAction }) {
 
   // Resolve header image based on entity type
   const headerImage = (() => {
-    // If entity has explicit image property
+    // PRIORITY 1: Check for detail image in public/details/ folder
+    const detailImagePath = getDetailImagePathSync(entity.name);
+    if (detailImagePath) {
+      // We'll optimistically try to load this, and fall back on error
+      return detailImagePath;
+    }
+
+    // PRIORITY 2: If entity has explicit image property
     if (entity.image) {
       if (entity.image.includes('/')) {
         return entity.image;
@@ -28,14 +111,20 @@ export function POIModal({ entity, isOpen, onClose, onAction }) {
       return `/portraits/${entity.image}`;
     }
 
-    // For NPCs/Patients, use centralized portrait resolver
+    // PRIORITY 3: For NPCs/Patients, use centralized portrait resolver
     if (isNPC || isPatient) {
       return resolvePortrait(entity);
     }
 
-    // Fallback images by type
-    if (isLocation) return '/locations/default.jpg';
-    if (isItem) return '/items/default.jpg';
+    // PRIORITY 4: Fallback images by type
+    if (isLocation) {
+      // Interior spaces in the botica use boticaentrance.png
+      if (entity.locationType === 'Interior' || entity.name?.toLowerCase().includes('botica')) {
+        return '/locations/boticaentrance.png';
+      }
+      return '/assets/parchment.jpg';
+    }
+    if (isItem) return '/assets/parchment.jpg';
     return '/assets/parchment.jpg';
   })();
 
@@ -91,7 +180,7 @@ export function POIModal({ entity, isOpen, onClose, onAction }) {
   const renderLeftColumn = () => {
     if (isLocation) {
       return (
-        <div className="space-y-4">
+        <>
           {entity.travelTime && (
             <InfoCard icon="📍" title="Travel Time" color="amber">
               <p className="text-sm text-gray-700 dark:text-gray-300">{entity.travelTime}</p>
@@ -113,15 +202,15 @@ export function POIModal({ entity, isOpen, onClose, onAction }) {
               </div>
             </InfoCard>
           )}
-        </div>
+        </>
       );
     }
 
     if (isPatient || isNPC) {
       return (
-        <div className="space-y-4">
+        <>
           {(entity.age || entity.occupation || entity.birthplace || entity.casta) && (
-            <InfoCard title="Details" color="amber">
+            <InfoCard title="Personal Information" color="amber">
               <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
                 {entity.age && <div><span className="font-medium">Age:</span> {entity.age}</div>}
                 {entity.occupation && <div><span className="font-medium">Occupation:</span> {entity.occupation}</div>}
@@ -131,7 +220,7 @@ export function POIModal({ entity, isOpen, onClose, onAction }) {
             </InfoCard>
           )}
           {isPatient && (entity.diagnosis || entity.urgency) && (
-            <InfoCard title="Medical Info" color="red">
+            <InfoCard title="Medical Information" color="red">
               <div className="space-y-2">
                 {entity.diagnosis && (
                   <div className="text-sm text-gray-700 dark:text-gray-300">
@@ -152,13 +241,36 @@ export function POIModal({ entity, isOpen, onClose, onAction }) {
               </div>
             </InfoCard>
           )}
-        </div>
+          {entity.socialContext && (
+            <InfoCard title="Social Context" color="blue">
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{entity.socialContext}</p>
+            </InfoCard>
+          )}
+          {entity.relationships && Object.keys(entity.relationships).length > 0 && (
+            <InfoCard title="Relationships" color="purple">
+              <div className="space-y-2">
+                {Object.entries(entity.relationships).map(([name, relationship]) => (
+                  <div key={name} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700 dark:text-gray-300">{name}</span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      relationship.affinity > 50 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                      relationship.affinity < 30 ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                    }`}>
+                      {relationship.type}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </InfoCard>
+          )}
+        </>
       );
     }
 
     if (isItem) {
       return (
-        <div className="space-y-4">
+        <>
           <InfoCard title="Properties" color="amber">
             <div className="space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
               {entity.category && <div><span className="font-medium">Category:</span> {entity.category}</div>}
@@ -176,18 +288,23 @@ export function POIModal({ entity, isOpen, onClose, onAction }) {
               </ul>
             </InfoCard>
           )}
-        </div>
+          {entity.historicalContext && (
+            <InfoCard title="Historical Context" color="blue">
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{entity.historicalContext}</p>
+            </InfoCard>
+          )}
+        </>
       );
     }
 
     return null;
   };
 
-  // Render right column (secondary info)
+  // Render right column (secondary info) - now only for locations
   const renderRightColumn = () => {
     if (isLocation) {
       return (
-        <div className="space-y-4">
+        <>
           {entity.locationType && (
             <InfoCard title="Terrain" color="green">
               <p className="text-sm text-gray-700 dark:text-gray-300">{entity.locationType}</p>
@@ -217,111 +334,117 @@ export function POIModal({ entity, isOpen, onClose, onAction }) {
               </ul>
             </InfoCard>
           )}
-        </div>
-      );
-    }
-
-    if (isPatient || isNPC) {
-      return (
-        <div className="space-y-4">
-          {entity.socialContext && (
-            <InfoCard title="Social Context" color="blue">
-              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{entity.socialContext}</p>
-            </InfoCard>
-          )}
-          {entity.relationships && Object.keys(entity.relationships).length > 0 && (
-            <InfoCard title="Relationships" color="purple">
-              <div className="space-y-2">
-                {Object.entries(entity.relationships).map(([name, relationship]) => (
-                  <div key={name} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-700 dark:text-gray-300">{name}</span>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      relationship.affinity > 50 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                      relationship.affinity < 30 ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-                    }`}>
-                      {relationship.type}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </InfoCard>
-          )}
-        </div>
-      );
-    }
-
-    if (isItem) {
-      return (
-        <div className="space-y-4">
-          {entity.historicalContext && (
-            <InfoCard title="Historical Context" color="blue">
-              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{entity.historicalContext}</p>
-            </InfoCard>
-          )}
-        </div>
+        </>
       );
     }
 
     return null;
   };
 
+  const isDark = document.documentElement.classList.contains('dark');
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
       <div className="absolute inset-0" onClick={onClose} aria-label="Close modal" />
 
-      <div className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl shadow-2xl animate-scale-in">
-        {/* Compact Header with Image */}
-        <div className="relative h-24 overflow-hidden rounded-t-2xl">
-          <img
-            src={headerImage}
-            alt={entity.name}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.target.src = '/assets/parchment.jpg';
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden bg-white dark:bg-slate-900 rounded-2xl shadow-2xl animate-scale-in border-2 border-emerald-500/30 dark:border-amber-500/30">
 
-          {/* Icon Badge - Smaller */}
-          <div className="absolute top-3 left-4 w-10 h-10 rounded-full bg-amber-600 dark:bg-amber-500 flex items-center justify-center text-white shadow-lg">
-            {getIcon()}
+        {/* Top Section: Image + Title */}
+        <div className="relative h-80 overflow-hidden">
+          {/* Background Image */}
+          <div className="absolute inset-0">
+            <img
+              src={headerImage}
+              alt={entity.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                console.warn('[POIModal] Image failed to load:', headerImage);
+                e.target.src = '/assets/parchment.jpg';
+              }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-black/20" />
           </div>
 
-          {/* Title - Compact */}
-          <div className="absolute bottom-3 left-4 right-4">
-            <h2 className="text-xl font-bold text-white drop-shadow-lg leading-tight">{entity.name}</h2>
-            <p className="text-amber-200 dark:text-amber-300 text-xs font-medium drop-shadow mt-0.5">{getSubtitle()}</p>
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm flex items-center justify-center text-white transition-all duration-200 z-10 border border-white/20 hover:border-white/40"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Content Overlay */}
+          <div className="absolute inset-0 flex flex-col justify-end p-6">
+            {/* Icon Badge */}
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-600 to-emerald-700 dark:from-amber-600 dark:to-amber-700 flex items-center justify-center text-white shadow-xl mb-3 border-2 border-white/30">
+              {getIcon()}
+            </div>
+
+            {/* Title & Subtitle */}
+            <h2 className="text-3xl font-bold text-white drop-shadow-2xl font-serif leading-tight mb-1">
+              {entity.name}
+            </h2>
+            <p className="text-emerald-200 dark:text-amber-200 text-sm font-medium drop-shadow-lg">
+              {getSubtitle()}
+            </p>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6">
-          {/* Description Quote */}
-          {entity.description && (
-            <div className="mb-5 pl-4 border-l-2 border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 py-2 pr-3 rounded-r">
-              <p className="text-gray-800 dark:text-gray-200 italic text-sm leading-relaxed">"{entity.description}"</p>
+        {/* Scrollable Content Area */}
+        <div className="overflow-y-auto max-h-[calc(90vh-20rem)] custom-scrollbar">
+          <div className="p-6 space-y-6">
+
+            {/* Vivid LLM-Generated Description */}
+            <div className="relative">
+              {isLoadingDescription ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-600 dark:border-amber-400 mr-3"></div>
+                  <span className="text-sm text-ink-500 dark:text-parchment-300 font-sans">Observing...</span>
+                </div>
+              ) : vividDescription ? (
+                <div className="relative p-6 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-amber-950/40 dark:to-amber-900/20 border-2 border-emerald-300/50 dark:border-amber-600/30">
+                  <div className="absolute top-4 left-4 text-5xl opacity-20">👁️</div>
+                  <p className="text-xl font-serif text-ink-900 dark:text-parchment-100 leading-relaxed italic pl-12">
+                    {vividDescription}
+                  </p>
+                </div>
+              ) : null}
             </div>
-          )}
 
-          {/* Two Column Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-            {renderLeftColumn()}
-            {renderRightColumn()}
+            {/* Information Sections */}
+            <div className="space-y-4">
+              {/* Primary Information */}
+              {renderLeftColumn() && (
+                <div className="space-y-3">
+                  {renderLeftColumn()}
+                </div>
+              )}
+
+              {/* Secondary Information */}
+              {renderRightColumn() && (
+                <div className="space-y-3">
+                  {renderRightColumn()}
+                </div>
+              )}
+            </div>
           </div>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-slate-700">
+        {/* Fixed Bottom Actions */}
+        <div className="border-t-2 border-parchment-200 dark:border-slate-700 bg-parchment-50/50 dark:bg-slate-800/50 p-4">
+          <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-900 dark:text-gray-100 font-medium rounded-lg transition-colors"
+              className="flex-1 px-4 py-2.5 bg-parchment-100 hover:bg-parchment-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-ink-900 dark:text-parchment-100 font-medium rounded-xl transition-all duration-200 border border-parchment-300 dark:border-slate-600"
             >
               Close
             </button>
             {onAction && (
               <button
                 onClick={() => onAction(entity)}
-                className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 text-white font-semibold rounded-lg transition-all shadow-sm hover:shadow-md"
+                className="flex-1 px-4 py-2.5 bg-gradient-to-br from-emerald-600 to-emerald-700 dark:from-amber-600 dark:to-amber-700 hover:from-emerald-500 hover:to-emerald-600 dark:hover:from-amber-500 dark:hover:to-amber-600 text-white dark:text-slate-900 font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 {isLocation ? 'Travel Here' : isPatient ? 'Examine' : isNPC ? 'Speak' : 'View Details'}
               </button>
@@ -341,6 +464,32 @@ export function POIModal({ entity, isOpen, onClose, onAction }) {
         }
         .animate-fade-in { animation: fade-in 0.15s ease-out; }
         .animate-scale-in { animation: scale-in 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(0, 0, 0, 0.05);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, rgba(16, 185, 129, 0.6), rgba(5, 150, 105, 0.6));
+          border-radius: 4px;
+          transition: background 0.2s;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.8));
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, rgba(251, 191, 36, 0.6), rgba(245, 158, 11, 0.6));
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, rgba(251, 191, 36, 0.8), rgba(245, 158, 11, 0.8));
+        }
       `}</style>
     </div>
   );

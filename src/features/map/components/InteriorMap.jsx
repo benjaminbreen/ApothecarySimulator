@@ -8,12 +8,15 @@ import './Map.css';
  * @param {import('../../../core/types/map.types').InteriorMapData} props.mapData - Map data to render
  * @param {import('../../../core/types/map.types').NPCMarker[]} props.npcs - NPCs to show on map
  * @param {Object} props.playerPosition - Player's current position {x, y}
+ * @param {number} props.playerFacing - Player facing direction in degrees (0=N, 90=E, 180=S, 270=W)
  * @param {Function} props.onRoomClick - Callback when room is clicked
  * @param {Function} props.onDoorClick - Callback when door is clicked
+ * @param {Function} props.onFurnitureClick - Callback when furniture is clicked
+ * @param {Object} props.viewBox - ViewBox to use for zoom/pan {x, y, width, height} (optional, defaults to full map)
  * @param {string} props.theme - Theme mode: 'light' or 'dark' (defaults to 'light')
  * @param {boolean} props.isModal - Whether map is in modal view (affects label sizing)
  */
-export default function InteriorMap({ mapData, npcs = [], playerPosition = null, onRoomClick, onDoorClick, theme = 'light', isModal = false }) {
+export default function InteriorMap({ mapData, npcs = [], playerPosition = null, playerFacing = 180, onRoomClick, onDoorClick, onFurnitureClick, viewBox, theme = 'light', isModal = false }) {
   const [hoveredRoom, setHoveredRoom] = useState(null);
   const [hoveredDoor, setHoveredDoor] = useState(null);
   const [hoveredFurniture, setHoveredFurniture] = useState(null);
@@ -22,10 +25,10 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
   // Theme color palettes
   const themes = {
     light: {
-      bg: 'linear-gradient(135deg, rgba(255, 252, 245, 0.95) 0%, rgba(245, 237, 220, 0.92) 100%)',
+      bg: 'transparent', // Let background image show through
       furnitureFill: 'rgba(85, 114, 86, 0.12)',
       furnitureStroke: '#b8a890',
-      roomFill: 'rgba(255, 250, 240, 0.4)',
+      roomFill: 'rgba(255, 250, 240, 0.1)', // More transparent to show background
       roomStroke: '#9d8f7a', // Darker, more visible walls
       textPrimary: '#6d5d44',
       textSecondary: '#8b7c6a',
@@ -37,10 +40,10 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
       doorUnlocked: '#6a9a6d'
     },
     dark: {
-      bg: '#1a1f2e',
+      bg: 'transparent', // Let background image show through
       furnitureFill: 'rgba(148, 163, 184, 0.3)',
       furnitureStroke: '#94a3b8',
-      roomFill: 'rgba(30, 41, 59, 0.3)',
+      roomFill: 'rgba(30, 41, 59, 0.1)', // More transparent to show background
       roomStroke: '#7dd3fc',
       textPrimary: '#7dd3fc',
       textSecondary: '#94a3b8',
@@ -60,6 +63,21 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
   }
 
   const { bounds, rooms, doors, furniture } = mapData;
+
+  // Helper function to generate line of sight cone path
+  const generateViewConePath = (x, y, facing, angle, distance) => {
+    const halfAngle = (angle / 2) * (Math.PI / 180);
+    // Adjust facing by -90° to convert from game coordinates (0°=North) to trig coordinates (0°=East)
+    const facingRad = (facing - 90) * (Math.PI / 180);
+
+    const leftEdgeX = x + Math.cos(facingRad - halfAngle) * distance;
+    const leftEdgeY = y + Math.sin(facingRad - halfAngle) * distance;
+    const rightEdgeX = x + Math.cos(facingRad + halfAngle) * distance;
+    const rightEdgeY = y + Math.sin(facingRad + halfAngle) * distance;
+
+    // Arc path for smooth cone
+    return `M ${x},${y} L ${leftEdgeX},${leftEdgeY} A ${distance},${distance} 0 0,1 ${rightEdgeX},${rightEdgeY} Z`;
+  };
 
   // Helper to render furniture icons - Enhanced with detail and glassy appearance
   const renderFurnitureIcon = (item) => {
@@ -441,16 +459,33 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
     }
   };
 
+  // Use provided viewBox or default to full map
+  const svgViewBox = viewBox
+    ? `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`
+    : `0 0 ${bounds.width} ${bounds.height}`;
+
   return (
     <div className="map-container" data-theme={theme}>
       <svg
-        viewBox={`0 0 ${bounds.width} ${bounds.height}`}
-        className="map-svg interior-map"
+        viewBox={svgViewBox}
+        preserveAspectRatio="xMidYMid meet"
+        className="map-svg interior-map w-full h-full"
         style={{
-          background: colors.bg,
-          backdropFilter: theme === 'light' ? 'blur(1px) brightness(1.02)' : 'none'
+          background: colors.bg
         }}
       >
+        {/* Background image overlay - themed */}
+        <image
+          href={theme === 'light' ? '/maps/boticamaplight.png' : '/maps/boticamapdark.png'}
+          x="0"
+          y="0"
+          width={bounds.width}
+          height={bounds.height}
+          preserveAspectRatio="xMidYMid meet"
+          opacity="0.7"
+          style={{ pointerEvents: 'none' }}
+        />
+
         {/* Define filters for glowy effect */}
         <defs>
           {/* Main glow filter */}
@@ -512,28 +547,27 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
                 />
 
                 {/* Room label with background for legibility */}
+                {/* COMMENTED OUT - Testing without room labels
                 <g>
-                  {/* Label background pill */}
                   <rect
                     x={room.polygon[0][0] + 12}
                     y={room.polygon[0][1] + 8}
-                    width={(room.name?.length || 10) * (isModal ? 15 : 20)}
-                    height={isModal ? "36" : "48"}
+                    width={(room.name?.length || 10) * (isModal ? 20 : 22)}
+                    height={isModal ? "40" : "42"}
                     rx="8"
-                    fill="rgba(255, 252, 245, 0.9)"
+                    fill={theme === 'light' ? 'rgba(255, 252, 245, 0.9)' : 'rgba(30, 41, 59, 0.9)'}
                     stroke={colors.roomStroke}
                     strokeWidth="2"
                     opacity="0.95"
                     style={{ pointerEvents: 'none' }}
                   />
-                  {/* Label text */}
                   <text
                     x={room.polygon[0][0] + 20}
-                    y={room.polygon[0][1] + (isModal ? 32 : 40)}
+                    y={room.polygon[0][1] + (isModal ? 28 : 36)}
                     className="room-label"
-                    fontSize={isModal ? "24" : "32"}
-                    fontWeight="700"
-                    fill={colors.textPrimary}
+                    fontSize={isModal ? "26" : "36"}
+                    fontWeight="500"
+                    fill={theme === 'light' ? colors.textPrimary : '#f59e0b'}
                     opacity={isHovered ? 1 : 0.95}
                     filter={theme === 'dark' ? 'url(#glow)' : 'none'}
                     style={{ pointerEvents: 'none' }}
@@ -541,6 +575,7 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
                     {room.name}
                   </text>
                 </g>
+                */}
               </g>
             );
           })}
@@ -558,6 +593,7 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
                   key={item.id}
                   onMouseEnter={() => setHoveredFurniture(item.id)}
                   onMouseLeave={() => setHoveredFurniture(null)}
+                  onClick={() => onFurnitureClick && onFurnitureClick(item)}
                   className="furniture-item"
                   style={{ cursor: 'pointer' }}
                 >
@@ -568,12 +604,12 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
                     <g>
                       {/* Label background */}
                       <rect
-                        x={x - (item.name.length * 5)}
-                        y={y - (item.size ? item.size[1] / 2 : 20) - 30}
-                        width={item.name.length * 10}
-                        height="24"
-                        rx="5"
-                        fill="rgba(255, 252, 245, 0.95)"
+                        x={x - (item.name.length * (isModal ? 8 : 10))}
+                        y={y + (item.size ? item.size[1] / 2 : 20) + 8}
+                        width={item.name.length * (isModal ? 16 : 20)}
+                        height={isModal ? "32" : "36"}
+                        rx="6"
+                        fill={theme === 'light' ? 'rgba(255, 252, 245, 0.95)' : 'rgba(30, 41, 59, 0.95)'}
                         stroke={colors.furnitureStroke}
                         strokeWidth="2"
                         filter={theme === 'dark' ? 'url(#glow)' : 'none'}
@@ -581,12 +617,14 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
                       {/* Label text */}
                       <text
                         x={x}
-                        y={y - (item.size ? item.size[1] / 2 : 20) - 14}
-                        fontSize="18"
-                        fontWeight="700"
+                        y={y + (item.size ? item.size[1] / 2 : 20) + 8 + (isModal ? 22 : 24)}
+                        fontSize={isModal ? "18" : "22"}
+                        fontWeight="600"
+                        fontFamily="system-ui, -apple-system, sans-serif"
+                        letterSpacing="1.2"
                         fill={colors.textPrimary}
                         textAnchor="middle"
-                        style={{ pointerEvents: 'none' }}
+                        style={{ pointerEvents: 'none', textTransform: 'uppercase' }}
                       >
                         {item.name}
                       </text>
@@ -652,7 +690,7 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
                       x={x + 30}
                       y={y + 5}
                       className="door-label"
-                      fontSize="18"
+                      fontSize={isModal ? "20" : "24"}
                       fontWeight="700"
                       fill={door.isLocked ? colors.doorLocked : colors.doorUnlocked}
                       filter={theme === 'dark' ? 'url(#glow)' : 'none'}
@@ -697,7 +735,7 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
                     x={npc.position[0]}
                     y={npc.position[1] - 20}
                     className="npc-label"
-                    fontSize="12"
+                    fontSize={isModal ? "14" : "16"}
                     fill={colors.textPrimary}
                     fontWeight="bold"
                     textAnchor="middle"
@@ -770,6 +808,17 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
               />
             </circle>
 
+            {/* Line of sight cone */}
+            <path
+              d={generateViewConePath(playerPosition.x, playerPosition.y, playerFacing, 90, 120)}
+              fill={colors.playerMarker}
+              fillOpacity="0.15"
+              stroke={colors.playerStroke}
+              strokeWidth="1"
+              strokeOpacity="0.3"
+              style={{ pointerEvents: 'none' }}
+            />
+
             {/* Player marker (solid center) - MUCH BIGGER */}
             <circle
               cx={playerPosition.x}
@@ -782,15 +831,17 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
               className="player-marker"
             />
 
-            {/* Direction indicator (north arrow) - BIGGER */}
-            <path
-              d={`M ${playerPosition.x} ${playerPosition.y - 20} L ${playerPosition.x - 5} ${playerPosition.y - 13} L ${playerPosition.x} ${playerPosition.y - 15} L ${playerPosition.x + 5} ${playerPosition.y - 13} Z`}
-              fill={colors.playerMarker}
-              stroke={colors.playerStroke}
-              strokeWidth="1.5"
-              filter={theme === 'light' ? 'drop-shadow(0 0 3px rgba(107, 138, 106, 0.5))' : 'url(#glow)'}
-              style={{ pointerEvents: 'none' }}
-            />
+            {/* Direction indicator (rotatable arrow) - BIGGER */}
+            <g transform={`rotate(${playerFacing} ${playerPosition.x} ${playerPosition.y})`}>
+              <path
+                d={`M ${playerPosition.x} ${playerPosition.y - 20} L ${playerPosition.x - 5} ${playerPosition.y - 13} L ${playerPosition.x} ${playerPosition.y - 15} L ${playerPosition.x + 5} ${playerPosition.y - 13} Z`}
+                fill={colors.playerMarker}
+                stroke={colors.playerStroke}
+                strokeWidth="1.5"
+                filter={theme === 'light' ? 'drop-shadow(0 0 3px rgba(107, 138, 106, 0.5))' : 'url(#glow)'}
+                style={{ pointerEvents: 'none' }}
+              />
+            </g>
 
             {/* Player label with background */}
             <rect
@@ -807,7 +858,7 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
               x={playerPosition.x}
               y={playerPosition.y + 36}
               className="player-label"
-              fontSize="13"
+              fontSize={isModal ? "14" : "16"}
               fill={colors.textPrimary}
               fontWeight="bold"
               textAnchor="middle"

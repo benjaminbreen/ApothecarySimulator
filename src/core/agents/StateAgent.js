@@ -89,6 +89,7 @@ function buildStatePrompt(scenario, movementData = null) {
   "inventoryChanges": [{"item": "string", "quantity": number, "action": "bought|sold|used|foraged|received|lost", "price": number}],
   "relationshipChanges": [{"npcId": "kebab-case", "npcName": "Full Name", "delta": -20 to +20, "reason": "brief"}],
   "contractOffer": {"type": "treatment|sale|null", "offeredBy": "string", "offeredByDescription": "string", "patientName": "string", "patientDescription": "string", "paymentOffered": number, "itemRequested": "string"},
+  "tradeOpportunity": {"npcId": "kebab-case", "npcName": "Full Name", "npcPortrait": "/portraits/filename.jpg", "type": "buy|sell|null", "interest": {"items": ["item1", "item2"], "reason": "brief explanation", "urgency": "low|moderate|high", "priceMultiplier": 1.0}, "offering": {"items": [{"name": "item", "quantity": 1, "price": 10}]}, "context": "brief context"},
   "journalEntry": "**Date, Time, Location**: One sentence with **NPC names bolded**",
   "systemAnnouncements": []
 }
@@ -108,14 +109,29 @@ function buildStatePrompt(scenario, movementData = null) {
 - **Type "treatment"**: Extract offeredBy, offeredByDescription, patientName, patientDescription, paymentOffered (number or 0)
 - **Type "sale"**: Extract offeredBy, offeredByDescription, itemRequested, paymentOffered
 - **Type null**: Default (no contract)
-- **System announcement**: Add "A potential contract offer for [type] has been detected, pending player acceptance of the terms ([payment])." when type is NOT null
+- **System announcement**: Add "A potential contract for [type] has been offered, pending acceptance of the terms ([payment])." when type is NOT null
+
+**Trade Opportunity Detection** (NEW):
+- **Detect when**: NPC explicitly expresses interest in buying/selling items (e.g., "I need chocolate", "Do you have cinnamon to sell?", "I'm selling silk")
+- **DO NOT detect**: Generic conversation, already at market, completed transactions
+- **Type "buy"**: NPC wants to purchase items from Maria. Extract: items they want, reason, urgency (low/moderate/high), priceMultiplier (1.0-1.5 if willing to pay premium)
+- **Type "sell"**: NPC offers items for sale. Extract: offering items with names, quantities, and prices
+- **Type null**: Default (no trade opportunity)
+- **Portrait**: Use NPC portrait path if available from narrative context
+- **Context**: Brief 1-sentence context about the trade (e.g., "Needs chocolate for daughter's wedding")
+
+Examples:
+- NPC says "I desperately need chocolate for my daughter's wedding" → type: "buy", items: ["chocolate"], urgency: "high", reason: "Wedding gift", priceMultiplier: 1.2
+- NPC says "I'm selling fine silk from China, 10 reales" → type: "sell", offering: [{"name": "Chinese Silk", "quantity": 1, "price": 10}]
+- Normal conversation → type: null
 
 **Rules**:
 - Wealth changes match inventory (${currencyName})
 - Time moves forward only
-- Location: Include region/city
+- Location: Include building/region/city BUT NEVER include interior room names (shop floor/laboratory/bedroom)
 - Conservative: Reputation/relationships rarely change
-- Contracts: Only when actively negotiating, never on first mention`;
+- Contracts: Only when actively negotiating, never on first mention
+- Trade opportunities: Only when NPC explicitly mentions buying/selling, not at markets`;
 }
 
 /**
@@ -127,6 +143,7 @@ function buildStatePrompt(scenario, movementData = null) {
  * @param {string} params.playerAction - What player did
  * @param {Object|null} params.selectedEntity - NPC if present
  * @param {Object|null} params.mapData - Current map data for movement tracking
+ * @param {Array} params.availableLocations - Locations reachable from current position
  * @returns {Promise<Object>} Extracted state
  */
 export async function extractGameState({
@@ -136,7 +153,8 @@ export async function extractGameState({
   playerAction,
   selectedEntity = null,
   mapData = null,
-  turnNumber = 0
+  turnNumber = 0,
+  availableLocations = [] // NEW: Location registry for granular location tracking
 }) {
   try {
     // Load scenario
@@ -167,6 +185,10 @@ export async function extractGameState({
 - Date: ${currentGameState.date}
 ${currentGameState.position ? `- Position: Grid (${Math.floor(currentGameState.position.x / 20)}, ${Math.floor(currentGameState.position.y / 20)})` : ''}
 
+${availableLocations.length > 0 ? `Available Locations (reachable from here):
+${availableLocations.map(loc => `- ${loc.fullName}`).join('\n')}
+` : ''}
+
 Player Action: ${playerAction}
 
 ${selectedEntity ? `NPC Involved: ${selectedEntity.name}` : ''}
@@ -181,7 +203,14 @@ ${movementData.nearbyLocations.length > 0 ? `Nearby: ${movementData.nearbyLocati
 Narrative That Just Occurred:
 ${narrative}
 
-Analyze this narrative and extract game state changes. Return JSON with the specified format.${movementData && !movementData.valid ? '\n\nIMPORTANT: Movement was BLOCKED. Position should NOT change.' : ''}`;
+Analyze this narrative and extract game state changes. Return JSON with the specified format.${movementData && !movementData.valid ? '\n\nIMPORTANT: Movement was BLOCKED. Position should NOT change.' : ''}
+
+LOCATION TRACKING:
+- If player moved to a different location, return the SPECIFIC location name
+- Use exact names from "Available Locations" list when player goes to those places
+- For example: "Bedroom, Botica de la Amargura" instead of just "Mexico City"
+- If location didn't change, return current location exactly as is
+- Be specific and granular - rooms, buildings, streets have meaning`;
 
     const messages = [
       { role: 'system', content: statePrompt },

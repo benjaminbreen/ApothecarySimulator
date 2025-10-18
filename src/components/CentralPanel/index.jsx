@@ -34,6 +34,20 @@ export function CentralPanel({
   pendingContract,
   onOpenContractModal,
 
+  // Exit confirmation props
+  pendingExitConfirmation,
+  onConfirmExit,
+  onCancelExit,
+
+  // Trade props
+  tradeOpportunities,
+  onAcceptTrade,
+  onDeclineTrade,
+
+  // Simple interaction props
+  pendingSimpleInteraction,
+  onSimpleInteractionChoice,
+
   // Prescription props for Patient View
   gameState,
   updateInventory,
@@ -44,6 +58,8 @@ export function CentralPanel({
   currentWealth,
   prescriptionType,
   advanceTime,
+  energy,
+  updateEnergy,
   transactionManager,
   TRANSACTION_CATEGORIES,
   toggleInventory,
@@ -94,6 +110,15 @@ export function CentralPanel({
               pendingPrescription={pendingPrescription}
               pendingContract={pendingContract}
               onOpenContractModal={onOpenContractModal}
+              pendingExitConfirmation={pendingExitConfirmation}
+              onConfirmExit={onConfirmExit}
+              onCancelExit={onCancelExit}
+              tradeOpportunities={tradeOpportunities}
+              onAcceptTrade={onAcceptTrade}
+              onDeclineTrade={onDeclineTrade}
+              pendingSimpleInteraction={pendingSimpleInteraction}
+              onSimpleInteractionChoice={onSimpleInteractionChoice}
+              gameState={gameState}
               fontSize={narrationFontSize}
               isDarkMode={narrationDarkMode}
             />
@@ -122,6 +147,8 @@ export function CentralPanel({
               currentWealth={currentWealth}
               prescriptionType={prescriptionType}
               advanceTime={advanceTime}
+              energy={energy}
+              updateEnergy={updateEnergy}
               transactionManager={transactionManager}
               TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
               toggleInventory={toggleInventory}

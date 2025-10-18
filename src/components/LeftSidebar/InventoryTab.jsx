@@ -33,7 +33,7 @@ function DraggableInventoryItem({ item, children }) {
  * rarity-based colors, quality badges, and glassomorphic effects
  * Now with Materia Medica / Other Items sections and Grid/List view toggle
  */
-export function InventoryTab({ onItemClick, inventory = [] }) {
+export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [] }) {
   const [viewMode, setViewMode] = React.useState('grid'); // 'grid' or 'list'
   const [sortBy, setSortBy] = React.useState('name'); // 'name', 'quantity', 'price', 'type'
   const [isDark, setIsDark] = React.useState(document.documentElement.classList.contains('dark'));
@@ -345,6 +345,7 @@ export function InventoryTab({ onItemClick, inventory = [] }) {
       {medicineItems.length > 12 && (
         <div
           className="rounded-xl flex items-center justify-center relative overflow-hidden cursor-pointer group"
+          onClick={() => onOpenFullInventory?.()}
           style={{
             aspectRatio: '1 / 1',
             background: 'linear-gradient(135deg, rgba(187, 247, 208, 0.5) 0%, rgba(134, 239, 172, 0.4) 100%)',
@@ -600,6 +601,23 @@ export function InventoryTab({ onItemClick, inventory = [] }) {
           )}
         </div>
       )}
+
+      {/* View Full Inventory Link - Always visible at bottom */}
+      <div className="pt-3 mt-2 border-t border-ink-200/40 dark:border-slate-700/40">
+        <button
+          onClick={() => onOpenFullInventory?.()}
+          className="w-full py-2 px-3 rounded-lg text-xs font-sans font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all duration-200 flex items-center justify-center gap-2"
+          style={{
+            background: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.08)',
+            border: isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(16, 185, 129, 0.25)'
+          }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+          View Full Inventory
+        </button>
+      </div>
     </div>
   );
 }

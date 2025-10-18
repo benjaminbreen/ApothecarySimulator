@@ -4,6 +4,36 @@ import PropTypes from 'prop-types';
 const CompoundResultCard = ({ compound }) => {
   const isSuccess = compound.name !== 'Unusable Sludge';
 
+  // Rarity colors and styling
+  const rarityStyles = {
+    common: {
+      bg: 'from-slate-500 to-slate-600 dark:from-slate-600 dark:to-slate-700',
+      border: 'border-slate-700 dark:border-slate-800',
+      glow: 'rgba(100, 116, 139, 0.3)',
+      text: 'Common'
+    },
+    scarce: {
+      bg: 'from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700',
+      border: 'border-blue-700 dark:border-blue-800',
+      glow: 'rgba(59, 130, 246, 0.4)',
+      text: 'Scarce'
+    },
+    rare: {
+      bg: 'from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700',
+      border: 'border-purple-700 dark:border-purple-800',
+      glow: 'rgba(168, 85, 247, 0.5)',
+      text: 'Rare'
+    },
+    legendary: {
+      bg: 'from-amber-400 via-orange-500 to-amber-400 dark:from-amber-500 dark:via-orange-600 dark:to-amber-500',
+      border: 'border-amber-600 dark:border-amber-700',
+      glow: 'rgba(251, 146, 60, 0.6)',
+      text: 'Legendary'
+    }
+  };
+
+  const rarity = rarityStyles[compound.rarity] || rarityStyles.common;
+
   return (
     <div className={`
       relative rounded-3xl p-8 mb-6 border-4 border-double shadow-2xl overflow-hidden
@@ -29,6 +59,23 @@ const CompoundResultCard = ({ compound }) => {
       `}>
         {isSuccess ? '✨ SUCCESS' : '⚠️ FAILED EXPERIMENT'}
       </div>
+
+      {/* Rarity Badge - Only show for successful compounds */}
+      {isSuccess && compound.rarity && (
+        <div
+          className={`
+            absolute -top-1 right-8 px-6 py-2 rounded-b-xl border-2 border-t-0 font-display font-bold text-sm tracking-widest shadow-lg
+            bg-gradient-to-b ${rarity.bg} text-white ${rarity.border} uppercase animate-pulse
+          `}
+          style={{
+            boxShadow: `0 4px 12px ${rarity.glow}, 0 0 20px ${rarity.glow}`
+          }}
+        >
+          {compound.rarity === 'legendary' && '⭐ '}
+          {rarity.text}
+          {compound.rarity === 'legendary' && ' ⭐'}
+        </div>
+      )}
 
       <div className="flex items-start gap-8 mt-4">
         {/* Compound Emoji */}
@@ -116,14 +163,54 @@ const CompoundResultCard = ({ compound }) => {
             </p>
           </div>
 
-          {/* Citation */}
+          {/* Citation & Historical Accuracy */}
           <div className="border-t-2 border-ink-200 dark:border-slate-700 pt-4">
-            <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-2">
-              Historical Source
-            </span>
-            <p className="text-sm text-ink-600 dark:text-amber-300/80 font-serif italic leading-relaxed">
-              📜 {compound.citation || 'Unknown source'}
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-2">
+                  Historical Source
+                </span>
+                <p className="text-sm text-ink-600 dark:text-amber-300/80 font-serif italic leading-relaxed">
+                  📜 {compound.citation || 'Unknown source'}
+                </p>
+              </div>
+
+              {/* Historical Accuracy Score */}
+              {isSuccess && compound.historicalAccuracyScore && (
+                <div className="flex-shrink-0 text-center">
+                  <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-1">
+                    Authenticity
+                  </span>
+                  <div className="relative">
+                    <div className="text-2xl font-bold font-display" style={{
+                      color: compound.historicalAccuracyScore >= 86 ? '#f59e0b' :
+                             compound.historicalAccuracyScore >= 61 ? '#a855f7' :
+                             compound.historicalAccuracyScore >= 31 ? '#3b82f6' : '#64748b'
+                    }}>
+                      {compound.historicalAccuracyScore}
+                      <span className="text-sm">/100</span>
+                    </div>
+                    <p className="text-xs text-ink-500 dark:text-amber-400/70 mt-1 font-sans">
+                      {compound.historicalAccuracyScore >= 86 ? 'Legendary' :
+                       compound.historicalAccuracyScore >= 61 ? 'Sophisticated' :
+                       compound.historicalAccuracyScore >= 31 ? 'Well-documented' : 'Common'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Historical Accuracy Rationale */}
+            {isSuccess && compound.historicalAccuracyRationale && (
+              <div className="mt-3 pt-3 border-t border-ink-200/50 dark:border-slate-700/50">
+                <div className="flex items-start gap-2">
+                  <span className="text-ink-400 dark:text-amber-400/50 text-sm flex-shrink-0">💡</span>
+                  <p className="text-xs text-ink-600 dark:text-amber-300/70 font-serif italic leading-relaxed">
+                    {compound.historicalAccuracyRationale}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -159,7 +246,10 @@ CompoundResultCard.propTypes = {
     humoralQualities: PropTypes.string,
     medicinalEffects: PropTypes.string,
     description: PropTypes.string,
-    citation: PropTypes.string
+    citation: PropTypes.string,
+    rarity: PropTypes.oneOf(['common', 'scarce', 'rare', 'legendary']),
+    historicalAccuracyScore: PropTypes.number,
+    historicalAccuracyRationale: PropTypes.string
   }).isRequired
 };
 

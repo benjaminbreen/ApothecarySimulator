@@ -342,7 +342,7 @@ function GameSection({ scenario, gameState, health: propsHealth, energy: propsEn
 
   return (
     <div className="space-y-3">
-      
+
 
       {/* Header with Resources */}
       <div className="flex items-start justify-between gap-4">

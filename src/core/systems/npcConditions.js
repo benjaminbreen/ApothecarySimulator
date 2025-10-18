@@ -11,6 +11,35 @@
  */
 
 /**
+ * Parse time string to hour (24-hour format)
+ * @param {string} timeStr - Time in format "H:MM AM/PM"
+ * @returns {number} - Hour in 24-hour format (0-23)
+ */
+function parseTimeToHour(timeStr) {
+  if (!timeStr) return 12; // Default to noon if no time provided
+
+  try {
+    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return 12;
+
+    let hour = parseInt(match[1]);
+    const period = match[3].toUpperCase();
+
+    // Convert to 24-hour format
+    if (period === 'PM' && hour !== 12) {
+      hour += 12;
+    } else if (period === 'AM' && hour === 12) {
+      hour = 0;
+    }
+
+    return hour;
+  } catch (e) {
+    console.warn('[npcConditions] Error parsing time:', timeStr, e);
+    return 12;
+  }
+}
+
+/**
  * Check if an NPC should appear based on game state
  * @param {string} npcName - Name of the NPC to check
  * @param {Object} gameState - Current game state
@@ -163,6 +192,100 @@ export function checkNPCConditions(npcName, gameState) {
       if ((reputation.elite || 50) > 60) {
         weight = 2;
         reason = "Good standing with elite";
+      }
+      break;
+
+    // ==================== SIMPLE INTERACTION NPCs ====================
+
+    case "Pedro Vázquez":
+      // Water seller - appears frequently during daytime at shop
+      const hour = parseTimeToHour(time);
+      if (hour < 8 || hour > 18) {
+        // Not working hours for water seller
+        available = false;
+        reason = "Water seller doesn't work at night";
+      } else if (location && location.toLowerCase().includes('botica')) {
+        // High frequency when at shop
+        weight = 15;
+        reason = "Water seller making rounds";
+      } else {
+        weight = 3;
+        reason = "Chance encounter with water seller";
+      }
+      break;
+
+    case "Widow Socorro":
+      // Beggar - appears during day, more likely if player has good reputation
+      const hourSocorro = parseTimeToHour(time);
+      if (hourSocorro < 7 || hourSocorro > 19) {
+        available = false;
+        reason = "Widow Socorro seeks shelter at night";
+      } else if ((reputation.commonFolk || 50) >= 60) {
+        // Known to be kind to the poor
+        weight = 10;
+        reason = "Widow knows Maria is charitable";
+      } else if ((reputation.commonFolk || 50) >= 40) {
+        weight = 5;
+        reason = "Widow has heard Maria might help";
+      } else {
+        weight = 2;
+        reason = "Widow desperate enough to ask anyone";
+      }
+      break;
+
+    case "Don Rodrigo Salazar":
+      // Rival apothecary - appears when shop sign is hung and reputation is rising
+      if (!shopSign.hung) {
+        available = false;
+        reason = "Rival doesn't notice Maria until shop sign hung";
+      } else if (turnNumber < 5) {
+        available = false;
+        reason = "Too early for rival to appear";
+      } else if ((reputation.merchants || 50) >= 65) {
+        // Maria's reputation threatens rival
+        weight = 12;
+        reason = "Rival threatened by Maria's reputation";
+      } else if ((reputation.merchants || 50) >= 50) {
+        weight = 6;
+        reason = "Rival scouting competitor";
+      } else {
+        weight = 2;
+        reason = "Rival keeping tabs on new apothecary";
+      }
+      break;
+
+    case "Tomás Cruz":
+      // Street urchin gossip - appears randomly during day, more if player pays
+      const hourTomas = parseTimeToHour(time);
+      if (hourTomas < 6 || hourTomas > 20) {
+        available = false;
+        reason = "Tomás sleeping in alley";
+      } else if (location && (location.toLowerCase().includes('market') || location.toLowerCase().includes('street'))) {
+        // More likely to encounter on streets/market
+        weight = 8;
+        reason = "Tomás spotted on the streets";
+      } else {
+        weight = 4;
+        reason = "Tomás making his rounds";
+      }
+      break;
+
+    case "Sister Teresa de Ávila":
+      // Friendly nun - appears occasionally, more when player needs warnings
+      if (turnNumber < 8) {
+        available = false;
+        reason = "Too early for nun's friendship";
+      } else if ((reputation.church || 50) < 30) {
+        // Trying to warn Maria of danger
+        weight = 10;
+        reason = "Sister Teresa concerned about Inquisition threat";
+      } else if ((reputation.church || 50) >= 60) {
+        // Friendly social visits
+        weight = 5;
+        reason = "Sister Teresa friendly visit";
+      } else {
+        weight = 2;
+        reason = "Sister Teresa passing by";
       }
       break;
 

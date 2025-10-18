@@ -25,6 +25,8 @@ export function PatientViewTab({
   currentWealth,
   prescriptionType,
   advanceTime,
+  energy,
+  updateEnergy,
   transactionManager,
   TRANSACTION_CATEGORIES,
   toggleInventory,
@@ -106,6 +108,14 @@ export function PatientViewTab({
   // Handle diagnosis submission
   const handleDiagnosisSubmit = (diagnosis) => {
     setDiagnosisData(diagnosis);
+
+    // Apply energy cost and time advancement
+    const currentEnergy = energy || 50;
+    const newEnergy = Math.max(0, currentEnergy - 1);
+    updateEnergy(newEnergy);
+    advanceTime({ minutes: 10 });
+    console.log('[Energy] Diagnosis cost: -1 energy');
+    console.log('[Time] Diagnosis: +10 minutes');
 
     // Add to journal
     if (addJournalEntry) {

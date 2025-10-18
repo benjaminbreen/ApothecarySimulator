@@ -1,45 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import apothecaryImage from '../../../assets/apothecary.jpeg';
 import mariaCoelhoImage from '../../../assets/mariacoelho.jpeg';
-import mariaDetermined from '../../../assets/mariadetermined.jpg';
-import mariaHappy from '../../../assets/mariahappy.jpg';
-import mariaNormal from '../../../assets/marianormal.jpg';
-import mariaSad from '../../../assets/mariasad.jpg';
-import mariaWorried from '../../../assets/mariaworried.jpg';
-import mariaCurious from '../../../assets/mariacurious.jpg';
 import '../../../PortraitSection.css';
 import { entityManager } from '../../../core/entities/EntityManager';
 import { initialInventoryData } from '../../../initialInventory'; // Assuming you have this file as in `HistoryOutput`
 import PDFPopup from '../../../shared/components/PDFPopup';  // Direct import since we're no longer lazy loading
 
-const statusMappings = {
-  normal: ['rested', 'calm', 'neutral', 'normal', 'composed', 'serene'],
-  happy: ['content', 'happy', 'joyful', 'pleased', 'satisfied', 'elated', 'cheerful', 'delighted'],
-  worried: ['worried', 'frightened', 'anxious', 'nervous', 'concerned', 'troubled', 'uneasy', 'weary', 'uncertain'],
-  sad: ['sad', 'melancholy', 'depressed', 'downcast', 'gloomy', 'forlorn', 'terrified', 'desperate'],
-  determined: ['determined', 'resolute', 'focused', 'steadfast', 'resolved', 'unwavering'],
-  curious: ['curious', 'inquisitive', 'interested', 'intrigued', 'exploratory', 'questioning', 'fascinated', 'perceptive', 'reckless'],
-};
-
-const getStatusImage = (status) => {
-  if (statusMappings.normal.includes(status)) {
-    return mariaNormal;
-  } else if (statusMappings.happy.includes(status)) {
-    return mariaHappy;
-  } else if (statusMappings.worried.includes(status)) {
-    return mariaWorried;
-  } else if (statusMappings.sad.includes(status)) {
-    return mariaSad;
-  } else if (statusMappings.determined.includes(status)) {
-    return mariaDetermined;
-  } else if (statusMappings.curious.includes(status)) {
-    return mariaCurious;
-  } else {
-    return mariaNormal;
-  }
-};
-
-function PortraitSection({ npcImage, npcCaption, npcInfo, pcCaption, status, isEmoji }) {
+function PortraitSection({ npcImage, npcCaption, npcInfo, pcCaption, portraitImage, isEmoji }) {
   const [showNpcPopup, setShowNpcPopup] = useState(false);
   const [showPcPopup, setShowPcPopup] = useState(false);
   const [isPdfOpen, setIsPdfOpen] = useState(false);
@@ -95,9 +62,6 @@ function PortraitSection({ npcImage, npcCaption, npcInfo, pcCaption, status, isE
     setShowSecretPopup(false);
     setNpcSecret(null);
   };
-
-  // Memoize Maria's portrait image based on her status
-  const mariaPortrait = useMemo(() => getStatusImage(status), [status]);
 
   const pcInfoContent = (
     <div>
@@ -186,7 +150,7 @@ function PortraitSection({ npcImage, npcCaption, npcInfo, pcCaption, status, isE
 
       <div className="pc-portrait-container" onClick={() => setShowPcPopup(true)}>
         <div>
-          <img src={mariaPortrait} alt="Maria" className="pc-portrait-image" />
+          <img src={portraitImage} alt="Maria" className="pc-portrait-image" />
           <p className="portrait-caption">{pcCaption}</p>
         </div>
       </div>
@@ -208,7 +172,7 @@ function PortraitSection({ npcImage, npcCaption, npcInfo, pcCaption, status, isE
 
       {showPcPopup && (
         <div className="pc-portrait-popup">
-          <img src={mariaPortrait} alt="Maria" className="popup-portrait-image" />
+          <img src={portraitImage} alt="Maria" className="popup-portrait-image" />
           <p><strong>Maria de Lima</strong></p>
           <div className="popup-info">{pcInfoContent}</div>
           <button onClick={() => setShowPcPopup(false)} className="close-map-button">Close</button>

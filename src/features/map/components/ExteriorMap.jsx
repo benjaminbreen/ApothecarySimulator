@@ -9,11 +9,13 @@ import './Map.css';
  * @param {import('../../../core/types/map.types').ExteriorMapData} props.mapData - Map data to render
  * @param {import('../../../core/types/map.types').NPCMarker[]} props.npcs - NPCs to show on map
  * @param {Object} props.playerPosition - Player's current position {x, y}
+ * @param {number} props.playerFacing - Player facing direction in degrees (0=N, 90=E, 180=S, 270=W)
  * @param {Function} props.onBuildingClick - Callback when building is clicked
  * @param {Function} props.onLandmarkClick - Callback when landmark is clicked
+ * @param {Object} props.viewBox - ViewBox to use for zoom/pan {x, y, width, height} (optional, defaults to full map)
  * @param {string} props.theme - Theme mode: 'light' or 'dark' (defaults to 'light')
  */
-export default function ExteriorMap({ mapData, npcs = [], playerPosition = null, onBuildingClick, onLandmarkClick, theme = 'light', zoom = 1 }) {
+export default function ExteriorMap({ mapData, npcs = [], playerPosition = null, playerFacing = 180, onBuildingClick, onLandmarkClick, viewBox, theme = 'light' }) {
   const [hoveredBuilding, setHoveredBuilding] = useState(null);
   const [hoveredNPC, setHoveredNPC] = useState(null);
 
@@ -131,11 +133,23 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
 
   const { bounds, streets, buildings, landmarks, acequias = [], barrios = [], parks = [], cityBlocks = [] } = mapData;
 
+  // Use provided viewBox or default to full map
+  const svgViewBox = viewBox
+    ? `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`
+    : `0 0 ${bounds.width} ${bounds.height}`;
+
+  // Calculate effective zoom from viewBox for label visibility
+  // zoom = map width / visible width
+  const zoom = viewBox
+    ? bounds.width / viewBox.width
+    : 1;
+
   return (
     <div className="map-container">
       <svg
-        viewBox={`0 0 ${bounds.width} ${bounds.height}`}
-        className="map-svg exterior-map"
+        viewBox={svgViewBox}
+        preserveAspectRatio="xMidYMid meet"
+        className="map-svg exterior-map w-full h-full"
         style={{ backgroundColor: colors.bg }}
       >
         {/* Define filters for glowy effect */}

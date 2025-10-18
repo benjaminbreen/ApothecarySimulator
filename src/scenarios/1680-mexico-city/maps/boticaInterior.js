@@ -14,7 +14,7 @@ export default {
     width: 1000,  // Increased to add margin around house
     height: 800
   },
-  startPosition: [500, 550], // Behind counter on shop floor
+  startPosition: [510, 480], // Behind counter on shop floor (grid 25, 31)
 
   // Rooms - Simplified to 3 larger, clearer spaces with margin around house
   rooms: [
@@ -28,7 +28,8 @@ export default {
         [900, 700],
         [100, 700]
       ],
-      type: 'shop-floor'
+      type: 'shop-floor',
+      spawnPoint: { x: 510, y: 480 } // Behind counter (default start position)
     },
 
     // Laboratory - where Maria mixes compounds (Top right)
@@ -41,7 +42,8 @@ export default {
         [900, 400],
         [500, 400]
       ],
-      type: 'laboratory'
+      type: 'laboratory',
+      spawnPoint: { x: 700, y: 250 } // Center of room, near workbench
     },
 
     // Bedroom - Maria's private quarters (Top left)
@@ -54,7 +56,8 @@ export default {
         [500, 400],
         [100, 400]
       ],
-      type: 'bedroom'
+      type: 'bedroom',
+      spawnPoint: { x: 300, y: 250 } // Center of room, near bed
     }
   ],
 
@@ -113,23 +116,23 @@ export default {
       id: 'shop-counter',
       name: 'Sales Counter',
       type: 'counter',
-      position: [500, 550],  // Centered, below label area
+      position: [455, 550],  // Centered, below label area
       rotation: 0,
-      size: [420, 70]  // Wide counter, not too deep
+      size: [460, 70]  // Wide counter, not too deep
     },
     {
       id: 'drug-cabinet',
       name: 'Drug Cabinet',
       type: 'shelf',
-      position: [160, 560],  // Moved down to avoid label overlap
+      position: [130, 563],  // Moved down to avoid label overlap
       rotation: 0,
-      size: [90, 200]  // Slightly shorter to fit better
+      size: [53, 220]  // Slightly shorter to fit better
     },
     {
       id: 'customer-chair',
       name: 'Waiting Chair',
       type: 'chair',
-      position: [850, 630],  // Corner area, more visible
+      position: [830, 630],  // Corner area, more visible
       rotation: 40,
       size: [50, 50]  // Larger for better visibility
     },
@@ -139,7 +142,7 @@ export default {
       id: 'workbench',
       name: 'Workbench',
       type: 'table',
-      position: [640, 210],  // Moved down to avoid label overlap
+      position: [620, 210],  // Moved down to avoid label overlap
       rotation: 0,
       size: [200, 80]  // Fits within laboratory boundaries (x: 500-900)
     },
@@ -147,9 +150,9 @@ export default {
       id: 'herb-shelf',
       name: 'Herb Shelf',
       type: 'shelf',
-      position: [850, 250],  // Moved down and adjusted to avoid label overlap
+      position: [830, 240],  // Moved down and adjusted to avoid label overlap
       rotation: 0,
-      size: [80, 160]  // Shorter to fit better and avoid top wall
+      size: [94, 170]  // Shorter to fit better and avoid top wall
     },
 
     // Bedroom - Bed, bookshelf, clothing chest (positioned below label area)
@@ -157,25 +160,25 @@ export default {
       id: 'bed',
       name: 'Bed',
       type: 'bed',
-      position: [350, 200],  // Moved down to avoid label overlap
+      position: [290, 220],  // Moved down to avoid label overlap
       rotation: 0,
-      size: [120, 180]  // More realistic bed proportions
+      size: [130, 180]  // More realistic bed proportions
     },
     {
       id: 'bookshelf',
       name: 'Bookshelf',
       type: 'shelf',
-      position: [140, 260],  // Moved down to avoid label overlap
+      position: [165, 160],  // Moved down to avoid label overlap
       rotation: 0,
-      size: [70, 160]  // Slightly shorter to fit better
+      size: [80, 85]  // Slightly shorter to fit better
     },
     {
       id: 'clothing-chest',
       name: 'Clothing Chest',
       type: 'chest',
-      position: [460, 360],  // Adjusted for better spacing
+      position: [413, 351],  // Adjusted for better spacing
       rotation: 0,
-      size: [60, 60]
+      size: [60, 63]
     }
   ],
 

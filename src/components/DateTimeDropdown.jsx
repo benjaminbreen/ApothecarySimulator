@@ -9,7 +9,12 @@ const DateTimeDropdown = ({
     temperature: '72°F',
     humidity: '45%',
     wind: 'Light breeze'
-  }
+  },
+  // Condensed stats props (shown when CharacterCard is collapsed)
+  showCondensedStats = false,
+  health = 85,
+  energy = 62,
+  wealth = 11
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [calendarView, setCalendarView] = useState('month'); // 'month' | 'week' | 'year'
@@ -296,7 +301,7 @@ const DateTimeDropdown = ({
   const isDark = document.documentElement.classList.contains('dark');
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center gap-3">
       {/* Button */}
       <button
         ref={buttonRef}
@@ -316,6 +321,33 @@ const DateTimeDropdown = ({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
+
+      {/* Condensed Stats (shown when CharacterCard is collapsed) */}
+      {showCondensedStats && (
+        <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-parchment-300 dark:border-slate-600 shadow-sm dark:shadow-dark-elevation-1">
+          {/* Health */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-base" title="Health">❤️</span>
+            <span className="text-sm font-semibold font-sans text-success-700 dark:text-success-400 transition-colors duration-300">{health}</span>
+          </div>
+
+          <div className="w-px h-4 bg-parchment-300 dark:bg-slate-600"></div>
+
+          {/* Energy */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-base" title="Energy">⚡</span>
+            <span className="text-sm font-semibold font-sans text-potion-700 dark:text-potion-400 transition-colors duration-300">{energy}</span>
+          </div>
+
+          <div className="w-px h-4 bg-parchment-300 dark:bg-slate-600"></div>
+
+          {/* Wealth */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-base" title="Reales">💰</span>
+            <span className="text-sm font-semibold font-sans text-warning-700 dark:text-warning-400 transition-colors duration-300">{wealth}</span>
+          </div>
+        </div>
+      )}
 
       {/* Dropdown Panel - Rendered via Portal */}
       {isOpen && createPortal(

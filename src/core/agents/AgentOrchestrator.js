@@ -6,6 +6,8 @@ import { extractGameState, validateGameState } from './StateAgent';
 import { selectContextAwareEntity } from './EntityAgent';
 import { autoGenerateNPCsFromNarrative } from '../entities/autoGenerateNPC';
 import { entityManager } from '../entities/EntityManager';
+import { buildLocationRegistry } from '../../features/map/services/locationRegistry';
+import { scenarioLoader } from '../services/scenarioLoader';
 
 /**
  * @typedef {import('../types/game.types').GameState} GameState
@@ -43,6 +45,7 @@ export async function orchestrateTurn({
   wealth,
   mapData = null,
   playerPosition = null,
+  playerFacing = null,
   currentMapId = null,
   playerSkills = null,
   journal = [],
@@ -102,6 +105,7 @@ export async function orchestrateTurn({
       turnNumber,
       mapData,
       playerPosition,
+      playerFacing,
       currentMapId,
       reputation,
       playerSkills,
@@ -201,7 +205,16 @@ export async function orchestrateTurn({
       console.log(`[Turn ${turnNumber}] Total new entities registered: ${allNewEntities.length}`);
     }
 
-    // Step 3: Extract game state from narrative using StateAgent (with map data for movement)
+    // Step 3: Build location registry for granular location tracking
+    const scenario = scenarioLoader.getScenario(scenarioId);
+    const availableLocations = buildLocationRegistry(scenario, currentMapId || gameState.currentMap);
+
+    if (availableLocations.length > 0) {
+      console.log(`[AgentOrchestrator] Built location registry with ${availableLocations.length} locations:`,
+        availableLocations.map(l => l.fullName).join(', '));
+    }
+
+    // Step 4: Extract game state from narrative using StateAgent (with map data and location registry)
     const stateResult = await extractGameState({
       narrative: narrativeResult.narrative,
       currentGameState: gameState,
@@ -209,13 +222,14 @@ export async function orchestrateTurn({
       selectedEntity,
       scenarioId,
       turnNumber,
-      mapData
+      mapData,
+      availableLocations // NEW: Pass location registry for granular location tracking
     });
 
-    // Step 4: Validate state changes
+    // Step 5: Validate state changes
     const validatedState = validateGameState(stateResult.gameState, gameState);
 
-    // Step 5: Return combined result
+    // Step 6: Return combined result
     // Debug: Log the portrait and patient system passthrough
     console.log('[AgentOrchestrator] showPortraitFor from narrative:', narrativeResult.showPortraitFor);
     console.log('[AgentOrchestrator] primaryPortrait from narrative:', narrativeResult.primaryPortrait);
@@ -237,6 +251,7 @@ export async function orchestrateTurn({
       showPortraitFor: narrativeResult.showPortraitFor || null, // LLM portrait hint (old system)
       primaryPortrait: narrativeResult.primaryPortrait || null, // PHASE 2: Direct portrait filename
       primaryNPC: narrativeResult.primaryNPC || null, // PHASE 2: Complete NPC profile
+      simpleInteraction: narrativeResult.simpleInteraction || null, // Simple interaction data from NarrativeAgent
       requestNewPatient: narrativeResult.requestNewPatient || false, // LLM controls patient flow
       patientContext: narrativeResult.patientContext || null, // Reason for patient arrival
       gameState: validatedState,

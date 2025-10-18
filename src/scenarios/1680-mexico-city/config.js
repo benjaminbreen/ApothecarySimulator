@@ -65,11 +65,11 @@ export default {
   startingWealth: 11,
 
   // Initial narrative text displayed at game start
-  initialNarrative: `Typically, the shelves lining your walls carry neat rows of medicines in jars. But not today — thanks to **Don Luis**, your most valuable medicinal drugs have been stolen or destroyed.
+  initialNarrative: `You are **Maria de Lima**, apothecary. Dawn light bathes your shop in Mexico City. The year is 1680, and you have just awoken from a strange dream, only to find that your shop has been visited by a local moneylender, **Don Luis**, who has left behind a message warning you to pay him 100 reales in a week... or else. 
 
-As you grind cacao in a *molcajete* to make hot chocolate, you ponder what to do about your debts, which now top 100 reales. For now, your next move is to feed some scraps of dried fish to a friendly street kitten who you've named **João**.
+As you grind cacao in a *molcajete* to make hot chocolate, you ponder what to do about your debts. For now, your next move is to feed some scraps of dried fish to a friendly street kitten who you've named **João**.
 
-Meanwhile, the street outside comes to life. Servants hurry past with baskets of fresh produce. A group of Dominican friars makes their way towards the nearby church, casting disapproving glances at a boisterous group of students. A patrol of soldiers carrying pikes is a reminder of troubling rumors – whispers of unrest in the northern provinces.
+Meanwhile, the street outside comes to life. Servants hurry past with baskets of fresh produce. A line of Dominican friars makes their way towards the nearby church, casting disapproving glances at a boisterous group of students. A patrol of soldiers carrying pikes is a reminder of troubling rumors – whispers of unrest in the northern provinces.
 
 Just as you begin to sort through your supply of aloe leaves, a sharp knock at the door announces the day's first visitor.
 

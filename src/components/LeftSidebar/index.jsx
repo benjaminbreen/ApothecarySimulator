@@ -31,12 +31,14 @@ export function LeftSidebar({
   onItemClick = null,
   onOpenReputationModal = null,
   onOpenSkillsModal = null,
+  onOpenFullInventory = null, // Handler to open full inventory modal
   onItemDropOnPlayer = null, // New prop for drag-drop
   statusPanelTab = undefined, // External control of status panel tab
   onStatusPanelTabChange = undefined, // Callback when tab changes
   inventory = [], // Inventory array from gameState
   xpGain = null, // XP gain notification data
-  xpGainKey = 0 // Key to force re-render of XP animation
+  xpGainKey = 0, // Key to force re-render of XP animation
+  onCharacterCardCollapseChange = null // Callback when CharacterCard collapse state changes
 }) {
   const [showCharacterModal, setShowCharacterModal] = useState(false);
 
@@ -55,6 +57,7 @@ export function LeftSidebar({
         portraitImage={portraitImage}
         onOpenCharacterModal={() => setShowCharacterModal(true)}
         onItemDropOnPlayer={onItemDropOnPlayer}
+        onCollapseChange={onCharacterCardCollapseChange}
       />
 
       {/* Player Status Panel - Tabs (Reputation, Status, Inventory) */}
@@ -66,6 +69,7 @@ export function LeftSidebar({
         onItemClick={onItemClick}
         onOpenReputationModal={onOpenReputationModal}
         onOpenSkillsModal={onOpenSkillsModal}
+        onOpenFullInventory={onOpenFullInventory}
         activeTab={statusPanelTab}
         onTabChange={onStatusPanelTabChange}
         inventory={inventory}

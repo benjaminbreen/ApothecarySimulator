@@ -17,6 +17,15 @@ export function NarrativeTab({
   pendingPrescription,
   pendingContract = null, // Contract offer
   onOpenContractModal = null, // Handler to open contract modal
+  pendingExitConfirmation = null, // Exit confirmation data
+  onConfirmExit = null, // Handler to confirm exit
+  onCancelExit = null, // Handler to cancel exit
+  tradeOpportunities = [], // Trade opportunities
+  onAcceptTrade = null, // Handler to accept trade
+  onDeclineTrade = null, // Handler to decline trade
+  pendingSimpleInteraction = null, // Simple interaction
+  onSimpleInteractionChoice = null, // Handler for simple interaction choices
+  gameState = {}, // Game state for wealth/inventory
   fontSize = 'text-base',
   isDarkMode = false
 }) {
@@ -35,6 +44,15 @@ export function NarrativeTab({
         pendingPrescription={pendingPrescription}
         pendingContract={pendingContract}
         onOpenContractModal={onOpenContractModal}
+        pendingExitConfirmation={pendingExitConfirmation}
+        onConfirmExit={onConfirmExit}
+        onCancelExit={onCancelExit}
+        tradeOpportunities={tradeOpportunities}
+        onAcceptTrade={onAcceptTrade}
+        onDeclineTrade={onDeclineTrade}
+        pendingSimpleInteraction={pendingSimpleInteraction}
+        onSimpleInteractionChoice={onSimpleInteractionChoice}
+        gameState={gameState}
         fontSize={fontSize}
         isDarkMode={isDarkMode}
       />

@@ -1772,7 +1772,7 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
     occupation: "Kitten",
     image: "joao.jpg",
     caption: "João, the orange kitten",
-    description: "João is a small, orange fluff ball who spends most of his time napping in the sun or playing with scraps of paper. His presence is a small comfort to Maria amid her daily struggles.",
+    description: "João is a small, orange fluff ball of a cat who spends most of his time napping in the sun or playing with scraps of paper. His presence is a small comfort to Maria amid her daily struggles.",
   secret: "João was abandoned on the streets as a kitten and found his way to Maria’s shop. Though he provides comfort, his skittish behavior hints at the rough life he once led.",
   imgdescription: "João is a small, orange tabby kitten, his fur soft and slightly tousled from frequent naps. His large eyes and delicate whiskers give him a playful, curious appearance as he lounges in the warm sunlight."
 },
@@ -2776,6 +2776,148 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   },
   portraitImage: "elderlyfemaleindiohealer.jpg",
   imgdescription: "Xochiquetzal is an elderly Indigenous woman with deeply lined bronze skin and long gray-streaked black hair worn in traditional braids. She wears a mix of Indigenous and Spanish clothing - a huipil (traditional embroidered tunic) under a Spanish-style shawl. She carries a woven bag that contains her healing implements and herbs. Her hands are gnarled but skilled, and her dark eyes are sharp and assessing. She has the bearing of someone who commands respect in her community and expects it from others."
+},
+
+// RECURRING NPCS FOR SIMPLE INTERACTIONS
+{
+  entityType: "npc",
+  name: "Pedro Vázquez",
+  age: 45,
+  gender: "male",
+  birthplace: "Puebla, New Spain",
+  currentResidence: "Mexico City",
+  casta: "mestizo",
+  class: "working class",
+  occupation: "water seller",
+  image: "mestizomalevendormiddleaged.jpg",
+  caption: "Pedro Vázquez, water seller",
+  description: "Pedro is a hardworking water seller who makes daily rounds through the city neighborhoods. He carries heavy barrels of fresh water from the aqueduct, selling it to households and businesses. He's friendly and knows everyone's business, making him a useful source of local gossip.",
+  personality: {
+    traits: ["cheerful", "hardworking", "talkative", "honest"],
+    likes: ["fair deals", "gossip", "regular customers"],
+    dislikes: ["cheaters", "complainers about prices"],
+    motivations: ["supporting his family", "building a good reputation"]
+  },
+  background: "Pedro has been selling water in Mexico City for over twenty years. He knows every street and alley, and his daily rounds bring him into contact with people from all walks of life. He's reliable, honest, and always has a smile and a story to share.",
+  faction: "Common Folk",
+  portraitImage: "mestizomalevendormiddleaged.jpg",
+  imgdescription: "Pedro is a sturdy mestizo man in his mid-40s with sun-darkened skin and calloused hands. He wears a simple cotton shirt stained with water splashes, worn breeches, and sturdy sandals. He carries a yoke across his shoulders with water barrels hanging from each end. His face is weathered but cheerful, with laugh lines around his eyes.",
+  simpleInteractionType: "service_offer", // Water, firewood, basic supplies
+  interactionFrequency: "high" // Appears 2-3 times per game day
+},
+{
+  entityType: "npc",
+  name: "Widow Socorro",
+  age: 52,
+  gender: "female",
+  birthplace: "Mexico City",
+  currentResidence: "Mexico City, San Juan district (poor quarter)",
+  casta: "india",
+  class: "poor",
+  occupation: "beggar",
+  image: "elderlyfemaleindiapoor.jpg",
+  caption: "Widow Socorro, a woman fallen on hard times",
+  description: "Socorro lost her husband to fever three years ago and has struggled to survive ever since. With no family to support her and unable to work due to her age and failing health, she relies on the charity of others. She is proud but desperate, and approaches those she believes have kind hearts.",
+  personality: {
+    traits: ["proud", "desperate", "polite", "grateful"],
+    likes: ["acts of kindness", "respect despite her poverty"],
+    dislikes: ["pity", "cruelty", "being ignored"],
+    fears: ["starvation", "dying alone in the street"],
+    motivations: ["survival", "maintaining her dignity"]
+  },
+  background: "Socorro was once a respected woman in her community, married to a skilled craftsman. But disease took her husband, and without his income, she lost everything. Now she lives in the poorest quarter of the city, relying on charity to survive. She remembers who helps her and who turns her away.",
+  faction: "Common Folk",
+  portraitImage: "elderlyfemaleindiapoor.jpg",
+  imgdescription: "Socorro is an elderly Indigenous woman with deeply lined skin and gray hair pulled back severely. She wears a worn huipil patched many times, and a threadbare rebozo shawl. Her eyes are sad but still hold pride. She carries herself with quiet dignity despite her circumstances.",
+  simpleInteractionType: "donation_request", // Bread, medicine, coins
+  interactionFrequency: "medium", // Appears once every 1-2 game days
+  relationshipTracking: true // Remember charity vs refusal
+},
+{
+  entityType: "rival",
+  name: "Don Rodrigo Salazar",
+  age: 38,
+  gender: "male",
+  birthplace: "Sevilla, Spain",
+  currentResidence: "Mexico City",
+  casta: "peninsular",
+  class: "merchant class",
+  occupation: "apothecary (rival)",
+  image: "peninsularmaleapothecary.jpg",
+  caption: "Don Rodrigo Salazar, competing apothecary",
+  description: "Don Rodrigo runs a rival apothecary shop two streets over. He's ambitious, cunning, and views Maria as a threat to his business. He occasionally visits her shop under the pretense of professional courtesy, but his true goal is to scout her prices, steal her customers, and undermine her reputation.",
+  personality: {
+    traits: ["ambitious", "cunning", "competitive", "shrewd"],
+    likes: ["profit", "outsmarting competitors", "appearing superior"],
+    dislikes: ["losing customers", "being undercut on price", "Maria's growing reputation"],
+    fears: ["bankruptcy", "loss of status"],
+    motivations: ["dominating the apothecary business in Mexico City", "proving his superiority"]
+  },
+  background: "Rodrigo came to New Spain five years ago with grand ambitions to make his fortune. He established his apothecary with money borrowed from wealthy patrons, and now feels pressure to succeed. Maria's skill and growing reputation threaten his business, so he watches her closely, looking for any advantage he can exploit.",
+  faction: "Merchants Guild",
+  secret: "Rodrigo is deeply in debt to his patrons and desperate to maintain the appearance of success. If Maria's business continues to grow, he may resort to sabotage or slander.",
+  portraitImage: "peninsularmaleapothecary.jpg",
+  imgdescription: "Don Rodrigo is a well-dressed peninsular man in his late 30s with a neatly trimmed beard and calculating eyes. He wears a fine wool doublet with silver buttons, clean white hose, and polished leather shoes. His hands are soft and manicured, showing he does little manual labor himself. His smile is polite but doesn't reach his eyes.",
+  simpleInteractionType: "competitive_check", // Price scouting, lowball offers
+  interactionFrequency: "low", // Appears once every 3-4 game days
+  relationshipTracking: true // Rivalry intensifies with each interaction
+},
+{
+  entityType: "npc",
+  name: "Tomás Cruz",
+  age: 14,
+  gender: "male",
+  birthplace: "Mexico City",
+  currentResidence: "Mexico City, streets",
+  casta: "mestizo",
+  class: "street urchin",
+  occupation: "messenger and gossip",
+  image: "mestizomaleyoungstreeturchin.jpg",
+  caption: "Tomás Cruz, a street-smart boy who knows everything happening in the city",
+  description: "Tomás is a clever street urchin who survives by running messages, doing odd jobs, and selling information. His sharp ears and quick feet make him privy to secrets from the marketplace to the cathedral. For a small price, he'll share what he knows.",
+  personality: {
+    traits: ["clever", "streetwise", "opportunistic", "loyal to those who treat him well"],
+    likes: ["food", "coins", "being useful", "people who respect him"],
+    dislikes: ["being cheated", "adults who look down on him", "the city guard"],
+    motivations: ["survival", "earning enough to eat", "proving he's valuable"]
+  },
+  background: "Tomás has lived on the streets since his mother died when he was eight. He's learned to survive by being useful - carrying messages, fetching items, and most profitably, selling information. He knows which officials are corrupt, which merchants are desperate, and when the Inquisition is planning raids. He's built a network of street children and servants who feed him gossip.",
+  faction: "None",
+  secret: "Tomás knows about hidden passages and secret meeting places throughout the city, including locations where crypto-Jews gather. He would never betray this information for money alone - only to someone he truly trusts.",
+  portraitImage: "mestizomaleyoungstreeturchin.jpg",
+  imgdescription: "Tomás is a thin mestizo boy of 14 with sharp, intelligent eyes and quick movements. His clothes are worn and patched - a too-large shirt, breeches tied with rope, and sandals with broken straps. His hair is messy but his eyes miss nothing. He has the alert, wary posture of someone used to trouble.",
+  simpleInteractionType: "information_exchange", // Rumors, news, warnings
+  interactionFrequency: "medium", // Appears once every 1-2 game days
+  relationshipTracking: true // Remember who pays and who refuses
+},
+{
+  entityType: "npc",
+  name: "Sister Teresa de Ávila",
+  age: 34,
+  gender: "female",
+  birthplace: "Toledo, Spain",
+  currentResidence: "Mexico City, Convent of La Concepción",
+  casta: "peninsular",
+  class: "clergy (nun)",
+  occupation: "nun and herbalist",
+  image: "peninsularfemalenunmiddleaged.jpg",
+  caption: "Sister Teresa de Ávila, a kind nun with medical knowledge",
+  description: "Sister Teresa is a Franciscan nun who tends the convent's herb garden and treats the sick among the poor. She's kind-hearted and genuinely devoted to helping others. She occasionally visits Maria to exchange medicinal knowledge and bring warnings about Inquisition activities.",
+  personality: {
+    traits: ["kind", "devout", "knowledgeable", "protective"],
+    likes: ["healing the sick", "cultivating herbs", "theological discussion", "helping conversos in danger"],
+    dislikes: ["cruelty", "religious persecution", "zealots"],
+    fears: ["the Inquisition discovering her sympathies", "being unable to help those in need"],
+    motivations: ["living her faith through charity", "protecting the innocent", "sharing medicinal knowledge"]
+  },
+  background: "Sister Teresa joined the Franciscan order at 18, drawn by their emphasis on charity and healing. She learned herbalism from the convent's elderly apothecary sister and has expanded her knowledge by studying both Spanish and Indigenous remedies. She's quietly sympathetic to conversos and tries to warn them of Inquisition investigations when she can.",
+  faction: "Church (sympathetic)",
+  secret: "Sister Teresa has been quietly helping conversos escape the Inquisition by hiding them in the convent and providing them with forged documents. She views this as her Christian duty, but if discovered, she would face severe punishment.",
+  portraitImage: "peninsularfemalenunmiddleaged.jpg",
+  imgdescription: "Sister Teresa is a pleasant-faced peninsular woman in her mid-30s wearing the simple brown habit of the Franciscan order with a white wimple. Her hands are stained with plant matter from her garden work. She has gentle brown eyes and a warm smile. She often carries a basket of herbs or medicines.",
+  simpleInteractionType: "social_visit", // Brings warnings, offers books, friendly visits
+  interactionFrequency: "low", // Appears once every 3-5 game days
+  relationshipTracking: true // Friendship deepens over time
 },
 
 ];

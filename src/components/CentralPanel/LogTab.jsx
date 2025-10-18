@@ -139,9 +139,16 @@ export function LogTab({ conversationHistory = [], onEntityClick }) {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-ink-500 font-sans uppercase tracking-wide font-semibold">
-                        {entry.role === 'user' ? 'Action' : entry.role === 'assistant' ? 'Narrative' : 'System'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-ink-500 font-sans uppercase tracking-wide font-semibold">
+                          {entry.role === 'user' ? 'Action' : entry.role === 'assistant' ? 'Narrative' : 'System'}
+                        </span>
+                        {entry.timestamp && (
+                          <span className="text-xs text-ink-400 font-mono">
+                            {entry.timestamp.time} • {entry.timestamp.date}
+                          </span>
+                        )}
+                      </div>
                       <span className="text-xs text-ink-400 font-mono">
                         Entry {conversationHistory.indexOf(entry) + 1}
                       </span>

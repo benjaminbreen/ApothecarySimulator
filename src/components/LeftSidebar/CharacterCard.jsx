@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useDrop } from 'react-dnd';
 import { getProfessionName, getProfessionIcon, PROFESSIONS } from '../../core/systems/levelingSystem';
+import { RippleIconButton } from '../RippleButton';
 
 /**
  * Get profession color theme for badges
@@ -64,8 +66,21 @@ export function CharacterCard({
   portraitImage = null,
   onOpenCharacterModal,
   onItemDropOnPlayer, // New prop for handling item drops
+  onCollapseChange, // Callback when collapse state changes
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Notify parent when collapse state changes
+  React.useEffect(() => {
+    if (onCollapseChange) {
+      onCollapseChange(isCollapsed);
+    }
+  }, [isCollapsed, onCollapseChange]);
+
+  // Tooltip state for portrait
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const portraitRef = useRef(null);
 
   // Track previous values for animations
   const [prevHealth, setPrevHealth] = useState(health);
@@ -258,6 +273,17 @@ export function CharacterCard({
       isOverPlayer: monitor.isOver(),
     }),
   }), [onItemDropOnPlayer]);
+
+  // Update tooltip position when showing
+  useEffect(() => {
+    if (showTooltip && portraitRef.current) {
+      const rect = portraitRef.current.getBoundingClientRect();
+      setTooltipPosition({
+        top: rect.top - 8, // 8px above portrait
+        left: rect.left + rect.width / 2 // center of portrait
+      });
+    }
+  }, [showTooltip]);
 
   const initials = characterName.split(' ').map(n => n[0]).join('').toUpperCase();
 
@@ -459,7 +485,7 @@ export function CharacterCard({
           animation: ringPulseCritical 1s ease-in-out;
         }
       `}</style>
-    <div className="group rounded-2xl p-6 shadow-lg dark:shadow-dark-elevation-2 mb-4 flex-shrink-0 transition-all duration-500 hover:shadow-2xl dark:hover:shadow-dark-elevation-3 relative overflow-hidden bg-gradient-to-br from-parchment-50/50 via-white/90 to-parchment-50/70 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 backdrop-blur-lg border border-parchment-300/30 hover:border-parchment-400/50 dark:border-slate-600/30 dark:hover:border-amber-500/40"
+    <div className="group rounded-2xl p-4 shadow-lg dark:shadow-dark-elevation-2 mb-4 flex-shrink-0 transition-all duration-500 hover:shadow-2xl dark:hover:shadow-dark-elevation-3 relative overflow-hidden bg-gradient-to-br from-parchment-50/50 via-white/90 to-parchment-50/70 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 backdrop-blur-lg border border-parchment-300/30 hover:border-parchment-400/50 dark:border-slate-600/30 dark:hover:border-amber-500/40"
     >
       {/* Beautiful glassmorphic overlay - subtle by default, brighter on hover */}
       <div
@@ -471,7 +497,7 @@ export function CharacterCard({
         }}
       />
       {/* Collapse/Expand Button */}
-      <button
+      <RippleIconButton
         onClick={() => setIsCollapsed(!isCollapsed)}
         className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/80 dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 border border-ink-200 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-amber-500 transition-all duration-200 shadow-sm hover:shadow z-10 group"
         title={isCollapsed ? "Expand stats" : "Collapse stats"}
@@ -485,18 +511,22 @@ export function CharacterCard({
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
         </svg>
-      </button>
+      </RippleIconButton>
 
       <div className="flex flex-col items-center mb-5">
         {portraitImage ? (
           <button
-            ref={dropPlayer}
+            ref={(node) => {
+              dropPlayer(node);
+              portraitRef.current = node;
+            }}
             onClick={onOpenCharacterModal}
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
             className={`mb-3 transition-all duration-500 hover:scale-105 cursor-pointer group relative portrait-ring-shimmer ${ringPulse ? `ring-pulse-${ringPulse}` : ''} ${isOverPlayer ? 'ring-4 ring-amber-400 scale-105' : ''}`}
-            title={isOverPlayer ? "Drop item to use" : "View character details"}
             style={{
-              width: '120px',
-              height: '120px',
+              width: '140px',
+              height: '140px',
               borderRadius: '50%',
               padding: '5px',
               background: getPortraitRingStyle().gradient,
@@ -527,25 +557,6 @@ export function CharacterCard({
                   alt={characterName}
                   className="w-full h-full object-cover"
                 />
-
-                {/* Subtle overlay on hover */}
-                <div
-                  className="absolute inset-0 opacity-0 group-hover/portrait:opacity-100 transition-all duration-300 flex items-center justify-center"
-                  style={{
-                    background: `
-                      radial-gradient(circle at center, ${getPortraitRingStyle().overlayColor} 0%, transparent 70%),
-                      linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 50%, rgba(0, 0, 0, 0.08) 100%)
-                    `
-                  }}
-                >
-                  {/* Info icon with glass bubble */}
-                  <div className="relative">
-                    <div className="absolute inset-0 rounded-full bg-white/10 blur-md transform scale-150"></div>
-                    <svg className="w-8 h-8 text-white opacity-60 relative z-10 drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -849,6 +860,47 @@ export function CharacterCard({
       </div>
       )}
     </div>
+
+    {/* Portal-based tooltip for Maria's portrait */}
+    {showTooltip && createPortal(
+      <div
+        className="fixed pointer-events-none z-[9999] transition-opacity duration-200"
+        style={{
+          top: `${tooltipPosition.top}px`,
+          left: `${tooltipPosition.left}px`,
+          transform: 'translate(-50%, -100%)',
+          opacity: showTooltip ? 1 : 0
+        }}
+      >
+        <div
+          className="px-3 py-2 rounded-lg shadow-2xl whitespace-nowrap border backdrop-blur-sm"
+          style={{
+            background: document.documentElement.classList.contains('dark')
+              ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 252, 247, 0.95) 100%)',
+            borderColor: document.documentElement.classList.contains('dark')
+              ? 'rgba(251, 191, 36, 0.3)'
+              : 'rgba(16, 185, 129, 0.3)',
+          }}
+        >
+          <div className="text-xs font-sans text-ink-700 dark:text-parchment-200" style={{ fontWeight: 500 }}>
+            Maria is feeling <span className="font-bold">{status || 'calm'}</span>. Click for more information.
+          </div>
+          {/* Arrow pointing down */}
+          <div
+            className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0"
+            style={{
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: document.documentElement.classList.contains('dark')
+                ? '6px solid rgba(15, 23, 42, 0.98)'
+                : '6px solid rgba(255, 255, 255, 0.98)',
+            }}
+          />
+        </div>
+      </div>,
+      document.body
+    )}
     </>
   );
 }

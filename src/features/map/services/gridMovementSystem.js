@@ -33,46 +33,113 @@ export class GridMovementSystem {
 
   /**
    * Calculate obstacle grid from map data (buildings, walls, furniture)
+   * Uses INVERSE APPROACH for interior maps: everything outside rooms = walls
    * @returns {Set<string>} Set of "x,y" grid coordinates that are blocked
    */
   calculateObstacles() {
     const obstacles = new Set();
 
-    // Buildings are obstacles (exterior maps)
-    if (this.mapData.buildings) {
+    // INTERIOR MAPS: Use inverse walkability approach
+    if (this.mapData.type === 'interior' && this.mapData.rooms) {
+      const mapWidth = this.mapData.bounds?.width || this.mapData.width || 1000;
+      const mapHeight = this.mapData.bounds?.height || this.mapData.height || 800;
+      const gridWidth = Math.ceil(mapWidth / this.gridSize);
+      const gridHeight = Math.ceil(mapHeight / this.gridSize);
+
+      console.log('[GridSystem] INTERIOR MAP - Using inverse walkability');
+      console.log('[GridSystem] Map dimensions:', { mapWidth, mapHeight, gridWidth, gridHeight });
+
+      // Step 1: Mark ALL cells as obstacles (walls) by default
+      for (let x = 0; x < gridWidth; x++) {
+        for (let y = 0; y < gridHeight; y++) {
+          obstacles.add(`${x},${y}`);
+        }
+      }
+
+      console.log('[GridSystem] Initial obstacles (all cells):', obstacles.size);
+
+      // Step 2: REMOVE cells inside room polygons (make them walkable)
+      this.mapData.rooms.forEach(room => {
+        const roomCells = this.polygonToGridCells(room.polygon);
+        roomCells.forEach(cell => {
+          obstacles.delete(`${cell.x},${cell.y}`);
+        });
+        console.log(`[GridSystem] Cleared ${roomCells.length} cells for room: ${room.name}`);
+      });
+
+      console.log('[GridSystem] After clearing rooms:', obstacles.size);
+
+      // Step 3: REMOVE cells at door positions (punch through walls)
+      if (this.mapData.doors) {
+        this.mapData.doors.forEach(door => {
+          if (!door.isLocked) {
+            const doorWidth = door.width || 60;
+            const [doorX, doorY] = door.position;
+
+            // Clear a rectangular area for the door
+            const doorCells = this.rectToGridCells(
+              doorX - doorWidth / 2,
+              doorY - this.gridSize / 2,
+              doorWidth,
+              this.gridSize
+            );
+
+            doorCells.forEach(cell => {
+              obstacles.delete(`${cell.x},${cell.y}`);
+            });
+
+            console.log(`[GridSystem] Cleared ${doorCells.length} cells for door: ${door.id}`);
+          }
+        });
+      }
+
+      console.log('[GridSystem] After clearing doors:', obstacles.size);
+    }
+    // EXTERIOR MAPS: Use polygon-based approach for buildings
+    else if (this.mapData.buildings) {
+      console.log('[GridSystem] EXTERIOR MAP - Processing building obstacles');
       this.mapData.buildings.forEach(building => {
-        const cells = this.rectToGridCells(
-          building.x,
-          building.y,
-          building.width,
-          building.height
-        );
+        let cells = [];
+
+        // Handle polygon format (most common for exterior maps)
+        if (building.polygon && Array.isArray(building.polygon)) {
+          cells = this.polygonToGridCells(building.polygon);
+        }
+        // Handle legacy rect format {x, y, width, height}
+        else if (building.x !== undefined && building.y !== undefined &&
+                 building.width !== undefined && building.height !== undefined) {
+          cells = this.rectToGridCells(
+            building.x,
+            building.y,
+            building.width,
+            building.height
+          );
+        }
+
         cells.forEach(cell => obstacles.add(`${cell.x},${cell.y}`));
       });
+      console.log('[GridSystem] Added obstacles for', this.mapData.buildings.length, 'buildings');
     }
 
-    // Walls are obstacles (interior maps)
-    if (this.mapData.walls) {
-      this.mapData.walls.forEach(wall => {
-        const cells = this.lineToGridCells(wall.x1, wall.y1, wall.x2, wall.y2);
-        cells.forEach(cell => obstacles.add(`${cell.x},${cell.y}`));
-      });
-    }
-
-    // Furniture is obstacles (interior maps)
+    // Furniture blocks walkable areas (applies to both interior and exterior)
     if (this.mapData.furniture) {
       this.mapData.furniture.forEach(furniture => {
         // Handle both formats: {x, y, width, height} and {position: [x, y], size: [w, h]}
-        const x = furniture.x !== undefined ? furniture.x : (furniture.position ? furniture.position[0] : 0);
-        const y = furniture.y !== undefined ? furniture.y : (furniture.position ? furniture.position[1] : 0);
+        const centerX = furniture.x !== undefined ? furniture.x : (furniture.position ? furniture.position[0] : 0);
+        const centerY = furniture.y !== undefined ? furniture.y : (furniture.position ? furniture.position[1] : 0);
         const width = furniture.width !== undefined ? furniture.width : (furniture.size ? furniture.size[0] : 40);
         const height = furniture.height !== undefined ? furniture.height : (furniture.size ? furniture.size[1] : 40);
 
-        const cells = this.rectToGridCells(x, y, width, height);
+        // Convert from center position to top-left corner for grid calculation
+        const topLeftX = centerX - width / 2;
+        const topLeftY = centerY - height / 2;
+
+        const cells = this.rectToGridCells(topLeftX, topLeftY, width, height);
         cells.forEach(cell => obstacles.add(`${cell.x},${cell.y}`));
       });
     }
 
+    console.log('[GridSystem] Final obstacles:', obstacles.size);
     return obstacles;
   }
 
@@ -98,10 +165,17 @@ export class GridMovementSystem {
    * @returns {boolean}
    */
   isWalkable(gridX, gridY) {
-    // Check bounds
+    // Check bounds (convert grid to pixel boundaries)
     if (gridX < 0 || gridY < 0) return false;
-    if (gridX * this.gridSize > this.mapData.width) return false;
-    if (gridY * this.gridSize > this.mapData.height) return false;
+
+    // Fixed: Use >= instead of > to prevent walking one cell off the edge
+    // Also fixed: Access bounds.width/height instead of flat width/height
+    const mapWidth = this.mapData.bounds?.width || this.mapData.width || 1000;
+    const mapHeight = this.mapData.bounds?.height || this.mapData.height || 800;
+
+    // gridX * gridSize gives the LEFT edge of the cell, must be < map width
+    if (gridX * this.gridSize >= mapWidth) return false;
+    if (gridY * this.gridSize >= mapHeight) return false;
 
     // Check obstacles
     if (this.obstacles.has(`${gridX},${gridY}`)) return false;
@@ -113,30 +187,43 @@ export class GridMovementSystem {
    * Validate a directional move (for LLM to query)
    * @param {Position} currentPos - Current position
    * @param {string} direction - Direction: 'north', 'south', 'east', 'west'
+   * @param {number} [pixelDistance] - Pixel distance to move (optional, defaults to 1 grid cell)
    * @returns {MoveValidation}
    */
-  validateMove(currentPos, direction) {
-    const { gridX, gridY } = this.pixelToGrid(currentPos.x, currentPos.y);
-    let newGridX = gridX;
-    let newGridY = gridY;
+  validateMove(currentPos, direction, pixelDistance = this.gridSize) {
+    // Use stored grid coordinates as source of truth (don't recalculate from pixels)
+    const gridX = currentPos.gridX;
+    const gridY = currentPos.gridY;
 
-    // Calculate new grid position based on direction
+    console.log('[MOVEMENT] Validating move:', {
+      direction,
+      currentPos: { x: currentPos.x, y: currentPos.y, gridX, gridY },
+      pixelDistance,
+      gridSize: this.gridSize
+    });
+
+    // Calculate how many grid cells we're actually moving
+    const gridCellsToMove = Math.ceil(pixelDistance / this.gridSize);
+
+    let dx = 0, dy = 0;
+
+    // Calculate direction delta
     switch(direction.toLowerCase()) {
       case 'north':
       case 'n':
-        newGridY -= 1;
+        dy = -1;
         break;
       case 'south':
       case 's':
-        newGridY += 1;
+        dy = 1;
         break;
       case 'east':
       case 'e':
-        newGridX += 1;
+        dx = 1;
         break;
       case 'west':
       case 'w':
-        newGridX -= 1;
+        dx = -1;
         break;
       default:
         return {
@@ -146,18 +233,31 @@ export class GridMovementSystem {
         };
     }
 
-    // Check if new position is walkable
-    if (!this.isWalkable(newGridX, newGridY)) {
-      const obstacle = this.getObstacleType(newGridX, newGridY);
-      return {
-        valid: false,
-        reason: obstacle,
-        currentPosition: currentPos
-      };
+    // Check ALL cells along the path, not just the destination
+    console.log('[MOVEMENT] Checking path:', { gridCellsToMove, dx, dy, startGrid: { gridX, gridY } });
+
+    for (let step = 1; step <= gridCellsToMove; step++) {
+      const checkGridX = gridX + (dx * step);
+      const checkGridY = gridY + (dy * step);
+
+      console.log(`[MOVEMENT] Checking cell ${step}/${gridCellsToMove}: (${checkGridX}, ${checkGridY})`);
+
+      if (!this.isWalkable(checkGridX, checkGridY)) {
+        const obstacle = this.getObstacleType(checkGridX, checkGridY);
+        console.log('[MOVEMENT] ❌ BLOCKED at cell', { gridX: checkGridX, gridY: checkGridY, obstacle });
+        return {
+          valid: false,
+          reason: obstacle,
+          currentPosition: currentPos
+        };
+      }
     }
 
-    // Valid move - calculate pixel position
-    return {
+    // All cells along path are clear - calculate final position
+    const newGridX = gridX + (dx * gridCellsToMove);
+    const newGridY = gridY + (dy * gridCellsToMove);
+
+    const result = {
       valid: true,
       reason: 'path is clear',
       newPosition: {
@@ -167,6 +267,10 @@ export class GridMovementSystem {
         gridY: newGridY
       }
     };
+
+    console.log('[MOVEMENT] ✅ VALID move:', result.newPosition);
+
+    return result;
   }
 
   /**
@@ -200,12 +304,16 @@ export class GridMovementSystem {
     if (this.mapData.furniture) {
       for (const furniture of this.mapData.furniture) {
         // Handle both formats: {x, y, width, height} and {position: [x, y], size: [w, h]}
-        const x = furniture.x !== undefined ? furniture.x : (furniture.position ? furniture.position[0] : 0);
-        const y = furniture.y !== undefined ? furniture.y : (furniture.position ? furniture.position[1] : 0);
+        const centerX = furniture.x !== undefined ? furniture.x : (furniture.position ? furniture.position[0] : 0);
+        const centerY = furniture.y !== undefined ? furniture.y : (furniture.position ? furniture.position[1] : 0);
         const width = furniture.width !== undefined ? furniture.width : (furniture.size ? furniture.size[0] : 40);
         const height = furniture.height !== undefined ? furniture.height : (furniture.size ? furniture.size[1] : 40);
 
-        const cells = this.rectToGridCells(x, y, width, height);
+        // Convert from center position to top-left corner for grid calculation
+        const topLeftX = centerX - width / 2;
+        const topLeftY = centerY - height / 2;
+
+        const cells = this.rectToGridCells(topLeftX, topLeftY, width, height);
         if (cells.some(c => c.x === gridX && c.y === gridY)) {
           return `${furniture.type || 'furniture'} blocks the path`;
         }
@@ -213,9 +321,12 @@ export class GridMovementSystem {
     }
 
     // Out of bounds
+    const mapWidth = this.mapData.bounds?.width || this.mapData.width || 1000;
+    const mapHeight = this.mapData.bounds?.height || this.mapData.height || 800;
+
     if (gridX < 0 || gridY < 0 ||
-        gridX * this.gridSize > this.mapData.width ||
-        gridY * this.gridSize > this.mapData.height) {
+        gridX * this.gridSize >= mapWidth ||
+        gridY * this.gridSize >= mapHeight) {
       return 'the map boundary';
     }
 
@@ -490,6 +601,93 @@ export class GridMovementSystem {
   }
 
   /**
+   * Detect which room the player is currently in (for interior maps)
+   * @param {Position} position - Player position {x, y} in pixels
+   * @returns {Object|null} Room object {id, name, type} or null if not in any room
+   */
+  getCurrentRoom(position) {
+    // Only works for interior maps with room definitions
+    if (this.mapData.type !== 'interior' || !this.mapData.rooms) {
+      return null;
+    }
+
+    const pixelX = position.x;
+    const pixelY = position.y;
+
+    // Test each room polygon
+    for (const room of this.mapData.rooms) {
+      if (this.isPointInPolygon([pixelX, pixelY], room.polygon)) {
+        return {
+          id: room.id,
+          name: room.name,
+          type: room.type || 'room'
+        };
+      }
+    }
+
+    // Not inside any room (in a wall or doorway)
+    return null;
+  }
+
+  /**
+   * Point-in-polygon test using ray casting algorithm
+   * @param {Array} point - [x, y] point to test
+   * @param {Array} polygon - Array of [x, y] polygon vertices
+   * @returns {boolean} True if point is inside polygon
+   */
+  isPointInPolygon(point, polygon) {
+    const [x, y] = point;
+    let inside = false;
+
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const [xi, yi] = polygon[i];
+      const [xj, yj] = polygon[j];
+
+      const intersect = ((yi > y) !== (yj > y))
+        && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+
+      if (intersect) inside = !inside;
+    }
+
+    return inside;
+  }
+
+  /**
+   * Fill a polygon with grid cells using scanline algorithm
+   * @param {Array} polygon - Array of [x, y] points
+   * @returns {Array} Array of {x, y} grid cells inside polygon
+   */
+  polygonToGridCells(polygon) {
+    const cells = [];
+
+    // Find bounding box
+    const minX = Math.min(...polygon.map(p => p[0]));
+    const maxX = Math.max(...polygon.map(p => p[0]));
+    const minY = Math.min(...polygon.map(p => p[1]));
+    const maxY = Math.max(...polygon.map(p => p[1]));
+
+    // Convert to grid coordinates
+    const gridMinX = Math.floor(minX / this.gridSize);
+    const gridMaxX = Math.ceil(maxX / this.gridSize);
+    const gridMinY = Math.floor(minY / this.gridSize);
+    const gridMaxY = Math.ceil(maxY / this.gridSize);
+
+    // Test each cell in bounding box
+    for (let gx = gridMinX; gx <= gridMaxX; gx++) {
+      for (let gy = gridMinY; gy <= gridMaxY; gy++) {
+        const centerX = gx * this.gridSize + this.gridSize / 2;
+        const centerY = gy * this.gridSize + this.gridSize / 2;
+
+        if (this.isPointInPolygon([centerX, centerY], polygon)) {
+          cells.push({ x: gx, y: gy });
+        }
+      }
+    }
+
+    return cells;
+  }
+
+  /**
    * Convert rectangle to grid cells
    * @param {number} x - Rectangle x
    * @param {number} y - Rectangle y
@@ -568,10 +766,14 @@ const gridSystems = new Map();
  * @returns {GridMovementSystem}
  */
 export function getGridSystem(mapId, mapData) {
-  if (!gridSystems.has(mapId)) {
-    gridSystems.set(mapId, new GridMovementSystem(mapData));
+  // Cache key includes map dimensions to handle race conditions
+  // where same mapId is accessed with different data (interior vs exterior)
+  const cacheKey = `${mapId}-${mapData.bounds.width}x${mapData.bounds.height}`;
+
+  if (!gridSystems.has(cacheKey)) {
+    gridSystems.set(cacheKey, new GridMovementSystem(mapData));
   }
-  return gridSystems.get(mapId);
+  return gridSystems.get(cacheKey);
 }
 
 /**

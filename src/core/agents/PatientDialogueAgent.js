@@ -33,9 +33,10 @@ const VALID_SEVERITIES = ['mild', 'moderate', 'severe', 'critical'];
 /**
  * Build patient dialogue agent system prompt
  * @param {Object} patient - Patient entity
+ * @param {Object} narrativeContext - Context extracted from conversation (optional)
  * @returns {string} Complete system prompt
  */
-function buildPatientDialoguePrompt(patient) {
+function buildPatientDialoguePrompt(patient, narrativeContext = null) {
   return `You are roleplaying as ${patient.name}, a patient in 1680 Mexico City.
 
 ## Your Character:
@@ -44,6 +45,28 @@ function buildPatientDialoguePrompt(patient) {
 - Gender: ${patient.gender || 'Unknown'}
 - Occupation: ${patient.occupation || 'Unknown'}
 - Background: ${patient.background || 'A resident of Mexico City seeking medical help'}
+
+${narrativeContext ? `
+## Context from Previous Narrative:
+**CRITICAL: The following information has already been established about you. You MUST maintain consistency with these facts.**
+
+${narrativeContext.familyMembers ? `**Family Members:** ${narrativeContext.familyMembers.join(', ')}
+- Do NOT invent new family members
+- Do NOT change their names or relationships` : ''}
+
+${narrativeContext.occupation ? `**Your Profession:** ${narrativeContext.occupation}
+- This is your occupation - do not change it` : ''}
+
+${narrativeContext.symptoms ? `**Symptoms Already Mentioned in Narrative:** ${narrativeContext.symptoms.join('; ')}
+- These symptoms have been described by others about you
+- You should be consistent with these descriptions` : ''}
+
+${narrativeContext.diet ? `**Your Diet:** ${narrativeContext.diet}` : ''}
+
+${narrativeContext.socialContext ? `**Your Social Status:** ${narrativeContext.socialContext}` : ''}
+
+${narrativeContext.locationContext ? `**Location Details:** ${narrativeContext.locationContext}` : ''}
+` : ''}
 
 ## Your Medical Condition:
 ${patient.symptoms?.length > 0
@@ -199,14 +222,19 @@ function validateSymptom(symptom) {
  * @param {Object} options.patient - Patient entity
  * @param {string} options.question - Apothecary's question
  * @param {Array} options.conversationHistory - Previous dialogue
+ * @param {Object} options.narrativeContext - Context extracted from game narrative (optional)
  * @returns {Promise<Object>} Response with dialogue and extracted data
  */
-export async function processPatientDialogue({ patient, question, conversationHistory = [] }) {
+export async function processPatientDialogue({ patient, question, conversationHistory = [], narrativeContext = null }) {
   try {
     console.log('[PatientDialogueAgent] Processing patient dialogue for:', patient.name);
 
-    // Build system prompt
-    const systemPrompt = buildPatientDialoguePrompt(patient);
+    if (narrativeContext) {
+      console.log('[PatientDialogueAgent] Using narrative context:', narrativeContext);
+    }
+
+    // Build system prompt with narrative context
+    const systemPrompt = buildPatientDialoguePrompt(patient, narrativeContext);
 
     // Build messages array (system + conversation history + new question)
     const messages = [

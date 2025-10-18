@@ -11,6 +11,7 @@ import MapRenderer from './MapRenderer';
  * @param {Function} props.onClose - Callback to close modal
  * @param {Object} props.scenario - Current scenario config
  * @param {string} props.currentLocation - Current location string
+ * @param {string} props.currentMapId - Current map ID (e.g., 'botica-interior', 'mexico-city-center')
  * @param {Array} props.npcs - Array of NPC objects with position data
  * @param {Object} props.playerPosition - Player's current position {x, y}
  * @param {Function} props.onLocationChange - Callback when user clicks to change location
@@ -21,6 +22,7 @@ export default function InteractiveMapModal({
   onClose,
   scenario,
   currentLocation,
+  currentMapId,
   npcs = [],
   playerPosition = null,
   onLocationChange,
@@ -85,6 +87,7 @@ export default function InteractiveMapModal({
           <MapRenderer
             scenario={scenario}
             currentLocation={currentLocation}
+            currentMapId={currentMapId}
             npcs={npcs}
             playerPosition={playerPosition}
             onLocationChange={(newLocation) => {

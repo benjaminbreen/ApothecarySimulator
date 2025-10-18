@@ -27,6 +27,7 @@ import AbilityUnlockNotification from '../components/AbilityUnlockNotification';
 import ContractOfferModal from '../components/ContractOfferModal';
 import ItemConsumptionModal from '../components/ItemConsumptionModal';
 import GameOverModal from '../components/GameOverModal';
+import SimpleInteractionCard from '../components/SimpleInteractionCard';
 
 // Feature components
 import { useGameState } from '../core/state/gameState';
@@ -38,7 +39,7 @@ import resourceManager from '../systems/ResourceManager';
 import { scenarioLoader } from '../core/services/scenarioLoader';
 import { getTransactionManager, TRANSACTION_CATEGORIES } from '../core/systems/transactionManager';
 import { getAllAbilitiesForProfession, getXPMultiplier, getSkillXPMultiplier } from '../core/systems/professionAbilities';
-import { getProfessionIcon, getPlayerTitle } from '../core/systems/levelingSystem';
+import { getProfessionIcon, getProfessionName, getPlayerTitle } from '../core/systems/levelingSystem';
 
 // Modularized components
 import { useGameHandlers } from './hooks/useGameHandlers';
@@ -59,37 +60,9 @@ import { useNPCPositions } from '../features/map/hooks/useNPCPositions';
 import EntityList from '../EntityList';
 import { parseNarrativeChoices } from '../utils/narrativeParser';
 import { getGridSystem } from '../features/map/services/gridMovementSystem';
-
-// Maria portrait images
-import mariaDetermined from '../assets/mariadetermined.jpg';
-import mariaHappy from '../assets/mariahappy.jpg';
-import mariaNormal from '../assets/marianormal.jpg';
-import mariaSad from '../assets/mariasad.jpg';
-import mariaWorried from '../assets/mariaworried.jpg';
-import mariaCurious from '../assets/mariacurious.jpg';
+import { getMariaPortrait, getDeterminedPortrait, getPortraitFromStatus } from '../utils/portraitSelector';
 
 const PDFPopup = lazy(() => import('../shared/components/PDFPopup'));
-
-// Status to image mapping for Maria
-const statusMappings = {
-  normal: ['rested', 'calm', 'neutral', 'normal', 'composed', 'serene'],
-  happy: ['content', 'happy', 'joyful', 'pleased', 'satisfied', 'elated', 'cheerful', 'delighted'],
-  worried: ['worried', 'frightened', 'anxious', 'nervous', 'concerned', 'troubled', 'uneasy', 'weary', 'uncertain'],
-  sad: ['sad', 'melancholy', 'depressed', 'downcast', 'gloomy', 'forlorn', 'terrified', 'desperate'],
-  determined: ['determined', 'resolute', 'focused', 'steadfast', 'resolved', 'unwavering'],
-  curious: ['curious', 'inquisitive', 'interested', 'intrigued', 'exploratory', 'questioning', 'fascinated', 'perceptive', 'reckless'],
-};
-
-const getStatusImage = (status) => {
-  const lowerStatus = status.toLowerCase();
-  if (statusMappings.normal.includes(lowerStatus)) return mariaNormal;
-  if (statusMappings.happy.includes(lowerStatus)) return mariaHappy;
-  if (statusMappings.worried.includes(lowerStatus)) return mariaWorried;
-  if (statusMappings.sad.includes(lowerStatus)) return mariaSad;
-  if (statusMappings.determined.includes(lowerStatus)) return mariaDetermined;
-  if (statusMappings.curious.includes(lowerStatus)) return mariaCurious;
-  return mariaNormal;
-};
 
 const GameContent = () => {
   const toast = useToast();
@@ -121,6 +94,14 @@ const GameContent = () => {
     setHealth,
     updateEnergy,
     setEnergy,
+    // Profession system
+    chooseProfession,
+    // NPC Commerce system
+    addTradeOpportunity,
+    removeTradeOpportunity,
+    addTradeTransaction,
+    getTradeHistory,
+    cleanupExpiredOpportunities,
   } = useGameState(scenarioId || '1680-mexico-city');
 
   // Core state
@@ -136,7 +117,9 @@ const GameContent = () => {
   const [transactionManager] = useState(() => getTransactionManager(scenarioId || '1680-mexico-city'));
 
   // Player position and map tracking
-  const [playerPosition, setPlayerPosition] = useState({ x: 400, y: 450, gridX: 25, gridY: 27 }); // Default: behind counter on shop floor
+  // Grid (25, 24) = pixel center (510, 480) with 20px grid size - behind counter (north side)
+  const [playerPosition, setPlayerPosition] = useState({ x: 510, y: 480, gridX: 25, gridY: 24 }); // Default: behind counter on shop floor
+  const [playerFacing, setPlayerFacing] = useState(180); // Degrees: 0=North, 90=East, 180=South, 270=West (start facing south)
   const [currentMapData, setCurrentMapData] = useState(null);
   const [currentMapId, setCurrentMapId] = useState('botica-interior'); // Interior map ID
 
@@ -155,7 +138,10 @@ const GameContent = () => {
     }
   }, [currentMapId, scenario]);
 
-  // Update player position based on location changes (ONLY when location actually changes, not during movement)
+  // DISABLED: Auto-reset position on location change
+  // This was causing conflicts with manual position management from exit/enter commands
+  // Position is now managed exclusively by exit/enter handlers in useGameHandlers.js
+  /*
   const [previousLocation, setPreviousLocation] = React.useState(gameState.location);
 
   useEffect(() => {
@@ -175,13 +161,15 @@ const GameContent = () => {
       // For interior locations, use interior starting position
       else if (location && location.includes('Botica') && !location.includes('Mexico City')) {
         console.log('[GamePage] Switching to interior map position');
-        setPlayerPosition({ x: 500, y: 550, gridX: 25, gridY: 27 });
+        // Grid (25, 24) = pixel center (510, 480) - behind counter (north side)
+        setPlayerPosition({ x: 510, y: 480, gridX: 25, gridY: 24 });
         setCurrentMapId('botica-interior');
       }
 
       setPreviousLocation(location);
     }
   }, [gameState.location, previousLocation]);
+  */
 
   // NPC position tracking (real-time updates every 100ms)
   const {
@@ -225,7 +213,8 @@ const GameContent = () => {
   const [isMapOpen, setIsMapOpen] = useState(false);
   const [isInteractiveMapModalOpen, setIsInteractiveMapModalOpen] = useState(false);
   const [isDiagnoseOpen, setIsDiagnoseOpen] = useState(false);
-  const [leftSidebarTab, setLeftSidebarTab] = useState('reputation'); // Control left sidebar tab
+  const [leftSidebarTab, setLeftSidebarTab] = useState('inventory'); // Control left sidebar tab
+  const [isCharacterCardCollapsed, setIsCharacterCardCollapsed] = useState(false); // Track CharacterCard collapse state for condensed header stats
 
   const [isGameLogOpen, setIsGameLogOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -241,6 +230,18 @@ const GameContent = () => {
   // Contract system state
   const [pendingContract, setPendingContract] = useState(null);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+
+  // Exit confirmation state
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
+  const [pendingExitData, setPendingExitData] = useState(null);
+
+  // Trade system state
+  const [tradingNPC, setTradingNPC] = useState(null); // Current NPC being traded with
+  const [tradeMode, setTradeMode] = useState('market'); // 'market' | 'npc' | 'inventory'
+  const [inventoryViewMode, setInventoryViewMode] = useState('shelf'); // 'shelf' | 'list'
+
+  // Simple interaction system state
+  const [pendingSimpleInteraction, setPendingSimpleInteraction] = useState(null);
 
   // Item consumption modal state
   const [isConsumptionModalOpen, setIsConsumptionModalOpen] = useState(false);
@@ -262,8 +263,9 @@ const GameContent = () => {
   const [isNarrationSettingsOpen, setIsNarrationSettingsOpen] = useState(false);
   const [isLLMViewOpen, setIsLLMViewOpen] = useState(false);
 
-  // Character status
-  const [mariaStatus, setMariaStatus] = useState('rested');
+  // Portrait state: temporary "determined" override (shows for 5 seconds after XP gain)
+  const [showDeterminedPortrait, setShowDeterminedPortrait] = useState(false);
+  const determinedTimerRef = React.useRef(null);
 
   // Reputation system
   const { reputation, updateReputation, reputationEmoji, setReputation: setReputationDirect } = useReputation();
@@ -298,6 +300,15 @@ const GameContent = () => {
 
     // Auto-open status tab to show XP gain
     setLeftSidebarTab('status');
+
+    // Show "determined" portrait for 5 seconds after XP gain
+    if (determinedTimerRef.current) {
+      clearTimeout(determinedTimerRef.current);
+    }
+    setShowDeterminedPortrait(true);
+    determinedTimerRef.current = setTimeout(() => {
+      setShowDeterminedPortrait(false);
+    }, 5000);
 
     // Clear notification after 2 seconds
     setTimeout(() => {
@@ -353,6 +364,44 @@ const GameContent = () => {
 
     rawAwardSkillXP(skillId, adjustedXP, source);
   }, [rawAwardSkillXP, gameState.chosenProfession, playerSkills.level]);
+
+  // Compute Maria's portrait dynamically based on game state
+  const mariaPortraitUrl = useMemo(() => {
+    // PRIORITY 1: "determined" override (XP gain flash, 5 seconds)
+    if (showDeterminedPortrait) {
+      console.log('[Portrait] Using determined override (XP gain flash)');
+      return getDeterminedPortrait();
+    }
+
+    // PRIORITY 2: Status word from StatusAgent (LLM-determined emotional state)
+    if (gameState.status) {
+      const statusPortrait = getPortraitFromStatus(gameState.status);
+      if (statusPortrait) {
+        console.log('[Portrait] Using status word:', gameState.status, '→', statusPortrait);
+        return statusPortrait;
+      }
+    }
+
+    // PRIORITY 3: Calculated from health/energy/XP (fallback)
+    const calculatedPortrait = getMariaPortrait({
+      health: gameState.health || 100,
+      energy: gameState.energy || 100,
+      currentXP: playerSkills.xp || 0,
+      nextLevelXP: playerSkills.xpToNextLevel || 100,
+      level: playerSkills.level || 1,
+      recentFailure: false // TODO: Track recent failures
+    });
+    console.log('[Portrait] Using calculated portrait (health/energy/XP):', calculatedPortrait);
+    return calculatedPortrait;
+  }, [
+    showDeterminedPortrait,
+    gameState.status, // NEW: Add status dependency
+    gameState.health,
+    gameState.energy,
+    playerSkills.xp,
+    playerSkills.xpToNextLevel,
+    playerSkills.level
+  ]);
 
   // Active effects (not core stats - this is for temporary buffs/debuffs)
   const [activeEffects, setActiveEffects] = useState([]);
@@ -446,6 +495,17 @@ const GameContent = () => {
       transactionManager.saveToStorage(scenarioId);
     }
   }, [gameState.wealth, transactionManager, scenarioId]);
+
+  // Real-time clock: advance game time by 10 minutes every real-world minute
+  useEffect(() => {
+    const clockInterval = setInterval(() => {
+      advanceTime({ minutes: 10 });
+      console.log('[Real-Time Clock] Advanced game time by 10 minutes');
+    }, 60000); // 60,000 ms = 1 minute
+
+    // Cleanup interval on unmount
+    return () => clearInterval(clockInterval);
+  }, [advanceTime]);
 
   // Handle level-ups and profession choice (now using playerSkills.level)
   const prevLevelRef = React.useRef(playerSkills.level);
@@ -559,7 +619,8 @@ const GameContent = () => {
         setConversationHistory([
           {
             role: 'user',
-            content: 'Begin the game'
+            content: 'Begin the game',
+            hidden: true // Hide from UI - only needed for logging system
           },
           {
             role: 'assistant',
@@ -582,8 +643,8 @@ const GameContent = () => {
   const handlers = useGameHandlers({
     // State setters
     setWealth,  // Changed from setCurrentWealth - now uses gameState
-    setMariaStatus,
     setReputation: setReputationDirect,
+    updateReputation, // Faction-based reputation updates
     setIncorporatedContent,
     setShowIncorporatePopup,
     setIsJournalOpen,
@@ -625,6 +686,8 @@ const GameContent = () => {
     setCurrentPrescriptionType,
     setNPCPosition,
     setPlayerPosition,
+    setPlayerFacing,
+    setCurrentMapId,
     setIsModernInventoryOpen,
     setUserActions,
     setActiveTab,
@@ -637,8 +700,14 @@ const GameContent = () => {
     setIsPatientRosterOpen,
     setPendingContract,
     setIsContractModalOpen,
+    setPendingExitData, // Exit confirmation system
+    setShowExitConfirmation, // Exit confirmation system
+    setTradingNPC, // Trade system
+    setTradeMode, // Trade system
+    setPendingSimpleInteraction, // Simple interaction system
     setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
     setDynamicChips, // Dynamic action chips from narrative parsing
+    setGameState, // For updating gameState (e.g., status from StateAgent)
 
     // State values
     energy: gameState.energy,  // From gameState
@@ -656,6 +725,7 @@ const GameContent = () => {
     reputationEmoji,
     currentMapData,
     playerPosition,
+    playerFacing,
     currentMapId,
     npcPositions,
     activeTab,
@@ -673,6 +743,11 @@ const GameContent = () => {
     addCompoundToInventory,
     refreshInventory,
     toggleShopSign,
+    updateEnergy,
+    addTradeOpportunity, // Trade system
+    removeTradeOpportunity, // Trade system
+    addTradeTransaction, // Trade system
+    cleanupExpiredOpportunities, // Trade system
 
     // Leveling system
     awardXP,
@@ -682,7 +757,7 @@ const GameContent = () => {
   // Destructure handlers for easy use
   const {
     handleWealthChange,
-    handleStatusChange,
+
     handleReputationChange,
     handleIncorporate,
     toggleJournal,
@@ -713,19 +788,36 @@ const GameContent = () => {
     handleAcceptTreatment,
     handleAcceptSale,
     handleDeclineContract,
+    handleAcceptTrade,
+    handleDeclineTrade,
+    handleSimpleInteractionChoice,
     handleMovement,
+    handleEnterBuilding,
+    handleExitBuilding,
   } = handlers;
 
-  // Keyboard event listener for arrow key movement
+  // Keyboard event listener for arrow key movement and A/D rotation
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Only respond to arrow keys when NOT typing in an input field
+      // Only respond to keys when NOT typing in an input field
       const activeElement = document.activeElement;
       if (activeElement && (
         activeElement.tagName === 'INPUT' ||
         activeElement.tagName === 'TEXTAREA' ||
         activeElement.contentEditable === 'true'
       )) {
+        return;
+      }
+
+      // A/D keys for rotation (only in interior maps)
+      if ((e.key === 'a' || e.key === 'A') && currentMapId === 'botica-interior') {
+        e.preventDefault();
+        setPlayerFacing(prev => (prev - 90 + 360) % 360); // Rotate left
+        return;
+      }
+      if ((e.key === 'd' || e.key === 'D') && currentMapId === 'botica-interior') {
+        e.preventDefault();
+        setPlayerFacing(prev => (prev + 90) % 360); // Rotate right
         return;
       }
 
@@ -746,7 +838,7 @@ const GameContent = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleMovement]);
+  }, [handleMovement, currentMapId]);
 
   // Study Tab - Detect books when narrative changes
   React.useEffect(() => {
@@ -876,8 +968,57 @@ const GameContent = () => {
     handleItemActionFromHook(action, item, npc, closePopup);
   };
 
+  // Handle opening full inventory modal in list view
+  const handleOpenFullInventory = () => {
+    setTradeMode('inventory');
+    setInventoryViewMode('list');
+    setTradingNPC({ type: 'inventory' }); // Set dummy NPC to trigger modal
+    setIsBuyOpen(true); // Actually open the modal
+  };
+
+  // Handle exit confirmation
+  const handleConfirmExit = () => {
+    if (!pendingExitData) return;
+
+    // Execute the exit
+    updateLocation(pendingExitData.location);
+    setCurrentMapId(pendingExitData.mapId);
+    setPlayerPosition(pendingExitData.position);
+
+    // Show exit message
+    setHistoryOutput(pendingExitData.exitMessage);
+    addToHistory({ role: 'assistant', content: pendingExitData.exitMessage });
+    setUserActions(prev => [...prev, 'leave']);
+
+    // Clear state
+    setShowExitConfirmation(false);
+    setPendingExitData(null);
+  };
+
   // Study Tab - Book Click Handler
   const handleBookClick = (book) => {
+    // Apply costs for reading/studying the book
+    // Energy: -1 (minimal mental fatigue)
+    const currentEnergy = gameState.energy || 50;
+    const newEnergy = Math.max(0, currentEnergy - 1);
+    updateEnergy(newEnergy);
+    console.log('[Energy] Book study cost: -1 energy');
+
+    // Time: 45 minutes to read and comprehend the book
+    advanceTime({ minutes: 45 });
+    console.log('[Time] Book study: +45 minutes');
+
+    // XP: +1 for gaining knowledge
+    if (typeof awardXP === 'function') {
+      awardXP(1, `study_${book.name}`);
+      console.log('[XP] Awarded 1 XP for studying:', book.name);
+    }
+
+    // Show toast notification
+    if (toast) {
+      toast.success(`Studied ${book.name}. +1 XP`, { duration: 2000 });
+    }
+
     if (book.pdf) {
       // Open PDF popup
       setSelectedPDF(book.pdf);
@@ -945,9 +1086,31 @@ const GameContent = () => {
     }
   };
 
+  // Get fresh NPC list on every render (cheap operation, spreads 5-item array)
+  // Don't memoize - causes stale data bugs since npcTracker mutates internally
+  const recentNPCs = npcTracker.getRecentNPCs();
+
+  // Memoize filtered NPC positions
+  const filteredNPCPositions = useMemo(() =>
+    npcPositions.filter(npc => recentNPCs.includes(npc.npcName)),
+    [npcPositions, recentNPCs]
+  );
+
+  // Memoize callback handlers to prevent re-creation on every render
+  const handleShowPrescribePopup = useCallback((patient) => {
+    setCurrentPatient(patient);
+    setIsPrescribePopupOpen(true);
+    setIsInventoryOpen(true);
+  }, []);
+
+  const handleShowDiagnosePopup = useCallback((patient) => {
+    setCurrentPatient(patient);
+    setIsDiagnoseOpen(true);
+  }, []);
+
   return (
       <DndProvider backend={HTML5Backend}>
-        <div className="h-full flex flex-col overflow-hidden bg-gradient-to-br from-parchment-100 via-parchment-50/50 to-parchment-50/80 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500">
+        <div className={`h-screen flex flex-col overflow-hidden bg-gradient-to-br from-parchment-100 via-parchment-50/50 to-parchment-50/80 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500 ${narrationDarkMode ? 'dark' : ''}`}>
 
 
         {/* Header */}
@@ -957,6 +1120,10 @@ const GameContent = () => {
           date={gameState.date}
           onSaveGame={handleSaveGame}
           onSettings={() => setIsSettingsOpen(true)}
+          showCondensedStats={isCharacterCardCollapsed}
+          health={gameState.health}
+          energy={gameState.energy}
+          wealth={gameState.wealth}
         />
 
         {/* Main Content Area */}
@@ -968,7 +1135,7 @@ const GameContent = () => {
             {/* Left Sidebar - Character Card & Status Panel */}
             <LeftSidebar
               wealth={gameState.wealth}
-              status={mariaStatus}
+              status={gameState.status} // Pass status from StateAgent
               reputation={reputation}
               reputationEmoji={reputationEmoji}
               health={gameState.health}
@@ -979,7 +1146,7 @@ const GameContent = () => {
               chosenProfession={gameState.chosenProfession}
               activeEffects={activeEffects}
               playerSkills={playerSkills}
-              portraitImage={getStatusImage(mariaStatus)}
+              portraitImage={mariaPortraitUrl}
               conversationHistory={conversationHistory}
               inventory={gameState.inventory}
               onOpenEquipment={() => setShowEquipmentModal(true)}
@@ -992,11 +1159,13 @@ const GameContent = () => {
                 setShowReputationModal(true);
               }}
               onOpenSkillsModal={() => setShowSkillsModal(true)}
+              onOpenFullInventory={handleOpenFullInventory}
               onItemDropOnPlayer={handleItemDropOnPlayer}
               statusPanelTab={leftSidebarTab}
               onStatusPanelTabChange={setLeftSidebarTab}
               xpGain={xpGain}
               xpGainKey={xpGainKey}
+              onCharacterCardCollapseChange={setIsCharacterCardCollapsed}
             />
 
             {/* Center - Central Panel (Tabbed Interface) */}
@@ -1007,17 +1176,10 @@ const GameContent = () => {
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
                 conversationHistory={conversationHistory}
-                recentNPCs={npcTracker.getRecentNPCs()}
+                recentNPCs={recentNPCs}
                 isLoading={isLoading}
-                onShowPrescribePopup={(patient) => {
-                  setCurrentPatient(patient);
-                  setIsPrescribePopupOpen(true);
-                  setIsInventoryOpen(true);
-                }}
-                onShowDiagnosePopup={(patient) => {
-                  setCurrentPatient(patient);
-                  setIsDiagnoseOpen(true);
-                }}
+                onShowPrescribePopup={handleShowPrescribePopup}
+                onShowDiagnosePopup={handleShowDiagnosePopup}
                 gameLog={gameLog}
                 activePatient={activePatient}
                 patientDialogue={patientDialogue}
@@ -1025,8 +1187,19 @@ const GameContent = () => {
                 // Contract props
                 pendingContract={pendingContract}
                 onOpenContractModal={() => setIsContractModalOpen(true)}
+                // Exit confirmation props
+                pendingExitConfirmation={showExitConfirmation ? pendingExitData : null}
+                onConfirmExit={handleConfirmExit}
+                onCancelExit={() => setShowExitConfirmation(false)}
+                // Trade props
+                tradeOpportunities={gameState.tradeOpportunities || []}
+                onAcceptTrade={handleAcceptTrade}
+                onDeclineTrade={handleDeclineTrade}
+                // Simple interaction props
+                pendingSimpleInteraction={pendingSimpleInteraction}
+                onSimpleInteractionChoice={handleSimpleInteractionChoice}
                 onEntityClick={handleEntityClick}
-                playerPortrait={getStatusImage(mariaStatus)}
+                playerPortrait={mariaPortraitUrl}
                 // Prescription props for Patient View
                 gameState={gameState}
                 updateInventory={updateInventory}
@@ -1037,6 +1210,8 @@ const GameContent = () => {
                 currentWealth={gameState.wealth}
                 prescriptionType={currentPrescriptionType}
                 advanceTime={advanceTime}
+                energy={gameState.energy}
+                updateEnergy={updateEnergy}
                 transactionManager={transactionManager}
                 TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
                 toggleInventory={toggleInventory}
@@ -1082,19 +1257,21 @@ const GameContent = () => {
             <div className={`transition-all duration-500 ease-in-out ${
               activeTab === 'patient'
                 ? 'w-0 opacity-0 translate-x-full overflow-hidden pointer-events-none'
-                : 'w-[356px] lg:w-[356px] xl:w-[376px] opacity-100 translate-x-0'
+                : 'w-[356px] lg:w-[356px] xl:w-[370px] opacity-100 translate-x-0'
             }`}>
               <ContextPanel
                 location={gameState.location}
                 locationDetails={gameState.location}
                 onActionClick={handleActionClick}
-                recentNPCs={npcTracker.getRecentNPCs()}
+                recentNPCs={recentNPCs}
                 primaryPortraitFile={primaryPortraitFile} // PHASE 1: LLM-selected portrait
                 currentNarrative={historyOutput}
                 recentNarrativeTurn={historyOutput} // Most recent narrative turn for LLM analysis
                 scenario={scenarioLoader.getScenario(scenarioId || '1680-mexico-city')}
-                npcs={npcPositions.filter(npc => npcTracker.getRecentNPCs().includes(npc.npcName))} // Only show NPCs mentioned in narrative
+                npcs={filteredNPCPositions} // Only show NPCs mentioned in narrative
                 playerPosition={playerPosition} // Pass player position to map
+                playerFacing={playerFacing} // Pass player facing direction for interior map
+                currentMapId={currentMapId} // Pass current map ID to control which map is rendered
                 shopSignHung={gameState.shopSign?.hung || false} // Pass shop sign status
                 setIsLedgerOpen={setIsLedgerOpen} // Open Ledger Modal when Accounts button clicked
                 toggleShopSign={toggleShopSign} // Direct shop sign control
@@ -1109,6 +1286,9 @@ const GameContent = () => {
                 onPortraitClick={handlePortraitClick} // Handle portrait clicks
                 onMapClick={() => setIsInteractiveMapModalOpen(true)} // Open map modal
                 onItemDropOnNPC={handleItemDropOnNPC} // Handle item drops on NPC portrait
+                onEnterBuilding={handleEnterBuilding} // Handle building entry click on map
+                onExitBuilding={handleExitBuilding} // Handle Exit button click on map
+                onRoomCommand={handleSubmit} // Handle room movement commands from map
               />
             </div>
 
@@ -1161,6 +1341,9 @@ const GameContent = () => {
           isPatientRosterOpen={isPatientRosterOpen}
 
           // Modal data
+          tradeMode={tradeMode}
+          tradingNPC={tradingNPC}
+          inventoryViewMode={inventoryViewMode}
           selectedPatient={selectedPatient}
           selectedNPC={selectedNPC}
           selectedItem={selectedItem}
@@ -1178,13 +1361,13 @@ const GameContent = () => {
           energy={gameState.energy}
           health={gameState.health}
           isPrescribing={isPrescribing}
-          mariaStatus={mariaStatus}
           reputation={reputation}
           playerSkills={playerSkills}
           skillEffects={skillEffects}
           transactionManager={transactionManager}
           TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
           playerPosition={playerPosition}
+          currentMapId={currentMapId}
 
           // Toggle/close handlers
           toggleMixingPopup={toggleMixingPopup}
@@ -1243,7 +1426,7 @@ const GameContent = () => {
           setIsInventoryOpen={setIsInventoryOpen}
           setNPCPosition={setNPCPosition}
           npcPositions={npcPositions}
-          recentNPCs={npcPositions.filter(npc => npcTracker.getRecentNPCs().includes(npc.npcName))}
+          recentNPCs={filteredNPCPositions}
           handleWealthChange={handleWealthChange}
           historyOutput={historyOutput}
           awardXP={awardXP}
@@ -1252,7 +1435,7 @@ const GameContent = () => {
           improveSkill={improveSkill}
 
           // Portrait and scenario
-          getStatusImage={getStatusImage}
+          portraitImage={mariaPortraitUrl}
           scenarioId={scenarioId}
           primaryPortraitFile={primaryPortraitFile}
 
@@ -1294,8 +1477,22 @@ const GameContent = () => {
           isOpen={showProfessionChoiceModal}
           playerSkills={playerSkills}
           onChoose={(professionId) => {
-            gameState.chooseProfession(professionId, playerSkills.level);
-            setShowProfessionChoiceModal(false);
+            try {
+              console.log('[GamePage] Profession chosen:', professionId);
+              console.log('[GamePage] Player level:', playerSkills.level);
+              console.log('[GamePage] Calling chooseProfession...');
+
+              chooseProfession(professionId, playerSkills.level);
+
+              console.log('[GamePage] chooseProfession completed, closing modal');
+              setShowProfessionChoiceModal(false);
+
+              // Show success message
+              toast.success(`You are now a ${getProfessionName(professionId)}!`, { duration: 5000 });
+            } catch (error) {
+              console.error('[GamePage] Error choosing profession:', error);
+              toast.error(`Failed to choose profession: ${error.message}`, { duration: 5000 });
+            }
           }}
           canClose={false}
         />

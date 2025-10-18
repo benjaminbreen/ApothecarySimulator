@@ -322,6 +322,13 @@ export class NPCTracker {
     return this.recentNPCs.includes(npcName);
   }
 
+  removeNPC(npcName) {
+    const index = this.recentNPCs.indexOf(npcName);
+    if (index > -1) {
+      this.recentNPCs.splice(index, 1);
+    }
+  }
+
   clear() {
     this.recentNPCs = [];
   }

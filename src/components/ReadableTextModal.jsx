@@ -4,7 +4,7 @@ import { createChatCompletion } from '../core/services/llmService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const ReadableTextModal = ({ isOpen, onClose, item, theme = 'light' }) => {
+const ReadableTextModal = ({ isOpen, onClose, item, theme = 'light', textCache = {} }) => {
   const [fullText, setFullText] = useState('');
   const [originalText, setOriginalText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,6 +23,19 @@ const ReadableTextModal = ({ isOpen, onClose, item, theme = 'light' }) => {
       return;
     }
 
+    // Create cache key from item type and name
+    const cacheKey = `${item.type}:${item.name}`;
+
+    // Check cache first
+    if (textCache[cacheKey]) {
+      console.log('[ReadableTextModal] Using cached text for:', item.name);
+      setFullText(textCache[cacheKey]);
+      setIsLoading(false);
+      setShowOriginal(false);
+      setOriginalText('');
+      return;
+    }
+
     setIsLoading(true);
     setFullText('');
     setShowOriginal(false);
@@ -31,6 +44,7 @@ const ReadableTextModal = ({ isOpen, onClose, item, theme = 'light' }) => {
     // For ambient descriptions, just use the description directly
     if (item.type === 'ambient') {
       setFullText(item.description);
+      textCache[cacheKey] = item.description; // Cache it
       setIsLoading(false);
       return;
     }
@@ -72,15 +86,20 @@ ${item.type === 'sign' || item.type === 'label' ? 'This is a sign, so use markdo
       .then(response => {
         const content = response.choices[0].message.content;
         setFullText(content);
+        // Cache the generated text
+        textCache[cacheKey] = content;
+        console.log('[ReadableTextModal] Cached generated text for:', item.name);
       })
       .catch(error => {
         console.error('[ReadableTextModal] Error generating text:', error);
-        setFullText('The text is too faded to read clearly...');
+        const fallbackText = 'The text is too faded to read clearly...';
+        setFullText(fallbackText);
+        // Don't cache error fallback text
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [isOpen, item]);
+  }, [isOpen, item, textCache]);
 
   // Handle listen button for ambient entries
   const handleListen = () => {
@@ -146,7 +165,14 @@ Return ONLY the translated text, no explanations or language labels.`
         background: 'rgba(0, 0, 0, 0.6)',
         backdropFilter: 'blur(8px)',
       }}
-      onClick={onClose}
+      onClick={(e) => {
+        // Don't close if user is selecting text
+        const selection = window.getSelection();
+        if (selection && selection.toString().length > 0) {
+          return;
+        }
+        onClose();
+      }}
     >
       {/* Modal Container - 17th Century Document or Sign */}
       <div
@@ -280,7 +306,7 @@ Return ONLY the translated text, no explanations or language labels.`
         </button>
 
         {/* Modal Content - 17th Century Letter Layout */}
-        <div className="px-12 py-10 overflow-y-auto max-h-[85vh] custom-scrollbar">
+        <div className="px-12 py-10 overflow-y-auto max-h-[85vh] custom-scrollbar" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
           {/* Decorative Header with Title */}
           <div className="text-center mb-8 pb-6 relative">
             {/* Top flourish */}

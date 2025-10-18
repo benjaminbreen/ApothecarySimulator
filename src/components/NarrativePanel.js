@@ -1,10 +1,28 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { entityManager } from '../core/entities/EntityManager';
 import NPCPatientModal from '../features/medical/components/NPCPatientModal';
 import POIModal from './POIModal';
+import { EntityTooltip, EntityPopup } from './EntityTooltipPopup';
+import SaleOpportunityCard from '../features/commerce/components/SaleOpportunityCard';
+import SimpleInteractionCard from './SimpleInteractionCard';
+import ExitConfirmationCard from './ExitConfirmationCard';
+
+/**
+ * Preprocesses content to wrap quoted dialogue in markdown bold syntax
+ * Converts "dialogue" or "dialogue" to **"dialogue"** for semibold rendering
+ */
+function boldQuotedDialogue(content) {
+  if (typeof content !== 'string') return content;
+
+  // Match text within straight quotes "..." or curly quotes "..."
+  // Wrap the entire quoted portion (including quotes) with ** markers
+  return content
+    .replace(/"([^"]+)"/g, '**"$1"**')  // Straight quotes
+    .replace(/"([^"]+)"/g, '**"$1"**'); // Curly quotes
+}
 
 /**
  * Core function that processes text and highlights entity names
@@ -38,12 +56,14 @@ function highlightEntitiesInText(text, sortedNPCs) {
           const npcData = entityManager.getRawByName(segment);
           const isPatient = (npcData?.entityType || npcData?.type) === 'patient';
           const className = isPatient ? 'patient-name' : 'npc-name';
+          const description = npcData?.description || 'No additional information available.';
 
           newParts.push(
             <span
-              key={`${npcName}-${i}-${Math.random()}`}
+              key={`entity-${npcName}-${i}`}
               className={className}
               data-npc-name={segment}
+              data-description={description}
             >
               {segment}
             </span>
@@ -172,7 +192,7 @@ const TypingIndicator = () => (
   </div>
 );
 
-const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleBookmark, playerPortrait }) => {
+const NarrativeEntry = React.memo(({ entry, index, recentNPCs = [], isBookmarked, onToggleBookmark, playerPortrait, entityComponents }) => {
   const isUser = entry.role === 'user';
   const isSystem = entry.role === 'system';
   const content = entry.content || '';
@@ -242,8 +262,8 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
 
     // PHASE 3B: Three response modes for assistant messages
 
-    // DIALOGUE MODE: NPC portrait (person Maria is talking to)
-    if (entry.responseType === 'dialogue' && entry.primaryPortrait) {
+    // NPC PORTRAIT: Show if LLM selected a portrait (works for both dialogue and narration modes)
+    if (entry.primaryPortrait) {
       return (
         <img
           src={`/portraits/${entry.primaryPortrait}`}
@@ -252,7 +272,7 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
           onError={(e) => {
             console.warn('[NarrativePanel] Failed to load NPC portrait:', entry.primaryPortrait);
             // Fallback to book icon if portrait fails
-            e.target.outerHTML = '<svg class="w-6 h-6 text-ink-600" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" /></svg>';
+            e.target.outerHTML = '<svg class="w-6 h-6 text-ink-600 dark:text-parchment-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" /></svg>';
           }}
         />
       );
@@ -263,6 +283,15 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
       return (
         <svg className="w-5 h-5 text-botanical-600 dark:text-botanical-400 transition-colors duration-300" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+        </svg>
+      );
+    }
+
+    // NEXT STEPS MODE: Question mark icon (after simple interactions)
+    if (entry.responseType === 'next_steps') {
+      return (
+        <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 transition-colors duration-300" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
         </svg>
       );
     }
@@ -295,9 +324,6 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
     }
   }
 
-  // Create custom components for entity highlighting (used by ReactMarkdown)
-  const entityComponents = createEntityHighlightingComponents(recentNPCs);
-
   // Special handling for initial narrative (index 0) - full width, no icon, larger text, pure markdown with NPC highlighting
   if (index === 0 && !isUser && !isSystem) {
     return (
@@ -309,7 +335,7 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
               rehypePlugins={[rehypeRaw]}
               components={entityComponents}
             >
-              {content}
+              {boldQuotedDialogue(content)}
             </ReactMarkdown>
           </div>
         </div>
@@ -392,7 +418,7 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
                       components={entityComponents}
                       className="text-[21px] text-parchment-900 dark:text-parchment-100 font-serif italic transition-colors duration-300"
                     >
-                      {entry.dialogue}
+                      {boldQuotedDialogue(entry.dialogue)}
                     </ReactMarkdown>
                   </div>
                   {/* Optional: Show speaker name */}
@@ -413,7 +439,7 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
                       components={entityComponents}
                       className="text-[21px] text-parchment-900 dark:text-parchment-100 font-serif transition-colors duration-300"
                     >
-                      {content}
+                      {boldQuotedDialogue(content)}
                     </ReactMarkdown>
                   </div>
                 </div>
@@ -436,9 +462,23 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className="text-[19px] text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300"
+                      className="text-[20px] text-ink-800 dark:text-parchment-100 font-sans transition-colors duration-300"
                     >
                       {content}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              ) : entry.responseType === 'next_steps' ? (
+                // NEXT STEPS MODE: Reflective prompt after simple interactions
+                <div className="bg-gradient-to-br from-amber-50/40 to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-3.5 border border-amber-200 dark:border-amber-600/20 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
+                  <div className="prose prose-lg max-w-none">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw]}
+                      components={entityComponents}
+                      className="text-[21px] text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300"
+                    >
+                      {boldQuotedDialogue(content)}
                     </ReactMarkdown>
                   </div>
                 </div>
@@ -450,9 +490,9 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className="text-[21px] text-ink-800 dark:text-parchment-100 font-serif  transition-colors duration-300"
+                      className="text-[22px] text-ink-800 dark:text-parchment-100 font-serif  transition-colors duration-300"
                     >
-                      {content}
+                      {boldQuotedDialogue(content)}
                     </ReactMarkdown>
                   </div>
                 </div>
@@ -496,7 +536,16 @@ const NarrativeEntry = ({ entry, index, recentNPCs = [], isBookmarked, onToggleB
       )}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison: only re-render if these specific props change
+  // This prevents all entries from re-rendering when hover state changes in parent
+  return (
+    prevProps.entry === nextProps.entry &&
+    prevProps.isBookmarked === nextProps.isBookmarked &&
+    prevProps.entityComponents === nextProps.entityComponents &&
+    prevProps.playerPortrait === nextProps.playerPortrait
+  );
+});
 
 const NarrativePanel = ({
   conversationHistory = [],
@@ -510,6 +559,15 @@ const NarrativePanel = ({
   pendingPrescription,
   pendingContract = null, // Contract offer pending negotiation
   onOpenContractModal = null, // Handler to open contract modal
+  pendingExitConfirmation = null, // Exit confirmation data
+  onConfirmExit = null, // Handler to confirm exit
+  onCancelExit = null, // Handler to cancel exit
+  tradeOpportunities = [], // Active trade opportunities from StateAgent
+  onAcceptTrade = null, // Handler to open trade modal with NPC
+  onDeclineTrade = null, // Handler to decline trade opportunity
+  pendingSimpleInteraction = null, // Simple interaction (service offers, donations, etc.)
+  onSimpleInteractionChoice = null, // Handler for simple interaction choices
+  gameState = {}, // Game state for wealth/inventory
   fontSize = 'text-base',
   isDarkMode = false
 }) => {
@@ -519,6 +577,19 @@ const NarrativePanel = ({
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [bookmarkedIndices, setBookmarkedIndices] = useState(new Set());
+
+  // Entity tooltip and compact popup state
+  const [hoveredEntity, setHoveredEntity] = useState(null); // { name, description, rect }
+  const [showEntityPopup, setShowEntityPopup] = useState(false);
+  const [popupEntity, setPopupEntity] = useState(null);
+
+  // Debounce timer for hover state
+  const hoverTimeoutRef = useRef(null);
+
+  // Memoize entity highlighting components - only recreate when recentNPCs changes
+  const entityComponents = useMemo(() => {
+    return createEntityHighlightingComponents(recentNPCs);
+  }, [recentNPCs]);
 
   // Toggle bookmark for a message
   const handleToggleBookmark = (index) => {
@@ -555,10 +626,17 @@ const NarrativePanel = ({
   }, [isOpen, toggleHistory]);
 
   const handleNPCClick = (npcName) => {
+    // Clear hover tooltip when clicking on entity
+    setHoveredEntity(null);
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+
     // Find entity data from EntityManager
     const entityData = entityManager.getByName(npcName);
 
     if (!entityData) {
+      // Open POI modal even for unknown entities
       setSelectedEntity({
         name: npcName,
         description: 'No additional information available.',
@@ -574,21 +652,46 @@ const NarrativePanel = ({
     if (entityType === 'patient') {
       setSelectedPatient(entityData);
       setShowPatientModal(true);
-      setShowPOIModal(false); // Close POI modal if open
       return;
     }
 
-    // For all other entities (NPCs, locations), open POI modal
+    // For all other entities (NPCs, locations, items), open POI modal directly
     setSelectedEntity(entityData);
     setShowPOIModal(true);
   };
 
-  // Add click listeners to NPC names after render
+  const handleLookCloser = () => {
+    // Open full POI modal with current entity
+    setSelectedEntity(popupEntity);
+    setShowPOIModal(true);
+    // Clear hover tooltip when modal opens
+    setHoveredEntity(null);
+    // Clear any pending hover timeouts
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+  };
+
+  const handleAddNote = () => {
+    // Stub for journal note functionality
+    console.log('[Journal] Add note for:', popupEntity?.name);
+    // TODO: Implement journal note system
+    alert(`Journal note for "${popupEntity?.name}" will be added here (not yet implemented)`);
+  };
+
+  // Add click and hover listeners to NPC names after render
+  // CRITICAL: No dependencies to prevent listener thrashing on every message
   useEffect(() => {
     const narrativePanel = narrativeRef.current;
     if (!narrativePanel) return;
 
     const handleClick = (e) => {
+      // Don't open modal if user is selecting text
+      const selection = window.getSelection();
+      if (selection && selection.toString().length > 0) {
+        return;
+      }
+
       // Handle both npc-name and patient-name classes
       if (e.target.classList.contains('npc-name') || e.target.classList.contains('patient-name')) {
         const npcName = e.target.getAttribute('data-npc-name');
@@ -596,15 +699,67 @@ const NarrativePanel = ({
       }
     };
 
+    const handleMouseEnter = (e) => {
+      if (e.target.classList.contains('npc-name') || e.target.classList.contains('patient-name')) {
+        // Clear any existing timeout
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+        }
+
+        // Capture data IMMEDIATELY before element can be replaced by React
+        const npcName = e.target.getAttribute('data-npc-name');
+        const description = e.target.getAttribute('data-description');
+        const rect = e.target.getBoundingClientRect();
+
+        // Debounce state update to prevent rapid re-renders
+        hoverTimeoutRef.current = setTimeout(() => {
+          // Use captured data, not e.target reference (which may be stale)
+          setHoveredEntity({
+            name: npcName,
+            description,
+            rect: {
+              top: rect.top,
+              left: rect.left,
+              width: rect.width,
+              height: rect.height
+            }
+          });
+        }, 150); // 150ms delay
+      }
+    };
+
+    const handleMouseLeave = (e) => {
+      if (e.target.classList.contains('npc-name') || e.target.classList.contains('patient-name')) {
+        // Clear any pending hover state updates
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+        }
+
+        // Debounce the clear too - give small grace period before hiding tooltip
+        hoverTimeoutRef.current = setTimeout(() => {
+          setHoveredEntity(null);
+        }, 50); // 50ms grace period
+      }
+    };
+
     narrativePanel.addEventListener('click', handleClick);
-    return () => narrativePanel.removeEventListener('click', handleClick);
-  }, [conversationHistory, recentNPCs]);
+    narrativePanel.addEventListener('mouseenter', handleMouseEnter, true); // true = capture phase
+    narrativePanel.addEventListener('mouseleave', handleMouseLeave, true); // true = capture phase
+
+    return () => {
+      narrativePanel.removeEventListener('click', handleClick);
+      narrativePanel.removeEventListener('mouseenter', handleMouseEnter, true);
+      narrativePanel.removeEventListener('mouseleave', handleMouseLeave, true);
+      // Clean up any pending timeouts
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []); // Empty deps - listeners set up once and never removed
 
   return (
     <>
-      <div className={`h-full bg-white/95 backdrop-blur-lg rounded-2xl overflow-hidden flex flex-col shadow-elevation-3 border border-white/20 transition-colors duration-300 ${
-        isDarkMode ? 'dark bg-slate-900/95 dark:shadow-dark-elevation-3 dark:border-slate-700/50' : ''
-      }`}>
+      <div className="h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg rounded-2xl overflow-hidden flex flex-col shadow-elevation-3 dark:shadow-dark-elevation-3 border border-white/20 dark:border-slate-700/50 transition-colors duration-300">
         <div
           ref={narrativeRef}
           className={`flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-[25px] py-[21px] space-y-4 ${fontSize}`}
@@ -632,6 +787,7 @@ const NarrativePanel = ({
                   isBookmarked={bookmarkedIndices.has(index)}
                   onToggleBookmark={handleToggleBookmark}
                   playerPortrait={playerPortrait}
+                  entityComponents={entityComponents}
                 />
               ))}
 
@@ -665,6 +821,45 @@ const NarrativePanel = ({
                       </button>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Exit Confirmation Card - Amber/Warning */}
+              {pendingExitConfirmation && onConfirmExit && onCancelExit && (
+                <div className="mb-4 animate-fade-in">
+                  <ExitConfirmationCard
+                    exitData={pendingExitConfirmation}
+                    onConfirm={onConfirmExit}
+                    onCancel={onCancelExit}
+                    isDark={isDarkMode}
+                  />
+                </div>
+              )}
+
+              {/* Trade Opportunity Cards */}
+              {tradeOpportunities && tradeOpportunities.length > 0 && onAcceptTrade && onDeclineTrade && (
+                tradeOpportunities.map((opportunity) => (
+                  <div key={opportunity.id} className="mb-4">
+                    <SaleOpportunityCard
+                      opportunity={opportunity}
+                      onAccept={() => onAcceptTrade(opportunity)}
+                      onDecline={() => onDeclineTrade(opportunity.id)}
+                      isDark={isDarkMode}
+                    />
+                  </div>
+                ))
+              )}
+
+              {/* Simple Interaction Card - Fast Gameplay Loops */}
+              {pendingSimpleInteraction && onSimpleInteractionChoice && (
+                <div className="mb-4 animate-fade-in">
+                  <SimpleInteractionCard
+                    interaction={pendingSimpleInteraction}
+                    onChoice={(action) => onSimpleInteractionChoice(action, pendingSimpleInteraction)}
+                    currentWealth={gameState.wealth || 0}
+                    inventory={gameState.inventory || []}
+                    isDark={isDarkMode}
+                  />
                 </div>
               )}
 
@@ -784,7 +979,7 @@ const NarrativePanel = ({
             margin-top: 1em;
             margin-bottom: 1em;
             color: #3d2817;
-            font-size: 1.25rem;
+            font-size: 1.35rem;
             font-family: 'Crimson Text', Georgia, serif;
             line-height: 1.7;
             letter-spacing: 0.01em;
@@ -813,11 +1008,9 @@ const NarrativePanel = ({
           }
 
           .npc-name:hover {
-            color: #0d9488;
             text-decoration: underline;
             text-decoration-thickness: 2px;
             text-underline-offset: 3px;
-            transform: translateY(-1px);
           }
 
           /* Patient names - Subtle red with semibold weight */
@@ -831,11 +1024,9 @@ const NarrativePanel = ({
           }
 
           .patient-name:hover {
-            color: #dc2626;
             text-decoration: underline;
             text-decoration-thickness: 2px;
             text-underline-offset: 3px;
-            transform: translateY(-1px);
           }
 
           /* Item names - Subtle purple/indigo */
@@ -871,6 +1062,17 @@ const NarrativePanel = ({
             text-decoration-thickness: 1px;
             text-underline-offset: 3px;
           }
+
+          /* Bold text (dialogue) - Warm parchment color */
+          .prose strong {
+            color: #261409;
+            font-weight: 600;
+          }
+
+          .dark .prose strong {
+            color: #d4c5a9;
+            font-weight: 600;
+          }
         `}</style>
       </div>
 
@@ -898,6 +1100,25 @@ const NarrativePanel = ({
         onDiagnose={(patient) => {
           console.log('Diagnose:', patient.name);
         }}
+      />
+
+      {/* Entity Tooltip - shows on hover */}
+      {hoveredEntity && (
+        <EntityTooltip
+          rect={hoveredEntity.rect}
+          description={hoveredEntity.description}
+          entityName={hoveredEntity.name}
+        />
+      )}
+
+      {/* Entity Compact Popup - shows on click */}
+      <EntityPopup
+        isOpen={showEntityPopup}
+        onClose={() => setShowEntityPopup(false)}
+        entityName={popupEntity?.name}
+        description={popupEntity?.description || 'No additional information available.'}
+        onLookCloser={handleLookCloser}
+        onAddNote={handleAddNote}
       />
     </>
   );

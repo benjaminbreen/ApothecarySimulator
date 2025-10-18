@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ReputationTab } from './ReputationTab';
 import { StatusTab } from './StatusTab';
 import { InventoryTab } from './InventoryTab';
+import { RippleButton } from '../RippleButton';
 
 /**
  * PlayerStatusPanel Component
@@ -15,24 +16,58 @@ export function PlayerStatusPanel({
   onItemClick,
   onOpenReputationModal,
   onOpenSkillsModal,
+  onOpenFullInventory, // Handler to open full inventory modal
   activeTab: controlledActiveTab,
   onTabChange,
   inventory, // Add inventory prop
   xpGain, // XP gain notification data
   xpGainKey // Key to force re-render of XP animation
 }) {
-  const [internalActiveTab, setInternalActiveTab] = useState('reputation');
+  const [internalActiveTab, setInternalActiveTab] = useState('inventory');
   const [hoveredTab, setHoveredTab] = useState(null);
 
   // Use controlled tab if provided, otherwise use internal state
   const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
   const setActiveTab = onTabChange || setInternalActiveTab;
 
-  // Tab configuration
+  // Tab configuration with color schemes
   const tabs = [
-    { id: 'reputation', label: 'Reputation' },
-    { id: 'status', label: 'Status' },
-    { id: 'inventory', label: 'Inventory' },
+    {
+      id: 'reputation',
+      label: 'Reputation',
+      colors: {
+        light: { active: '#f59e0b', inactive: '#8a857d', ripple: 'rgba(245, 158, 11, 0.25)' },
+        dark: { active: '#fbbf24', inactive: '#a8a29e', ripple: 'rgba(251, 191, 36, 0.3)' }
+      },
+      gradient: {
+        light: 'linear-gradient(to right, #fbbf24, #f59e0b, #fbbf24)',
+        dark: 'linear-gradient(to right, #fbbf24, #f59e0b, #fbbf24)'
+      }
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      colors: {
+        light: { active: '#10b981', inactive: '#8a857d', ripple: 'rgba(16, 185, 129, 0.25)' },
+        dark: { active: '#34d399', inactive: '#a8a29e', ripple: 'rgba(52, 211, 153, 0.3)' }
+      },
+      gradient: {
+        light: 'linear-gradient(to right, #34d399, #10b981, #34d399)',
+        dark: 'linear-gradient(to right, #34d399, #10b981, #34d399)'
+      }
+    },
+    {
+      id: 'inventory',
+      label: 'Inventory',
+      colors: {
+        light: { active: '#3b82f6', inactive: '#8a857d', ripple: 'rgba(59, 130, 246, 0.25)' },
+        dark: { active: '#60a5fa', inactive: '#a8a29e', ripple: 'rgba(96, 165, 250, 0.3)' }
+      },
+      gradient: {
+        light: 'linear-gradient(to right, #60a5fa, #3b82f6, #60a5fa)',
+        dark: 'linear-gradient(to right, #60a5fa, #3b82f6, #60a5fa)'
+      }
+    },
   ];
 
   const isDark = document.documentElement.classList.contains('dark');
@@ -57,17 +92,19 @@ export function PlayerStatusPanel({
           const isHovered = hoveredTab === tab.id;
           const isFirst = index === 0;
           const isLast = index === tabs.length - 1;
+          const tabColors = isDark ? tab.colors.dark : tab.colors.light;
 
           return (
-            <button
+            <RippleButton
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               onMouseEnter={() => setHoveredTab(tab.id)}
               onMouseLeave={() => setHoveredTab(null)}
+              rippleColor={tabColors.ripple}
               className="flex-1 px-5 py-3 font-sans font-semibold text-sm tracking-wide transition-all duration-300 relative"
               style={{
-                color: isActive ? (document.documentElement.classList.contains('dark') ? '#fbbf24' : '#10b981') : (document.documentElement.classList.contains('dark') ? '#a8a29e' : '#8a857d'),
-                backgroundColor: isHovered && !isActive ? (document.documentElement.classList.contains('dark') ? '#334155' : '#f8f8f7') : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#ffffff'),
+                color: isActive ? tabColors.active : tabColors.inactive,
+                backgroundColor: isHovered && !isActive ? (isDark ? '#334155' : '#f8f8f7') : (isDark ? '#1e293b' : '#ffffff'),
                 borderRadius: isFirst ? '16px 0 0 0' : isLast ? '0 16px 0 0' : '0'
               }}
             >
@@ -77,13 +114,11 @@ export function PlayerStatusPanel({
                   className="absolute bottom-0 left-0 right-0 transition-all duration-300"
                   style={{
                     height: '2px',
-                    background: document.documentElement.classList.contains('dark')
-                      ? 'linear-gradient(to right, #fbbf24, #f59e0b, #fbbf24)'
-                      : 'linear-gradient(to right, #34d399, #10b981, #34d399)'
+                    background: isDark ? tab.gradient.dark : tab.gradient.light
                   }}
                 />
               )}
-            </button>
+            </RippleButton>
           );
         })}
       </div>
@@ -142,7 +177,11 @@ export function PlayerStatusPanel({
         )}
 
         {activeTab === 'inventory' && (
-          <InventoryTab onItemClick={onItemClick} inventory={inventory} />
+          <InventoryTab
+            onItemClick={onItemClick}
+            onOpenFullInventory={onOpenFullInventory}
+            inventory={inventory}
+          />
         )}
       </div>
     </div>

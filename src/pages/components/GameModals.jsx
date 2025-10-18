@@ -4,6 +4,7 @@
 import React, { Suspense } from 'react';
 import Journal from '../../features/inventory/components/Journal';
 import MixingWorkshop from '../../components/MixingWorkshop';
+import MedicalRecordsManager from '../../core/systems/medicalRecordsManager';
 
 
 import ItemModalEnhanced from '../../features/inventory/components/ItemModalEnhanced';
@@ -69,6 +70,9 @@ export function GameModals({
   isPatientRosterOpen,
 
   // Modal data
+  tradeMode,
+  tradingNPC,
+  inventoryViewMode,
   selectedPatient,
   selectedNPC,
   selectedItem,
@@ -86,13 +90,13 @@ export function GameModals({
   energy,
   health,
   isPrescribing,
-  mariaStatus,
   reputation,
   playerSkills,
   skillEffects,
   transactionManager,
   TRANSACTION_CATEGORIES,
   playerPosition,
+  currentMapId,
 
   // Toggle/close handlers
   toggleMixingPopup,
@@ -161,7 +165,7 @@ export function GameModals({
   setGameState,
 
   // Portrait and scenario
-  getStatusImage,
+  portraitImage, // Maria's dynamically computed portrait
   scenarioId,
   primaryPortraitFile, // PHASE 1: LLM-selected portrait
 
@@ -229,6 +233,36 @@ export function GameModals({
         TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
         awardXP={awardXP}
         awardSkillXP={awardSkillXP}
+        onPrescriptionComplete={(prescriptionData) => {
+          // Add medical record when prescription is completed
+          if (currentPatient && gameState) {
+            const updatedRecords = MedicalRecordsManager.addSession(
+              gameState.medicalRecords || {},
+              currentPatient,
+              {
+                date: gameState.date,
+                turnNumber: turnNumber,
+                qaExchanges: [], // Q&A system to be implemented
+                symptoms: currentPatient.symptoms || [],
+                diagnosis: currentPatient.diagnosis || '',
+                prescriptions: [{
+                  medicine: prescriptionData.itemName,
+                  route: prescriptionData.route,
+                  dosage: prescriptionData.amount,
+                  price: prescriptionData.price
+                }],
+                outcome: 'Prescribed' // Will be updated when treatment outcome is known
+              }
+            );
+
+            setGameState(prevState => ({
+              ...prevState,
+              medicalRecords: updatedRecords
+            }));
+
+            console.log('[Medical Records] Added prescription record for', currentPatient.name);
+          }
+        }}
       />
 
       {/* About Modal */}
@@ -309,6 +343,9 @@ export function GameModals({
           playerSkills={playerSkills}
           awardXP={awardXP}
           awardSkillXP={awardSkillXP}
+          mode={tradeMode}
+          tradingNPC={tradingNPC}
+          initialViewMode={inventoryViewMode}
         />
       )}
 
@@ -386,6 +423,7 @@ export function GameModals({
           setShowPatientModal(true);
           setIsPatientRosterOpen(false);
         }}
+        medicalRecords={gameState?.medicalRecords || {}}
       />
 
       {/* NPC Patient Modal */}
@@ -435,7 +473,7 @@ export function GameModals({
         onClose={() => setShowEquipmentModal(false)}
         inventory={gameState.inventory}
         characterName="Maria de Lima"
-        portraitImage={getStatusImage(mariaStatus)}
+        portraitImage={portraitImage}
         health={health}
         energy={energy}
         wealth={currentWealth}
@@ -497,6 +535,7 @@ export function GameModals({
           onClose={() => setIsInteractiveMapModalOpen(false)}
           scenario={scenarioLoader.getScenario(scenarioId || '1680-mexico-city')}
           currentLocation={gameState.location}
+          currentMapId={currentMapId}
           npcs={recentNPCs}
           playerPosition={playerPosition}
           onLocationChange={(newLocation) => {

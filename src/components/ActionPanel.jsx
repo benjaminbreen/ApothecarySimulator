@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FaClipboardList, FaBed, FaShoppingCart, FaBalanceScale } from 'react-icons/fa';
+import { RippleButton } from './RippleButton';
 
 // Available actions that can be assigned to hotkey slots
 const AVAILABLE_ACTIONS = {
@@ -321,14 +322,15 @@ export function ActionPanel({
 
     return (
       <div key={slot} className="relative group/tooltip">
-        <button
+        <RippleButton
           ref={(el) => buttonRefs.current[refKey].current = el}
           onMouseEnter={() => setHoveredAction(`main-${slot}`)}
           onMouseLeave={() => setHoveredAction(null)}
           onClick={() => onActionClick?.(actionId)}
+          rippleColor={colorScheme.glowColor}
           className={`relative overflow-hidden ${animationClass} ${
             isSignActive
-              ? 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 border-2 border-green-400 dark:border-green-600 shadow-lg shadow-green-200/50 dark:shadow-green-900/30 animate-pulse-slow'
+              ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/30 border-2 border-amber-400 dark:border-amber-600 shadow-lg shadow-amber-200/50 dark:shadow-amber-900/30 animate-pulse-slow'
               : 'bg-white dark:bg-gray-800 border-2 border-[#e5dcc9] dark:border-gray-700'
           } hover:border-[#d4c5a9] dark:hover:border-gray-600 rounded-2xl p-2.5 w-full aspect-square flex flex-col items-center justify-center shadow-md hover:shadow-xl transition-all duration-300 ${
             isPressed ? 'scale-95' : 'hover:-translate-y-1'
@@ -377,7 +379,7 @@ export function ActionPanel({
           <div className="text-[0.85rem] font-semibold tracking-wide text-[#3d2817] dark:text-[#f4e8d0] text-center leading-tight z-10">
             {action.name}
           </div>
-        </button>
+        </RippleButton>
 
         {/* Tooltip via Portal */}
         <Tooltip targetRef={buttonRefs.current[refKey]} colorScheme={colorScheme} show={isHovered}>
@@ -390,6 +392,8 @@ export function ActionPanel({
   const renderSecondaryButton = (action, index) => {
     const isHovered = hoveredAction === `secondary-${action.id}`;
     const isDark = document.documentElement.classList.contains('dark');
+    // Use green ripple for all secondary buttons to match their green hover state
+    const greenRippleColor = isDark ? 'rgba(34, 197, 94, 0.4)' : 'rgba(34, 197, 94, 0.3)';
 
     // Create ref if doesn't exist
     const refKey = `secondary-${action.id}`;
@@ -403,31 +407,32 @@ export function ActionPanel({
 
     return (
       <div key={action.id} className="relative group/tooltip">
-        <button
+        <RippleButton
           ref={(el) => buttonRefs.current[refKey].current = el}
           onMouseEnter={() => setHoveredAction(`secondary-${action.id}`)}
           onMouseLeave={() => setHoveredAction(null)}
           onClick={() => onActionClick?.(action.id)}
-          className={`${animationClass} group bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 border border-[#e5dcc9] dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700/50 rounded-lg p-2 flex items-center gap-2 shadow-sm hover:shadow-md transition-all duration-300 w-full`}
+          rippleColor={greenRippleColor}
+          className={`${animationClass} group bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 border border-[#e5dcc9] dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700/50 rounded-lg p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-all duration-300 w-full`}
           style={{
             transitionDelay: animationDelay
           }}
         >
-          {/* Icon - Much Smaller */}
-          <div className="w-8 h-8 bg-[#f9f6f1] dark:bg-gray-700 rounded-lg flex items-center justify-center text-base flex-shrink-0 text-[#6b5a47] dark:text-[#f4e8d0]">
+          {/* Icon */}
+          <div className="w-10 h-10 bg-[#f9f6f1] dark:bg-gray-700 rounded-lg flex items-center justify-center text-lg flex-shrink-0 text-[#6b5a47] dark:text-[#f4e8d0]">
             {action.icon}
           </div>
 
-          {/* Text Content - Smaller */}
+          {/* Text Content */}
           <div className="flex-1 text-left">
-            <div className="font-['Crimson_Text'] text-sm font-semibold text-[#3d2817] dark:text-[#f4e8d0] leading-tight">
+            <div className="font-['Crimson_Text'] text-base font-semibold text-[#3d2817] dark:text-[#f4e8d0] leading-tight">
               {action.name}
             </div>
-            <div className="text-[0.65rem] text-gray-600 dark:text-gray-400 leading-tight font-sans">
+            <div className="text-xs text-gray-600 dark:text-gray-400 leading-tight font-sans">
               {action.description}
             </div>
           </div>
-        </button>
+        </RippleButton>
 
         {/* Tooltip via Portal */}
         <Tooltip
@@ -548,7 +553,7 @@ export function ActionPanel({
         {/* Primary Actions Section Header with Elegant Dividers */}
         <div className="flex items-center gap-2.5 mb-2.5">
           <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#d4c5a9] to-[#d4c5a9] dark:via-gray-600 dark:to-gray-600"></div>
-          <span className="font-['Crimson_Text'] text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-[0.15em] whitespace-nowrap">
+          <span className="font-sans text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-[0.15em] whitespace-nowrap">
             Primary Actions
           </span>
           <div className="relative">

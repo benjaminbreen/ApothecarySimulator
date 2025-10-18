@@ -361,7 +361,14 @@ function PrescribePopup({
     advanceTime({ time: updatedTime, date: updatedDate });
 
     if (typeof onPrescriptionComplete === 'function') {
-      onPrescriptionComplete(simulatedOutput);
+      onPrescriptionComplete({
+        itemName: selectedItem?.name || 'unknown medicine',
+        amount,
+        price,
+        route: selectedRoute,
+        narrative: simulatedOutput,
+        patientName: currentPatient?.name
+      });
     }
 
     // Add conversation history with clear context for next turn

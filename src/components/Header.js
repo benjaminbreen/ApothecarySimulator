@@ -1,12 +1,18 @@
 import React from 'react';
 import DateTimeDropdown from './DateTimeDropdown';
+import { RippleButton, RippleIconButton } from './RippleButton';
 
 const Header = ({
   location = 'Mexico City',
   time = '8:00 AM',
   date = 'August 22, 1680',
   onSaveGame,
-  onSettings
+  onSettings,
+  // Condensed stats props
+  showCondensedStats = false,
+  health = 85,
+  energy = 62,
+  wealth = 11
 }) => {
 
   const handleSaveGame = () => {
@@ -74,13 +80,17 @@ const Header = ({
                   humidity: '45%',
                   wind: 'Light breeze'
                 }}
+                showCondensedStats={showCondensedStats}
+                health={health}
+                energy={energy}
+                wealth={wealth}
               />
             </div>
           </div>
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            <button
+            <RippleIconButton
               onClick={handleSettings}
               className="p-2 hover:bg-parchment-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200 text-ink-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-amber-400 border border-transparent hover:border-parchment-300 dark:hover:border-slate-600"
               title="Settings"
@@ -90,8 +100,8 @@ const Header = ({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
               </svg>
-            </button>
-            <button
+            </RippleIconButton>
+            <RippleButton
               onClick={handleSaveGame}
               className="px-4 py-2 bg-gradient-to-br from-emerald-600 to-emerald-700 dark:from-amber-600 dark:to-amber-700 text-white dark:text-slate-900 rounded-xl hover:from-emerald-500 hover:to-emerald-600 dark:hover:from-amber-500 dark:hover:to-amber-600 active:scale-[0.97] transition-all duration-200 text-sm font-semibold font-sans flex items-center gap-2 shadow-elevation-2 dark:shadow-glow-amber"
             >
@@ -99,7 +109,7 @@ const Header = ({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
               Save Game
-            </button>
+            </RippleButton>
           </div>
         </div>
       </div>

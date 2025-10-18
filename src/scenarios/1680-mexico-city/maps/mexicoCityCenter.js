@@ -215,6 +215,7 @@ export default {
       type: 'church',
       subtype: 'cathedral',
       hasInterior: 'cathedral-interior',
+      entrancePoint: { x: 745, y: 740 },
       labelPosition: [745, 670],
       priority: 2,
       alwaysShowLabel: true,
@@ -231,6 +232,7 @@ export default {
       type: 'government',
       subtype: 'viceregal-palace',
       hasInterior: 'palacio-interior',
+      entrancePoint: { x: 1055, y: 740 },
       labelPosition: [1055, 670],
       priority: 2,
       alwaysShowLabel: true,
@@ -363,7 +365,8 @@ export default {
       name: 'Mercado de la Merced',
       polygon: [[1500, 950], [1640, 950], [1640, 1000], [1500, 1000]],
       type: 'market',
-      hasInterior: 'merced-market-interior',
+      hasInterior: 'mercado-interior',
+      entrancePoint: { x: 1570, y: 1010 },
       labelPosition: [1570, 975],
       priority: 4,
       alwaysShowLabel: false,
@@ -379,6 +382,7 @@ export default {
       subtype: 'apothecary',
       hasInterior: 'botica-interior',
       isPlayerLocation: true,
+      entrancePoint: { x: 1350, y: 930 }, // Where player appears when exiting
       labelPosition: [1350, 945],
       priority: 1,
       alwaysShowLabel: true,
@@ -509,6 +513,34 @@ export default {
       hasInterior: null,
       priority: 10,
       alwaysShowLabel: false
+    },
+
+    // ===== SPECIFIC RESIDENCES (with interiors) =====
+    {
+      id: 'humble-house',
+      name: 'Humble Dwelling',
+      polygon: [[580, 1100], [615, 1100], [615, 1130], [580, 1130]],
+      type: 'residence',
+      subtype: 'humble',
+      hasInterior: 'humble-house-interior',
+      entrancePoint: { x: 597, y: 1135 },
+      labelPosition: [597, 1115],
+      priority: 8,
+      alwaysShowLabel: false,
+      description: 'Simple one-room dwelling'
+    },
+    {
+      id: 'middling-house',
+      name: 'Casa Respectable',
+      polygon: [[1380, 1100], [1430, 1100], [1430, 1145], [1380, 1145]],
+      type: 'residence',
+      subtype: 'middling',
+      hasInterior: 'middling-house-interior',
+      entrancePoint: { x: 1405, y: 1150 },
+      labelPosition: [1405, 1122],
+      priority: 8,
+      alwaysShowLabel: false,
+      description: 'Respectable four-room house'
     }
   ],
 

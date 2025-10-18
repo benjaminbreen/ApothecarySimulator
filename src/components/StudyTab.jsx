@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createChatCompletion } from '../core/services/llmService';
 import ReadableTextModal from './ReadableTextModal';
+import { RippleButton } from './RippleButton';
 
 const StudyTab = ({
   discoveredBooks = [],
@@ -14,6 +15,9 @@ const StudyTab = ({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Cache for generated text content (persists during playthrough, cleared on unmount)
+  const textCacheRef = React.useRef({});
 
   // Generate readable items from the current scene
   useEffect(() => {
@@ -159,6 +163,7 @@ Example format:
         onClose={handleCloseModal}
         item={selectedItem}
         theme={theme}
+        textCache={textCacheRef.current}
       />
     </div>
   );
@@ -168,6 +173,17 @@ Example format:
 const ReadableCard = ({ item, onClick, isDark, index }) => {
   // Animation delay based on index
   const animationDelay = `${index * 50}ms`;
+
+  // Get ripple color based on type
+  const getRippleColor = () => {
+    if (item.type === 'ambient') {
+      return isDark ? 'rgba(139, 92, 246, 0.35)' : 'rgba(167, 139, 250, 0.3)';
+    } else if (item.type === 'sign' || item.type === 'label') {
+      return isDark ? 'rgba(217, 119, 6, 0.35)' : 'rgba(180, 83, 9, 0.3)';
+    } else {
+      return isDark ? 'rgba(59, 130, 246, 0.35)' : 'rgba(37, 99, 235, 0.3)';
+    }
+  };
 
   // Different icon based on type
   const getIcon = () => {
@@ -193,8 +209,9 @@ const ReadableCard = ({ item, onClick, isDark, index }) => {
   };
 
   return (
-    <button
+    <RippleButton
       onClick={onClick}
+      rippleColor={getRippleColor()}
       className="w-full text-left p-2 py-3 rounded-lg transition-all duration-300 group animate-fade-in cursor-pointer hover:-translate-y-0.5"
       style={{
         background: isDark
@@ -285,7 +302,7 @@ const ReadableCard = ({ item, onClick, isDark, index }) => {
           </svg>
         </div>
       </div>
-    </button>
+    </RippleButton>
   );
 };
 

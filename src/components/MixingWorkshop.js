@@ -170,7 +170,14 @@ When provided with ingredients and a compounding method, return a JSON object wi
   "price": Number of reales in value,
   "emoji": "A single HISTORICALLY ACCURATE and CREATIVE emoji to represent the result (Unusable Sludge is always ☠️)",
   "citation": "Real primary source or historical reference which mentions it or something like it",
-  "quantity": "1"
+  "quantity": "1",
+  "historicalAccuracyScore": A number from 1-100 rating the historical accuracy and thoughtfulness of this combination, where:
+    - 1-30: Common, mundane combination (e.g., simple decoctions, basic syrups)
+    - 31-60: Somewhat sophisticated, scarce compound (e.g., lesser-known cordials, regional remedies)
+    - 61-85: Rare, highly sophisticated compound (e.g., complex alchemical preparations, exotic imports)
+    - 86-100: Legendary, extremely rare and historically significant (e.g., Theriac, Aurum Potabile, Philosopher's Stone preparations)
+    Consider: ingredient rarity, method complexity, historical documentation, therapeutic sophistication,
+  "historicalAccuracyRationale": "A single concise sentence (max 120 characters) explaining the score with SPECIFIC reference to a real historical source, practitioner, or text. Examples: 'Mentioned in Culpeper's 1653 Complete Herbal as a standard purgative.' or 'Paracelsus described this mercurial preparation in Archidoxis (1570).' or 'Common preparation found in Spanish pharmacopoeias of the period.' Be specific with dates, names, and titles."
 }
 
 CRITICAL REMINDER: Return ONLY the raw JSON object above. Do not wrap it in markdown code fences (no \`\`\`json), do not add explanatory text, and do not include comments. Your entire response must be valid JSON that can be parsed directly.
@@ -238,6 +245,63 @@ Compounding Method: ${selectedMethod}
         }
       }
 
+      // RARITY CALCULATION SYSTEM
+      // Uses LLM's historical accuracy score + randomness to determine rarity
+      // Probabilities: Common ~50-60%, Scarce ~25-30%, Rare ~10-15%, Legendary ~1-2%
+      const calculateRarity = (accuracyScore) => {
+        // Unusable sludge never gets rarity
+        if (compoundName === 'Unusable Sludge') {
+          return { tier: 'common', multiplier: 1.0 };
+        }
+
+        // Base probabilities (add up to ~100%)
+        // These shift based on accuracy score
+        const baseRoll = Math.random() * 100;
+
+        // Score ranges and their probability modifiers
+        // Low score (1-30): 70% common, 25% scarce, 4.5% rare, 0.5% legendary
+        // Medium score (31-60): 50% common, 30% scarce, 15% rare, 5% legendary
+        // High score (61-85): 20% common, 30% scarce, 40% rare, 10% legendary
+        // Very high score (86-100): 5% common, 15% scarce, 50% rare, 30% legendary
+
+        if (accuracyScore <= 30) {
+          // Common/mundane combinations
+          if (baseRoll < 70) return { tier: 'common', multiplier: 1.0 };
+          if (baseRoll < 95) return { tier: 'scarce', multiplier: 1.5 };
+          if (baseRoll < 99.5) return { tier: 'rare', multiplier: 2.5 };
+          return { tier: 'legendary', multiplier: 5.0 };
+        } else if (accuracyScore <= 60) {
+          // Sophisticated combinations
+          if (baseRoll < 50) return { tier: 'common', multiplier: 1.0 };
+          if (baseRoll < 80) return { tier: 'scarce', multiplier: 1.5 };
+          if (baseRoll < 95) return { tier: 'rare', multiplier: 2.5 };
+          return { tier: 'legendary', multiplier: 5.0 };
+        } else if (accuracyScore <= 85) {
+          // Rare, sophisticated combinations
+          if (baseRoll < 20) return { tier: 'common', multiplier: 1.0 };
+          if (baseRoll < 50) return { tier: 'scarce', multiplier: 1.5 };
+          if (baseRoll < 90) return { tier: 'rare', multiplier: 2.5 };
+          return { tier: 'legendary', multiplier: 5.0 };
+        } else {
+          // Legendary combinations
+          if (baseRoll < 5) return { tier: 'common', multiplier: 1.0 };
+          if (baseRoll < 20) return { tier: 'scarce', multiplier: 1.5 };
+          if (baseRoll < 70) return { tier: 'rare', multiplier: 2.5 };
+          return { tier: 'legendary', multiplier: 5.0 };
+        }
+      };
+
+      // Calculate rarity based on LLM's historical accuracy score
+      const accuracyScore = compoundData.historicalAccuracyScore || 30; // Default to common range
+      const rarity = calculateRarity(accuracyScore);
+
+      // Apply rarity multiplier to price
+      compoundPrice = Math.ceil(compoundPrice * rarity.multiplier);
+
+      console.log(`[Mixing] Historical accuracy score: ${accuracyScore}`);
+      console.log(`[Mixing] Determined rarity: ${rarity.tier} (${rarity.multiplier}x multiplier)`);
+      console.log(`[Mixing] Adjusted price: ${compoundPrice} reales`);
+
       // Apply Alchemist L20/L30 ability: Double batch chance
       let compoundQuantity = compoundData.quantity || 1;
       const doubleBatchChance = getDoubleBatchChance(gameState.chosenProfession, gameState.playerLevel);
@@ -258,7 +322,10 @@ Compounding Method: ${selectedMethod}
         medicinalEffects: compoundData.medicinalEffects || 'N/A',
         description: compoundData.description || 'The mixing process failed, resulting in an unusable sludge.',
         citation: compoundData.citation || 'N/A',
-        quantity: compoundQuantity
+        quantity: compoundQuantity,
+        rarity: rarity.tier, // Add rarity tier
+        historicalAccuracyScore: accuracyScore, // Store for reference
+        historicalAccuracyRationale: compoundData.historicalAccuracyRationale || null // LLM explanation of score
       };
 
       // Add compound to inventory
@@ -271,15 +338,33 @@ Compounding Method: ${selectedMethod}
         addJournalEntry(`Maria created a new compound named **${newCompound.name}** using the ${selectedMethod} method. The compound is ${newCompound.humoralQualities} with ${newCompound.medicinalEffects} effects and is worth ${newCompound.price} silver coins.`);
       }
 
-      // Award XP for compound creation (+1 XP per creation)
+      // Award XP for compound creation - scales with rarity
+      // Common: 1 XP, Scarce: 3 XP, Rare: 5 XP, Legendary: 10 XP
+      const xpRewards = {
+        'common': 1,
+        'scarce': 3,
+        'rare': 5,
+        'legendary': 10
+      };
+      const xpAmount = xpRewards[rarity.tier] || 1;
+
       if (typeof awardXP === 'function') {
-        awardXP(1, `compound_creation_${newCompound.name}`);
-        console.log(`[XP] Awarded 1 XP for creating ${newCompound.name}`);
+        awardXP(xpAmount, `compound_creation_${newCompound.name}`);
+        console.log(`[XP] Awarded ${xpAmount} XP for creating ${rarity.tier} compound: ${newCompound.name}`);
       }
 
-      // Award alchemy skill XP
+      // Award alchemy skill XP - also scales with rarity
+      const alchemySkillXP = {
+        'common': newCompound.name === 'Unusable Sludge' ? 3 : 8,
+        'scarce': 12,
+        'rare': 18,
+        'legendary': 30
+      };
+      const skillXpAmount = alchemySkillXP[rarity.tier] || 8;
+
       if (typeof awardSkillXP === 'function') {
-        awardSkillXP('alchemy', newCompound.name === 'Unusable Sludge' ? 3 : 8);
+        awardSkillXP('alchemy', skillXpAmount);
+        console.log(`[Alchemy] Awarded ${skillXpAmount} alchemy skill XP for ${rarity.tier} compound`);
       }
 
       // Deduct ingredients from inventory
