@@ -400,8 +400,89 @@ a:hover {
   }
 }
 
+@keyframes cascade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  60% {
+    transform: translateY(-2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-backdrop-in {
+  0% {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    backdrop-filter: blur(12px);
+  }
+}
+
+@keyframes modal-backdrop-out {
+  0% {
+    opacity: 1;
+    backdrop-filter: blur(12px);
+  }
+  100% {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+}
+
+@keyframes modal-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+  60% {
+    transform: scale(1.02) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modal-scale-out {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+}
+
 .animate-float {
   animation: float 3s ease-in-out infinite;
+}
+
+.animate-cascade-in {
+  animation: cascade-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-modal-backdrop-in {
+  animation: modal-backdrop-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.animate-modal-backdrop-out {
+  animation: modal-backdrop-out 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.animate-modal-scale-in {
+  animation: modal-scale-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-modal-scale-out {
+  animation: modal-scale-out 0.2s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 .animate-glow {
@@ -410,6 +491,19 @@ a:hover {
 
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out both;
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 .animate-pulse-slow {
@@ -430,6 +524,67 @@ a:hover {
 
 .animate-slide-in-bottom {
   animation: slideInBottom 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Tab content slide transitions */
+@keyframes tab-slide-out-left {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+}
+
+@keyframes tab-slide-out-right {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
+
+@keyframes tab-slide-in-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tab-slide-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-tab-slide-out-left {
+  animation: tab-slide-out-left 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.animate-tab-slide-out-right {
+  animation: tab-slide-out-right 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.animate-tab-slide-in-left {
+  animation: tab-slide-in-left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-tab-slide-in-right {
+  animation: tab-slide-in-right 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 /* Custom scrollbar */

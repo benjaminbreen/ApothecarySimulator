@@ -8,6 +8,7 @@ import POIModal from './POIModal';
 import { EntityTooltip, EntityPopup } from './EntityTooltipPopup';
 import SaleOpportunityCard from '../features/commerce/components/SaleOpportunityCard';
 import SimpleInteractionCard from './SimpleInteractionCard';
+import RandomEventCard from './RandomEventCard';
 import ExitConfirmationCard from './ExitConfirmationCard';
 
 /**
@@ -54,8 +55,18 @@ function highlightEntitiesInText(text, sortedNPCs) {
         } else {
           // Entity name match - wrap in clickable span
           const npcData = entityManager.getRawByName(segment);
-          const isPatient = (npcData?.entityType || npcData?.type) === 'patient';
-          const className = isPatient ? 'patient-name' : 'npc-name';
+          const entityType = (npcData?.entityType || npcData?.type || '').toLowerCase();
+
+          // Determine className based on entity type
+          let className = 'npc-name'; // Default
+          if (entityType === 'patient') {
+            className = 'patient-name';
+          } else if (entityType === 'item') {
+            className = 'item-name';
+          } else if (entityType === 'location') {
+            className = 'location-name';
+          }
+
           const description = npcData?.description || 'No additional information available.';
 
           newParts.push(
@@ -83,12 +94,12 @@ function highlightEntitiesInText(text, sortedNPCs) {
  * even when text is inside bold, italic, or other formatting
  */
 function createEntityHighlightingComponents(recentNPCs = []) {
-  // Get all entities from EntityManager, but filter to only NPCs, patients, and locations
-  // We don't want to highlight items like "cobblestones", "oil", etc.
+  // Get all entities from EntityManager, filter to NPCs, patients, locations, and items
+  // Items are now included to support POI furniture (Drug Cabinet, Sales Counter, etc.)
   const allEntities = entityManager.getAll();
   const highlightableEntities = allEntities.filter(entity => {
     const type = entity.entityType || entity.type;
-    return type === 'npc' || type === 'patient' || type === 'location';
+    return type === 'npc' || type === 'patient' || type === 'location' || type === 'item';
   });
   const highlightableNames = highlightableEntities.map(entity => entity.name);
 
@@ -100,7 +111,7 @@ function createEntityHighlightingComponents(recentNPCs = []) {
 
   // Log once when components are created
   if (sortedNPCs.length > 0 && !window.__entityComponentsLogged) {
-    console.log('[EntityHighlighter] Highlighting', sortedNPCs.length, 'NPCs/patients/locations (excluding items)');
+    console.log('[EntityHighlighter] Highlighting', sortedNPCs.length, 'entities (NPCs, patients, locations, items)');
     window.__entityComponentsLogged = true;
   }
 
@@ -567,7 +578,10 @@ const NarrativePanel = ({
   onDeclineTrade = null, // Handler to decline trade opportunity
   pendingSimpleInteraction = null, // Simple interaction (service offers, donations, etc.)
   onSimpleInteractionChoice = null, // Handler for simple interaction choices
+  pendingRandomEvent = null, // Random event (variety gameplay moments)
+  onRandomEventChoice = null, // Handler for random event choices
   gameState = {}, // Game state for wealth/inventory
+  updateInventory = null, // Handler to update inventory quantities
   fontSize = 'text-base',
   isDarkMode = false
 }) => {
@@ -692,15 +706,21 @@ const NarrativePanel = ({
         return;
       }
 
-      // Handle both npc-name and patient-name classes
-      if (e.target.classList.contains('npc-name') || e.target.classList.contains('patient-name')) {
+      // Handle entity clicks (NPCs, patients, items, locations)
+      if (e.target.classList.contains('npc-name') ||
+          e.target.classList.contains('patient-name') ||
+          e.target.classList.contains('item-name') ||
+          e.target.classList.contains('location-name')) {
         const npcName = e.target.getAttribute('data-npc-name');
         handleNPCClick(npcName);
       }
     };
 
     const handleMouseEnter = (e) => {
-      if (e.target.classList.contains('npc-name') || e.target.classList.contains('patient-name')) {
+      if (e.target.classList.contains('npc-name') ||
+          e.target.classList.contains('patient-name') ||
+          e.target.classList.contains('item-name') ||
+          e.target.classList.contains('location-name')) {
         // Clear any existing timeout
         if (hoverTimeoutRef.current) {
           clearTimeout(hoverTimeoutRef.current);
@@ -729,7 +749,10 @@ const NarrativePanel = ({
     };
 
     const handleMouseLeave = (e) => {
-      if (e.target.classList.contains('npc-name') || e.target.classList.contains('patient-name')) {
+      if (e.target.classList.contains('npc-name') ||
+          e.target.classList.contains('patient-name') ||
+          e.target.classList.contains('item-name') ||
+          e.target.classList.contains('location-name')) {
         // Clear any pending hover state updates
         if (hoverTimeoutRef.current) {
           clearTimeout(hoverTimeoutRef.current);
@@ -857,6 +880,21 @@ const NarrativePanel = ({
                     interaction={pendingSimpleInteraction}
                     onChoice={(action) => onSimpleInteractionChoice(action, pendingSimpleInteraction)}
                     currentWealth={gameState.wealth || 0}
+                    inventory={gameState.inventory || []}
+                    isDark={isDarkMode}
+                  />
+                </div>
+              )}
+
+              {/* Random Event Card - Variety Gameplay Moments */}
+              {pendingRandomEvent && onRandomEventChoice && (
+                <div className="mb-4 animate-fade-in">
+                  <RandomEventCard
+                    eventCard={pendingRandomEvent}
+                    onChoice={(action) => onRandomEventChoice(action, pendingRandomEvent)}
+                    currentWealth={gameState.wealth || 0}
+                    energy={gameState.energy || 100}
+                    health={gameState.health || 100}
                     inventory={gameState.inventory || []}
                     isDark={isDarkMode}
                   />
@@ -1084,6 +1122,15 @@ const NarrativePanel = ({
           setSelectedEntity(null);
         }}
         entity={selectedEntity}
+        inventory={gameState?.inventory || []}
+        onInventoryUpdate={(itemName, quantityChange) => {
+          if (updateInventory) {
+            console.log('[NarrativePanel] Forwarding inventory update to parent:', itemName, quantityChange);
+            updateInventory(itemName, quantityChange);
+          } else {
+            console.warn('[NarrativePanel] updateInventory callback not provided!');
+          }
+        }}
       />
 
       {/* NPC Patient Modal - full medical examination view */}

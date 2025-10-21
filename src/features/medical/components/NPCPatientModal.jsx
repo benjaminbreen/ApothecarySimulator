@@ -106,7 +106,7 @@ export default function NPCPatientModal({
     >
       {/* Modal Container - FIXED DIMENSIONS */}
       <div
-        className={`relative w-full max-w-6xl h-[90vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${
+        className={`relative w-full max-w-6xl h-[76vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${
           isVisible ? 'scale-100 translate-y-0' : 'scale-98 translate-y-2'
         }`}
         onClick={(e) => e.stopPropagation()}

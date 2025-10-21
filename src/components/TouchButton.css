@@ -1,0 +1,244 @@
+/**
+ * Touch-Optimized Button Styles
+ * WCAG 2.5.5 compliant touch targets (minimum 48x48px)
+ */
+
+.touch-button {
+  /* Minimum touch target size */
+  min-width: 48px;
+  min-height: 48px;
+
+  /* Layout */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  /* Typography */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-weight: 600;
+  text-align: center;
+
+  /* Interaction */
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent; /* Remove tap highlight on iOS */
+  touch-action: manipulation; /* Prevent double-tap zoom */
+
+  /* Transitions */
+  transition: all 0.2s ease;
+
+  /* Borders */
+  border: none;
+  border-radius: 8px;
+
+  /* Shadow */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+  /* Prevent text selection */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Active state - triggered on touch */
+.touch-button.touch-active {
+  transform: scale(0.95);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Hover state (for desktop) */
+.touch-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Focus state (keyboard navigation) */
+.touch-button:focus {
+  outline: 3px solid rgba(59, 130, 246, 0.5);
+  outline-offset: 2px;
+}
+
+/* Disabled state */
+.touch-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ============================================
+   BUTTON VARIANTS
+   ============================================ */
+
+/* Primary - Main actions */
+.touch-button--primary {
+  background-color: #4caf50;
+  color: #ffffff;
+}
+
+.touch-button--primary:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+/* Secondary - Less important actions */
+.touch-button--secondary {
+  background-color: #6c757d;
+  color: #ffffff;
+}
+
+.touch-button--secondary:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+/* Danger - Destructive actions */
+.touch-button--danger {
+  background-color: #f44336;
+  color: #ffffff;
+}
+
+.touch-button--danger:hover:not(:disabled) {
+  background-color: #e53935;
+}
+
+/* Success - Positive confirmations */
+.touch-button--success {
+  background-color: #4caf50;
+  color: #ffffff;
+}
+
+.touch-button--success:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+/* Warning - Cautionary actions */
+.touch-button--warning {
+  background-color: #ff9800;
+  color: #ffffff;
+}
+
+.touch-button--warning:hover:not(:disabled) {
+  background-color: #fb8c00;
+}
+
+/* Info - Informational actions */
+.touch-button--info {
+  background-color: #2196f3;
+  color: #ffffff;
+}
+
+.touch-button--info:hover:not(:disabled) {
+  background-color: #1e88e5;
+}
+
+/* Outline - Ghost button */
+.touch-button--outline {
+  background-color: transparent;
+  border: 2px solid #4caf50;
+  color: #4caf50;
+}
+
+.touch-button--outline:hover:not(:disabled) {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+/* ============================================
+   BUTTON SIZES
+   ============================================ */
+
+/* Small - 48x48px minimum */
+.touch-button--small {
+  min-width: 48px;
+  min-height: 48px;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+}
+
+/* Medium - 56x48px recommended */
+.touch-button--medium {
+  min-width: 56px;
+  min-height: 48px;
+  padding: 12px 20px;
+  font-size: 1rem;
+}
+
+/* Large - 64x56px for primary actions */
+.touch-button--large {
+  min-width: 64px;
+  min-height: 56px;
+  padding: 16px 28px;
+  font-size: 1.125rem;
+}
+
+/* ============================================
+   DARK MODE SUPPORT
+   ============================================ */
+
+.dark .touch-button--primary {
+  background-color: #68d391;
+  color: #1a202c;
+}
+
+.dark .touch-button--primary:hover:not(:disabled) {
+  background-color: #48bb78;
+}
+
+.dark .touch-button--secondary {
+  background-color: #4a5568;
+  color: #e2e8f0;
+}
+
+.dark .touch-button--secondary:hover:not(:disabled) {
+  background-color: #2d3748;
+}
+
+.dark .touch-button--danger {
+  background-color: #fc8181;
+  color: #1a202c;
+}
+
+.dark .touch-button--danger:hover:not(:disabled) {
+  background-color: #f56565;
+}
+
+.dark .touch-button--outline {
+  border-color: #68d391;
+  color: #68d391;
+}
+
+.dark .touch-button--outline:hover:not(:disabled) {
+  background-color: rgba(104, 211, 145, 0.1);
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+/* Phone-specific adjustments (sm breakpoint) */
+@media (max-width: 639px) {
+  .touch-button {
+    /* Slightly larger touch targets on phones */
+    min-width: 56px;
+    min-height: 56px;
+  }
+
+  .touch-button--small {
+    min-width: 56px;
+    min-height: 56px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+  }
+
+  .touch-button--medium {
+    min-width: 64px;
+    min-height: 56px;
+    padding: 14px 22px;
+    font-size: 1.05rem;
+  }
+
+  .touch-button--large {
+    min-width: 72px;
+    min-height: 64px;
+    padding: 18px 32px;
+    font-size: 1.2rem;
+  }
+}

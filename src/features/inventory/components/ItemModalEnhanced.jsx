@@ -9,13 +9,46 @@
  * - Glassomorphic parchment aesthetic
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getItemRarity, getItemQuality, getRarityColors, QUALITY_LABELS, RARITY_LABELS } from '../../../core/systems/itemRarity';
+import MedicineTypeBadge from '../../../components/MedicineTypeBadge';
+
+// Rarity tooltip descriptions
+const RARITY_TOOLTIPS = {
+  common: "Widely available items found in most markets (< 8 reales)",
+  scarce: "Less common items requiring some effort to obtain (8-19 reales)",
+  rare: "Difficult to find items from specialized suppliers (20-39 reales)",
+  legendary: "Extremely rare items of exceptional value (40+ reales)"
+};
+
+const QUALITY_TOOLTIPS = {
+  high_quality: "Superior preparation with enhanced properties (2x value multiplier)",
+  exceptional: "Masterwork quality with optimal potency (3x value multiplier)"
+};
 
 export default function ItemModalEnhanced({ isOpen, onClose, item }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedSections, setExpandedSections] = useState({});
   const [generatingSources, setGeneratingSources] = useState(false);
+  const [hoveredBadge, setHoveredBadge] = useState(null); // 'rarity' or 'quality'
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const rarityBadgeRef = useRef(null);
+  const qualityBadgeRef = useRef(null);
+
+  // Calculate tooltip position when hovering
+  useEffect(() => {
+    if (hoveredBadge && (hoveredBadge === 'rarity' ? rarityBadgeRef.current : qualityBadgeRef.current)) {
+      const ref = hoveredBadge === 'rarity' ? rarityBadgeRef : qualityBadgeRef;
+      if (ref.current) {
+        const rect = ref.current.getBoundingClientRect();
+        setTooltipPosition({
+          top: rect.bottom + 8,
+          left: rect.left + rect.width / 2
+        });
+      }
+    }
+  }, [hoveredBadge]);
 
   // Handle ESC key to close
   React.useEffect(() => {
@@ -202,17 +235,26 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
 
                 {/* Title & Metadata */}
                 <div className="flex-1 min-w-0 ">
-                  {/* Name */}
-                  <h1
-                    className="text-5xl font-bold mb-3 leading-tight font-serif text-ink-900"
-                    style={{
-                      letterSpacing: '-0.02em',
-                      lineHeight: '1.1'
-                    }}
-                  >
-                    {item.name}  {item.quantity && (
+                  {/* Name and Medicine Type Badge */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <h1
+                      className="text-5xl font-bold leading-tight font-serif text-ink-900"
+                      style={{
+                        letterSpacing: '-0.02em',
+                        lineHeight: '1.1'
+                      }}
+                    >
+                      {item.name}
+                    </h1>
+                    <MedicineTypeBadge
+                      item={item}
+                      size="medium"
+                      position="inline"
+                      showTooltip={true}
+                    />
+                    {item.quantity && (
                       <span
-                        className="px-2 py-2 rounded-lg text-sm mb-3 font-bold font-sans"
+                        className="px-2 py-2 rounded-lg text-sm font-bold font-sans"
                         style={{
                           background: 'rgba(245, 238, 223, 0.7)',
                           color: '#5c4a3a',
@@ -222,7 +264,7 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                         In Stock: {item.quantity}
                       </span>
                     )}
-                  </h1>
+                  </div>
 
 
 
@@ -243,22 +285,34 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                   {/* Badges */}
                   <div className="flex flex-wrap gap-2 mb-5">
                     <span
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider font-sans"
+                      ref={rarityBadgeRef}
+                      onMouseEnter={() => setHoveredBadge('rarity')}
+                      onMouseLeave={() => setHoveredBadge(null)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider font-sans cursor-help transition-all duration-200"
                       style={{
                         background: `linear-gradient(135deg, ${colors.light}, ${colors.primary})`,
                         color: 'white',
-                        boxShadow: `0 2px 8px ${colors.glow}, inset 0 1px 2px rgba(255, 255, 255, 0.3)`
+                        boxShadow: hoveredBadge === 'rarity'
+                          ? `0 4px 12px ${colors.glow}, inset 0 1px 2px rgba(255, 255, 255, 0.3)`
+                          : `0 2px 8px ${colors.glow}, inset 0 1px 2px rgba(255, 255, 255, 0.3)`,
+                        transform: hoveredBadge === 'rarity' ? 'scale(1.05)' : 'scale(1)'
                       }}
                     >
                       {RARITY_LABELS[rarity]}
                     </span>
                     {quality !== 'standard' && (
                       <span
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider font-sans"
+                        ref={qualityBadgeRef}
+                        onMouseEnter={() => setHoveredBadge('quality')}
+                        onMouseLeave={() => setHoveredBadge(null)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider font-sans cursor-help transition-all duration-200"
                         style={{
                           background: 'linear-gradient(135deg, #c084fc, #a855f7)',
                           color: 'white',
-                          boxShadow: '0 2px 8px rgba(168, 85, 247, 0.5)'
+                          boxShadow: hoveredBadge === 'quality'
+                            ? '0 4px 12px rgba(168, 85, 247, 0.7)'
+                            : '0 2px 8px rgba(168, 85, 247, 0.5)',
+                          transform: hoveredBadge === 'quality' ? 'scale(1.05)' : 'scale(1)'
                         }}
                       >
                         {QUALITY_LABELS[quality]}
@@ -682,6 +736,42 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
           background: linear-gradient(to bottom, rgba(139, 92, 46, 0.5), rgba(139, 92, 46, 0.6));
         }
       `}</style>
+
+      {/* Rarity/Quality Tooltip Portal */}
+      {hoveredBadge && createPortal(
+        <div
+          className="fixed pointer-events-none z-[9999] transition-opacity duration-200"
+          style={{
+            top: `${tooltipPosition.top}px`,
+            left: `${tooltipPosition.left}px`,
+            transform: 'translate(-50%, 0)',
+            opacity: hoveredBadge ? 1 : 0
+          }}
+        >
+          <div
+            className="px-4 py-2 rounded-lg shadow-2xl backdrop-blur-sm whitespace-nowrap"
+            style={{
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%)',
+              border: '1.5px solid rgba(251, 191, 36, 0.3)',
+              maxWidth: '320px'
+            }}
+          >
+            <div className="text-xs font-sans text-parchment-200" style={{ fontWeight: 500 }}>
+              {hoveredBadge === 'rarity' ? RARITY_TOOLTIPS[rarity] : QUALITY_TOOLTIPS[quality]}
+            </div>
+            {/* Arrow pointing up */}
+            <div
+              className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0"
+              style={{
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderBottom: '6px solid rgba(15, 23, 42, 0.98)',
+              }}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

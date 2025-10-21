@@ -6,7 +6,7 @@ import XPGainNotification from '../XPGainNotification';
  * StatusTab Component
  * Displays player skills (known + learning) and active effects
  */
-export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal, xpGain, xpGainKey }) {
+export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal, onOpenSkillDetail, xpGain, xpGainKey }) {
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
   const [viewMode, setViewMode] = useState('list'); // 'grid' or 'list'
 
@@ -260,7 +260,8 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal,
                 return (
                 <div
                   key={skill.id}
-                  className="rounded-md p-1 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 group relative overflow-hidden aspect-square flex flex-col"
+                  onClick={() => onOpenSkillDetail?.(skill.id)}
+                  className="rounded-md p-1 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 group relative overflow-hidden aspect-square flex flex-col animate-cascade-in"
                   style={{
                     background: isDark
                       ? `linear-gradient(145deg, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25) 0%, rgba(30, 41, 59, 0.98) 60%, rgba(51, 65, 85, 0.95) 100%)`
@@ -281,7 +282,7 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal,
                           inset -1px -1px 3px rgba(160, 130, 100, 0.25),
                           inset 1px 1px 2px rgba(255, 255, 255, 0.9)
                         `,
-                    animationDelay: `${index * 40}ms`
+                    animationDelay: `${index * 50}ms`
                   }}
                 >
                   {/* Level badge - top right corner */}
@@ -461,10 +462,11 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal,
 
                     {/* Skills List */}
                     <div className="space-y-1.5">
-                      {categorySkills.map((skill) => (
+                      {categorySkills.map((skill, skillIndex) => (
                         <div
                           key={skill.id}
-                          className="rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-[1.01] group relative overflow-hidden"
+                          onClick={() => onOpenSkillDetail?.(skill.id)}
+                          className="rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-[1.01] group relative overflow-hidden animate-cascade-in"
                           style={{
                             background: isDark
                               ? `linear-gradient(90deg, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15) 0%, rgba(30, 41, 59, 0.95) 30%, rgba(51, 65, 85, 0.9) 100%)`
@@ -474,7 +476,8 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal,
                               : `1px solid rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.25)`,
                             boxShadow: isDark
                               ? `0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15)`
-                              : `0 2px 4px rgba(140, 100, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8)`
+                              : `0 2px 4px rgba(140, 100, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8)`,
+                            animationDelay: `${skillIndex * 50}ms`
                           }}
                         >
                           {/* Hover glow */}
@@ -597,7 +600,7 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal,
             </span>
           </div>
           <div className="space-y-1.5">
-            {learningSkills.map((learning) => {
+            {learningSkills.map((learning, index) => {
               const skill = SKILLS[learning.skillId];
               if (!skill) return null;
 
@@ -608,7 +611,7 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal,
               return (
                 <div
                   key={learning.skillId}
-                  className="rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-[1.01] group relative overflow-hidden"
+                  className="rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-[1.01] group relative overflow-hidden animate-cascade-in"
                   style={{
                     background: isDark
                       ? `linear-gradient(90deg, rgba(${learningRgb}, 0.15) 0%, rgba(30, 41, 59, 0.95) 30%, rgba(51, 65, 85, 0.9) 100%)`
@@ -618,7 +621,8 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal,
                       : `1px solid rgba(${learningRgb}, 0.3)`,
                     boxShadow: isDark
                       ? `0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(${learningRgb}, 0.15)`
-                      : `0 2px 4px rgba(140, 100, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8)`
+                      : `0 2px 4px rgba(140, 100, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8)`,
+                    animationDelay: `${index * 50}ms`
                   }}
                 >
                   {/* Hover glow */}
@@ -727,7 +731,7 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal,
               return (
                 <div
                   key={idx}
-                  className="rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-[1.01] group relative overflow-hidden"
+                  className="rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-[1.01] group relative overflow-hidden animate-cascade-in"
                   style={{
                     background: isDark
                       ? `linear-gradient(90deg, rgba(${effectColor.rgb}, 0.15) 0%, rgba(30, 41, 59, 0.95) 30%, rgba(51, 65, 85, 0.9) 100%)`
@@ -737,7 +741,8 @@ export function StatusTab({ playerSkills, activeEffects = [], onOpenSkillsModal,
                       : `1px solid rgba(${effectColor.rgb}, 0.2)`,
                     boxShadow: isDark
                       ? `0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(${effectColor.rgb}, 0.1)`
-                      : `0 2px 4px rgba(140, 100, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8)`
+                      : `0 2px 4px rgba(140, 100, 60, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8)`,
+                    animationDelay: `${idx * 50}ms`
                   }}
                 >
                   {/* Hover glow */}

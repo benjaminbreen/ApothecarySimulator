@@ -11,6 +11,7 @@ import ItemModalEnhanced from '../../features/inventory/components/ItemModalEnha
 import EquipmentModal from '../../features/inventory/components/EquipmentModal.jsx';
 import ReputationModal from '../../components/ReputationModal';
 import SkillsModal from '../../components/SkillsModal';
+import SkillsDetailModal from '../../components/SkillsDetailModal';
 import PrescribePopup from '../../features/medical/components/PrescribePopup.jsx';
 import NPCPatientModal from '../../features/medical/components/NPCPatientModal';
 import NPCModal from '../../features/modals/NPCModal';
@@ -31,6 +32,7 @@ import ForageAction from '../../features/foraging/ForageAction';
 import GameLog from '../../components/GameLog';
 import SettingsModal from '../../components/SettingsModal_V3';
 import InteractiveMapModal from '../../features/map/components/InteractiveMapModal';
+import POIModal from '../../components/POIModal';
 import imageMap from '../../imageMap';
 import { scenarioLoader } from '../../core/services/scenarioLoader';
 
@@ -55,6 +57,8 @@ export function GameModals({
   showReputationModal,
   reputationModalFaction,
   showSkillsModal,
+  detailSkillId,
+  showPOIModal,
   isSettingsOpen,
   isPdfOpen,
   showEndGamePopup,
@@ -76,6 +80,7 @@ export function GameModals({
   selectedPatient,
   selectedNPC,
   selectedItem,
+  selectedPOIEntity,
   selectedPDF,
   selectedCitation,
   journal,
@@ -119,6 +124,9 @@ export function GameModals({
   setShowEquipmentModal,
   setShowReputationModal,
   setShowSkillsModal,
+  setDetailSkillId,
+  setShowPOIModal,
+  setSelectedPOIEntity,
   setIsSettingsOpen,
   closePdfPopup,
   setShowEndGamePopup,
@@ -173,6 +181,9 @@ export function GameModals({
   setActiveTab,
   setActivePatient,
   setPatientDialogue,
+
+  // Furniture click handler from map
+  handleFurnitureClick,
 }) {
   return (
     <>
@@ -496,7 +507,20 @@ export function GameModals({
         playerSkills={playerSkills}
         onLearnSkill={learnNewSkill}
         onLevelUpSkill={improveSkill}
+        onOpenSkillDetail={(skillId) => setDetailSkillId(skillId)}
       />
+
+      {/* Skills Detail Modal - Rendered at top level */}
+      {detailSkillId && (
+        <SkillsDetailModal
+          isOpen={!!detailSkillId}
+          onClose={() => setDetailSkillId(null)}
+          skillId={detailSkillId}
+          currentLevel={playerSkills?.knownSkills?.[detailSkillId]?.level || 0}
+          currentXp={playerSkills?.knownSkills?.[detailSkillId]?.xp || 0}
+          onNavigate={(newSkillId) => setDetailSkillId(newSkillId)}
+        />
+      )}
 
       {/* Settings Modal */}
       <SettingsModal
@@ -542,6 +566,7 @@ export function GameModals({
             // TODO: Wire up location change handler from GamePage
             console.log('Location changed via map modal:', newLocation);
           }}
+          onFurnitureClick={handleFurnitureClick}
           theme="light"
         />
       )}
@@ -648,6 +673,23 @@ export function GameModals({
             setConversationHistory(prev => [...prev, { role: 'system', content: bloodlettingMessage }]);
 
             setIsBloodlettingOpen(false);
+          }}
+        />
+      )}
+
+      {/* POI Modal - for furniture and entity details */}
+      {showPOIModal && (
+        <POIModal
+          isOpen={showPOIModal}
+          onClose={() => {
+            setShowPOIModal(false);
+            setSelectedPOIEntity(null);
+          }}
+          entity={selectedPOIEntity}
+          inventory={gameState?.inventory || []}
+          onInventoryUpdate={(itemName, quantityChange) => {
+            // Update inventory quantity
+            updateInventory(itemName, quantityChange);
           }}
         />
       )}

@@ -48,6 +48,10 @@ export function CentralPanel({
   pendingSimpleInteraction,
   onSimpleInteractionChoice,
 
+  // Random event props
+  pendingRandomEvent,
+  onRandomEventChoice,
+
   // Prescription props for Patient View
   gameState,
   updateInventory,
@@ -118,7 +122,10 @@ export function CentralPanel({
               onDeclineTrade={onDeclineTrade}
               pendingSimpleInteraction={pendingSimpleInteraction}
               onSimpleInteractionChoice={onSimpleInteractionChoice}
+              pendingRandomEvent={pendingRandomEvent}
+              onRandomEventChoice={onRandomEventChoice}
               gameState={gameState}
+              updateInventory={updateInventory}
               fontSize={narrationFontSize}
               isDarkMode={narrationDarkMode}
             />

@@ -16,6 +16,7 @@ export function PlayerStatusPanel({
   onItemClick,
   onOpenReputationModal,
   onOpenSkillsModal,
+  onOpenSkillDetail,
   onOpenFullInventory, // Handler to open full inventory modal
   activeTab: controlledActiveTab,
   onTabChange,
@@ -171,6 +172,7 @@ export function PlayerStatusPanel({
             playerSkills={playerSkills}
             activeEffects={activeEffects}
             onOpenSkillsModal={onOpenSkillsModal}
+            onOpenSkillDetail={onOpenSkillDetail}
             xpGain={xpGain}
             xpGainKey={xpGainKey}
           />

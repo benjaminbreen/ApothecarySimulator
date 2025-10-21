@@ -256,8 +256,16 @@
   text-align: center; /* Centers the item name */
 }
 
-/* Enhanced Responsive Styles */
-@media (max-width: 1024px) {
+/* ============================================
+   RESPONSIVE BREAKPOINTS (Tailwind-aligned)
+   ============================================
+   Mobile:  < 640px  (phones)
+   Tablet:  640-1023px (sm-lg)
+   Desktop: >= 1024px (lg+)
+   ============================================ */
+
+/* Tablet and below (lg breakpoint) */
+@media (max-width: 1023px) {
   /* General adjustments for medium screen devices like tablets */
   .buy-popup {
     width: 80%;
@@ -288,48 +296,20 @@
   }
 }
 
-@media (max-width: 768px) {
-  /* Small screen adjustments for mobile devices */
-  .buy-popup {
-    width: 90%;
-    left: 5%;
-    padding: 15px;
-    max-height: 90vh;
-    font-size: 0.9rem; /* Further reduce font size for smaller screens */
-  }
-
-  .buy-popup .item-list {
-    grid-template-columns: 2fr; /* Single column for mobile */
-  }
-
-  .buy-controls input,
-  .buy-controls button,
-  .close-button {
-    width: 100%;
-    font-size: 1rem; /* Adjust font size for buttons and inputs */
-  }
-
-  /* Make items more compact on mobile */
-  .buy-popup .item {
-    padding: 8px;
-    font-size: 0.9rem; /* Further reduce font size for items */
-  }
-
-  /* Reduce emoji size on smaller screens */
-  .buy-popup .item .emoji {
-    font-size: 2rem;
-    margin-bottom: 5px; /* Adjust spacing for smaller screens */
-  }
-}
-
-/* For very small devices (like small phones) */
-@media (max-width: 480px) {
+/* Phone-specific adjustments (sm breakpoint) */
+@media (max-width: 639px) {
   .buy-popup {
     width: 95%;
     left: 2.5%;
     padding: 10px;
     max-height: 95vh;
-    font-size: 0.8rem; /* Further reduce font size */
+    font-size: 0.8rem; /* Compact font size for phones */
+  }
+
+  /* Single column layout for phones */
+  .buy-popup .item-list {
+    grid-template-columns: 1fr; /* Single column for mobile */
+    gap: 10px; /* Reduce gap between items */
   }
 
   /* Stack controls vertically and adjust sizes */
@@ -341,17 +321,13 @@
     width: 100%;
   }
 
-  .buy-popup .item-list {
-    gap: 10px; /* Reduce gap between items */
-  }
-
-  /* Make items more compact for very small screens */
+  /* Make items more compact for phones */
   .buy-popup .item {
     padding: 5px;
     font-size: 0.8rem;
   }
 
-  /* Reduce emoji size further for very small devices */
+  /* Reduce emoji size for phones */
   .buy-popup .item .emoji {
     font-size: 1.8rem;
     margin-bottom: 4px;

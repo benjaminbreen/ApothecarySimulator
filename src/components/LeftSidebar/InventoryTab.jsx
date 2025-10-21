@@ -7,6 +7,7 @@ import {
   shouldShowQualityBadge,
   QUALITY_LABELS
 } from '../../core/systems/itemRarity';
+import MedicineTypeBadge from '../MedicineTypeBadge';
 
 /**
  * DraggableInventoryItem - Wrapper for draggable inventory items
@@ -250,7 +251,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [] 
         return (
           <DraggableInventoryItem key={idx} item={item}>
             <div
-              className="relative rounded-xl cursor-pointer group overflow-hidden transition-all duration-300"
+              className="relative rounded-xl cursor-pointer group overflow-hidden transition-all duration-300 animate-cascade-in"
               title={`${item.name} (${item.quantity})`}
               onClick={() => onItemClick?.(item)}
               style={{
@@ -265,6 +266,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [] 
                   ? '0 3px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.3)'
                   : '0 3px 12px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(209, 213, 219, 0.15)',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                animationDelay: `${idx * 40}ms`
               }}
             >
             {/* Rarity-colored hover glow - strong and beautiful */}

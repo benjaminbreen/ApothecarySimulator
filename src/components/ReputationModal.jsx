@@ -203,9 +203,28 @@ function FactionCard({ factionId, score, expanded, onToggle }) {
 
 export default function ReputationModal({ isOpen, onClose, reputation, initialTab = 'overview', initialFaction = null }) {
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [previousTab, setPreviousTab] = useState(initialTab);
+  const [slideDirection, setSlideDirection] = useState('right');
   const [expandedSections, setExpandedSections] = useState({});
+  const [isClosing, setIsClosing] = useState(false);
   const isDark = document.documentElement.classList.contains('dark');
   const factionRefs = React.useRef({});
+
+  // Handle smooth close with exit animation
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 200); // Match animation duration
+  };
+
+  // Reset closing state when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsClosing(false);
+    }
+  }, [isOpen]);
 
   // Initialize tab and expand/scroll to faction when modal opens with initialFaction
   React.useEffect(() => {
@@ -236,12 +255,12 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
   React.useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        handleClose();
       }
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -275,17 +294,28 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
     { id: 'strategy', label: 'Strategy', icon: '💡' }
   ];
 
+  // Handle tab change with slide direction
+  const handleTabChange = (newTab) => {
+    const currentIndex = tabs.findIndex(t => t.id === activeTab);
+    const newIndex = tabs.findIndex(t => t.id === newTab);
+
+    // Determine slide direction based on tab order
+    setSlideDirection(newIndex > currentIndex ? 'right' : 'left');
+    setPreviousTab(activeTab);
+    setActiveTab(newTab);
+  };
+
   return (
     <div
-      className="fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4"
+      className={`fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}
       style={{
         background: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(41, 37, 36, 0.5)'
       }}
-      onClick={onClose}
+      onClick={handleClose}
     >
       {/* Modal Container - FIXED DIMENSIONS */}
       <div
-        className="relative w-full max-w-5xl h-[85vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300"
+        className={`relative w-full max-w-5xl h-[85vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: isDark
@@ -315,7 +345,7 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
 
         {/* Close Button */}
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-2 right-2 z-50 p-2 rounded-lg transition-all duration-150"
           style={{
             background: isDark ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
@@ -344,7 +374,7 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
           {tabs.map((tab, idx) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className="flex-1 px-6 py-4 font-semibold text-sm uppercase tracking-wider transition-all duration-200 relative font-sans"
               style={{
                 fontWeight: activeTab === tab.id ? 700 : 600,
@@ -385,7 +415,10 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
 
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
-            <div className="p-8 space-y-6">
+            <div
+              key="overview"
+              className={`p-8 space-y-6 ${slideDirection === 'right' ? 'animate-tab-slide-in-right' : 'animate-tab-slide-in-left'}`}
+            >
 
               {/* Hero Section */}
               <div className="flex gap-6 items-start">
@@ -533,7 +566,7 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
                         background: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.6)',
                         border: isDark ? '1px solid rgba(71, 85, 105, 0.4)' : '1px solid rgba(209, 213, 219, 0.3)'
                       }}
-                      onClick={() => setActiveTab('factions')}
+                      onClick={() => handleTabChange('factions')}
                     >
                       <span className="text-2xl">{info.icon}</span>
                       <div className="flex-1 min-w-0">
@@ -562,7 +595,10 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
 
           {/* FACTIONS TAB */}
           {activeTab === 'factions' && (
-            <div className="p-8 space-y-4">
+            <div
+              key="factions"
+              className={`p-8 space-y-4 ${slideDirection === 'right' ? 'animate-tab-slide-in-right' : 'animate-tab-slide-in-left'}`}
+            >
               <h2 className="text-3xl font-bold text-ink-900 dark:text-amber-100 mb-4 font-serif">Faction Relationships</h2>
               <p className="text-sm text-ink-600 dark:text-stone-300 mb-6 font-sans leading-relaxed">
                 Each faction has unique goals, values, and influence. Click on a faction to see detailed information,
@@ -595,7 +631,10 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
 
           {/* MECHANICS TAB */}
           {activeTab === 'mechanics' && (
-            <div className="p-8 space-y-4">
+            <div
+              key="mechanics"
+              className={`p-8 space-y-4 ${slideDirection === 'right' ? 'animate-tab-slide-in-right' : 'animate-tab-slide-in-left'}`}
+            >
               <h2 className="text-3xl font-bold text-ink-900 dark:text-amber-100 mb-4 font-serif">How Reputation Works</h2>
 
               <InfoCard
@@ -714,7 +753,10 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
 
           {/* STRATEGY TAB */}
           {activeTab === 'strategy' && (
-            <div className="p-8 space-y-4">
+            <div
+              key="strategy"
+              className={`p-8 space-y-4 ${slideDirection === 'right' ? 'animate-tab-slide-in-right' : 'animate-tab-slide-in-left'}`}
+            >
               <h2 className="text-3xl font-bold text-ink-900 dark:text-amber-100 mb-4 font-serif">Improving Your Reputation</h2>
 
               <InfoCard

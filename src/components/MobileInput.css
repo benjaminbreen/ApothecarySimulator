@@ -1,0 +1,292 @@
+/**
+ * Mobile Input Styles
+ * Mobile-optimized text input
+ */
+
+.mobile-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+/* ============================================
+   LABEL
+   ============================================ */
+
+.mobile-input__label {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 2px;
+}
+
+/* ============================================
+   INPUT CONTAINER
+   ============================================ */
+
+.mobile-input__container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #ffffff;
+  border: 2px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0 14px;
+  transition: all 0.2s ease;
+
+  /* Touch target minimum */
+  min-height: 48px;
+}
+
+.mobile-input__container:focus-within {
+  border-color: #4caf50;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+/* ============================================
+   ICON
+   ============================================ */
+
+.mobile-input__icon {
+  font-size: 1.25rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+/* ============================================
+   INPUT FIELD
+   ============================================ */
+
+.mobile-input__field {
+  flex: 1;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 1rem;
+  color: #1f2937;
+  background: none;
+  border: none;
+  outline: none;
+  padding: 12px 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mobile-input__field::placeholder {
+  color: #9ca3af;
+}
+
+/* Remove number spinner */
+.mobile-input__field[type='number']::-webkit-inner-spin-button,
+.mobile-input__field[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.mobile-input__field[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* ============================================
+   CLEAR BUTTON
+   ============================================ */
+
+.mobile-input__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #9ca3af;
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-input__clear:hover {
+  background: #6b7280;
+}
+
+.mobile-input__clear:active {
+  transform: scale(0.9);
+}
+
+/* ============================================
+   FOOTER
+   ============================================ */
+
+.mobile-input__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 20px;
+}
+
+/* Character Counter */
+.mobile-input__counter {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-left: auto;
+}
+
+.mobile-input__counter--max {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* Error Message */
+.mobile-input__error {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 0.85rem;
+  color: #ef4444;
+  font-weight: 500;
+}
+
+/* Hint Text */
+.mobile-input__hint {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+/* ============================================
+   STATES
+   ============================================ */
+
+/* Error state */
+.mobile-input--error .mobile-input__container {
+  border-color: #ef4444;
+}
+
+.mobile-input--error .mobile-input__container:focus-within {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* Disabled state */
+.mobile-input--disabled .mobile-input__label {
+  color: #9ca3af;
+}
+
+.mobile-input--disabled .mobile-input__container {
+  background-color: #f3f4f6;
+  border-color: #e5e7eb;
+  cursor: not-allowed;
+}
+
+.mobile-input--disabled .mobile-input__field {
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   DARK MODE
+   ============================================ */
+
+.dark .mobile-input__label {
+  color: #e5e7eb;
+}
+
+.dark .mobile-input__container {
+  background-color: #374151;
+  border-color: #4b5563;
+}
+
+.dark .mobile-input__container:focus-within {
+  border-color: #68d391;
+  box-shadow: 0 0 0 3px rgba(104, 211, 145, 0.1);
+}
+
+.dark .mobile-input__icon {
+  color: #9ca3af;
+}
+
+.dark .mobile-input__field {
+  color: #f3f4f6;
+}
+
+.dark .mobile-input__field::placeholder {
+  color: #6b7280;
+}
+
+.dark .mobile-input__clear {
+  background: #6b7280;
+}
+
+.dark .mobile-input__clear:hover {
+  background: #9ca3af;
+}
+
+.dark .mobile-input__counter {
+  color: #9ca3af;
+}
+
+.dark .mobile-input__counter--max {
+  color: #f87171;
+}
+
+.dark .mobile-input__error {
+  color: #f87171;
+}
+
+.dark .mobile-input__hint {
+  color: #9ca3af;
+}
+
+.dark .mobile-input--error .mobile-input__container {
+  border-color: #f87171;
+}
+
+.dark .mobile-input--error .mobile-input__container:focus-within {
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.1);
+}
+
+.dark .mobile-input--disabled .mobile-input__container {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+.dark .mobile-input--disabled .mobile-input__field {
+  color: #6b7280;
+}
+
+/* ============================================
+   RESPONSIVE BREAKPOINTS
+   ============================================ */
+
+/* Phone-specific adjustments */
+@media (max-width: 639px) {
+  .mobile-input__container {
+    min-height: 52px;
+    padding: 0 16px;
+  }
+
+  .mobile-input__field {
+    font-size: 1.05rem;
+    padding: 14px 0;
+  }
+
+  .mobile-input__icon {
+    font-size: 1.35rem;
+  }
+
+  .mobile-input__clear {
+    width: 28px;
+    height: 28px;
+    font-size: 0.85rem;
+  }
+}
+
+/* Tablet */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .mobile-input__container {
+    min-height: 50px;
+  }
+}

@@ -100,6 +100,14 @@ const DESTINATIONS = [
     travelTime: 35,
     energyCost: 10
   },
+  {
+    id: 'cathedral',
+    name: 'Metropolitan Cathedral',
+    category: 'local',
+    description: 'Largest cathedral in the Americas',
+    travelTime: 20,
+    energyCost: 5
+  },
 
   // VALLEY OF MEXICO (Riding L1)
   {
@@ -176,14 +184,6 @@ const DESTINATIONS = [
     category: 'elite',
     description: 'Seat of the Spanish Viceroy',
     travelTime: 25,
-    energyCost: 5
-  },
-  {
-    id: 'cathedral',
-    name: 'Metropolitan Cathedral',
-    category: 'elite',
-    description: 'Largest cathedral in the Americas',
-    travelTime: 20,
     energyCost: 5
   },
   {
@@ -344,7 +344,7 @@ export default function FastTravelModal({
             <div className="flex-1">
               <h1 className="font-display text-3xl font-bold mb-2">Fast Travel</h1>
               <p className="text-white/90 font-serif text-sm">
-                Select a destination to travel quickly. Distant locations require higher skills.
+                Select a destination to travel quickly. Key locations are always available; distant cities and elite spaces require higher skills.
               </p>
               <div className="mt-3 flex gap-4 text-sm">
                 <div className="flex items-center gap-2">

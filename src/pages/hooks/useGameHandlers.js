@@ -19,6 +19,8 @@ import { resolvePortrait } from '../../core/services/portraitResolver';
 import { parseNarrativeChoices } from '../../utils/narrativeParser';
 import { generateNextSteps } from '../../core/services/nextStepsGenerator';
 import { mapNPCFactionToSystemFaction } from '../../core/systems/reputationSystem';
+import { checkForRandomEvent, processEventChoice, initializeEventSystem } from '../../core/events/randomEventService';
+import { getDetailImagePathSync } from '../../utils/detailImageResolver';
 
 export function useGameHandlers({
   // State setters
@@ -86,8 +88,11 @@ export function useGameHandlers({
   setTradingNPC, // Trade system
   setTradeMode, // Trade system
   setPendingSimpleInteraction, // Simple interaction system
+  setPendingRandomEvent, // Random event system
   setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
   setDynamicChips, // Dynamic action chips from narrative parsing
+  setShowPOIModal, // POI modal for map furniture clicks
+  setSelectedPOIEntity, // Selected entity for POI modal
 
   // State values
   energy,
@@ -475,7 +480,8 @@ export function useGameHandlers({
     setIsLoading(true);
 
     // Use override if provided (from chip clicks), otherwise fall back to userInput state
-    let narrativeText = (actionOverride || userInput).trim().toLowerCase();
+    const originalInput = (actionOverride || userInput).trim();
+    let narrativeText = originalInput.toLowerCase();
 
     // Handle command shortcuts
     if (narrativeText === '#prescribe') {
@@ -515,6 +521,61 @@ export function useGameHandlers({
 
     if (userInput.trim().toLowerCase() === '#travel') {
       setIsFastTravelOpen(true);
+      setUserInput('');
+      setIsLoading(false);
+      return;
+    }
+
+    // Handle fast travel to specific location (from "Go somewhere" dropdown)
+    if (narrativeText.startsWith('#fast_travel ')) {
+      const locationName = originalInput.substring(13); // Remove "#fast_travel " while preserving case
+      console.log('[HandleSubmit] Fast travel to:', locationName);
+
+      // Map location names to map IDs
+      const locationMap = {
+        'Botica de la Amargura': 'botica-interior',
+        'Metropolitan Cathedral': 'cathedral-interior',
+        'La Merced Market': 'mercado-interior'
+      };
+
+      const mapId = locationMap[locationName];
+      console.log('[HandleSubmit] Location mapping:', { locationName, mapId, availableLocations: Object.keys(locationMap) });
+
+      if (mapId) {
+        console.log('[HandleSubmit] Traveling to:', locationName, 'mapId:', mapId);
+
+        // Update location
+        setGameState(prev => ({
+          ...prev,
+          location: locationName
+        }));
+
+        // Set the map
+        setCurrentMapId(mapId);
+
+        // Deduct travel energy (5 energy for local destinations)
+        setEnergy(prevEnergy => Math.max(0, prevEnergy - 5));
+
+        // Advance time by 20 minutes
+        advanceTime({ time: gameState.time, date: gameState.date }, 20);
+
+        // Add journal entry
+        addJournalEntry({
+          turnNumber,
+          date: gameState.date,
+          entry: `Traveled to ${locationName}.`
+        });
+
+        // Add narrative message
+        const travelNarrative = `You make your way through the streets of Mexico City to ${locationName}.`;
+        setConversationHistory(prev => [
+          ...prev,
+          { role: 'assistant', content: travelNarrative }
+        ]);
+      } else {
+        console.error('[HandleSubmit] Location not found in map:', locationName);
+      }
+
       setUserInput('');
       setIsLoading(false);
       return;
@@ -1243,6 +1304,25 @@ export function useGameHandlers({
         setPendingSimpleInteraction(null);
       }
 
+      // Random Event Processing
+      // Check for random events after narrative (adds variety and fast gameplay)
+      // Only trigger if no simple interaction is active (avoid stacking interactions)
+      if (!result.simpleInteraction || result.simpleInteraction.type === 'null') {
+        const eventCard = checkForRandomEvent(
+          gameState,
+          reputation,
+          narrativeText
+        );
+
+        if (eventCard) {
+          console.log('[RandomEvent] Event triggered:', eventCard.title);
+          setPendingRandomEvent(eventCard);
+        } else {
+          // Clear any previous random event
+          setPendingRandomEvent(null);
+        }
+      }
+
       // Add journal entry
       if (result.journalEntry) {
         setJournal(prevJournal => [...prevJournal, { content: result.journalEntry, type: 'auto' }]);
@@ -1449,6 +1529,37 @@ export function useGameHandlers({
     // Update player position and facing immediately for visual feedback
     setPlayerPosition(newPosition);
     setPlayerFacing(newFacing);
+
+    // PRE-WRITTEN NARRATIVE CHECK: For interior maps, check if we have a pre-written narrative
+    // This eliminates expensive LLM calls for simple position changes
+    if (isInterior && currentMapId === 'botica-interior') {
+      const { getInteriorNarrative, hasPreWrittenNarrative } = await import('../../features/map/services/interiorNarratives');
+
+      if (hasPreWrittenNarrative(currentMapId, newPosition.x, newPosition.y)) {
+        console.log('[Movement] Using pre-written interior narrative for position:', newPosition);
+
+        const narrative = getInteriorNarrative(newPosition.x, newPosition.y, gameState.time);
+
+        // Add narrative to conversation history with movement flag
+        const newEntry = {
+          role: 'assistant',
+          content: narrative.description,
+          timestamp: new Date().toISOString(),
+          responseType: 'movement',
+          isMovement: true,
+          position: newPosition
+        };
+
+        setConversationHistory(prev => [...prev, newEntry]);
+        setHistoryOutput(narrative.description);
+
+        // No time passage, no energy cost for simple repositioning within same room
+        // (Player is just shifting position on the shop floor, not traveling)
+
+        console.log('[Movement] Pre-written narrative applied - no LLM call needed');
+        return; // Exit early - skip LLM call
+      }
+    }
 
     // Calculate new time (add 5 minutes for movement)
     const addMinutesToTime = (timeStr, dateStr, minutes) => {
@@ -2767,7 +2878,7 @@ Generate the transition narrative.`;
       entry: journalText
     });
 
-    // Add to conversation history
+    // Add to conversation history (system message for record keeping)
     setConversationHistory(prev => [...prev, {
       role: 'system',
       content: `*[SIMPLE INTERACTION] ${journalText}*`
@@ -2776,16 +2887,19 @@ Generate the transition narrative.`;
     // Clear the pending interaction
     setPendingSimpleInteraction(null);
 
-    // If this was information_exchange acceptance, generate continuation narrative
-    if (type === 'information_exchange' && action === 'pay') {
-      console.log('[SimpleInteraction] Generating information reveal narrative');
+    // ALWAYS generate continuation narrative for ALL simple interactions
+    console.log('[SimpleInteraction] Generating continuation narrative for:', type, action);
 
-      try {
+    try {
+      // Step 1: If information_exchange + pay, generate info reveal first
+      if (type === 'information_exchange' && action === 'pay') {
+        console.log('[SimpleInteraction] Generating information reveal narrative');
+
         const infoPrompt = `You are narrating a historical RPG set in 1680 Mexico City. Maria de Lima, a converso apothecary, just paid ${npcName} for information about ${interaction.information.topic}.
 
-Generate a SHORT continuation (2-3 sentences) revealing what ${npcName} tells Maria. Make it specific, useful, and potentially dangerous knowledge. End with a reflective line about what Maria will do with this information.
+Generate a SHORT continuation (2-3 sentences) revealing what ${npcName} tells Maria. Make it specific, useful, and potentially dangerous knowledge.
 
-**Keep it under 80 words.**`;
+**Keep it under 60 words.**`;
 
         const infoMessages = [
           { role: 'system', content: 'You are a historical fiction narrator. Generate brief, evocative continuations.' },
@@ -2802,49 +2916,68 @@ Generate a SHORT continuation (2-3 sentences) revealing what ${npcName} tells Ma
 
         const revealNarrative = infoResponse.choices[0].message.content.trim();
 
-        // Add to conversation history
+        // Add reveal to conversation history (not as next_steps, just regular narrative)
         setConversationHistory(prev => [...prev, {
           role: 'assistant',
           content: revealNarrative
         }]);
 
         console.log('[SimpleInteraction] Information revealed:', revealNarrative.substring(0, 100));
-      } catch (error) {
-        console.error('[SimpleInteraction] Failed to generate information reveal:', error);
       }
-    }
 
-    // If this was a dismissal, remove NPC from tracking and generate "Next Steps"
-    if (isDismissal && npcName) {
-      console.log('[SimpleInteraction] Dismissal detected, removing NPC and generating Next Steps');
-
-      // Remove NPC from tracker so they don't appear again immediately
-      npcTracker.removeNPC(npcName);
-
-      // Clear the portrait
-      setPrimaryPortraitFile(null);
-
-      // Generate "Next Steps" narrative
-      try {
-        const nextStepsNarrative = await generateNextSteps({
-          playerAction: journalText,
-          gameState,
-          recentEvents: journal,
-          scenarioId
-        });
-
-        // Add to conversation history with special responseType
-        setConversationHistory(prev => [...prev, {
-          role: 'assistant',
-          content: nextStepsNarrative,
-          responseType: 'next_steps' // Special type for question mark icon
-        }]);
-
-        console.log('[SimpleInteraction] Next Steps generated:', nextStepsNarrative);
-      } catch (error) {
-        console.error('[SimpleInteraction] Failed to generate Next Steps:', error);
-        // Fallback: just clear the portrait and continue
+      // Step 2: If dismissal, remove NPC and clear portrait
+      if (isDismissal && npcName) {
+        console.log('[SimpleInteraction] Dismissal detected, removing NPC');
+        npcTracker.removeNPC(npcName);
+        setPrimaryPortraitFile(null);
       }
+
+      // Step 3: Generate continuation with next steps for ALL interactions
+      const continuationPrompt = `You are narrating a historical RPG set in 1680 Mexico City. Maria de Lima, a converso apothecary, just completed a simple interaction:
+
+**What happened**: ${journalText}
+
+Generate a brief continuation (2-3 sentences) that:
+1. Acknowledges the choice Maria made
+2. Describes what happens immediately after (NPC reaction, scene transition, etc.)
+3. Ends with a reflective line suggesting what Maria might do next
+
+${isDismissal ? `The NPC has left. Describe Maria alone again, considering her options.` : `Keep it focused on the immediate aftermath of this interaction.`}
+
+**Keep it under 80 words. Use second person ("you").**`;
+
+      const continuationMessages = [
+        { role: 'system', content: 'You are a historical fiction narrator. Generate brief, evocative continuations that advance the story.' },
+        { role: 'user', content: continuationPrompt }
+      ];
+
+      const continuationResponse = await createChatCompletion(
+        continuationMessages,
+        0.8, // Creative but focused
+        250, // Short response
+        null,
+        { agent: 'SimpleInteractionContinuation' }
+      );
+
+      const continuationNarrative = continuationResponse.choices[0].message.content.trim();
+
+      // Add to conversation history with next_steps responseType (? icon)
+      setConversationHistory(prev => [...prev, {
+        role: 'assistant',
+        content: continuationNarrative,
+        responseType: 'next_steps' // Special type for question mark icon
+      }]);
+
+      console.log('[SimpleInteraction] Continuation generated:', continuationNarrative.substring(0, 100));
+
+    } catch (error) {
+      console.error('[SimpleInteraction] Failed to generate continuation:', error);
+      // Fallback: Add a basic next steps message
+      setConversationHistory(prev => [...prev, {
+        role: 'assistant',
+        content: `The interaction concludes. What will you do next?`,
+        responseType: 'next_steps'
+      }]);
     }
 
   }, [
@@ -2864,6 +2997,142 @@ Generate a SHORT continuation (2-3 sentences) revealing what ${npcName} tells Ma
     setPrimaryPortraitFile,
     toast
   ]);
+
+  /**
+   * Handle random event choice
+   */
+  const handleRandomEventChoice = useCallback(async (action, eventCard) => {
+    console.log('[RandomEvent] Player chose:', action, eventCard);
+
+    const { eventId, title, category } = eventCard;
+
+    // Process the choice using the event service
+    const result = processEventChoice(
+      eventId,
+      action,
+      gameState,
+      updateReputation,
+      updateInventory
+    );
+
+    if (!result) {
+      console.error('[RandomEvent] Failed to process choice');
+      toast.error('Failed to process event choice', { duration: 2000 });
+      return;
+    }
+
+    const { narrative, xpGained, costs, results, outcome } = result;
+
+    // Apply costs
+    if (costs.wealth) {
+      setWealth(prev => prev + costs.wealth); // costs.wealth is already negative
+    }
+    if (costs.energy) {
+      setEnergy(prev => prev + costs.energy); // costs.energy is already negative
+    }
+    if (costs.health) {
+      setHealth(prev => prev + costs.health); // costs.health is already negative
+    }
+
+    // Award XP
+    if (xpGained > 0) {
+      awardXP(xpGained, `random_event_${category}`);
+    }
+
+    // Advance time (random events take 5-10 minutes)
+    advanceTime({ minutes: 10 });
+
+    // Build journal text
+    const journalText = `Random Event: ${title} - ${narrative}`;
+
+    // Add journal entry
+    addJournalEntry({
+      turnNumber,
+      date: gameState.date,
+      entry: journalText
+    });
+
+    // Add to conversation history
+    setConversationHistory(prev => [...prev, {
+      role: 'assistant',
+      content: narrative,
+      responseType: 'random_event_outcome'
+    }]);
+
+    // Clear the pending random event
+    setPendingRandomEvent(null);
+
+    // Show toast notification
+    let toastMessage = narrative.substring(0, 80);
+    if (xpGained > 0) {
+      toastMessage += ` (+${xpGained} XP)`;
+    }
+    toast.success(toastMessage, { duration: 3000 });
+
+    console.log('[RandomEvent] Choice processed:', {
+      action,
+      xp: xpGained,
+      costs,
+      results
+    });
+
+  }, [
+    gameState,
+    updateReputation,
+    updateInventory,
+    setWealth,
+    setEnergy,
+    setHealth,
+    awardXP,
+    advanceTime,
+    addJournalEntry,
+    turnNumber,
+    setConversationHistory,
+    setPendingRandomEvent,
+    toast
+  ]);
+
+  /**
+   * Handle furniture/POI click from interactive map
+   * Opens POIModal if detail image exists for the furniture
+   */
+  const handleFurnitureClick = useCallback((furnitureItem) => {
+    const furnitureName = furnitureItem.name || furnitureItem.id;
+    console.log('[GameHandlers] Furniture clicked:', furnitureName, furnitureItem);
+
+    // Check if detail image exists for this furniture
+    const detailImagePath = getDetailImagePathSync(furnitureName);
+
+    if (!detailImagePath) {
+      console.log('[GameHandlers] No detail image for:', furnitureName);
+      // Optionally show a toast or do nothing
+      toast.info(`No detailed view available for ${furnitureName}`, { duration: 2000 });
+      return;
+    }
+
+    console.log('[GameHandlers] Found detail image:', detailImagePath);
+
+    // Get entity data from EntityManager (furniture items should be registered)
+    const entityData = entityManager.getByName(furnitureName);
+
+    if (entityData) {
+      // Use existing entity data
+      setSelectedPOIEntity(entityData);
+    } else {
+      // Create minimal entity for POI modal from map data
+      setSelectedPOIEntity({
+        name: furnitureName,
+        description: furnitureItem.description || `A piece of furniture in the apothecary shop.`,
+        entityType: 'item',
+        type: furnitureItem.type || 'furniture',
+        image: detailImagePath
+      });
+    }
+
+    // Open POI modal
+    setShowPOIModal(true);
+
+  }, [setShowPOIModal, setSelectedPOIEntity, toast]);
 
   // Return all handlers
   return {
@@ -2902,6 +3171,8 @@ Generate a SHORT continuation (2-3 sentences) revealing what ${npcName} tells Ma
     handleAcceptTrade,
     handleDeclineTrade,
     handleSimpleInteractionChoice,
+    handleRandomEventChoice,
+    handleFurnitureClick,
     handleMovement,
     handleEnterBuilding,
     handleExitBuilding,

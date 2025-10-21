@@ -7,14 +7,32 @@
  * Swiss-inspired design matching NPCModal.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { adaptEntityForItemModal } from '../../core/entities/entityAdapter';
+import MedicineTypeBadge from '../../components/MedicineTypeBadge';
 
 export default function ItemModal({ isOpen, onClose, item }) {
   const [activeTab, setActiveTab] = useState('medicinal');
+  const [isClosing, setIsClosing] = useState(false);
 
   // Check dark mode
   const isDark = document.documentElement.classList.contains('dark');
+
+  // Handle smooth close with exit animation
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 200); // Match animation duration
+  };
+
+  // Reset closing state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsClosing(false);
+    }
+  }, [isOpen]);
 
   // Adapt entity to ensure correct format
   const adaptedItem = useMemo(() => {
@@ -44,13 +62,13 @@ export default function ItemModal({ isOpen, onClose, item }) {
   );
 
   return (
-    <div className="modal-overlay fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="modal-content bg-white dark:bg-slate-900 rounded-2xl shadow-elevation-4 dark:shadow-dark-elevation-4 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col animate-slide-up border border-transparent dark:border-amber-500/20">
+    <div className={`modal-overlay fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}>
+      <div className={`modal-content bg-white dark:bg-slate-900 rounded-2xl shadow-elevation-4 dark:shadow-dark-elevation-4 max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-transparent dark:border-amber-500/20 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}>
 
         {/* Header */}
         <div className="bg-gradient-to-r from-potion-600 to-potion-700 dark:from-amber-600 dark:to-amber-700 text-white p-6 relative">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/20 dark:hover:bg-black/30 transition-colors"
             aria-label="Close"
           >
@@ -73,7 +91,16 @@ export default function ItemModal({ isOpen, onClose, item }) {
 
             {/* Basic Info */}
             <div className="flex-1">
-              <h1 className="font-display text-3xl font-bold mb-2">{adaptedItem.name}</h1>
+              {/* Title and Medicine Type Badge on same line */}
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="font-display text-3xl font-bold">{adaptedItem.name}</h1>
+                <MedicineTypeBadge
+                  item={adaptedItem}
+                  size="medium"
+                  position="inline"
+                  showTooltip={true}
+                />
+              </div>
               <div className="flex flex-wrap gap-2 mb-3">
                 <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-sans capitalize">
                   {adaptedItem.itemType?.replace('_', ' ') || 'Item'}
@@ -415,57 +442,13 @@ export default function ItemModal({ isOpen, onClose, item }) {
         {/* Footer */}
         <div className="bg-parchment-100 border-t border-ink-200 p-4 flex justify-end gap-3">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="px-6 py-2 bg-ink-600 hover:bg-ink-700 text-white rounded-lg font-sans font-medium transition-colors shadow-elevation-1"
           >
             Close
           </button>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes slide-up {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .animate-fade-in {
-          animation: fade-in 0.2s ease-out;
-        }
-
-        .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 4px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #888;
-          border-radius: 4px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #555;
-        }
-      `}</style>
     </div>
   );
 }

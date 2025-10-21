@@ -399,23 +399,43 @@ export default function SkillsModal({
   onClose,
   playerSkills,
   onLearnSkill,
-  onLevelUpSkill
+  onLevelUpSkill,
+  onOpenSkillDetail
 }) {
   const [activeTab, setActiveTab] = useState('overview');
+  const [previousTab, setPreviousTab] = useState('overview');
+  const [slideDirection, setSlideDirection] = useState('right');
   const [expandedSections, setExpandedSections] = useState({});
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [isClosing, setIsClosing] = useState(false);
   const isDark = document.documentElement.classList.contains('dark');
+
+  // Handle smooth close with exit animation
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 200); // Match animation duration
+  };
+
+  // Reset closing state when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsClosing(false);
+    }
+  }, [isOpen]);
 
   // Handle ESC key to close
   React.useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        handleClose();
       }
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen || !playerSkills) return null;
 
@@ -460,17 +480,28 @@ export default function SkillsModal({
     { id: 'available', label: 'Available', icon: '🎓', badge: availableSkills.length }
   ];
 
+  // Handle tab change with slide direction
+  const handleTabChange = (newTab) => {
+    const currentIndex = tabs.findIndex(t => t.id === activeTab);
+    const newIndex = tabs.findIndex(t => t.id === newTab);
+
+    // Determine slide direction based on tab order
+    setSlideDirection(newIndex > currentIndex ? 'right' : 'left');
+    setPreviousTab(activeTab);
+    setActiveTab(newTab);
+  };
+
   return (
     <div
-      className="fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4"
+      className={`fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}
       style={{
         background: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(41, 37, 36, 0.5)'
       }}
-      onClick={onClose}
+      onClick={handleClose}
     >
       {/* Modal Container - FIXED DIMENSIONS */}
       <div
-        className="relative w-full max-w-5xl h-[85vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300"
+        className={`relative w-full max-w-5xl h-[85vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: isDark
@@ -500,7 +531,7 @@ export default function SkillsModal({
 
         {/* Close Button */}
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-2 right-2 z-50 p-2 rounded-lg transition-all duration-150 hover:bg-ink-100"
           style={{
             background: 'rgba(255, 255, 255, 0.8)',
@@ -521,7 +552,7 @@ export default function SkillsModal({
           {tabs.map((tab, idx) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className="flex-1 px-6 py-4 font-semibold text-sm uppercase tracking-wider transition-all duration-200 relative font-sans"
               style={{
                 fontWeight: activeTab === tab.id ? 700 : 600,
@@ -565,7 +596,10 @@ export default function SkillsModal({
 
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
-            <div className="p-8 space-y-6">
+            <div
+              key="overview"
+              className={`p-8 space-y-6 ${slideDirection === 'right' ? 'animate-tab-slide-in-right' : 'animate-tab-slide-in-left'}`}
+            >
 
               {/* Hero Section */}
               <div className="flex gap-6 items-start">
@@ -729,7 +763,10 @@ export default function SkillsModal({
 
           {/* KNOWN SKILLS TAB */}
           {activeTab === 'known' && (
-            <div className="p-8 space-y-4">
+            <div
+              key="known"
+              className={`p-8 space-y-4 ${slideDirection === 'right' ? 'animate-tab-slide-in-right' : 'animate-tab-slide-in-left'}`}
+            >
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-3xl font-bold text-ink-900 font-serif">Known Skills</h2>
@@ -789,7 +826,7 @@ export default function SkillsModal({
                             xp={skillData.xp}
                             canLevelUp={skillPoints > 0}
                             onLevelUp={onLevelUpSkill}
-                            onClick={() => toggleSection(skillId)}
+                            onClick={() => onOpenSkillDetail?.(skillId)}
                           />
                         );
                       })}
@@ -822,7 +859,10 @@ export default function SkillsModal({
 
           {/* LEARNING TAB */}
           {activeTab === 'learning' && (
-            <div className="p-8 space-y-4">
+            <div
+              key="learning"
+              className={`p-8 space-y-4 ${slideDirection === 'right' ? 'animate-tab-slide-in-right' : 'animate-tab-slide-in-left'}`}
+            >
               <h2 className="text-3xl font-bold text-ink-900 dark:text-amber-100 mb-4 font-serif">Skills in Training</h2>
               <p className="text-sm text-ink-600 dark:text-stone-300 mb-6 font-sans leading-relaxed">
                 Skills you're actively learning. Gain XP through practice and gameplay to master them.
@@ -851,7 +891,10 @@ export default function SkillsModal({
 
           {/* AVAILABLE TAB */}
           {activeTab === 'available' && (
-            <div className="p-8 space-y-4">
+            <div
+              key="available"
+              className={`p-8 space-y-4 ${slideDirection === 'right' ? 'animate-tab-slide-in-right' : 'animate-tab-slide-in-left'}`}
+            >
               <h2 className="text-3xl font-bold text-ink-900 dark:text-amber-100 mb-4 font-serif">Available Skills</h2>
               <div className="flex items-center justify-between mb-6">
                 <p className="text-sm text-ink-600 font-sans leading-relaxed">

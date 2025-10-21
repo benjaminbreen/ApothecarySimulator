@@ -15,6 +15,7 @@ import MapRenderer from './MapRenderer';
  * @param {Array} props.npcs - Array of NPC objects with position data
  * @param {Object} props.playerPosition - Player's current position {x, y}
  * @param {Function} props.onLocationChange - Callback when user clicks to change location
+ * @param {Function} props.onFurnitureClick - Callback when furniture is clicked
  * @param {string} props.theme - Theme mode: 'light' or 'dark' (auto-detected if not provided)
  */
 export default function InteractiveMapModal({
@@ -26,6 +27,7 @@ export default function InteractiveMapModal({
   npcs = [],
   playerPosition = null,
   onLocationChange,
+  onFurnitureClick,
   theme
 }) {
   // Auto-detect dark mode from document if theme not explicitly provided
@@ -52,6 +54,20 @@ export default function InteractiveMapModal({
 
     return () => observer.disconnect();
   }, [theme]);
+
+  // Listen for ESC key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -97,6 +113,7 @@ export default function InteractiveMapModal({
                 onLocationChange(newLocation);
               }
             }}
+            onFurnitureClick={onFurnitureClick}
             onMapClick={() => {}} // Disable internal modal when already in modal
             theme={currentTheme}
           />

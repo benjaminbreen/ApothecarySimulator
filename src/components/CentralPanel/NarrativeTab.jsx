@@ -25,7 +25,10 @@ export function NarrativeTab({
   onDeclineTrade = null, // Handler to decline trade
   pendingSimpleInteraction = null, // Simple interaction
   onSimpleInteractionChoice = null, // Handler for simple interaction choices
+  pendingRandomEvent = null, // Random event
+  onRandomEventChoice = null, // Handler for random event choices
   gameState = {}, // Game state for wealth/inventory
+  updateInventory = null, // Handler to update inventory quantities
   fontSize = 'text-base',
   isDarkMode = false
 }) {
@@ -52,7 +55,10 @@ export function NarrativeTab({
         onDeclineTrade={onDeclineTrade}
         pendingSimpleInteraction={pendingSimpleInteraction}
         onSimpleInteractionChoice={onSimpleInteractionChoice}
+        pendingRandomEvent={pendingRandomEvent}
+        onRandomEventChoice={onRandomEventChoice}
         gameState={gameState}
+        updateInventory={updateInventory}
         fontSize={fontSize}
         isDarkMode={isDarkMode}
       />

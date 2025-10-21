@@ -14,6 +14,7 @@ import TestSuitePanel from './TestSuitePanel';
 import PortraitTestPanel from './PortraitTestPanel';
 import ProfessionTestPanel from './ProfessionTestPanel';
 import TestRunner from './TestRunner';
+import SimpleInteractionTestPanel from './SimpleInteractionTestPanel';
 
 const GAME_VERSION = '0.1.0';
 
@@ -21,9 +22,26 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
   const [activeSection, setActiveSection] = useState('game');
   const [textSize, setTextSize] = useState('medium');
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  const [isClosing, setIsClosing] = useState(false);
 
   // Dark mode hook
   const { isDarkMode, toggle } = useDarkMode();
+
+  // Handle smooth close with exit animation
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 200); // Match animation duration
+  };
+
+  // Reset closing state when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsClosing(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -36,10 +54,10 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
       />
 
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-stone-900/40 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-colors duration-300">
+      <div className={`fixed inset-0 bg-stone-900/40 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-colors duration-300 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}>
 
         {/* Modal Container */}
-        <div className="relative w-full max-w-7xl h-[95vh] rounded-lg overflow-hidden transition-all duration-300"
+        <div className={`relative w-full max-w-7xl h-[95vh] rounded-lg overflow-hidden transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
           style={{
             background: isDarkMode
               ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%)'
@@ -165,7 +183,7 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
 
             {/* Close Button */}
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="px-5 py-2 text-sm font-semibold transition-all duration-300"
               style={{
                 fontFamily: "'Inter', sans-serif",
@@ -996,6 +1014,19 @@ function DevSection({ onLoadTestPatient, onClose, gameState, setGameState, onLoa
           Test the profession system by switching professions and adjusting level to see which abilities unlock. Changes apply immediately to gameplay - use #buy (Poisoner black market), #prescribe (payment bonuses), or #mix (alchemist bonuses) to verify.
         </p>
         <ProfessionTestPanel gameState={gameState} setGameState={setGameState} />
+      </SettingCard>
+
+      <SettingCard title="🎭 Simple Interaction Test Suite">
+        <p className="text-sm mb-4" style={{
+          fontFamily: "'Inter', sans-serif",
+          color: '#5c4a3a',
+          lineHeight: '1.6'
+        }}>
+          <strong>Automated tests for simple interaction continuation narratives.</strong> Tests that water sellers, beggars, and information exchanges properly generate continuation narratives after player choices (buy/refuse, give/refuse, pay/refuse).
+          <br /><br />
+          <span style={{ color: '#7c3aed', fontWeight: 600 }}>⚠️ These tests make real LLM calls and will take 1-2 minutes to complete.</span>
+        </p>
+        <SimpleInteractionTestPanel gameState={gameState} />
       </SettingCard>
     </div>
   );

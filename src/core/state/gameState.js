@@ -193,10 +193,13 @@ export const useGameState = (scenarioId) => {
       return;
     }
 
+    console.log('[gameState] updateInventory called:', updateItemName, 'change:', quantityChange);
+
     setGameState((prevState) => {
       let updatedInventory = prevState.inventory.map((item) => {
         if (item.name && item.name.toLowerCase() === updateItemName.toLowerCase()) {
           const newQuantity = item.quantity + quantityChange;
+          console.log('[gameState] Updated item:', item.name, 'from', item.quantity, 'to', newQuantity);
           return { ...item, quantity: Math.max(0, newQuantity) };
         }
         return item;
@@ -204,13 +207,16 @@ export const useGameState = (scenarioId) => {
 
       const itemExists = updatedInventory.some(item => item.name && item.name.toLowerCase() === updateItemName.toLowerCase());
       if (!itemExists) {
+        console.log('[gameState] Item not found, looking for new item:', updateItemName);
         const newItem = potentialInventoryItems[updateItemName.toLowerCase()];
         if (newItem) {
+          console.log('[gameState] Adding new item from potentialInventoryItems');
           updatedInventory = [...updatedInventory, { ...newItem, quantity: quantityChange }];
         }
       }
 
       const filteredInventory = updatedInventory.filter(item => item.quantity > 0);
+      console.log('[gameState] Final inventory count:', filteredInventory.length);
       return { ...prevState, inventory: filteredInventory };
     });
   }, []);

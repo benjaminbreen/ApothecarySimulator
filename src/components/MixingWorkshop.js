@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -8,12 +8,15 @@ import CompoundResultCard from './CompoundResultCard';
 import ActiveBonusIndicator from './ActiveBonusIndicator';
 import { createChatCompletion } from '../core/services/llmService';
 import resourceManager from '../systems/ResourceManager';
+import { useGesture } from '../hooks/useGesture';
 import {
   getMixingTimeMultiplier,
   getIngredientRetentionChance,
   getDoubleBatchChance,
   canPreventSludge
 } from '../core/systems/professionAbilities';
+import MedicineTypeBadge from './MedicineTypeBadge';
+import { getAllMedicineTypes, inferMedicineType } from '../core/config/medicineCategories';
 
 // Method images
 import distillImage from '../assets/distill.jpg';
@@ -47,6 +50,31 @@ const MixingWorkshop = ({
   const [error, setError] = useState(null);
   const [hoveredSimple, setHoveredSimple] = useState(null);
   const [inventoryPage, setInventoryPage] = useState(0);
+  const [medicineTypeFilter, setMedicineTypeFilter] = useState('all');
+  const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
+
+  // Watch for dark mode changes
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  // Swipe-to-close gesture support
+  const gestureRef = useGesture({
+    onSwipeDown: () => {
+      if (!isLoading) {
+        onClose();
+      }
+    },
+    minSwipeDistance: 80,
+    enableHaptics: true
+  });
 
   // Define all methods
   const allMethods = [
@@ -441,12 +469,125 @@ Compounding Method: ${selectedMethod}
     setError(null);
   };
 
+  // Filter simples by medicine type
+  const filteredSimples = useMemo(() => {
+    if (medicineTypeFilter === 'all') {
+      return simples;
+    }
+    return simples.filter(item => {
+      const itemType = inferMedicineType(item);
+      return itemType === medicineTypeFilter;
+    });
+  }, [simples, medicineTypeFilter]);
+
+  // Count simples by medicine type
+  const medicineCountsByType = useMemo(() => {
+    const counts = { all: simples.length };
+    getAllMedicineTypes().forEach(type => {
+      counts[type.id] = simples.filter(item => inferMedicineType(item) === type.id).length;
+    });
+    return counts;
+  }, [simples]);
+
+  // Predict medicine type based on selected ingredients and method
+  const predictedMedicineType = useMemo(() => {
+    const selectedMethod = Object.keys(selectedSimples).find(method => selectedSimples[method]?.length > 0);
+    const ingredients = selectedSimples[selectedMethod] || [];
+
+    if (ingredients.length === 0) return null;
+
+    // Single ingredient = Simples
+    if (ingredients.length === 1) {
+      return {
+        typeId: 'simples',
+        reason: 'Single ingredient preparation'
+      };
+    }
+
+    // Check for alchemical ingredients or methods
+    const hasAlchemicalIngredient = ingredients.some(ing => {
+      const name = ing.name.toLowerCase();
+      return name.includes('quicksilver') || name.includes('mercury') ||
+             name.includes('sal ammoniac') || name.includes('vitriol') ||
+             name.includes('cinnabar') || name.includes('antimony');
+    });
+
+    const isAlchemicalMethod = selectedMethod === 'Distill' || selectedMethod === 'Calcinate' || selectedMethod === 'Sublimate';
+
+    if (hasAlchemicalIngredient && isAlchemicalMethod) {
+      return {
+        typeId: 'alchemical',
+        reason: 'Alchemical ingredients with chemical process'
+      };
+    }
+
+    // Check for Indies drugs (exotic imports)
+    const hasIndiesDrug = ingredients.some(ing => {
+      const name = ing.name.toLowerCase();
+      return name.includes('cacao') || name.includes('tobacco') ||
+             name.includes('quina') || name.includes('cinchona') ||
+             name.includes('pepper') || name.includes('cinnamon') ||
+             name.includes('dragon') || name.includes('brasil');
+    });
+
+    if (hasIndiesDrug && ingredients.length === 1) {
+      return {
+        typeId: 'indies_drugs',
+        reason: 'Exotic import preparation'
+      };
+    }
+
+    // Check for food-based medicines
+    const isFoodBased = ingredients.some(ing => {
+      const name = ing.name.toLowerCase();
+      return name.includes('honey') || name.includes('sugar') ||
+             name.includes('barley') || name.includes('broth') ||
+             name.includes('milk');
+    });
+
+    if (isFoodBased && (selectedMethod === 'Decoct' || selectedMethod === 'Confection')) {
+      return {
+        typeId: 'foods',
+        reason: 'Dietary medicine preparation'
+      };
+    }
+
+    // Check for animal products
+    const hasAnimalPart = ingredients.some(ing => {
+      const name = ing.name.toLowerCase();
+      return name.includes('bezoar') || name.includes('mummy') ||
+             name.includes('viper') || name.includes('bone') ||
+             name.includes('millipede') || name.includes('crab');
+    });
+
+    if (hasAnimalPart) {
+      return {
+        typeId: 'animal_products',
+        reason: 'Animal-derived medicine'
+      };
+    }
+
+    // Alchemical methods typically create alchemical products
+    if (isAlchemicalMethod) {
+      return {
+        typeId: 'alchemical',
+        reason: `${selectedMethod} process creates chemical preparation`
+      };
+    }
+
+    // Multiple ingredients with non-alchemical method = Compounds
+    return {
+      typeId: 'compounds',
+      reason: 'Multi-ingredient compound medicine'
+    };
+  }, [selectedSimples]);
+
   if (!isOpen) return null;
 
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="fixed inset-0 bg-ink-900/90 dark:bg-black/95 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-        <div className="bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-3xl shadow-2xl max-w-7xl w-full max-h-[95vh] flex flex-col border-4 border-double border-amber-700/50 dark:border-amber-500/30 relative overflow-hidden">
+        <div ref={gestureRef} className="bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-3xl shadow-2xl max-w-7xl w-full max-h-[95vh] flex flex-col border-4 border-double border-amber-700/50 dark:border-amber-500/30 relative overflow-hidden">
 
           {/* Ornate corner decorations */}
           <div className="absolute top-0 left-0 w-32 h-32 border-l-4 border-t-4 border-amber-600/40 dark:border-amber-400/30 rounded-tl-3xl pointer-events-none"></div>
@@ -517,16 +658,93 @@ Compounding Method: ${selectedMethod}
               </div>
             </div>
 
+            {/* Predicted Medicine Type Preview */}
+            {predictedMedicineType && (
+              <div className="mb-6 bg-gradient-to-r from-amber-50 via-parchment-50 to-amber-50 dark:from-slate-800/60 dark:via-slate-700/50 dark:to-slate-800/60 border-2 border-amber-600/40 dark:border-amber-500/30 rounded-xl p-5 shadow-lg animate-fadeIn">
+                <div className="flex items-center gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="text-4xl">⚗️</div>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-base font-bold font-serif text-ink-900 dark:text-amber-100 mb-2">
+                      Predicted Result
+                    </h3>
+                    <p className="text-sm font-sans text-ink-700 dark:text-amber-200/80 mb-3">
+                      {predictedMedicineType.reason}
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-sans font-semibold text-ink-800 dark:text-amber-100">
+                        Medicine Type:
+                      </span>
+                      <MedicineTypeBadge
+                        item={{ medicineType: predictedMedicineType.typeId, name: 'Preview' }}
+                        size="medium"
+                        position="inline"
+                        showTooltip={true}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 text-3xl opacity-40">
+                    💭
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Medicine Type Filter Buttons */}
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              <button
+                onClick={() => setMedicineTypeFilter('all')}
+                className="text-xs px-2.5 py-1.5 rounded-lg transition-all duration-200 font-sans font-medium"
+                title="Show all materia medica"
+                style={{
+                  background: medicineTypeFilter === 'all'
+                    ? (isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.2)')
+                    : (isDark ? 'rgba(71, 85, 105, 0.2)' : 'rgba(229, 231, 235, 0.5)'),
+                  color: medicineTypeFilter === 'all'
+                    ? (isDark ? '#10b981' : '#059669')
+                    : (isDark ? '#94a3b8' : '#64748b'),
+                  border: medicineTypeFilter === 'all'
+                    ? (isDark ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(16, 185, 129, 0.3)')
+                    : '1px solid transparent'
+                }}
+              >
+                All ({medicineCountsByType.all})
+              </button>
+              {getAllMedicineTypes().map(type => (
+                <button
+                  key={type.id}
+                  onClick={() => setMedicineTypeFilter(type.id)}
+                  className="text-xs px-2.5 py-1.5 rounded-lg transition-all duration-200 font-sans font-medium flex items-center gap-1"
+                  title={type.description}
+                  style={{
+                    background: medicineTypeFilter === type.id
+                      ? `${type.color}30`
+                      : (isDark ? 'rgba(71, 85, 105, 0.2)' : 'rgba(229, 231, 235, 0.5)'),
+                    color: medicineTypeFilter === type.id
+                      ? type.color
+                      : (isDark ? '#94a3b8' : '#64748b'),
+                    border: medicineTypeFilter === type.id
+                      ? `1px solid ${type.color}60`
+                      : '1px solid transparent'
+                  }}
+                >
+                  <span style={{ fontSize: '0.9rem' }}>{type.emoji}</span>
+                  <span>{medicineCountsByType[type.id] || 0}</span>
+                </button>
+              ))}
+            </div>
+
             {/* Inventory Section - Paginated */}
             <div className="bg-ink-50/50 dark:bg-slate-800/30 rounded-xl p-4 border border-ink-200/30 dark:border-slate-600/30">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-serif text-base font-bold text-ink-800 dark:text-amber-100 flex items-center gap-2">
-                  <span>Materia Medica</span>
+                  <span>{medicineTypeFilter === 'all' ? 'Materia Medica' : getAllMedicineTypes().find(t => t.id === medicineTypeFilter)?.name || 'Materia Medica'}</span>
                   <span className="text-sm font-normal text-ink-500 dark:text-amber-300/60">
-                    ({simples.length} items)
+                    ({filteredSimples.length} items)
                   </span>
                 </h3>
-                {simples.length > 14 && (
+                {filteredSimples.length > 14 && (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setInventoryPage(Math.max(0, inventoryPage - 1))}
@@ -539,11 +757,11 @@ Compounding Method: ${selectedMethod}
                       </svg>
                     </button>
                     <span className="text-xs text-ink-600 dark:text-amber-300/70 font-sans">
-                      {inventoryPage + 1} / {Math.ceil(simples.length / 14)}
+                      {inventoryPage + 1} / {Math.ceil(filteredSimples.length / 14)}
                     </span>
                     <button
-                      onClick={() => setInventoryPage(Math.min(Math.ceil(simples.length / 14) - 1, inventoryPage + 1))}
-                      disabled={inventoryPage >= Math.ceil(simples.length / 14) - 1}
+                      onClick={() => setInventoryPage(Math.min(Math.ceil(filteredSimples.length / 14) - 1, inventoryPage + 1))}
+                      disabled={inventoryPage >= Math.ceil(filteredSimples.length / 14) - 1}
                       className="p-1.5 rounded-lg bg-amber-100 dark:bg-slate-700 text-ink-800 dark:text-amber-100 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-200 dark:hover:bg-slate-600 transition-all"
                       aria-label="Next page"
                     >
@@ -554,15 +772,17 @@ Compounding Method: ${selectedMethod}
                   </div>
                 )}
               </div>
-              {simples.length === 0 ? (
+              {filteredSimples.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-lg text-ink-500 dark:text-amber-300/50 font-serif italic">
-                    Your inventory is empty. Purchase ingredients from the market to begin mixing.
+                    {simples.length === 0
+                      ? 'Your inventory is empty. Purchase ingredients from the market to begin mixing.'
+                      : 'No items in this category. Try selecting a different filter.'}
                   </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-7 gap-3 h-auto" style={{ gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }}>
-                  {simples.slice(inventoryPage * 14, (inventoryPage + 1) * 14).map(simple => (
+                  {filteredSimples.slice(inventoryPage * 14, (inventoryPage + 1) * 14).map(simple => (
                     <DraggableIngredient
                       key={simple.id}
                       simple={simple}

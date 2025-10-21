@@ -498,8 +498,16 @@
   box-shadow: 0 0 10px rgba(252, 129, 129, 0.7);
 }
 
-/* Responsive Styles */
-@media (max-width: 768px) {
+/* ============================================
+   RESPONSIVE BREAKPOINTS (Tailwind-aligned)
+   ============================================
+   Mobile:  < 640px  (phones)
+   Tablet:  640-1023px (sm-lg)
+   Desktop: >= 1024px (lg+)
+   ============================================ */
+
+/* Phone-specific adjustments (sm breakpoint) */
+@media (max-width: 639px) {
  .prescribe-popup {
     width: 63%;
     left: 33%;

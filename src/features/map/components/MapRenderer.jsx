@@ -16,9 +16,10 @@ import { LocationDropdown } from '../../../components/LocationDropdown';
  * @param {Object} props.playerPosition - Player's current position {x, y}
  * @param {number} props.playerFacing - Player facing direction in degrees (0=N, 90=E, 180=S, 270=W)
  * @param {Function} props.onLocationChange - Callback when user clicks to change location
+ * @param {Function} props.onFurnitureClick - Callback when furniture is clicked
  * @param {string} props.theme - Theme mode: 'light' or 'dark' (defaults to 'light')
  */
-export default function MapRenderer({ scenario, currentLocation, currentMapId, npcs = [], playerPosition = null, playerFacing = 180, onLocationChange, onMapClick = null, onEnterBuilding = null, onExitBuilding = null, onRoomCommand = null, theme = 'light' }) {
+export default function MapRenderer({ scenario, currentLocation, currentMapId, npcs = [], playerPosition = null, playerFacing = 180, onLocationChange, onMapClick = null, onEnterBuilding = null, onExitBuilding = null, onRoomCommand = null, onFurnitureClick = null, theme = 'light' }) {
   const [activeMapId, setActiveMapId] = useState(null);
   const [mapType, setMapType] = useState('exterior'); // 'exterior' or 'interior'
   const [showModal, setShowModal] = useState(false);
@@ -375,6 +376,20 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
     return () => container.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
 
+  // Listen for ESC key to close modal
+  useEffect(() => {
+    if (!showModal) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showModal]);
+
   // Convert NPCs to map markers format
   const npcMarkers = useMemo(() => {
     const markers = npcs
@@ -578,6 +593,7 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
               playerFacing={playerFacing}
               onRoomClick={handleRoomClick}
               onDoorClick={handleDoorClick}
+              onFurnitureClick={onFurnitureClick}
               viewBox={viewBox}
               theme={theme}
               isModal={false}
@@ -716,6 +732,7 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
                     setShowModal(false);
                     handleDoorClick(door);
                   }}
+                  onFurnitureClick={onFurnitureClick}
                   viewBox={undefined}
                   theme={theme}
                   isModal={true}

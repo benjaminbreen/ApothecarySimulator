@@ -7,6 +7,7 @@ import { createChatCompletion } from '../../../core/services/llmService';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import ActiveBonusIndicator from '../../../components/ActiveBonusIndicator';
 import { getToxicXPBonus } from '../../../core/systems/professionAbilities';
+import { useGesture } from '../../../hooks/useGesture';
 
 import oralImage from '../../../assets/oral.jpg';
 import inhaledImage from '../../../assets/inhaled.jpg';
@@ -50,6 +51,17 @@ function PrescribePopup({
      const [isEmoji, setIsEmoji] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingPrescription, setPendingPrescription] = useState(null);
+
+  // Swipe-to-close gesture support
+  const gestureRef = useGesture({
+    onSwipeDown: () => {
+      if (!isLoading) {
+        onClose();
+      }
+    },
+    minSwipeDistance: 80,
+    enableHaptics: true
+  });
 
    const handleRouteSelect = (route) => {
     setSelectedRoute(route);
@@ -498,7 +510,7 @@ const handleSummaryContinue = () => {
     {/* Add the darkened overlay */}
     <div className="popup-overlay" />
 
-    <div className={`prescribe-popup ${isLoading ? 'loading' : ''} ${prescriptionType === 'poison' ? 'poisoning' : 'normal'}`}>
+    <div ref={gestureRef} className={`prescribe-popup ${isLoading ? 'loading' : ''} ${prescriptionType === 'poison' ? 'poisoning' : 'normal'}`}>
       <div className="prescribe-content">
         <h2>🧪 Prescribe a Medicine</h2>
 

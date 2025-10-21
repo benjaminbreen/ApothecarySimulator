@@ -31,7 +31,8 @@ const ViewportPanel = ({
   discoveredBooks = [], // Books discovered during gameplay
   onBookClick = null, // Callback when book is clicked
   narrativeTurn = '', // Most recent narrative turn for Study tab
-  primaryPortraitFile = null // Primary portrait filename for status detection
+  primaryPortraitFile = null, // Primary portrait filename for status detection
+  onFurnitureClick = null // Callback when furniture is clicked on map
 }) => {
   const defaultTab = npcPresent ? 'portrait' : 'map';
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -63,6 +64,10 @@ const ViewportPanel = ({
         setActiveTab('portrait');
         setPulsePortraitTab(false);
       }, 800);
+    } else if (!npcPresent && activeTab === 'portrait') {
+      // NPC left while on portrait tab - switch to map tab
+      setPreviousTab(activeTab);
+      setActiveTab('map');
     }
   }, [npcPresent, activeTab]);
 
@@ -204,6 +209,7 @@ const ViewportPanel = ({
                   onEnterBuilding={onEnterBuilding}
                   onExitBuilding={onExitBuilding}
                   onRoomCommand={onRoomCommand}
+                  onFurnitureClick={onFurnitureClick}
                   theme={currentTheme}
                 />
               </div>

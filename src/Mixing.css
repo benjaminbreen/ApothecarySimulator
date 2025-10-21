@@ -800,8 +800,17 @@ box-shadow: 0 4px 15px rgba(255, 165, 0, 0.2), 0 4px 10px rgba(0, 0, 0, 0.8);
 
 
 /* Adjustments for Small Screens */
-@media (max-width: 768px) {
-  
+/* ============================================
+   RESPONSIVE BREAKPOINTS (Tailwind-aligned)
+   ============================================
+   Mobile:  < 640px  (phones)
+   Tablet:  640-1023px (sm-lg)
+   Desktop: >= 1024px (lg+)
+   ============================================ */
+
+/* Tablet and below (md breakpoint) */
+@media (max-width: 1023px) {
+
   /* Mixing Popup Content */
   .mixing-popup-content {
     width: 100%;
@@ -961,6 +970,37 @@ box-shadow: 0 4px 15px rgba(255, 165, 0, 0.2), 0 4px 10px rgba(0, 0, 0, 0.8);
   .mix-button-container {
     margin-top: 10px;
     text-align: center; /* Center align buttons */
+  }
+}
+
+/* Phone-specific adjustments (sm breakpoint) */
+@media (max-width: 639px) {
+  /* Even smaller method squares for phones */
+  .method-square {
+    width: 110px !important;
+    height: 110px !important;
+    font-size: 2.5rem !important;
+  }
+
+  /* Tighter inventory grid */
+  .inventory-grid {
+    gap: 6px !important;
+    padding: 8px !important;
+  }
+
+  /* Smaller header text */
+  .mixing-header {
+    font-size: 1rem !important;
+  }
+
+  /* Compact mixing instructions */
+  .mixing-instructions {
+    font-size: 0.45rem !important;
+  }
+
+  /* Reduce padding on mobile */
+  .mixing-popup-content {
+    padding: 6px !important;
   }
 }
 

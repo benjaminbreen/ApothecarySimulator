@@ -1,0 +1,217 @@
+/**
+ * Mobile Bottom Navigation Styles
+ * iOS/Android style bottom nav bar
+ */
+
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background-color: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  padding-bottom: env(safe-area-inset-bottom, 0); /* iOS safe area */
+}
+
+.mobile-bottom-nav__container {
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  max-width: 100%;
+  height: 56px;
+}
+
+/* ============================================
+   NAV ITEM
+   ============================================ */
+
+.mobile-bottom-nav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  color: #6b7280;
+
+  /* Touch target */
+  min-height: 48px;
+  min-width: 48px;
+}
+
+.mobile-bottom-nav__item:active {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Active state */
+.mobile-bottom-nav__item--active {
+  color: #4caf50;
+}
+
+.mobile-bottom-nav__item--active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32px;
+  height: 3px;
+  background-color: #4caf50;
+  border-radius: 0 0 3px 3px;
+}
+
+/* Disabled state */
+.mobile-bottom-nav__item--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mobile-bottom-nav__item--disabled:active {
+  background-color: transparent;
+}
+
+/* ============================================
+   ICON
+   ============================================ */
+
+.mobile-bottom-nav__icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-bottom-nav__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.mobile-bottom-nav__item--active .mobile-bottom-nav__icon {
+  transform: scale(1.1);
+}
+
+/* Badge */
+.mobile-bottom-nav__badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ef4444;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 9px;
+  padding: 0 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ============================================
+   LABEL
+   ============================================ */
+
+.mobile-bottom-nav__label {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-bottom-nav__item--active .mobile-bottom-nav__label {
+  font-weight: 600;
+}
+
+/* ============================================
+   DARK MODE
+   ============================================ */
+
+.dark .mobile-bottom-nav {
+  background-color: #1f2937;
+  border-top-color: #374151;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.dark .mobile-bottom-nav__item {
+  color: #9ca3af;
+}
+
+.dark .mobile-bottom-nav__item:active {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.dark .mobile-bottom-nav__item--active {
+  color: #68d391;
+}
+
+.dark .mobile-bottom-nav__item--active::before {
+  background-color: #68d391;
+}
+
+.dark .mobile-bottom-nav__badge {
+  background-color: #f87171;
+}
+
+/* ============================================
+   RESPONSIVE BREAKPOINTS
+   ============================================ */
+
+/* Phone-specific adjustments (sm breakpoint) */
+@media (max-width: 639px) {
+  .mobile-bottom-nav__container {
+    height: 60px;
+  }
+
+  .mobile-bottom-nav__icon {
+    font-size: 1.6rem;
+  }
+
+  .mobile-bottom-nav__label {
+    font-size: 0.65rem;
+  }
+
+  .mobile-bottom-nav__badge {
+    min-width: 20px;
+    height: 20px;
+    font-size: 0.75rem;
+  }
+}
+
+/* Tablet and larger - hide on desktop */
+@media (min-width: 1024px) {
+  .mobile-bottom-nav {
+    display: none;
+  }
+}
+
+/* Landscape phone - smaller height */
+@media (max-width: 639px) and (orientation: landscape) {
+  .mobile-bottom-nav__container {
+    height: 48px;
+  }
+
+  .mobile-bottom-nav__icon {
+    font-size: 1.3rem;
+  }
+
+  .mobile-bottom-nav__label {
+    display: none; /* Hide labels in landscape */
+  }
+}

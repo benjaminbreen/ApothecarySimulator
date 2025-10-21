@@ -1,3 +1,5 @@
+import { entityManager } from '../../../core/entities/EntityManager';
+
 /**
  * Interior map: Botica de la Amargura
  * Maria de Lima's apothecary shop
@@ -5,7 +7,7 @@
  *
  * @type {import('../../../core/types/map.types').InteriorMapData}
  */
-export default {
+const boticaInteriorMap = {
   id: 'botica-interior',
   type: 'interior',
   name: 'Botica de la Amargura',
@@ -68,8 +70,8 @@ export default {
       id: 'main-entrance',
       from: 'street',
       to: 'shop-floor',
-      position: [400, 700],  // Adjusted for new coordinates
-      width: 60,             // Much wider door
+      position: [355, 700],  // Adjusted for new coordinates
+      width: 90,             // Much wider door
       rotation: 0,
       isLocked: false
     },
@@ -79,8 +81,8 @@ export default {
       id: 'lab-door',
       from: 'shop-floor',
       to: 'laboratory',
-      position: [700, 400],  // Adjusted for new coordinates
-      width: 60,
+      position: [675, 400],  // Adjusted for new coordinates
+      width: 80,
       rotation: 0,
       isLocked: false
     },
@@ -90,22 +92,12 @@ export default {
       id: 'bedroom-door',
       from: 'shop-floor',
       to: 'bedroom',
-      position: [330, 400],  // Adjusted for new coordinates
-      width: 60,
+      position: [290, 400],  // Adjusted for new coordinates
+      width: 80,
       rotation: 0,
       isLocked: false
     },
 
-    // Bedroom to laboratory (connecting private quarters)
-    {
-      id: 'bedroom-lab-door',
-      from: 'bedroom',
-      to: 'laboratory',
-      position: [500, 250],  // Adjusted for new coordinates
-      width: 60,
-      rotation: 90,
-      isLocked: false
-    },
 
   ],
 
@@ -184,3 +176,116 @@ export default {
 
   backgroundColor: '#1a1f2e'
 };
+
+/**
+ * Register shop furniture as POI entities for clickable links
+ * Called during map initialization
+ */
+export const registerBoticaFurniture = () => {
+  // Register Drug Cabinet
+  entityManager.register({
+    name: 'Drug Cabinet',
+    entityType: 'item',
+    type: 'furniture',
+    category: 'Furniture',
+    description: 'A magnificent wooden cabinet crowned with the gilded label "Medicina Composta," its three shelves displaying rows of hand-painted ceramic jars bearing Latin names—ROSA, CONSOLID, HYSCOP, EL CADE—each jar a small work of art with botanical motifs in cobalt blue. Below the display shelves, three rows of small drawers with brass ring pulls contain powdered simples and compounds, while a bronze mortar and pestle rest on the third shelf alongside neatly folded linen cloths.',
+    position: [130, 563],
+    properties: ['Storage', 'Display', 'Inventory Management'],
+    historicalContext: `Medicine cabinets in 17th-century apothecaries served both practical and symbolic purposes. The prominent display of beautifully decorated ceramic drug jars (albarelli) demonstrated the apothecary's learning and exotic imports, while the many small drawers below stored powdered simples and compounds. The labeled jars followed Renaissance pharmaceutical tradition, advertising the shop's sophistication to literate customers.`
+  });
+
+  // Register Sales Counter
+  entityManager.register({
+    name: 'Sales Counter',
+    entityType: 'item',
+    type: 'furniture',
+    category: 'Furniture',
+    description: 'A long wooden counter, its polished surface deeply scarred by decades of daily work—knife scores from cutting roots, burn marks from sealing wax, ink stains from ledger-keeping. Behind it, shelves hold bundles of dried herbs hanging from iron hooks, ceramic jars labeled in Latin script, and small wooden boxes containing exotic spices from the Manila galleons.',
+    position: [455, 550],
+    properties: ['Commerce', 'Measurement', 'Display'],
+    historicalContext: `The counter in a colonial apothecary was the primary point of interaction with customers. Its surface bore the marks of daily work: knife scores from cutting roots, burn marks from sealing wax, and ink stains from maintaining ledgers required by the Protomedicato.`
+  });
+
+  // Register Waiting Chair
+  entityManager.register({
+    name: 'Waiting Chair',
+    entityType: 'item',
+    type: 'furniture',
+    category: 'Furniture',
+    description: 'A humble wicker chair woven over a simple wooden frame, its seat cushion worn thin and slightly concave from the weight of countless anxious patients. A small tear mars the wicker weave on the left armrest, and a dark stain—blood or wine, impossible to tell—marks the cushion beside carved initials "M.S. 1673" left by some long-ago visitor.',
+    position: [830, 630],
+    properties: ['Seating', 'Patient Care', 'Comfort'],
+    historicalContext: `Seating for patients in colonial medical practices reflected social hierarchies. This simple wicker chair suggests a practice serving middling and common folk. Elite patients would expect cushioned chairs, while the poor often stood.`
+  });
+
+  // LABORATORY FURNITURE
+
+  // Register Workbench
+  entityManager.register({
+    name: 'Workbench',
+    entityType: 'item',
+    type: 'furniture',
+    category: 'Furniture',
+    description: 'A sturdy oak workbench dominates the laboratory, its surface a palimpsest of alchemical labor—burn marks from overturned crucibles, acid stains creating abstract patterns, knife scores from cutting roots and barks. The bench holds the apparatus of transformation: copper alembics and glass retorts, a small athanor for controlled heating, mortars of varying sizes, and a forest of specialized vessels—cucurbits, pelicans—each designed for specific operations.',
+    position: [620, 210],
+    properties: ['Crafting', 'Alchemy', 'Preparation'],
+    historicalContext: `The laboratory workbench was the apothecary's true workspace, where Galenic theory met Paracelsian practice. Its scarred surface bore witness to countless operations: distillations, calcinations, and the preparation of compounds. The bench held specialized equipment—alembics, retorts, mortars—each piece representing significant investment and technical knowledge.`
+  });
+
+  // Register Herb Shelf
+  entityManager.register({
+    name: 'Herb Shelf',
+    entityType: 'item',
+    type: 'furniture',
+    category: 'Furniture',
+    description: 'A towering wooden shelf reaches nearly to the ceiling, its dozens of compartments organized by medical property and continental origin—European herbs, Asian spices, American botanicals, each labeled in careful script. Some compartments overflow with bundled dried plants while others stand nearly empty, a reminder of supply chains stretching across oceans and months.',
+    position: [830, 240],
+    properties: ['Storage', 'Organization', 'Pharmacopeia'],
+    historicalContext: `The herb shelf represented the apothecary's accumulated pharmacopeia. In colonial Mexico City, it held a unique synthesis: traditional European medicinals brought across the Atlantic, Asian spices carried on the Manila galleons, and indigenous plants documented by Francisco Hernández. Organization reflected both medical theory (grouping by property) and practical necessity (frequency of use).`
+  });
+
+  // BEDROOM FURNITURE
+
+  // Register Bed
+  entityManager.register({
+    name: 'Bed',
+    entityType: 'item',
+    type: 'furniture',
+    category: 'Furniture',
+    description: 'A simple wooden bed frame holds a straw-filled mattress covered by rough wool blankets, the whole showing the wear of daily use and restless sleep. The headboard bears simple geometric carvings—the work of some long-dead carpenter—and the rope supports sag slightly, requiring periodic tightening.',
+    position: [290, 220],
+    properties: ['Rest', 'Sleep', 'Privacy'],
+    historicalContext: `Beds in colonial households varied dramatically by social class. This modest bed—wooden frame, straw mattress, wool blankets—marks its owner as middling rather than elite. The lack of curtains or canopy suggests limited concern for privacy or warmth, though the solid construction indicates resources above the poorest classes who might sleep on mats.`
+  });
+
+  // Register Bookshelf
+  entityManager.register({
+    name: 'Bookshelf',
+    entityType: 'item',
+    type: 'furniture',
+    category: 'Furniture',
+    description: 'A modest wooden shelf holds a carefully curated collection of medical texts. Among the professional volumes hide personal treasures: a prayer book for appearances, a volume of poetry, and several notebooks filled with observations in your own hand.',
+    position: [165, 160],
+    properties: ['Study', 'Knowledge', 'Reference'],
+    historicalContext: `Books were precious commodities in New Spain. A personal library, even a small one, marked education and professional status. Medical practitioners required foundational texts—Dioscorides, Galen, Avicenna—as well as newer works describing American materia medica. The presence of books also invited scrutiny; the Inquisition monitored private libraries for prohibited works.`
+  });
+
+  // Register Clothing Chest
+  entityManager.register({
+    name: 'Clothing Chest',
+    entityType: 'item',
+    type: 'furniture',
+    category: 'Furniture',
+    description: 'A dark wooden chest reinforced with iron corner brackets and a substantial iron lock, its polished surface bearing the marks of years of handling. The chest contains a modest wardrobe—work dresses in black and brown, a better dress for Mass, spare linens—and beneath a cleverly concealed false bottom, those items too dangerous to display openly.',
+    position: [413, 351],
+    properties: ['Storage', 'Security', 'Privacy'],
+    historicalContext: `The clothing chest served multiple functions in colonial households: storing garments, securing valuables, and concealing sensitive items. Iron fittings and a robust lock protected contents from theft in a city where domestic servants and visitors might access private spaces. For those harboring dangerous secrets—prohibited books, evidence of Jewish practices, seditious correspondence—a false bottom provided additional security.`
+  });
+
+  console.log('[BoticaInterior] Registered 9 furniture POI entities (3 shop + 3 lab + 3 bedroom)');
+};
+
+// Call furniture registration immediately
+registerBoticaFurniture();
+
+export default boticaInteriorMap;

@@ -28,6 +28,8 @@ import ContractOfferModal from '../components/ContractOfferModal';
 import ItemConsumptionModal from '../components/ItemConsumptionModal';
 import GameOverModal from '../components/GameOverModal';
 import SimpleInteractionCard from '../components/SimpleInteractionCard';
+import RandomEventCard from '../components/RandomEventCard';
+import POIModal from '../components/POIModal';
 
 // Feature components
 import { useGameState } from '../core/state/gameState';
@@ -37,6 +39,7 @@ import { useSkills } from '../core/hooks/useSkills';
 // Game systems
 import resourceManager from '../systems/ResourceManager';
 import { scenarioLoader } from '../core/services/scenarioLoader';
+import { initializeEventSystem } from '../core/events/randomEventService';
 import { getTransactionManager, TRANSACTION_CATEGORIES } from '../core/systems/transactionManager';
 import { getAllAbilitiesForProfession, getXPMultiplier, getSkillXPMultiplier } from '../core/systems/professionAbilities';
 import { getProfessionIcon, getProfessionName, getPlayerTitle } from '../core/systems/levelingSystem';
@@ -44,6 +47,11 @@ import { getProfessionIcon, getProfessionName, getPlayerTitle } from '../core/sy
 // Modularized components
 import { useGameHandlers } from './hooks/useGameHandlers';
 import { GameModals } from './components/GameModals';
+import MobileGameLayout from './components/MobileGameLayout';
+
+// Mobile optimization
+import { MobileLayoutProvider } from '../contexts/MobileLayoutContext';
+import { useScreenSize } from '../hooks';
 
 
 
@@ -67,6 +75,7 @@ const PDFPopup = lazy(() => import('../shared/components/PDFPopup'));
 const GameContent = () => {
   const toast = useToast();
   const { scenarioId } = useParams(); // Get scenarioId from URL
+  const { isMobile, isTablet } = useScreenSize(); // Mobile optimization
 
   // Load scenario character data for skills initialization
   const scenario = scenarioLoader.getScenario(scenarioId || '1680-mexico-city');
@@ -138,6 +147,12 @@ const GameContent = () => {
     }
   }, [currentMapId, scenario]);
 
+  // Initialize random event system on mount
+  useEffect(() => {
+    initializeEventSystem();
+    console.log('[GamePage] Random event system initialized');
+  }, []); // Run once on mount
+
   // DISABLED: Auto-reset position on location change
   // This was causing conflicts with manual position management from exit/enter commands
   // Position is now managed exclusively by exit/enter handlers in useGameHandlers.js
@@ -182,27 +197,59 @@ const GameContent = () => {
 
   // Calculate nearby locations for "Go somewhere" dropdown
   const nearbyLocations = useMemo(() => {
-    if (!currentMapData || !playerPosition) {
-      console.log('[GamePage] nearbyLocations empty: missing map data or position', {
-        hasMapData: !!currentMapData,
-        hasPosition: !!playerPosition
-      });
-      return [];
+    const locations = [];
+
+    // ALWAYS include key exterior locations (fast travel destinations)
+    const keyLocations = [
+      {
+        name: 'Botica de la Amargura',
+        type: 'shop',
+        isFastTravel: true,
+        mapId: 'botica-interior'
+      },
+      {
+        name: 'Metropolitan Cathedral',
+        type: 'cathedral',
+        isFastTravel: true,
+        mapId: 'cathedral-interior'
+      },
+      {
+        name: 'La Merced Market',
+        type: 'market',
+        isFastTravel: true,
+        mapId: 'mercado-interior'
+      }
+    ];
+
+    // Add key locations (unless we're already at one)
+    keyLocations.forEach(loc => {
+      // Don't show current location
+      if (gameState.location !== loc.name) {
+        locations.push(loc);
+      }
+    });
+
+    // If on an interior map, also add nearby interior locations
+    if (currentMapData && playerPosition && currentMapId?.includes('interior')) {
+      try {
+        const gridSystem = getGridSystem(currentMapId, currentMapData);
+        const nearby = gridSystem.getNearbyLocations(playerPosition, 3);
+
+        // Add nearby interior locations (rooms/areas)
+        nearby.forEach(loc => {
+          locations.push({
+            ...loc,
+            isInterior: true
+          });
+        });
+      } catch (error) {
+        console.error('[GamePage] Error getting nearby interior locations:', error);
+      }
     }
 
-    try {
-      const gridSystem = getGridSystem(currentMapId, currentMapData);
-      const nearby = gridSystem.getNearbyLocations(playerPosition, 5);
-
-      // Return top 5 closest
-      const top5 = nearby.slice(0, 5);
-      console.log('[GamePage] Calculated nearby locations:', top5);
-      return top5;
-    } catch (error) {
-      console.error('[GamePage] Error getting nearby locations:', error);
-      return [];
-    }
-  }, [currentMapData, playerPosition, currentMapId]);
+    console.log('[GamePage] Calculated locations for dropdown:', locations);
+    return locations.slice(0, 7); // Max 7 locations total
+  }, [currentMapData, playerPosition, currentMapId, gameState.location]);
 
   // UI state
   const [isJournalOpen, setIsJournalOpen] = useState(false);
@@ -242,6 +289,9 @@ const GameContent = () => {
 
   // Simple interaction system state
   const [pendingSimpleInteraction, setPendingSimpleInteraction] = useState(null);
+
+  // Random event system state
+  const [pendingRandomEvent, setPendingRandomEvent] = useState(null);
 
   // Item consumption modal state
   const [isConsumptionModalOpen, setIsConsumptionModalOpen] = useState(false);
@@ -448,6 +498,9 @@ const GameContent = () => {
   const [showReputationModal, setShowReputationModal] = useState(false);
   const [reputationModalFaction, setReputationModalFaction] = useState(null);
   const [showSkillsModal, setShowSkillsModal] = useState(false);
+  const [detailSkillId, setDetailSkillId] = useState(null); // For SkillsDetailModal
+  const [showPOIModal, setShowPOIModal] = useState(false);
+  const [selectedPOIEntity, setSelectedPOIEntity] = useState(null);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
   const [isFastTravelOpen, setIsFastTravelOpen] = useState(false);
   const [isBloodlettingOpen, setIsBloodlettingOpen] = useState(false);
@@ -705,9 +758,12 @@ const GameContent = () => {
     setTradingNPC, // Trade system
     setTradeMode, // Trade system
     setPendingSimpleInteraction, // Simple interaction system
+    setPendingRandomEvent, // Random event system
     setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
     setDynamicChips, // Dynamic action chips from narrative parsing
     setGameState, // For updating gameState (e.g., status from StateAgent)
+    setShowPOIModal, // POI modal for map furniture clicks
+    setSelectedPOIEntity, // Selected entity for POI modal
 
     // State values
     energy: gameState.energy,  // From gameState
@@ -791,6 +847,8 @@ const GameContent = () => {
     handleAcceptTrade,
     handleDeclineTrade,
     handleSimpleInteractionChoice,
+    handleRandomEventChoice,
+    handleFurnitureClick,
     handleMovement,
     handleEnterBuilding,
     handleExitBuilding,
@@ -1108,9 +1166,115 @@ const GameContent = () => {
     setIsDiagnoseOpen(true);
   }, []);
 
+  // Common props for both mobile and desktop layouts
+  const layoutProps = {
+    gameState,
+    narrationDarkMode,
+    activeTab,
+    handleTabChange,
+    conversationHistory,
+    recentNPCs,
+    isLoading,
+    handleShowPrescribePopup,
+    handleShowDiagnosePopup,
+    gameLog,
+    activePatient,
+    patientDialogue,
+    handleAskQuestion,
+    pendingContract,
+    setIsContractModalOpen,
+    showExitConfirmation,
+    pendingExitData,
+    handleConfirmExit,
+    setShowExitConfirmation,
+    handleAcceptTrade,
+    handleDeclineTrade,
+    pendingSimpleInteraction,
+    handleSimpleInteractionChoice,
+    pendingRandomEvent,
+    handleRandomEventChoice,
+    handleEntityClick,
+    mariaPortraitUrl,
+    updateInventory,
+    addJournalEntry,
+    setHistoryOutput,
+    setConversationHistory,
+    setTurnNumber,
+    currentPrescriptionType,
+    advanceTime,
+    updateEnergy,
+    transactionManager,
+    TRANSACTION_CATEGORIES,
+    toggleInventory,
+    setLeftSidebarTab,
+    setShowMixingPopup,
+    setPendingPrescription,
+    setActiveTab,
+    pendingPrescription,
+    narrationFontSize,
+    isNarrationSettingsOpen,
+    isLLMViewOpen,
+    setNarrationFontSize,
+    setNarrationDarkMode,
+    setIsNarrationSettingsOpen,
+    setIsLLMViewOpen,
+    userInput,
+    setUserInput,
+    handleSubmit,
+    handleQuickAction,
+    handleItemDrop,
+    dynamicChips,
+    nearbyLocations,
+    primaryPortraitFile,
+    historyOutput,
+    scenarioLoader,
+    scenarioId,
+    filteredNPCPositions,
+    playerPosition,
+    playerFacing,
+    currentMapId,
+    toggleShopSign,
+    toast,
+    currentEntities,
+    discoveredBooks,
+    handleBookClick,
+    updateLocation,
+    handlePortraitClick,
+    setIsInteractiveMapModalOpen,
+    handleItemDropOnNPC,
+    handleEnterBuilding,
+    handleExitBuilding,
+    handleFurnitureClick,
+    handleSaveGame,
+    setIsSettingsOpen,
+    isCharacterCardCollapsed,
+    reputation,
+    reputationEmoji,
+    playerSkills,
+    activeEffects,
+    setShowEquipmentModal,
+    setSelectedItem,
+    setShowItemModal,
+    setReputationModalFaction,
+    setShowReputationModal,
+    setShowSkillsModal,
+    setDetailSkillId,
+    handleOpenFullInventory,
+    handleItemDropOnPlayer,
+    leftSidebarTab,
+    setIsCharacterCardCollapsed,
+    xpGain,
+    xpGainKey,
+    handleActionClick
+  };
+
   return (
       <DndProvider backend={HTML5Backend}>
-        <div className={`h-screen flex flex-col overflow-hidden bg-gradient-to-br from-parchment-100 via-parchment-50/50 to-parchment-50/80 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500 ${narrationDarkMode ? 'dark' : ''}`}>
+        {/* Conditional rendering: Mobile layout for phones/tablets, Desktop layout for larger screens */}
+        {(isMobile || isTablet) ? (
+          <MobileGameLayout {...layoutProps} />
+        ) : (
+          <div className={`h-screen flex flex-col overflow-hidden bg-gradient-to-br from-parchment-100 via-parchment-50/50 to-parchment-50/80 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500 ${narrationDarkMode ? 'dark' : ''}`}>
 
 
         {/* Header */}
@@ -1159,6 +1323,7 @@ const GameContent = () => {
                 setShowReputationModal(true);
               }}
               onOpenSkillsModal={() => setShowSkillsModal(true)}
+              onOpenSkillDetail={(skillId) => setDetailSkillId(skillId)}
               onOpenFullInventory={handleOpenFullInventory}
               onItemDropOnPlayer={handleItemDropOnPlayer}
               statusPanelTab={leftSidebarTab}
@@ -1198,6 +1363,9 @@ const GameContent = () => {
                 // Simple interaction props
                 pendingSimpleInteraction={pendingSimpleInteraction}
                 onSimpleInteractionChoice={handleSimpleInteractionChoice}
+                // Random event props
+                pendingRandomEvent={pendingRandomEvent}
+                onRandomEventChoice={handleRandomEventChoice}
                 onEntityClick={handleEntityClick}
                 playerPortrait={mariaPortraitUrl}
                 // Prescription props for Patient View
@@ -1289,25 +1457,17 @@ const GameContent = () => {
                 onEnterBuilding={handleEnterBuilding} // Handle building entry click on map
                 onExitBuilding={handleExitBuilding} // Handle Exit button click on map
                 onRoomCommand={handleSubmit} // Handle room movement commands from map
+                onFurnitureClick={handleFurnitureClick} // Handle furniture clicks on map
               />
             </div>
 
           </div>
-        </div>
+          </div>
+          </div>
+        )}
+        {/* End conditional rendering */}
 
-        {/* Mobile Bottom Navigation */}
-        <MobileBottomNav
-          activeTab={mobileTab}
-          onTabChange={setMobileTab}
-          onCharacterClick={() => console.log('Character clicked')}
-          onInventoryClick={toggleInventory}
-          onJournalClick={toggleJournal}
-          onMapClick={toggleMap}
-        />
-
-
-
-        {/* All game modals managed by GameModals component */}
+        {/* All game modals managed by GameModals component - Shared by both mobile and desktop */}
         <GameModals
           // Modal states
           showMixingPopup={showMixingPopup}
@@ -1326,6 +1486,8 @@ const GameContent = () => {
           showReputationModal={showReputationModal}
           reputationModalFaction={reputationModalFaction}
           showSkillsModal={showSkillsModal}
+          detailSkillId={detailSkillId}
+          showPOIModal={showPOIModal}
           isSettingsOpen={isSettingsOpen}
           isPdfOpen={isPdfOpen}
           showEndGamePopup={showEndGamePopup}
@@ -1347,6 +1509,7 @@ const GameContent = () => {
           selectedPatient={selectedPatient}
           selectedNPC={selectedNPC}
           selectedItem={selectedItem}
+          selectedPOIEntity={selectedPOIEntity}
           selectedPDF={selectedPDF}
           selectedCitation={selectedCitation}
           journal={journal}
@@ -1390,6 +1553,9 @@ const GameContent = () => {
           setShowEquipmentModal={setShowEquipmentModal}
           setShowReputationModal={setShowReputationModal}
           setShowSkillsModal={setShowSkillsModal}
+          setDetailSkillId={setDetailSkillId}
+          setShowPOIModal={setShowPOIModal}
+          setSelectedPOIEntity={setSelectedPOIEntity}
           setIsSettingsOpen={setIsSettingsOpen}
           closePdfPopup={closePdfPopup}
           setShowEndGamePopup={setShowEndGamePopup}
@@ -1444,6 +1610,9 @@ const GameContent = () => {
           setActivePatient={setActivePatient}
           setPatientDialogue={setPatientDialogue}
           setGameState={setGameState}
+
+          // Furniture click handler for map POI
+          handleFurnitureClick={handleFurnitureClick}
         />
 
         {/* Level Up Notification */}
@@ -1534,7 +1703,6 @@ const GameContent = () => {
           onMainMenu={handleMainMenu}
         />
 
-        </div>
       </DndProvider>
   );
 };
@@ -1542,7 +1710,9 @@ const GameContent = () => {
 export default function GamePage() {
   return (
     <ToastProvider>
-      <GameContent />
+      <MobileLayoutProvider>
+        <GameContent />
+      </MobileLayoutProvider>
     </ToastProvider>
   );
 }

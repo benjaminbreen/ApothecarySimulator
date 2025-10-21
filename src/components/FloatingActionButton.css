@@ -1,0 +1,335 @@
+/**
+ * Floating Action Button Styles
+ * Material Design inspired FAB
+ */
+
+/* ============================================
+   BACKDROP
+   ============================================ */
+
+.fab-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+  z-index: 998;
+  animation: fabBackdropFadeIn 0.2s ease;
+}
+
+@keyframes fabBackdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================
+   FAB CONTAINER
+   ============================================ */
+
+.fab-container {
+  position: fixed;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+  padding-bottom: env(safe-area-inset-bottom, 0); /* iOS safe area */
+}
+
+/* Position variants */
+.fab-container--bottom-right {
+  bottom: 20px;
+  right: 20px;
+}
+
+.fab-container--bottom-left {
+  bottom: 20px;
+  left: 20px;
+  align-items: flex-start;
+}
+
+.fab-container--bottom-center {
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+}
+
+/* ============================================
+   MAIN FAB
+   ============================================ */
+
+.fab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 28px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fab:hover {
+  box-shadow: 0 8px 25px rgba(76, 175, 80, 0.5);
+  transform: translateY(-2px);
+}
+
+.fab:active {
+  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+  transform: translateY(0);
+}
+
+/* Size variants */
+.fab--normal {
+  width: 56px;
+  height: 56px;
+}
+
+.fab--mini {
+  width: 40px;
+  height: 40px;
+}
+
+/* Extended variant (with label) */
+.fab--extended {
+  width: auto;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 24px;
+}
+
+/* Variant colors */
+.fab--secondary {
+  background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+  box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+}
+
+.fab--secondary:hover {
+  box-shadow: 0 8px 25px rgba(108, 117, 125, 0.5);
+}
+
+/* Expanded state (when showing actions) */
+.fab--expanded {
+  background: linear-gradient(135deg, #f44336 0%, #e53935 100%);
+  box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4);
+}
+
+/* Disabled state */
+.fab--disabled {
+  background: #bdbdbd;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.fab--disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* ============================================
+   FAB ICON & LABEL
+   ============================================ */
+
+.fab__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: transform 0.3s ease;
+}
+
+.fab__icon--rotated {
+  transform: rotate(45deg);
+}
+
+.fab__label {
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================
+   SUB-ACTIONS
+   ============================================ */
+
+.fab-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.fab-action-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: fabActionSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+
+@keyframes fabActionSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Action label */
+.fab-action-label {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Action button */
+.fab-action {
+  width: 40px;
+  height: 40px;
+  background: #ffffff;
+  color: #4caf50;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fab-action:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.fab-action:active {
+  transform: scale(0.95);
+}
+
+.fab-action-icon {
+  font-size: 1.25rem;
+}
+
+.fab-action--disabled {
+  background: #e0e0e0;
+  color: #9e9e9e;
+  cursor: not-allowed;
+}
+
+.fab-action--disabled:hover {
+  transform: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* ============================================
+   DARK MODE
+   ============================================ */
+
+.dark .fab {
+  background: linear-gradient(135deg, #68d391 0%, #48bb78 100%);
+  box-shadow: 0 6px 20px rgba(104, 211, 145, 0.4);
+}
+
+.dark .fab:hover {
+  box-shadow: 0 8px 25px rgba(104, 211, 145, 0.5);
+}
+
+.dark .fab--secondary {
+  background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+  box-shadow: 0 6px 20px rgba(74, 85, 104, 0.4);
+}
+
+.dark .fab--expanded {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  box-shadow: 0 6px 20px rgba(248, 113, 113, 0.4);
+}
+
+.dark .fab--disabled {
+  background: #4b5563;
+}
+
+.dark .fab-action {
+  background: #2d3748;
+  color: #68d391;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dark .fab-action:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.dark .fab-action-label {
+  background-color: rgba(0, 0, 0, 0.9);
+}
+
+.dark .fab-action--disabled {
+  background: #1f2937;
+  color: #6b7280;
+}
+
+/* ============================================
+   RESPONSIVE BREAKPOINTS
+   ============================================ */
+
+/* Phone-specific adjustments */
+@media (max-width: 639px) {
+  .fab-container--bottom-right,
+  .fab-container--bottom-left {
+    bottom: 16px;
+  }
+
+  .fab-container--bottom-right {
+    right: 16px;
+  }
+
+  .fab-container--bottom-left {
+    left: 16px;
+  }
+
+  .fab--normal {
+    width: 60px;
+    height: 60px;
+  }
+
+  .fab__icon {
+    font-size: 1.6rem;
+  }
+
+  .fab--extended {
+    height: 52px;
+    padding: 0 22px;
+  }
+
+  .fab-action {
+    width: 44px;
+    height: 44px;
+  }
+
+  .fab-action-icon {
+    font-size: 1.35rem;
+  }
+}
+
+/* Desktop - hide FAB (use traditional buttons) */
+@media (min-width: 1024px) {
+  .fab-container {
+    display: none;
+  }
+}

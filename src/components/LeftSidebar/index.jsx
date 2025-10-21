@@ -31,6 +31,7 @@ export function LeftSidebar({
   onItemClick = null,
   onOpenReputationModal = null,
   onOpenSkillsModal = null,
+  onOpenSkillDetail = null,
   onOpenFullInventory = null, // Handler to open full inventory modal
   onItemDropOnPlayer = null, // New prop for drag-drop
   statusPanelTab = undefined, // External control of status panel tab
@@ -69,6 +70,7 @@ export function LeftSidebar({
         onItemClick={onItemClick}
         onOpenReputationModal={onOpenReputationModal}
         onOpenSkillsModal={onOpenSkillsModal}
+        onOpenSkillDetail={onOpenSkillDetail}
         onOpenFullInventory={onOpenFullInventory}
         activeTab={statusPanelTab}
         onTabChange={onStatusPanelTabChange}

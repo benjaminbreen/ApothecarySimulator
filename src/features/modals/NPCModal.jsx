@@ -10,23 +10,41 @@
  * - Comprehensive dark mode support
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { adaptEntityForNPCModal } from '../../core/entities/entityAdapter';
 import { FaUser, FaTheaterMasks, FaBookOpen, FaChevronDown, FaChevronUp, FaTshirt, FaLandmark, FaBrain, FaBalanceScale, FaCalendarAlt, FaLock } from 'react-icons/fa';
 
 export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = null }) {
   const [activeTab, setActiveTab] = useState('overview');
+  const [isClosing, setIsClosing] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     appearance: true,
-    clothing: false,
-    personality: false,
-    social: false,
-    humors: false,
-    bigFive: false,
+    clothing: true,
+    personality: true,
+    social: true,
+    humors: true,
+    bigFive: true,
     traits: true,
     biography: true,
-    events: false
+    events: true
   });
+
+  // Handle smooth close with exit animation
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 200); // Match animation duration
+  };
+
+  // Reset closing state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsClosing(false);
+    }
+  }, [isOpen]);
 
   // Adapt entity to ensure nested format
   const adaptedNpc = useMemo(() => {
@@ -34,15 +52,15 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
   }, [npc]);
 
   // Handle ESC key to close
-  React.useEffect(() => {
+  useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        handleClose();
       }
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen || !adaptedNpc) return null;
 
@@ -85,12 +103,12 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+      className={`fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}
+      onClick={handleClose}
     >
       {/* Modal Container */}
       <div
-        className="relative w-full max-w-6xl h-[88vh] rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300"
+        className={`relative w-full max-w-6xl h-[88vh] rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: isDark
@@ -107,7 +125,7 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
 
         {/* Close Button */}
         <button
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-4 right-4 z-50 p-2 rounded-lg transition-all duration-150 hover:bg-ink-100 dark:hover:bg-slate-700"
           style={{
             background: isDark ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.8)',
@@ -130,9 +148,12 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
             borderColor: isDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.3)'
           }}>
 
-          {/* Portrait Section */}
+          {/* Portrait Section - Larger and Clickable */}
           {portraitUrl && (
-            <div className="flex-shrink-0 w-64 h-52 relative overflow-hidden">
+            <div
+              className="flex-shrink-0 w-80 h-80 relative overflow-hidden cursor-pointer transition-transform duration-300 hover:scale-105"
+              onClick={() => setIsLightboxOpen(true)}
+            >
               <img
                 src={portraitUrl}
                 alt={adaptedNpc.name}
@@ -151,6 +172,17 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                     : 'linear-gradient(to right, transparent 0%, rgba(252, 250, 247, 0.3) 100%)'
                 }}
               />
+              {/* Zoom Indicator */}
+              <div
+                className="absolute bottom-3 right-3 px-3 py-1.5 rounded-lg text-xs font-semibold backdrop-blur-md"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.7)',
+                  color: 'white',
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                }}
+              >
+                🔍 Click to enlarge
+              </div>
             </div>
           )}
 
@@ -251,16 +283,24 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
           {activeTab === 'overview' && (
             <div className="p-8 space-y-6">
 
-              {/* Description Card */}
+              {/* Vivid First Impression Card */}
               {adaptedNpc.description && (
                 <div className="p-5 rounded-xl shadow-sm transition-colors duration-300"
                   style={{
                     background: isDark
-                      ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(51, 65, 85, 0.6) 100%)'
-                      : 'linear-gradient(135deg, rgba(254, 252, 247, 0.95) 0%, rgba(249, 245, 235, 0.9) 100%)',
-                    border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(217, 199, 171, 0.4)'
+                      ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(99, 102, 241, 0.08) 100%)'
+                      : 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(99, 102, 241, 0.05) 100%)',
+                    border: isDark ? '2px solid rgba(139, 92, 246, 0.35)' : '2px solid rgba(139, 92, 246, 0.25)'
                   }}>
-                  <p className="text-base text-ink-700 dark:text-slate-300 leading-relaxed font-serif transition-colors duration-300">
+                  <h3 className="text-xs font-bold uppercase tracking-wider mb-3 font-sans transition-colors duration-300"
+                    style={{
+                      color: isDark ? '#a78bfa' : '#7c3aed',
+                      letterSpacing: '0.1em'
+                    }}>
+                    First Impression
+                  </h3>
+                  <p className="text-base text-ink-700 dark:text-slate-300 leading-relaxed font-serif transition-colors duration-300"
+                    style={{ fontSize: '1.125rem', lineHeight: '1.7' }}>
                     {adaptedNpc.description}
                   </p>
                 </div>
@@ -462,33 +502,36 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                       )}
                     </p>
 
-                    {/* Humor bars */}
-                    <div className="space-y-4">
-                      {Object.entries(temperament.humors).map(([humor, value]) => (
-                        <div key={humor}>
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm text-ink-700 dark:text-slate-300 capitalize font-semibold transition-colors duration-300">
-                              {humor === 'yellowBile' ? 'Yellow Bile' : humor === 'blackBile' ? 'Black Bile' : humor}
-                            </span>
-                            <span className="text-sm text-ink-600 dark:text-slate-400 font-mono font-semibold transition-colors duration-300">{value}%</span>
-                          </div>
-                          <div className="h-3 rounded-full overflow-hidden transition-colors duration-300"
-                            style={{
-                              background: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(229, 231, 235, 0.8)'
-                            }}>
+                    {/* Humoral Circles */}
+                    <div className="grid grid-cols-2 gap-6 mb-6">
+                      {Object.entries(temperament.humors).map(([humor, value]) => {
+                        const humorConfig = {
+                          blood: { gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', label: 'Blood', sublabel: 'Sanguine' },
+                          phlegm: { gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)', label: 'Phlegm', sublabel: 'Phlegmatic' },
+                          yellowBile: { gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', label: 'Yellow Bile', sublabel: 'Choleric' },
+                          blackBile: { gradient: 'linear-gradient(135deg, #6b7280, #4b5563)', label: 'Black Bile', sublabel: 'Melancholic' }
+                        };
+                        const config = humorConfig[humor];
+                        return (
+                          <div key={humor} className="text-center">
                             <div
-                              className="h-full rounded-full transition-all duration-500"
+                              className="w-24 h-24 mx-auto mb-3 rounded-full flex items-center justify-center text-white font-bold text-2xl transition-transform duration-300 hover:scale-105"
                               style={{
-                                width: `${value}%`,
-                                background: humor === 'blood' ? 'linear-gradient(to right, #ef4444, #dc2626)' :
-                                          humor === 'yellowBile' ? 'linear-gradient(to right, #eab308, #ca8a04)' :
-                                          humor === 'blackBile' ? 'linear-gradient(to right, #6b7280, #4b5563)' :
-                                          'linear-gradient(to right, #3b82f6, #2563eb)'
+                                background: config.gradient,
+                                boxShadow: '0 6px 20px rgba(0, 0, 0, 0.25)'
                               }}
-                            />
+                            >
+                              {value}%
+                            </div>
+                            <div className="font-semibold text-sm text-ink-900 dark:text-parchment-100 mb-1 transition-colors duration-300">
+                              {config.label}
+                            </div>
+                            <div className="text-xs text-ink-600 dark:text-slate-400 transition-colors duration-300">
+                              {config.sublabel}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     <div className="mt-5 p-4 rounded-lg transition-colors duration-300"
@@ -504,55 +547,114 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                 </InfoCard>
               )}
 
-              {/* Big Five */}
+              {/* Big Five - Progress Bars */}
               {bigFive && (
                 <InfoCard
-                  title="Psychological Profile"
+                  title="Psychological Profile (Big Five)"
                   icon={FaBrain}
                   expanded={expandedSections.bigFive}
                   onToggle={() => toggleSection('bigFive')}
                   color="blue"
                 >
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-lg transition-colors duration-300"
-                      style={{
-                        background: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(219, 234, 254, 0.6)',
-                        border: isDark ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)'
-                      }}>
-                      <div className="text-xs text-blue-700 dark:text-blue-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Openness</div>
-                      <div className="text-3xl font-bold text-blue-900 dark:text-blue-300 font-mono transition-colors duration-300">{bigFive.openness}</div>
+                  <div className="space-y-5">
+                    {/* Openness */}
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-semibold text-ink-900 dark:text-parchment-100 transition-colors duration-300">Openness to Experience</span>
+                        <span className="text-sm font-bold text-ink-700 dark:text-slate-300 transition-colors duration-300">{bigFive.openness}%</span>
+                      </div>
+                      <div className="text-xs text-ink-600 dark:text-slate-400 mb-2 font-sans transition-colors duration-300">
+                        {bigFive.openness >= 70 ? 'Highly imaginative, curious about new experiences' :
+                         bigFive.openness >= 40 ? 'Moderate curiosity, balanced between tradition and novelty' :
+                         'Prefers familiar routines, traditional values'}
+                      </div>
+                      <div className="h-6 rounded-full overflow-hidden transition-colors duration-300"
+                        style={{ background: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(229, 231, 235, 0.5)' }}>
+                        <div className="h-full rounded-full flex items-center justify-end px-3 text-xs font-bold text-white transition-all duration-500"
+                          style={{ width: `${bigFive.openness}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}>
+                          {bigFive.openness}%
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-4 rounded-lg transition-colors duration-300"
-                      style={{
-                        background: isDark ? 'rgba(34, 197, 94, 0.15)' : 'rgba(220, 252, 231, 0.6)',
-                        border: isDark ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(34, 197, 94, 0.3)'
-                      }}>
-                      <div className="text-xs text-green-700 dark:text-green-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Conscientiousness</div>
-                      <div className="text-3xl font-bold text-green-900 dark:text-green-300 font-mono transition-colors duration-300">{bigFive.conscientiousness}</div>
+
+                    {/* Conscientiousness */}
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-semibold text-ink-900 dark:text-parchment-100 transition-colors duration-300">Conscientiousness</span>
+                        <span className="text-sm font-bold text-ink-700 dark:text-slate-300 transition-colors duration-300">{bigFive.conscientiousness}%</span>
+                      </div>
+                      <div className="text-xs text-ink-600 dark:text-slate-400 mb-2 font-sans transition-colors duration-300">
+                        {bigFive.conscientiousness >= 70 ? 'Highly organized, dutiful, and disciplined' :
+                         bigFive.conscientiousness >= 40 ? 'Moderately organized, generally reliable' :
+                         'Spontaneous, flexible, less concerned with planning'}
+                      </div>
+                      <div className="h-6 rounded-full overflow-hidden transition-colors duration-300"
+                        style={{ background: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(229, 231, 235, 0.5)' }}>
+                        <div className="h-full rounded-full flex items-center justify-end px-3 text-xs font-bold text-white transition-all duration-500"
+                          style={{ width: `${bigFive.conscientiousness}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}>
+                          {bigFive.conscientiousness}%
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-4 rounded-lg transition-colors duration-300"
-                      style={{
-                        background: isDark ? 'rgba(168, 85, 247, 0.15)' : 'rgba(243, 232, 255, 0.6)',
-                        border: isDark ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid rgba(168, 85, 247, 0.3)'
-                      }}>
-                      <div className="text-xs text-purple-700 dark:text-purple-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Extroversion</div>
-                      <div className="text-3xl font-bold text-purple-900 dark:text-purple-300 font-mono transition-colors duration-300">{bigFive.extroversion}</div>
+
+                    {/* Extroversion */}
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-semibold text-ink-900 dark:text-parchment-100 transition-colors duration-300">Extraversion</span>
+                        <span className="text-sm font-bold text-ink-700 dark:text-slate-300 transition-colors duration-300">{bigFive.extroversion}%</span>
+                      </div>
+                      <div className="text-xs text-ink-600 dark:text-slate-400 mb-2 font-sans transition-colors duration-300">
+                        {bigFive.extroversion >= 70 ? 'Very sociable, energized by social interaction' :
+                         bigFive.extroversion >= 40 ? 'Balanced between social and solitary activities' :
+                         'Reserved, prefers solitude or small groups'}
+                      </div>
+                      <div className="h-6 rounded-full overflow-hidden transition-colors duration-300"
+                        style={{ background: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(229, 231, 235, 0.5)' }}>
+                        <div className="h-full rounded-full flex items-center justify-end px-3 text-xs font-bold text-white transition-all duration-500"
+                          style={{ width: `${bigFive.extroversion}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}>
+                          {bigFive.extroversion}%
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-4 rounded-lg transition-colors duration-300"
-                      style={{
-                        background: isDark ? 'rgba(236, 72, 153, 0.15)' : 'rgba(252, 231, 243, 0.6)',
-                        border: isDark ? '1px solid rgba(236, 72, 153, 0.3)' : '1px solid rgba(236, 72, 153, 0.3)'
-                      }}>
-                      <div className="text-xs text-pink-700 dark:text-pink-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Agreeableness</div>
-                      <div className="text-3xl font-bold text-pink-900 dark:text-pink-300 font-mono transition-colors duration-300">{bigFive.agreeableness}</div>
+
+                    {/* Agreeableness */}
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-semibold text-ink-900 dark:text-parchment-100 transition-colors duration-300">Agreeableness</span>
+                        <span className="text-sm font-bold text-ink-700 dark:text-slate-300 transition-colors duration-300">{bigFive.agreeableness}%</span>
+                      </div>
+                      <div className="text-xs text-ink-600 dark:text-slate-400 mb-2 font-sans transition-colors duration-300">
+                        {bigFive.agreeableness >= 70 ? 'Very cooperative, compassionate, avoids conflict' :
+                         bigFive.agreeableness >= 40 ? 'Generally cooperative but stands ground when needed' :
+                         'Competitive, skeptical, less concerned with harmony'}
+                      </div>
+                      <div className="h-6 rounded-full overflow-hidden transition-colors duration-300"
+                        style={{ background: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(229, 231, 235, 0.5)' }}>
+                        <div className="h-full rounded-full flex items-center justify-end px-3 text-xs font-bold text-white transition-all duration-500"
+                          style={{ width: `${bigFive.agreeableness}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}>
+                          {bigFive.agreeableness}%
+                        </div>
+                      </div>
                     </div>
-                    <div className="col-span-2 p-4 rounded-lg transition-colors duration-300"
-                      style={{
-                        background: isDark ? 'rgba(239, 68, 68, 0.15)' : 'rgba(254, 226, 226, 0.6)',
-                        border: isDark ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)'
-                      }}>
-                      <div className="text-xs text-red-700 dark:text-red-400 font-semibold mb-1 uppercase tracking-wider transition-colors duration-300">Neuroticism</div>
-                      <div className="text-3xl font-bold text-red-900 dark:text-red-300 font-mono transition-colors duration-300">{bigFive.neuroticism}</div>
+
+                    {/* Neuroticism */}
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-semibold text-ink-900 dark:text-parchment-100 transition-colors duration-300">Neuroticism</span>
+                        <span className="text-sm font-bold text-ink-700 dark:text-slate-300 transition-colors duration-300">{bigFive.neuroticism}%</span>
+                      </div>
+                      <div className="text-xs text-ink-600 dark:text-slate-400 mb-2 font-sans transition-colors duration-300">
+                        {bigFive.neuroticism >= 70 ? 'Prone to anxiety, worry, and emotional instability' :
+                         bigFive.neuroticism >= 40 ? 'Experiences normal stress responses' :
+                         'Emotionally stable, calm under pressure'}
+                      </div>
+                      <div className="h-6 rounded-full overflow-hidden transition-colors duration-300"
+                        style={{ background: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(229, 231, 235, 0.5)' }}>
+                        <div className="h-full rounded-full flex items-center justify-end px-3 text-xs font-bold text-white transition-all duration-500"
+                          style={{ width: `${bigFive.neuroticism}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}>
+                          {bigFive.neuroticism}%
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </InfoCard>
@@ -688,6 +790,35 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
           background-clip: padding-box;
         }
       `}</style>
+
+      {/* Portrait Lightbox */}
+      {isLightboxOpen && portraitUrl && (
+        <div
+          className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center cursor-zoom-out"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          <button
+            onClick={() => setIsLightboxOpen(false)}
+            className="absolute top-8 right-8 px-6 py-3 rounded-lg text-white font-bold transition-all duration-300 hover:bg-black/80"
+            style={{
+              background: 'rgba(0, 0, 0, 0.6)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.2)'
+            }}
+          >
+            ✕ Close
+          </button>
+          <img
+            src={portraitUrl}
+            alt={adaptedNpc.name}
+            className="max-w-[70%] max-h-[85%] rounded-2xl shadow-2xl"
+            style={{
+              boxShadow: '0 30px 120px rgba(0, 0, 0, 0.8)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

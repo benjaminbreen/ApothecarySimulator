@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NPC Modal Redesign - Based on NPCPatientModal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Source+Sans+Pro:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap');
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Source Sans Pro', -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .font-serif {
+      font-family: 'Crimson Text', Georgia, serif;
+    }
+
+    .font-sans {
+      font-family: 'Source Sans Pro', -apple-system, sans-serif;
+    }
+
+    /* Dark mode toggle */
+    .dark-mode-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 10px 20px;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+      z-index: 1000;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(41, 37, 36, 0.5);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      transition: opacity 0.3s;
+    }
+
+    body.dark .modal-overlay {
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    /* Modal Container - EXACT NPCPatientModal styling */
+    .modal {
+      position: relative;
+      width: 100%;
+      max-width: 96rem;
+      height: 76vh;
+      border-radius: 1rem;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 245, 235, 0.95) 50%, rgba(252, 250, 247, 0.98) 100%);
+      backdrop-filter: blur(16px) saturate(120%);
+      -webkit-backdrop-filter: blur(16px) saturate(120%);
+      border: 1px solid rgba(209, 213, 219, 0.3);
+      box-shadow: 0 24px 80px rgba(61, 47, 36, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+      transition: all 0.3s;
+    }
+
+    body.dark .modal {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.95) 50%, rgba(0, 0, 0, 0.92) 100%);
+      border-color: rgba(71, 85, 105, 0.3);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    /* Close Button - EXACT */
+    .close-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      z-index: 50;
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+      transition: all 0.15s;
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(209, 213, 219, 0.3);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      cursor: pointer;
+    }
+
+    body.dark .close-btn {
+      background: rgba(30, 41, 59, 0.8);
+      border-color: rgba(71, 85, 105, 0.3);
+    }
+
+    .close-btn:hover {
+      background: rgba(243, 244, 246, 0.9);
+    }
+
+    body.dark .close-btn:hover {
+      background: rgba(51, 65, 85, 0.9);
+    }
+
+    /* Header - EXACT NPCPatientModal */
+    .modal-header {
+      flex-shrink: 0;
+      border-bottom: 1px solid rgba(209, 213, 219, 0.3);
+      position: relative;
+      z-index: 10;
+      padding: 1.25rem 2rem;
+      background: linear-gradient(to bottom, rgba(252, 250, 247, 0.95), rgba(248, 246, 241, 0.9));
+    }
+
+    body.dark .modal-header {
+      background: linear-gradient(to bottom, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.9));
+      border-bottom-color: rgba(71, 85, 105, 0.3);
+    }
+
+    .npc-name {
+      font-size: 1.875rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 0.5rem;
+      color: #292524;
+    }
+
+    body.dark .npc-name {
+      color: #f4e8d0;
+    }
+
+    .meta-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.875rem;
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+
+    .meta-label {
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.65rem;
+      color: #78716c;
+    }
+
+    body.dark .meta-label {
+      color: #94a3b8;
+    }
+
+    .meta-value {
+      font-weight: 700;
+      color: #292524;
+    }
+
+    body.dark .meta-value {
+      color: #e8dbb5;
+    }
+
+    .divider {
+      width: 1px;
+      height: 1rem;
+      background: #d6d3d1;
+    }
+
+    body.dark .divider {
+      background: #475569;
+    }
+
+    /* Tab Navigation - EXACT NPCPatientModal */
+    .tab-nav {
+      flex-shrink: 0;
+      display: flex;
+      border-bottom: 1px solid rgba(209, 213, 219, 0.3);
+      position: relative;
+      z-index: 10;
+      background: linear-gradient(to bottom, rgba(248, 246, 241, 0.95), rgba(245, 243, 238, 0.9));
+    }
+
+    body.dark .tab-nav {
+      background: linear-gradient(to bottom, rgba(15, 23, 42, 0.95), rgba(0, 0, 0, 0.9));
+      border-bottom-color: rgba(71, 85, 105, 0.3);
+    }
+
+    .tab {
+      flex: 1;
+      padding: 1rem 1.5rem;
+      font-weight: 600;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      transition: all 0.2s;
+      cursor: pointer;
+      position: relative;
+      color: #6b5a47;
+      background: transparent;
+      border: none;
+      border-left: 1px solid rgba(209, 213, 219, 0.2);
+    }
+
+    body.dark .tab {
+      color: #94a3b8;
+      border-left-color: rgba(71, 85, 105, 0.2);
+    }
+
+    .tab:first-child {
+      border-left: none;
+    }
+
+    .tab.active {
+      font-weight: 700;
+      color: #8b5cf6;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.9), rgba(252, 250, 247, 0.8));
+    }
+
+    body.dark .tab.active {
+      color: #a78bfa;
+      background: linear-gradient(to bottom, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.8));
+    }
+
+    .tab-icon {
+      margin-right: 0.5rem;
+      font-size: 1rem;
+      opacity: 0.6;
+    }
+
+    .tab.active .tab-icon {
+      opacity: 1;
+    }
+
+    .tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(to right, rgba(139, 92, 246, 0.3), #8b5cf6, rgba(139, 92, 246, 0.3));
+    }
+
+    body.dark .tab.active::after {
+      background: linear-gradient(to right, rgba(167, 139, 250, 0.3), #a78bfa, rgba(167, 139, 250, 0.3));
+    }
+
+    /* Content Area */
+    .modal-content {
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+      z-index: 10;
+      background: rgba(252, 250, 247, 0.4);
+      padding: 2rem;
+    }
+
+    body.dark .modal-content {
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    /* Hero Section */
+    .hero-section {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Portrait - LARGER than NPCPatientModal */
+    .portrait-container {
+      flex-shrink: 0;
+      width: 28rem;
+      height: 35rem;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(252, 250, 247, 0.9));
+      border: 2px solid rgba(209, 213, 219, 0.3);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      transition: transform 0.3s;
+      position: relative;
+    }
+
+    body.dark .portrait-container {
+      background: linear-gradient(135deg, rgba(51, 65, 85, 0.95), rgba(30, 41, 59, 0.9));
+      border-color: rgba(71, 85, 105, 0.3);
+    }
+
+    .portrait-container:hover {
+      transform: scale(1.01);
+    }
+
+    .portrait-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .zoom-badge {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      color: white;
+      padding: 0.5rem 0.875rem;
+      border-radius: 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* Info Section */
+    .info-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* Vivid Description Card - NEW */
+    .vivid-description {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(99, 102, 241, 0.05));
+      border: 2px solid rgba(139, 92, 246, 0.25);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+    }
+
+    body.dark .vivid-description {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(99, 102, 241, 0.08));
+      border-color: rgba(139, 92, 246, 0.35);
+    }
+
+    .vivid-description h3 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #7c3aed;
+      margin-bottom: 0.75rem;
+      font-weight: 700;
+    }
+
+    body.dark .vivid-description h3 {
+      color: #a78bfa;
+    }
+
+    .vivid-description p {
+      font-size: 1rem;
+      line-height: 1.6;
+      color: #374151;
+    }
+
+    body.dark .vivid-description p {
+      color: #d1d5db;
+    }
+
+    /* Info Cards - EXACT NPCPatientModal */
+    .info-card {
+      padding: 1rem;
+      border-radius: 0.75rem;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(209, 213, 219, 0.3);
+    }
+
+    body.dark .info-card {
+      background: rgba(15, 23, 42, 0.6);
+      border-color: rgba(71, 85, 105, 0.3);
+    }
+
+    .info-card h3 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.75rem;
+      font-weight: 700;
+      color: #78716c;
+    }
+
+    body.dark .info-card h3 {
+      color: #94a3b8;
+    }
+
+    .info-card p {
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: #44403c;
+    }
+
+    body.dark .info-card p {
+      color: #cbd5e1;
+    }
+
+    /* Collapsible Sections */
+    .collapsible-section {
+      border-radius: 0.75rem;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(209, 213, 219, 0.3);
+      margin-bottom: 1rem;
+    }
+
+    body.dark .collapsible-section {
+      background: rgba(15, 23, 42, 0.6);
+      border-color: rgba(71, 85, 105, 0.3);
+    }
+
+    .section-header {
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .section-title {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #292524;
+    }
+
+    body.dark .section-title {
+      color: #f5f5f4;
+    }
+
+    .section-content {
+      padding: 0 1.25rem 1.25rem 1.25rem;
+    }
+
+    /* Humoral Circles */
+    .humoral-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+
+    .humoral-item {
+      text-align: center;
+    }
+
+    .humoral-circle {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 0.75rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .humoral-circle.blood { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .humoral-circle.phlegm { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .humoral-circle.yellow-bile { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .humoral-circle.black-bile { background: linear-gradient(135deg, #6b7280, #4b5563); }
+
+    .humoral-label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: #292524;
+    }
+
+    body.dark .humoral-label {
+      color: #f5f5f4;
+    }
+
+    .humoral-sublabel {
+      font-size: 0.75rem;
+      color: #78716c;
+    }
+
+    body.dark .humoral-sublabel {
+      color: #a8a29e;
+    }
+
+    /* Progress Bars */
+    .trait-bar {
+      margin-bottom: 1rem;
+    }
+
+    .trait-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #292524;
+    }
+
+    body.dark .trait-label {
+      color: #e7e5e4;
+    }
+
+    .trait-description {
+      font-size: 0.75rem;
+      color: #78716c;
+      margin-bottom: 0.5rem;
+    }
+
+    body.dark .trait-description {
+      color: #a8a29e;
+    }
+
+    .progress-container {
+      height: 1.5rem;
+      background: rgba(229, 231, 235, 0.5);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+
+    body.dark .progress-container {
+      background: rgba(51, 65, 85, 0.5);
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+      border-radius: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: white;
+      transition: width 0.6s ease-out;
+    }
+
+    /* Custom Scrollbar - matching NPCPatientModal */
+    .modal-content::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .modal-content::-webkit-scrollbar-track {
+      background: rgba(245, 238, 223, 0.3);
+      border-radius: 4px;
+    }
+
+    body.dark .modal-content::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.3);
+    }
+
+    .modal-content::-webkit-scrollbar-thumb {
+      background: rgba(139, 92, 46, 0.4);
+      border-radius: 4px;
+    }
+
+    body.dark .modal-content::-webkit-scrollbar-thumb {
+      background: rgba(71, 85, 105, 0.6);
+    }
+
+    /* Lightbox */
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-out;
+    }
+
+    .lightbox.active {
+      display: flex;
+    }
+
+    .lightbox-image {
+      max-width: 70%;
+      max-height: 85%;
+      border-radius: 1rem;
+      box-shadow: 0 30px 120px rgba(0, 0, 0, 0.8);
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 2rem;
+      right: 2rem;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      padding: 1rem 1.5rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 700;
+      transition: all 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <button class="dark-mode-toggle" onclick="document.body.classList.toggle('dark')">
+    🌙 Toggle Dark Mode
+  </button>
+
+  <div class="modal-overlay">
+    <div class="modal">
+      <!-- Close Button -->
+      <button class="close-btn" onclick="alert('Would close')">
+        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      <!-- Header -->
+      <div class="modal-header">
+        <h1 class="npc-name font-serif">Isabel Valdés</h1>
+        <div class="meta-info font-sans">
+          <div class="meta-item">
+            <span class="meta-label">Age</span>
+            <span class="meta-value">47</span>
+          </div>
+          <div class="divider"></div>
+          <div class="meta-item">
+            <span class="meta-label">Occupation</span>
+            <span class="meta-value">Merchant Widow</span>
+          </div>
+          <div class="divider"></div>
+          <div class="meta-item">
+            <span class="meta-label">Class</span>
+            <span class="meta-value">Criolla, Middling</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="tab-nav">
+        <button class="tab active font-sans" onclick="switchTab('overview')">
+          <span class="tab-icon">📋</span>
+          Overview
+        </button>
+        <button class="tab font-sans" onclick="switchTab('personality')">
+          <span class="tab-icon">🎭</span>
+          Personality
+        </button>
+        <button class="tab font-sans" onclick="switchTab('biography')">
+          <span class="tab-icon">📜</span>
+          Biography
+        </button>
+      </div>
+
+      <!-- Content Area -->
+      <div class="modal-content">
+        <!-- Overview Tab -->
+        <div id="tab-overview" class="tab-content">
+          <div class="hero-section">
+            <!-- Large Portrait -->
+            <div class="portrait-container" onclick="document.getElementById('lightbox').classList.add('active')">
+              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 500'%3E%3Crect fill='%234a5568' width='400' height='500'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' fill='%23ffffff' font-size='28' font-family='serif'%3EIsabel Valdés%3C/text%3E%3Ctext x='50%25' y='58%25' text-anchor='middle' dominant-baseline='middle' fill='%23e2e8f0' font-size='14' font-family='serif'%3EMerchant Widow%3C/text%3E%3C/svg%3E" alt="Isabel Valdés">
+              <div class="zoom-badge">🔍 Click to enlarge</div>
+            </div>
+
+            <!-- Info Cards -->
+            <div class="info-section">
+              <!-- Vivid Description -->
+              <div class="vivid-description">
+                <h3 class="font-sans">First Impression</h3>
+                <p class="font-serif">
+                  Isabel cuts a figure of faded respectability—her dark cotton gown, though clean and carefully mended,
+                  bears the wear of many washings. Worry lines crease her tanned face, deepening when she speaks of her
+                  daughter's illness. Her cautious eyes dart between you and the shop entrance, as if expecting judgment.
+                </p>
+              </div>
+
+              <!-- Description Card -->
+              <div class="info-card">
+                <h3 class="font-sans">Background</h3>
+                <p class="font-serif">
+                  Widow of cloth merchant Diego Valdés. Struggling to maintain the family business alone while caring
+                  for her ailing daughter Teresa. Once part of Mexico City's prosperous middling class, now facing
+                  mounting debts and declining fortunes.
+                </p>
+              </div>
+
+              <!-- Social Context -->
+              <div class="info-card">
+                <h3 class="font-sans">Social Standing</h3>
+                <p class="font-serif">
+                  Criolla woman of middling class. Maintains respectability despite financial hardship. Known in the
+                  Plaza Mayor markets. Careful to observe proper decorum.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Appearance Section -->
+          <div class="collapsible-section">
+            <div class="section-header">
+              <h3 class="section-title font-serif">Appearance</h3>
+              <svg width="20" height="20" fill="none" stroke="#6b5a47" viewBox="0 0 24 24" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div class="section-content font-serif" style="font-size: 0.875rem; line-height: 1.6; color: #44403c;">
+              <p><strong>Complexion:</strong> Tanned skin weathered by sun and hardship</p>
+              <p><strong>Build:</strong> Slight frame, hands roughened by work</p>
+              <p><strong>Attire:</strong> Dark cotton gown, carefully mended. Simple white coif. Tarnished silver cross.</p>
+            </div>
+          </div>
+
+          <!-- Humoral Constitution -->
+          <div class="collapsible-section">
+            <div class="section-header">
+              <h3 class="section-title font-serif">Humoral Constitution</h3>
+              <svg width="20" height="20" fill="none" stroke="#6b5a47" viewBox="0 0 24 24" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div class="section-content">
+              <div class="humoral-grid">
+                <div class="humoral-item">
+                  <div class="humoral-circle blood">35%</div>
+                  <div class="humoral-label font-sans">Blood</div>
+                  <div class="humoral-sublabel font-sans">Sanguine</div>
+                </div>
+                <div class="humoral-item">
+                  <div class="humoral-circle phlegm">20%</div>
+                  <div class="humoral-label font-sans">Phlegm</div>
+                  <div class="humoral-sublabel font-sans">Phlegmatic</div>
+                </div>
+                <div class="humoral-item">
+                  <div class="humoral-circle yellow-bile">15%</div>
+                  <div class="humoral-label font-sans">Yellow Bile</div>
+                  <div class="humoral-sublabel font-sans">Choleric</div>
+                </div>
+                <div class="humoral-item">
+                  <div class="humoral-circle black-bile">30%</div>
+                  <div class="humoral-label font-sans">Black Bile</div>
+                  <div class="humoral-sublabel font-sans">Melancholic</div>
+                </div>
+              </div>
+              <p class="font-serif" style="font-size: 0.875rem; line-height: 1.6; margin-top: 1rem; color: #44403c;">
+                <strong>Dominant temperament:</strong> Sanguine-Melancholic blend. Once cheerful and sociable in better times,
+                now prone to worry and introspection due to widowhood and hardship.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personality Tab -->
+        <div id="tab-personality" class="tab-content" style="display: none;">
+          <div class="collapsible-section">
+            <div class="section-header">
+              <h3 class="section-title font-serif">Psychological Profile (Big Five)</h3>
+              <svg width="20" height="20" fill="none" stroke="#6b5a47" viewBox="0 0 24 24" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div class="section-content">
+              <div class="trait-bar">
+                <div class="trait-label font-sans">
+                  <span>Openness to Experience</span>
+                  <span>45%</span>
+                </div>
+                <div class="trait-description font-sans">
+                  Moderate curiosity, prefers familiar routines but willing to try new remedies
+                </div>
+                <div class="progress-container">
+                  <div class="progress-bar" style="width: 45%;">45%</div>
+                </div>
+              </div>
+
+              <div class="trait-bar">
+                <div class="trait-label font-sans">
+                  <span>Conscientiousness</span>
+                  <span>75%</span>
+                </div>
+                <div class="trait-description font-sans">
+                  Highly organized and dutiful, maintains shop despite hardship
+                </div>
+                <div class="progress-container">
+                  <div class="progress-bar" style="width: 75%;">75%</div>
+                </div>
+              </div>
+
+              <div class="trait-bar">
+                <div class="trait-label font-sans">
+                  <span>Extraversion</span>
+                  <span>40%</span>
+                </div>
+                <div class="trait-description font-sans">
+                  Reserved and cautious, prefers small trusted circles
+                </div>
+                <div class="progress-container">
+                  <div class="progress-bar" style="width: 40%;">40%</div>
+                </div>
+              </div>
+
+              <div class="trait-bar">
+                <div class="trait-label font-sans">
+                  <span>Agreeableness</span>
+                  <span>70%</span>
+                </div>
+                <div class="trait-description font-sans">
+                  Cooperative and respectful, avoids conflict
+                </div>
+                <div class="progress-container">
+                  <div class="progress-bar" style="width: 70%;">70%</div>
+                </div>
+              </div>
+
+              <div class="trait-bar">
+                <div class="trait-label font-sans">
+                  <span>Neuroticism</span>
+                  <span>65%</span>
+                </div>
+                <div class="trait-description font-sans">
+                  Prone to worry and anxiety, especially about daughter's health
+                </div>
+                <div class="progress-container">
+                  <div class="progress-bar" style="width: 65%;">65%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Biography Tab -->
+        <div id="tab-biography" class="tab-content" style="display: none;">
+          <div class="collapsible-section">
+            <div class="section-header">
+              <h3 class="section-title font-serif">Life History</h3>
+              <svg width="20" height="20" fill="none" stroke="#6b5a47" viewBox="0 0 24 24" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div class="section-content font-serif" style="font-size: 0.875rem; line-height: 1.7; color: #44403c;">
+              <p style="margin-bottom: 1rem;"><strong>1633:</strong> Born to a criolla family of modest means in Mexico City. Father worked as a notary's clerk.</p>
+              <p style="margin-bottom: 1rem;"><strong>1650:</strong> Married Diego Valdés, an ambitious cloth merchant, at age 17.</p>
+              <p style="margin-bottom: 1rem;"><strong>1661:</strong> Gave birth to daughter Teresa after several miscarriages. Family prospering.</p>
+              <p style="margin-bottom: 1rem;"><strong>1677:</strong> Husband died suddenly of fever. Business debts emerged. Lost the shop.</p>
+              <p><strong>1680:</strong> Struggling to maintain business. Teresa increasingly ill. Mounting desperation.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox" onclick="this.classList.remove('active')">
+    <button class="lightbox-close">✕ Close</button>
+    <img class="lightbox-image" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 900'%3E%3Crect fill='%234a5568' width='600' height='900'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle' fill='%23ffffff' font-size='48' font-family='serif'%3EIsabel Valdés%3C/text%3E%3C/svg%3E" alt="Isabel Valdés Full">
+  </div>
+
+  <script>
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+      document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('tab-' + tabName).style.display = 'block';
+      event.target.closest('.tab').classList.add('active');
+    }
+
+    // Animate progress bars on load
+    setTimeout(() => {
+      document.querySelectorAll('.progress-bar').forEach(bar => {
+        const width = bar.style.width;
+        bar.style.width = '0%';
+        setTimeout(() => bar.style.width = width, 100);
+      });
+    }, 500);
+  </script>
+</body>
+</html>

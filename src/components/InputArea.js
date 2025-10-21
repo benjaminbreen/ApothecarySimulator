@@ -171,17 +171,29 @@ const InputArea = ({
   };
 
   const handleLocationSelect = (location) => {
-    const action = `go to ${location.name}`;
-    console.log('[InputArea] Location selected:', action);
+    console.log('[InputArea] Location selected:', location);
 
-    // Populate input for visual feedback
-    setUserInput(action);
+    // For fast travel locations, use a special command format
+    if (location.isFastTravel) {
+      const action = `#fast_travel ${location.name}`;
+      setUserInput(`Traveling to ${location.name}...`);
 
-    // Auto-submit with action text directly (avoids React state race condition)
-    setTimeout(() => {
-      const fakeEvent = { preventDefault: () => {} };
-      handleSubmit(fakeEvent, action);  // Pass action directly as override
-    }, 100);
+      // Auto-submit the fast travel command
+      setTimeout(() => {
+        const fakeEvent = { preventDefault: () => {} };
+        handleSubmit(fakeEvent, action);
+      }, 100);
+    } else {
+      // For nearby interior locations, use normal movement
+      const action = `go to ${location.name}`;
+      setUserInput(action);
+
+      // Auto-submit with action text directly
+      setTimeout(() => {
+        const fakeEvent = { preventDefault: () => {} };
+        handleSubmit(fakeEvent, action);
+      }, 100);
+    }
   };
 
   const dropIndicatorClasses = isOver && canDrop

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import '../../../Buy.css'; // Optional: Styling for the Buy Popup
 import { createChatCompletion } from '../../../core/services/llmService';
 import { calculatePriceModifier, FACTIONS } from '../../../core/systems/reputationSystem';
+import { useGesture } from '../../../hooks/useGesture';
 import {
   hasBlackMarketAccess,
   getBlackMarketCategories,
@@ -9,6 +10,8 @@ import {
   getMarketDiscountBonus
 } from '../../../core/systems/professionAbilities';
 import { getAvailableBlackMarketItems } from '../../../data/blackMarketItems';
+import { getAllMedicineTypes, inferMedicineType, getMedicineEmoji } from '../../../core/config/medicineCategories';
+import MedicineTypeBadge from '../../../components/MedicineTypeBadge';
 
 function Buy({
   isOpen,
@@ -33,6 +36,7 @@ function Buy({
  const [isClosing, setIsClosing] = useState(false);
  const [isFadingOut, setIsFadingOut] = useState(false);
   const [activeTab, setActiveTab] = useState('regular'); // 'regular' or 'blackMarket'
+  const [medicineTypeFilter, setMedicineTypeFilter] = useState('all'); // Medicine type filter
 
   // Check black market access
   const hasBlackMarket = hasBlackMarketAccess(gameState.chosenProfession, gameState.playerLevel);
@@ -62,6 +66,43 @@ function Buy({
     // Regular items: apply reputation modifier + Court Physician bonus
     return Math.max(1, Math.round(basePrice * priceModifier));
   };
+
+  // Filter items by medicine type
+  const filteredItems = useMemo(() => {
+    const items = activeTab === 'blackMarket' ? blackMarketItems : availableItems;
+
+    if (medicineTypeFilter === 'all') {
+      return items;
+    }
+
+    return items.filter(item => {
+      const itemType = inferMedicineType(item);
+      return itemType === medicineTypeFilter;
+    });
+  }, [availableItems, blackMarketItems, medicineTypeFilter, activeTab]);
+
+  // Count items by type
+  const itemCountsByType = useMemo(() => {
+    const items = activeTab === 'blackMarket' ? blackMarketItems : availableItems;
+    const counts = { all: items.length };
+
+    getAllMedicineTypes().forEach(type => {
+      counts[type.id] = items.filter(item => inferMedicineType(item) === type.id).length;
+    });
+
+    return counts;
+  }, [availableItems, blackMarketItems, activeTab]);
+
+  // Swipe-to-close gesture support
+  const gestureRef = useGesture({
+    onSwipeDown: () => {
+      if (!isFetchingItems) {
+        closePopup();
+      }
+    },
+    minSwipeDistance: 80,
+    enableHaptics: true
+  });
 
    const closePopup = () => {
     // Trigger the fade-out animation
@@ -283,7 +324,7 @@ function Buy({
   return (
     <>
    {isOpen && (
-        <div className={`buy-popup ${isClosing ? 'fade-out' : ''}`}>
+        <div ref={gestureRef} className={`buy-popup ${isClosing ? 'fade-out' : ''}`}>
           <div className="buy-popup-overlay" />
           <div className="buy-popup-content">
             <h2>Buy Items</h2>
@@ -420,11 +461,64 @@ function Buy({
               </div>
             )}
 
+            {/* Medicine Type Filter */}
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '16px',
+              flexWrap: 'wrap',
+              padding: '12px',
+              backgroundColor: '#f9fafb',
+              borderRadius: '8px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <button
+                onClick={() => setMedicineTypeFilter('all')}
+                style={{
+                  padding: '6px 12px',
+                  border: medicineTypeFilter === 'all' ? '2px solid #8b4513' : '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  backgroundColor: medicineTypeFilter === 'all' ? '#8b4513' : 'white',
+                  color: medicineTypeFilter === 'all' ? 'white' : '#374151',
+                  cursor: 'pointer',
+                  fontSize: '0.875em',
+                  fontWeight: medicineTypeFilter === 'all' ? 'bold' : 'normal',
+                  transition: 'all 0.2s'
+                }}
+              >
+                All Types ({itemCountsByType.all})
+              </button>
+              {getAllMedicineTypes().map(type => (
+                <button
+                  key={type.id}
+                  onClick={() => setMedicineTypeFilter(type.id)}
+                  style={{
+                    padding: '6px 12px',
+                    border: medicineTypeFilter === type.id ? `2px solid ${type.color}` : '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    backgroundColor: medicineTypeFilter === type.id ? type.color : 'white',
+                    color: medicineTypeFilter === type.id ? 'white' : '#374151',
+                    cursor: 'pointer',
+                    fontSize: '0.875em',
+                    fontWeight: medicineTypeFilter === type.id ? 'bold' : 'normal',
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <span>{type.emoji}</span>
+                  <span>{type.name}</span>
+                  <span style={{ opacity: 0.8 }}>({itemCountsByType[type.id] || 0})</span>
+                </button>
+              ))}
+            </div>
+
             {isFetchingItems && activeTab === 'regular' ? (
               <p>Loading items for sale...</p>
             ) : (
               <div className="item-list">
-                {(activeTab === 'blackMarket' ? blackMarketItems : availableItems).map((item) => {
+                {filteredItems.map((item) => {
                   const isBlackMarket = activeTab === 'blackMarket';
                   const modifiedPrice = getModifiedPrice(item.price, isBlackMarket);
                   const blackMarketDiscountPercent = Math.round(blackMarketDiscount * 100);
@@ -445,6 +539,16 @@ function Buy({
                         })
                       }}
                     >
+                      {/* Medicine Type Badge */}
+                      <div style={{ position: 'relative' }}>
+                        <MedicineTypeBadge
+                          item={item}
+                          size="small"
+                          position="top-right"
+                          showTooltip={true}
+                        />
+                      </div>
+
                       {/* Display emoji centered above the item name */}
                       <span className="emoji" style={{ fontSize: '2rem', display: 'block', textAlign: 'center' }}>{item.emoji}</span>
                       <strong>{item.name}</strong>

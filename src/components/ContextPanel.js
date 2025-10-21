@@ -35,7 +35,8 @@ const ContextPanel = ({
   onItemDropOnNPC = null, // Callback when item dropped on NPC portrait
   entities = [], // Entities from LLM (with Wikipedia integration)
   discoveredBooks = [], // Books discovered during gameplay
-  onBookClick = null // Callback when book is clicked
+  onBookClick = null, // Callback when book is clicked
+  onFurnitureClick = null // Callback when furniture is clicked on map
 }) => {
   // Collapse entire panel state - default to collapsed
   const [isCollapsed, setIsCollapsed] = React.useState(true);
@@ -352,6 +353,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
           onBookClick={onBookClick}
           narrativeTurn={recentNarrativeTurn}
           primaryPortraitFile={primaryPortraitFile}
+          onFurnitureClick={onFurnitureClick}
         />
       </div>
 

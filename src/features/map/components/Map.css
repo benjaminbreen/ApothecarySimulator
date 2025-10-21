@@ -325,8 +325,16 @@
   letter-spacing: 0.02em;
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
+/* ============================================
+   RESPONSIVE BREAKPOINTS (Tailwind-aligned)
+   ============================================
+   Mobile:  < 640px  (phones)
+   Tablet:  640-1023px (sm-lg)
+   Desktop: >= 1024px (lg+)
+   ============================================ */
+
+/* Phone-specific adjustments (sm breakpoint) */
+@media (max-width: 639px) {
   .map-legend {
     top: 10px;
     right: 10px;

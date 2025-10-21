@@ -189,20 +189,21 @@ export function ReputationTab({ reputation, reputationEmoji, onOpenModal }) {
           </span>
         </div>
 
-        {factionReputation.map((faction) => {
+        {factionReputation.map((faction, index) => {
           const barColors = getReputationColor(faction.value);
 
           return (
             <button
               key={faction.id}
               onClick={() => onOpenModal && onOpenModal(faction.id)}
-              className="w-full group relative overflow-hidden rounded-lg transition-all duration-200 hover:scale-[1.01] cursor-pointer"
+              className="w-full group relative overflow-hidden rounded-lg transition-all duration-200 hover:scale-[1.01] cursor-pointer animate-cascade-in"
               style={{
                 background: isDark
                   ? 'rgba(30, 41, 59, 0.6)'
                   : 'rgba(255, 255, 255, 0.7)',
                 border: `1px solid ${isDark ? 'rgba(71, 85, 105, 0.4)' : 'rgba(209, 213, 219, 0.3)'}`,
-                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                animationDelay: `${index * 60}ms`
               }}
             >
               {/* Hover glow */}
@@ -275,7 +276,7 @@ export function ReputationTab({ reputation, reputationEmoji, onOpenModal }) {
 
       {/* Stats Footer - Refined */}
       <div
-        className="rounded-lg p-2.5 space-y-2 text-xs"
+        className="rounded-lg p-2.5 space-y-2 text-xs animate-cascade-in"
         style={{
           background: isDark
             ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(30, 41, 59, 0.5) 100%)'
@@ -283,7 +284,8 @@ export function ReputationTab({ reputation, reputationEmoji, onOpenModal }) {
           border: `1px solid ${isDark ? 'rgba(71, 85, 105, 0.4)' : 'rgba(209, 213, 219, 0.3)'}`,
           boxShadow: isDark
             ? '0 2px 4px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-            : '0 2px 4px rgba(140, 100, 60, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8)'
+            : '0 2px 4px rgba(140, 100, 60, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
+          animationDelay: '360ms'
         }}
       >
         <div className="flex items-center justify-between">
@@ -344,13 +346,14 @@ export function ReputationTab({ reputation, reputationEmoji, onOpenModal }) {
 
       {/* Quick Tip - Refined */}
       <div
-        className="rounded-lg px-2.5 py-2 text-xs text-ink-600 dark:text-slate-400 leading-relaxed font-sans"
+        className="rounded-lg px-2.5 py-2 text-xs text-ink-600 dark:text-slate-400 leading-relaxed font-sans animate-cascade-in"
         style={{
           background: isDark ? 'rgba(30, 41, 59, 0.5)' : 'rgba(249, 245, 235, 0.5)',
           border: `1px solid ${isDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.3)'}`,
           boxShadow: isDark
             ? '0 1px 3px rgba(0, 0, 0, 0.2)'
-            : '0 1px 3px rgba(140, 100, 60, 0.06)'
+            : '0 1px 3px rgba(140, 100, 60, 0.06)',
+          animationDelay: '420ms'
         }}
       >
         💡 <span className="font-semibold">Tip:</span> Click any faction for detailed reputation strategies

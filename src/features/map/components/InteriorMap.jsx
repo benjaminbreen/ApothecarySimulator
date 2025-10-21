@@ -22,6 +22,45 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
   const [hoveredFurniture, setHoveredFurniture] = useState(null);
   const [hoveredNPC, setHoveredNPC] = useState(null);
 
+  // Map background images - each interior map has light and dark variants
+  const mapBackgrounds = {
+    'botica-interior': {
+      light: '/maps/boticamaplight.png',
+      dark: '/maps/boticamapdark.png'
+    },
+    'cathedral-interior': {
+      light: '/maps/cathedralmaplight.png',
+      dark: '/maps/cathedralmapdark.png'
+    },
+    'mercado-interior': {
+      light: '/maps/mercadomaplight.png',
+      dark: '/maps/mercadomapdark.png'
+    },
+    'palacio-interior': {
+      light: '/maps/palaciomaplight.png',
+      dark: '/maps/palaciomapdark.png'
+    },
+    'humble-house-interior': {
+      light: '/maps/humblehousemaplight.png',
+      dark: '/maps/humblehousemapdark.png'
+    },
+    'middling-house-interior': {
+      light: '/maps/middlinghousemaplight.png',
+      dark: '/maps/middlinghousemapdark.png'
+    }
+  };
+
+  // Get background image for current map and theme
+  const getBackgroundImage = () => {
+    const mapId = mapData?.id;
+    const backgrounds = mapBackgrounds[mapId];
+    if (backgrounds) {
+      return backgrounds[theme] || backgrounds.light;
+    }
+    // Fallback to botica if map not found
+    return theme === 'light' ? '/maps/boticamaplight.png' : '/maps/boticamapdark.png';
+  };
+
   // Theme color palettes
   const themes = {
     light: {
@@ -476,7 +515,7 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
       >
         {/* Background image overlay - themed */}
         <image
-          href={theme === 'light' ? '/maps/boticamaplight.png' : '/maps/boticamapdark.png'}
+          href={getBackgroundImage()}
           x="0"
           y="0"
           width={bounds.width}
@@ -541,7 +580,7 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
                   onMouseEnter={() => setHoveredRoom(room.id)}
                   onMouseLeave={() => setHoveredRoom(null)}
                   onClick={(e) => {
-                    e.stopPropagation();
+                    // Don't stop propagation - let click bubble to open big map modal
                     onRoomClick && onRoomClick(room);
                   }}
                 />
@@ -593,7 +632,10 @@ export default function InteriorMap({ mapData, npcs = [], playerPosition = null,
                   key={item.id}
                   onMouseEnter={() => setHoveredFurniture(item.id)}
                   onMouseLeave={() => setHoveredFurniture(null)}
-                  onClick={() => onFurnitureClick && onFurnitureClick(item)}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Stop propagation to prevent big map modal
+                    onFurnitureClick && onFurnitureClick(item);
+                  }}
                   className="furniture-item"
                   style={{ cursor: 'pointer' }}
                 >
