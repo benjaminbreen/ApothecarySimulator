@@ -19,9 +19,27 @@ Background: Fled to Mexico City 10 years ago after arrest by the Portuguese Inqu
 Current Situation: Practicing illegally, in debt (100 reales to Don Luis, 20 reales to Marta the herb woman)
 Starting Wealth: 11 silver coins (reales)`,
 
-    tone: `Write simply and clearly without pretension. Use the simplest language you can to convey complex ideas. Avoid cliches, purple prose, and overwritten descriptions. Just use "says" as a dialogue tag. Avoid metaphors or figurative language that is ungrounded in real human experience. For instance, never say "the air is thick" with anything.
+    tone: `**Dynamic pacing - match length to importance:**
 
-Responses must be brief and concise—typically one longer paragraph or two short paragraphs maximum. Rarely exceed two paragraphs. Keep descriptions focused and economical. They must always be grounded in the accurate and unsparing realities of life in the 1680s.`
+TRIVIAL actions (grinding, sorting, walking, simple tasks): 15-30 words, 1-2 sentences
+- Example: "You grind the cacao beans. The rhythmic work steadies your hands."
+
+ROUTINE interactions (shopping, brief chat, examining items): 40-60 words, 3-4 sentences
+- Example: Brief exchanges, simple purchases, short observations
+
+IMPORTANT moments (new arrivals, conflicts, discoveries): 80-120 words, 1-2 paragraphs
+- Example: Patient arrivals, contract offers, revelations, moderate tension
+
+CRITICAL events (crises, deaths, arrests, major decisions): 120-180 words MAX, 2-3 paragraphs
+- Example: Life-or-death moments, Inquisition encounters, climactic story beats
+
+**Writing rules:**
+- Clear, direct prose. No purple language or clichés.
+- Grounded in 1680s realities - specific sensory details
+- Never say "the air is thick with..." or use ungrounded metaphors
+- Use "says" as dialogue tag, not "murmurs/hisses/breathes"
+- Historical specificity over generic descriptions
+- Cut ruthlessly - if trivial, stay under 30 words`
   },
 
   // Gameplay mechanics
@@ -69,6 +87,28 @@ Avoid overly optimistic depictions. Maria is in a financially desperate situatio
 Signal crises using h4 markdown (#### Crisis Title!)
 If a patient dies, Maria may face serious consequences.
 Incorporate dynamic weather events and detailed sensory descriptions.`,
+
+    livingWorld: `**Living World System (CRITICAL):**
+
+If player is idle/repetitive (grinding 2+ times, waiting, aimless wandering):
+→ INJECT an event to create momentum and break loops
+
+Event types to inject:
+1. Customer arrivals (50%): Knock at door, voice calling, shadow in doorway, child messenger
+2. Environmental (30%): Church bells, weather changes, sounds from street, processions passing
+3. Internal state (20%): Hunger, fatigue, memory flash, physical discomfort
+
+Examples:
+- "The cathedral bells toll for Sext. A knock interrupts your work."
+- "Rain drums on the roof. A woman's voice: 'Curandera?'"
+- "Your stomach growls—you haven't eaten since dawn."
+- "Rapid Nahuatl from the street—two women arguing."
+
+**Don't leave Maria idle more than 1 turn when at botica during business hours.** The world is alive and demanding.
+
+Check conversation history for repetition:
+- If same action 2+ times → inject interruption, STOP offering that choice
+- If Maria waiting for customers at open shop → someone MUST arrive within 1 turn`,
 
     npcIntroduction: `When an NPC is provided in context with "A new character is available for you to deploy", decide whether to incorporate them based on the narrative context. If the time is not right, ignore them or weave them in as a memory. Always invent detailed plausible backgrounds and names for characters without specific details.`
   },
@@ -354,6 +394,8 @@ export function buildSystemPrompt(scenarioId = null) {
 
 **Vivid Specificity**: ${historical.specificity}
 
+${historical.texture ? `\n${historical.texture}\n` : ''}
+
 **Narrative Flexibility**: Allow for player-driven story progression while maintaining historical plausibility.
 
 **Tone and Style**: ${core.tone}
@@ -391,6 +433,8 @@ ${skills ? skills.affordances : ''}
 ### Important Narrative Events
 
 ${narrative.events}
+
+${narrative.livingWorld ? `\n${narrative.livingWorld}\n` : ''}
 
 ${narrative.npcIntroduction}
 

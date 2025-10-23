@@ -9,6 +9,8 @@ import { useDrop } from 'react-dnd';
 import { createChatCompletion } from '../../../core/services/llmService';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import PrescriptionOutcomeModal from './PrescriptionOutcomeModal';
+import { useGameState } from '../../../contexts/GameStateContext';
+import { MedicalRecordsManager } from '../../../core/systems/medicalRecordsManager';
 
 import oralImage from '../../../assets/oral.jpg';
 import inhaledImage from '../../../assets/inhaled.jpg';
@@ -36,6 +38,7 @@ function PrescribePanelIntegrated({
   TRANSACTION_CATEGORIES
 }) {
   const { inventory = [] } = gameState;
+  const { setGameState } = useGameState(); // For updating medical records
   const [selectedItem, setSelectedItem] = useState(null);
   const [amount, setAmount] = useState(1);
   const [price, setPrice] = useState(0);
@@ -286,13 +289,8 @@ function PrescribePanelIntegrated({
       const simulatedOutput = data.choices[0].message.content;
       setSimulatedOutput(simulatedOutput);
 
-      // Add to conversation history IMMEDIATELY (so LLM knows about prescription)
-      setConversationHistory(prev => [
-        ...prev,
-        { role: 'user', content: prescriptionPrompt },
-        { role: 'assistant', content: simulatedOutput },
-        { role: 'system', content: `*[PRESCRIPTION ADMINISTERED] Prescribed ${amount} ${item.name} to ${currentPatient.name} via ${route} route.*` }
-      ]);
+      // Don't add to conversation history yet - wait for summary below
+      // (The detailed simulatedOutput will be shown in modal, but we'll add a clean summary to history instead)
 
       // Update history output immediately so it appears in chronicle
       setHistoryOutput(`℞ **Prescription Administered**: You prescribed ${amount} ${item.name} to ${currentPatient.name} via ${route} route. Processing outcome...`);
@@ -314,8 +312,21 @@ function PrescribePanelIntegrated({
       const summaryData = await createChatCompletion(summaryMessages, 0.4);
       const journalSummary = summaryData.choices[0].message.content.trim();
 
+      // Add comprehensive summary to conversation history so NarrativeAgent knows what happened
+      // Include examination, diagnosis, and prescription in one complete narrative
+      const symptoms = currentPatient?.symptoms?.map(s => s.name || s).join(', ') || 'various symptoms';
+      const diagnosis = currentPatient?.diagnosis || 'undetermined condition';
+
+      const comprehensiveSummary = `After a thorough examination of ${npcName}, during which Maria observed ${symptoms}, she diagnosed the condition as ${diagnosis}. Maria then prescribed ${amount} drachms of ${item.name} administered via the ${route} route for ${price} reales. ${journalSummary}`;
+
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: `Maria examined and treated ${npcName}.`, hidden: true },
+        { role: 'assistant', content: comprehensiveSummary }
+      ]);
+
       if (typeof addJournalEntry === 'function') {
-        addJournalEntry(`℞ Maria prescribed ${amount} drachms of **${item.name}** for **${price} reales** to **${npcName}** via the ${route} route. ${journalSummary}`);
+        addJournalEntry(`℞ ${comprehensiveSummary}`);
       }
 
       // Log transaction
@@ -330,6 +341,30 @@ function PrescribePanelIntegrated({
           time
         );
       }
+
+      // Add patient to medical records (Patient Roster)
+      setGameState(prev => ({
+        ...prev,
+        medicalRecords: MedicalRecordsManager.addSession(
+          prev.medicalRecords || {},
+          currentPatient,
+          {
+            date: gameState.date,
+            turnNumber: gameState.turnNumber || 0,
+            sessionType: 'examination',
+            prescriptions: [{
+              medicine: item.name,
+              route: route,
+              dosage: `${amount} drachms`,
+              price: price
+            }],
+            outcome: journalSummary, // Use the clean 1-sentence summary
+            payment: price
+          }
+        )
+      }));
+
+      console.log(`[MedicalRecords] Added ${npcName} to patient roster with prescription: ${item.name}`);
 
       // Show outcome modal instead of adding to conversation history
       // Use pendingModalOpen to trigger the modal opening via useEffect

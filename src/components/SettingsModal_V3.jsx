@@ -43,6 +43,16 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
     }
   }, [isOpen]);
 
+  // Define navigation sections
+  const sections = [
+    { id: 'game', label: 'Game', icon: '🎮' },
+    { id: 'progress', label: 'Progress', icon: '📊' },
+    { id: 'display', label: 'Display', icon: '🎨' },
+    { id: 'commands', label: 'Commands', icon: '⌨️' },
+    { id: 'dev', label: 'Dev Tools', icon: '🛠️' },
+    { id: 'about', label: 'About', icon: 'ℹ️' }
+  ];
+
   if (!isOpen) return null;
 
   return (
@@ -56,8 +66,8 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
       {/* Backdrop */}
       <div className={`fixed inset-0 bg-stone-900/40 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-colors duration-300 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}>
 
-        {/* Modal Container */}
-        <div className={`relative w-full max-w-7xl h-[95vh] rounded-lg overflow-hidden transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
+        {/* Modal Container - Responsive: Full screen on mobile, wide on desktop */}
+        <div className={`relative w-full max-w-full sm:max-w-7xl h-screen sm:h-[95vh] rounded-none sm:rounded-lg overflow-hidden transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
           style={{
             background: isDarkMode
               ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%)'
@@ -76,8 +86,8 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
             borderRadius: '0.5rem'
           }} />
 
-          {/* Header */}
-          <div className="relative px-8 py-4 border-b flex items-center justify-between transition-all duration-300"
+          {/* Header - Responsive padding */}
+          <div className="relative px-4 sm:px-8 py-3 sm:py-4 border-b flex items-center justify-between transition-all duration-300"
             style={{
               background: isDarkMode
                 ? 'linear-gradient(to bottom, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.4))'
@@ -88,7 +98,7 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
             }}
           >
             <div>
-              <h1 className="text-4xl tracking-tight transition-colors duration-300"
+              <h1 className="text-2xl sm:text-4xl tracking-tight transition-colors duration-300"
                 style={{
                   fontFamily: "'Cormorant Garamond', Georgia, serif",
                   fontWeight: 700,
@@ -98,7 +108,7 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
               >
                 Settings
               </h1>
-              <p className="text-xs font-medium mt-0.5 transition-colors duration-300"
+              <p className="hidden sm:block text-xs font-medium mt-0.5 transition-colors duration-300"
                 style={{
                   fontFamily: "'Inter', sans-serif",
                   color: isDarkMode ? '#94a3b8' : '#8b7a6a',
@@ -110,9 +120,9 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
             </div>
 
             {/* Dark Mode Toggle */}
-            <div className="flex items-center gap-3 mr-4">
+            <div className="flex items-center gap-2 sm:gap-3 mr-2 sm:mr-4">
               <span
-                className="text-xs font-medium transition-colors select-none"
+                className="hidden sm:inline-block text-xs font-medium transition-colors select-none"
                 style={{
                   fontFamily: "'Inter', sans-serif",
                   color: isDarkMode ? '#fbbf24' : '#8b7a6a',
@@ -214,11 +224,52 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
             </button>
           </div>
 
-          {/* Main Content */}
-          <div className="flex h-[calc(100%-120px)]">
+          {/* Mobile Tab Navigation - Only shown on mobile */}
+          <div className="block md:hidden border-b overflow-x-auto"
+            style={{
+              background: isDarkMode
+                ? 'linear-gradient(to bottom, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.4))'
+                : 'linear-gradient(to bottom, rgba(245, 238, 223, 0.5), rgba(250, 248, 243, 0.3))',
+              borderColor: isDarkMode
+                ? 'rgba(251, 191, 36, 0.15)'
+                : 'rgba(139, 92, 46, 0.15)'
+            }}
+          >
+            <div className="flex gap-1 px-2 py-2">
+              {sections.map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className="flex-shrink-0 px-4 py-2 text-xs font-semibold rounded-md transition-all whitespace-nowrap"
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    color: activeSection === section.id
+                      ? (isDarkMode ? '#fbbf24' : '#3d2f24')
+                      : (isDarkMode ? '#94a3b8' : '#8b7a6a'),
+                    background: activeSection === section.id
+                      ? (isDarkMode
+                        ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(245, 158, 11, 0.1))'
+                        : 'linear-gradient(135deg, rgba(217, 119, 6, 0.12), rgba(245, 158, 11, 0.08))')
+                      : 'transparent',
+                    border: activeSection === section.id
+                      ? (isDarkMode
+                        ? '1px solid rgba(251, 191, 36, 0.3)'
+                        : '1px solid rgba(217, 119, 6, 0.25)')
+                      : '1px solid transparent'
+                  }}
+                >
+                  <span className="mr-2">{section.icon}</span>
+                  {section.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-            {/* Sidebar Navigation */}
-            <div className="w-64 p-6 transition-all duration-300"
+          {/* Main Content - Adjust height for mobile tabs */}
+          <div className="flex flex-col md:flex-row h-[calc(100%-170px)] md:h-[calc(100%-120px)]">
+
+            {/* Sidebar Navigation - Hidden on mobile, visible on desktop */}
+            <div className="hidden md:block md:w-64 p-6 transition-all duration-300"
               style={{
                 background: isDarkMode
                   ? 'linear-gradient(to bottom, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.8))'
@@ -272,8 +323,8 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
               </nav>
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8" style={{
+            {/* Content Area - Responsive padding */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8" style={{
               background: isDarkMode
                 ? 'rgba(15, 23, 42, 0.4)'
                 : 'rgba(248, 243, 233, 0.3)'
@@ -315,8 +366,8 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="absolute bottom-0 left-0 right-0 px-8 py-4 flex justify-between items-center"
+          {/* Footer - Responsive padding and text */}
+          <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-6 md:px-8 py-3 sm:py-4 flex justify-between items-center"
             style={{
               background: isDarkMode
                 ? 'linear-gradient(to top, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.6))'
@@ -326,9 +377,9 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
                 : '1px solid rgba(139, 92, 46, 0.15)'
             }}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-2 h-2 rounded-full bg-emerald-600" />
-              <span style={{
+              <span className="hidden sm:inline" style={{
                 fontFamily: "'Inter', sans-serif",
                 color: isDarkMode ? '#94a3b8' : '#6b5d52',
                 fontSize: '0.8125rem',
@@ -338,12 +389,12 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
               </span>
             </div>
 
-            <span style={{
+            <span className="text-xs sm:text-sm" style={{
               fontFamily: "'IBM Plex Mono', monospace",
-              color: isDarkMode ? '#94a3b8' : '#8b7a6a',
-              fontSize: '0.75rem'
+              color: isDarkMode ? '#94a3b8' : '#8b7a6a'
             }}>
-              v{GAME_VERSION} • The Apothecary
+              v{GAME_VERSION}
+              <span className="hidden sm:inline"> • The Apothecary</span>
             </span>
           </div>
         </div>

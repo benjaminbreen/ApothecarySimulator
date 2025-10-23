@@ -21,7 +21,8 @@ function ContractOfferModal({
   onNegotiate,
   inventory = [],
   theme = 'light',
-  scenarioId = '1680-mexico-city'
+  scenarioId = '1680-mexico-city',
+  conversationHistory = [] // NEW: For negotiation context
 }) {
   const [selectedItem, setSelectedItem] = useState(null);
   const [proposedPrice, setProposedPrice] = useState(0);
@@ -73,7 +74,7 @@ function ContractOfferModal({
 
     if (!patientEntity) {
       // Try to find a patient entity registered by NarrativeAgent that matches the description
-      const allEntities = entityManager.getAllEntities();
+      const allEntities = entityManager.getAll();
       const potentialPatient = allEntities.find(e =>
         e.entityType === 'patient' &&
         e.description?.toLowerCase().includes(offer.patientDescription?.toLowerCase().split(' ').slice(0, 3).join(' '))
@@ -100,7 +101,8 @@ function ContractOfferModal({
           demographics: potentialPatient.demographics, // LLM demographics
           metadata: {
             representedBy: offer.offeredBy,
-            paymentAgreed: offer.paymentOffered
+            paymentAgreed: offer.paymentOffered,
+            patientLocation: offer.patientLocation || null // House call location (Phase 3A)
           }
         };
       } else {
@@ -125,7 +127,8 @@ function ContractOfferModal({
           },
           metadata: {
             representedBy: offer.offeredBy,
-            paymentAgreed: offer.paymentOffered
+            paymentAgreed: offer.paymentOffered,
+            patientLocation: offer.patientLocation || null // House call location (Phase 3A)
           }
         };
         console.log('[ContractModal] Created patient entity with extracted demographics:', extractedDemographics);
@@ -157,14 +160,32 @@ function ContractOfferModal({
     setIsProcessingNegotiation(true);
 
     try {
+      // Build recent conversation context (last 10 messages)
+      const recentHistory = conversationHistory.slice(-10).map(msg => {
+        if (msg.role === 'assistant') return `Narrative: ${msg.content}`;
+        if (msg.role === 'user') return `Maria: ${msg.content}`;
+        if (msg.role === 'system') return `Event: ${msg.content}`;
+        return msg.content;
+      }).join('\n\n');
+
       // Call LLM to negotiate
       const negotiationPrompt = `You are ${offer.offeredBy} negotiating with Maria de Lima, an apothecary in 1680 Mexico City.
 
+**Context of Your Visit:**
+${recentHistory ? `Recent conversation:\n${recentHistory}\n\n` : ''}
+
 **Your Original Offer:**
-${isTreatment ? `Treatment for ${offer.patientName}: ${offer.paymentOffered} reales` : `Purchase ${offer.itemRequested}: ${offer.paymentOffered} reales`}
+${isTreatment
+  ? `Treatment for ${offer.patientName} (${offer.ailmentDescription || 'medical condition'}): ${offer.paymentOffered} reales`
+  : `Purchase ${offer.itemRequested}: ${offer.paymentOffered} reales`}
 
 **Your Character:**
 ${offer.offeredByDescription}
+
+**What You're Asking For:**
+${isTreatment
+  ? `You're asking Maria to treat ${offer.patientName} who suffers from: ${offer.ailmentDescription || 'a medical condition'}`
+  : `You want to purchase ${offer.itemRequested} from Maria`}
 
 **Maria's Counter-Offer:**
 "${counterOffer}"
@@ -186,6 +207,7 @@ ${offer.offeredByDescription}
 \`\`\`
 
 **Guidelines:**
+- Remember what ailment/item was actually discussed (${isTreatment ? offer.ailmentDescription : offer.itemRequested})
 - Consider the social context (elite vs common folk)
 - Consider the urgency of the situation
 - Be realistic about colonial Mexican economics
@@ -531,7 +553,8 @@ ${offer.offeredByDescription}
         </div>
 
         {/* Footer Actions */}
-        {!isNegotiating && (
+        {/* Show buttons in all states except when actively typing negotiation */}
+        {!isNegotiating && !negotiationResponse && (
           <div
             className="px-6 py-4 border-t flex gap-2"
             style={{
@@ -602,6 +625,82 @@ ${offer.offeredByDescription}
                 </button>
               </>
             )}
+          </div>
+        )}
+
+        {/* After negotiation response: Show Accept (with new offer) / Counter Again / Decline */}
+        {negotiationResponse && negotiationResponse.decision !== 'reject' && (
+          <div
+            className="px-6 py-4 border-t flex gap-2"
+            style={{
+              borderColor: isDark ? '#334155' : '#e5e7eb',
+              background: isDark ? '#0f172a' : '#fafaf9'
+            }}
+          >
+            {isTreatment && (
+              <>
+                <button
+                  onClick={handleAcceptTreatment}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all"
+                  style={{
+                    background: isDark ? '#059669' : '#10b981',
+                    color: '#ffffff'
+                  }}
+                >
+                  {negotiationResponse.decision === 'accept' ? 'Accept Deal' : `Accept (${offer.paymentOffered} reales)`}
+                </button>
+                {negotiationResponse.decision === 'counter' && (
+                  <button
+                    onClick={() => {
+                      setIsNegotiating(true);
+                      setNegotiationResponse(null);
+                      setCounterOffer('');
+                    }}
+                    className="flex-1 px-4 py-2.5 rounded-lg font-medium text-sm"
+                    style={{
+                      background: isDark ? '#1e293b' : '#f5f5f4',
+                      color: isDark ? '#cbd5e1' : '#44403c',
+                      border: isDark ? '1px solid #334155' : '1px solid #e7e5e4'
+                    }}
+                  >
+                    Counter-Offer Again
+                  </button>
+                )}
+                <button
+                  onClick={() => { onDecline(); onClose(); }}
+                  className="px-4 py-2.5 rounded-lg font-medium text-sm"
+                  style={{
+                    background: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+                    color: isDark ? '#f87171' : '#dc2626',
+                    border: isDark ? '1px solid #991b1b' : '1px solid #fca5a5'
+                  }}
+                >
+                  Decline
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* If NPC rejected: Show only Close button */}
+        {negotiationResponse && negotiationResponse.decision === 'reject' && (
+          <div
+            className="px-6 py-4 border-t flex justify-center"
+            style={{
+              borderColor: isDark ? '#334155' : '#e5e7eb',
+              background: isDark ? '#0f172a' : '#fafaf9'
+            }}
+          >
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 rounded-lg font-medium text-sm"
+              style={{
+                background: isDark ? '#1e293b' : '#f5f5f4',
+                color: isDark ? '#cbd5e1' : '#44403c'
+              }}
+            >
+              Close
+            </button>
           </div>
         )}
       </div>

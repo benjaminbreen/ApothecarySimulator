@@ -368,12 +368,19 @@ function PatientCard({ patient, onClick, isDark }) {
     return resolvePortrait(patient);
   }, [patient]);
 
-  // Extract chief complaint (first sentence of diagnosis)
-  const chiefComplaint = diagnosis.split('.')[0];
+  // Extract chief complaint (first sentence of diagnosis or ailment for purchases)
+  const chiefComplaint = isPurchase && latestSession?.ailment
+    ? latestSession.ailment
+    : diagnosis.split('.')[0];
 
   // Determine patient status
   const isActive = diagnosis && !diagnosis.toLowerCase().includes('cured');
   const hasRecentInteraction = patient.memory?.interactions?.length > 0;
+
+  // Determine session type (purchase vs examination) from latest session
+  const latestSession = patient.medicalRecord?.sessions[patient.medicalRecord.sessions.length - 1];
+  const sessionType = latestSession?.sessionType || 'examination';
+  const isPurchase = sessionType === 'purchase';
 
   return (
     <button
@@ -410,19 +417,38 @@ function PatientCard({ patient, onClick, isDark }) {
           </div>
         )}
 
-        {/* Status Badge */}
-        {isActive && (
+        {/* Status Badges */}
+        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+          {/* Active Badge */}
+          {isActive && (
+            <div
+              className="px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide"
+              style={{
+                background: 'linear-gradient(135deg, #16a34a, #15803d)',
+                color: '#fff',
+                boxShadow: '0 2px 6px rgba(22, 163, 74, 0.4)'
+              }}
+            >
+              Active
+            </div>
+          )}
+
+          {/* Session Type Badge */}
           <div
-            className="absolute top-2 right-2 px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide"
+            className="px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide"
             style={{
-              background: 'linear-gradient(135deg, #16a34a, #15803d)',
+              background: isPurchase
+                ? 'linear-gradient(135deg, #f59e0b, #d97706)' // Amber for purchase
+                : 'linear-gradient(135deg, #3b82f6, #2563eb)', // Blue for examination
               color: '#fff',
-              boxShadow: '0 2px 6px rgba(22, 163, 74, 0.4)'
+              boxShadow: isPurchase
+                ? '0 2px 6px rgba(245, 158, 11, 0.4)'
+                : '0 2px 6px rgba(59, 130, 246, 0.4)'
             }}
           >
-            Active
+            {isPurchase ? '💰 Purchase' : '🩺 Examination'}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Info Section */}

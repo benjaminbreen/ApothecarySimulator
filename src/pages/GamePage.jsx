@@ -30,11 +30,16 @@ import GameOverModal from '../components/GameOverModal';
 import SimpleInteractionCard from '../components/SimpleInteractionCard';
 import RandomEventCard from '../components/RandomEventCard';
 import POIModal from '../components/POIModal';
+import { TravelCard } from '../components/TravelCard'; // Phase 3B: House call travel
 
 // Feature components
-import { useGameState } from '../core/state/gameState';
+import { useGameState as useGameStateHook } from '../core/state/gameState'; // Legacy hook (for reference)
+import { GameStateProvider, useGameState } from '../contexts/GameStateContext'; // PHASE 1.1
+import { ModalProvider, useModals, MODALS } from '../contexts/ModalContext'; // PHASE 1.2
+import { PlayerProvider, usePlayer } from '../contexts/PlayerContext'; // PHASE 1.3
+import { NPCProvider, useNPCs } from '../contexts/NPCContext'; // PHASE 1.4
 import { useReputation } from '../core/hooks/useReputation';
-import { useSkills } from '../core/hooks/useSkills';
+import { useSkills } from '../core/hooks/useSkills'; // Now wrapped by PlayerContext
 
 // Game systems
 import resourceManager from '../systems/ResourceManager';
@@ -77,10 +82,11 @@ const GameContent = () => {
   const { scenarioId } = useParams(); // Get scenarioId from URL
   const { isMobile, isTablet } = useScreenSize(); // Mobile optimization
 
-  // Load scenario character data for skills initialization
+  // Load scenario for map data and initial narrative
   const scenario = scenarioLoader.getScenario(scenarioId || '1680-mexico-city');
-  const characterData = scenario?.character;
 
+  // PHASE 1.1: Now using GameStateContext instead of direct hook call
+  // The scenarioId is provided by GameStateProvider wrapper (see bottom of file)
   const {
     gameState,
     updateInventory,
@@ -111,24 +117,65 @@ const GameContent = () => {
     addTradeTransaction,
     getTradeHistory,
     cleanupExpiredOpportunities,
-  } = useGameState(scenarioId || '1680-mexico-city');
+  } = useGameState(); // No parameter - comes from context now!
+
+  // PHASE 1.4: NPC tracking and entity state now managed by NPCContext
+  const {
+    npcTracker,
+    getRecentNPCs,
+    trackNPC,
+    untrackNPC,
+    currentEntities,
+    setCurrentEntities,
+    activePatient,
+    setActivePatient,
+    patientDialogue,
+    setPatientDialogue,
+    currentPatient,
+    setCurrentPatient,
+    selectedNPC,
+    setSelectedNPC,
+    selectedPatient,
+    setSelectedPatient,
+    tradingNPC,
+    setTradingNPC,
+    primaryPortraitFile,
+    setPrimaryPortraitFile,
+    pendingContract,
+    setPendingContract,
+    pendingSaleInquiry,
+    setPendingSaleInquiry,
+  } = useNPCs();
 
   // Core state
   const [userInput, setUserInput] = useState('');
   const [conversationHistory, setConversationHistory] = useState([]);
   const [historyOutput, setHistoryOutput] = useState('');
-  const [currentEntities, setCurrentEntities] = useState([]); // Entities from latest turn for historical context
   const [isLoading, setIsLoading] = useState(false);
   const [turnNumber, setTurnNumber] = useState(1);
-  const [npcTracker] = useState(() => new NPCTracker(5)); // Track last 5 NPCs
 
   // Transaction Manager
   const [transactionManager] = useState(() => getTransactionManager(scenarioId || '1680-mexico-city'));
 
-  // Player position and map tracking
-  // Grid (25, 24) = pixel center (510, 480) with 20px grid size - behind counter (north side)
-  const [playerPosition, setPlayerPosition] = useState({ x: 510, y: 480, gridX: 25, gridY: 24 }); // Default: behind counter on shop floor
-  const [playerFacing, setPlayerFacing] = useState(180); // Degrees: 0=North, 90=East, 180=South, 270=West (start facing south)
+  // PHASE 1.3: Player position, facing, and stats now managed by PlayerContext
+  const {
+    position: playerPosition,
+    setPosition: setPlayerPosition,
+    facing: playerFacing,
+    setFacing: setPlayerFacing,
+    stats,
+    playerSkills,
+    awardXP: rawAwardXP,
+    awardSkillXP: rawAwardSkillXP,
+    learnNewSkill,
+    improveSkill,
+    resetSkills,
+    activeEffects,
+    setActiveEffects,
+    skillEffects, // CRITICAL: Needed for useGameHandlers
+    consecutiveLowEnergyTurns,
+    setConsecutiveLowEnergyTurns,
+  } = usePlayer();
   const [currentMapData, setCurrentMapData] = useState(null);
   const [currentMapId, setCurrentMapId] = useState('botica-interior'); // Interior map ID
 
@@ -251,39 +298,64 @@ const GameContent = () => {
     return locations.slice(0, 7); // Max 7 locations total
   }, [currentMapData, playerPosition, currentMapId, gameState.location]);
 
-  // UI state
-  const [isJournalOpen, setIsJournalOpen] = useState(false);
-  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
-  const [isModernInventoryOpen, setIsModernInventoryOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [isMapOpen, setIsMapOpen] = useState(false);
-  const [isInteractiveMapModalOpen, setIsInteractiveMapModalOpen] = useState(false);
-  const [isDiagnoseOpen, setIsDiagnoseOpen] = useState(false);
+  // PHASE 1.2: Modal state now managed by ModalContext
+  const {
+    modals,
+    openModal,
+    closeModal,
+    toggleModal,
+    closeAllModals,
+    selectedPDF,
+    setSelectedPDF,
+    selectedCitation,
+    setSelectedCitation,
+    detailSkillId,
+    setDetailSkillId,
+  } = useModals();
+
+  // Backward compatibility aliases - use modals object directly
+  const isJournalOpen = modals.journal;
+  const setIsJournalOpen = (value) => value ? openModal('journal') : closeModal('journal');
+  const isInventoryOpen = modals.inventory;
+  const setIsInventoryOpen = (value) => value ? openModal('inventory') : closeModal('inventory');
+  const isModernInventoryOpen = modals.modernInventory;
+  const setIsModernInventoryOpen = (value) => value ? openModal('modernInventory') : closeModal('modernInventory');
+  const isHistoryOpen = modals.history;
+  const setIsHistoryOpen = (value) => value ? openModal('history') : closeModal('history');
+  const isAboutOpen = modals.about;
+  const setIsAboutOpen = (value) => value ? openModal('about') : closeModal('about');
+  const isMapOpen = modals.map;
+  const setIsMapOpen = (value) => value ? openModal('map') : closeModal('map');
+  const isInteractiveMapModalOpen = modals.interactiveMap;
+  const setIsInteractiveMapModalOpen = (value) => value ? openModal('interactiveMap') : closeModal('interactiveMap');
+  const isDiagnoseOpen = modals.diagnose;
+  const setIsDiagnoseOpen = (value) => value ? openModal('diagnose') : closeModal('diagnose');
+
+  const isGameLogOpen = modals.gameLog;
+  const setIsGameLogOpen = (value) => value ? openModal('gameLog') : closeModal('gameLog');
+  const isSettingsOpen = modals.settings;
+  const setIsSettingsOpen = (value) => value ? openModal('settings') : closeModal('settings');
+
+  // Non-modal UI state (kept as useState)
   const [leftSidebarTab, setLeftSidebarTab] = useState('inventory'); // Control left sidebar tab
   const [isCharacterCardCollapsed, setIsCharacterCardCollapsed] = useState(false); // Track CharacterCard collapse state for condensed header stats
-
-  const [isGameLogOpen, setIsGameLogOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState('character');
 
   // Central Panel state
   const [activeTab, setActiveTab] = useState('chronicle');
   const [gameLog, setGameLog] = useState([]);
-  const [activePatient, setActivePatient] = useState(null);
-  const [patientDialogue, setPatientDialogue] = useState([]);
+  // NOTE: activePatient, patientDialogue, pendingContract now from NPCContext
   const [pendingPrescription, setPendingPrescription] = useState(null);
-
-  // Contract system state
-  const [pendingContract, setPendingContract] = useState(null);
-  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const isContractModalOpen = modals.contract;
+  const setIsContractModalOpen = (value) => value ? openModal('contract') : closeModal('contract');
 
   // Exit confirmation state
-  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
+  const showExitConfirmation = modals.exitConfirmation;
+  const setShowExitConfirmation = (value) => value ? openModal('exitConfirmation') : closeModal('exitConfirmation');
   const [pendingExitData, setPendingExitData] = useState(null);
 
   // Trade system state
-  const [tradingNPC, setTradingNPC] = useState(null); // Current NPC being traded with
+  // NOTE: tradingNPC now from NPCContext
   const [tradeMode, setTradeMode] = useState('market'); // 'market' | 'npc' | 'inventory'
   const [inventoryViewMode, setInventoryViewMode] = useState('shelf'); // 'shelf' | 'list'
 
@@ -293,16 +365,29 @@ const GameContent = () => {
   // Random event system state
   const [pendingRandomEvent, setPendingRandomEvent] = useState(null);
 
+  // Mixing decision system state (Phase 2B)
+  const [pendingMixingDecision, setPendingMixingDecision] = useState(null);
+
+  // Sale proposal system state (Phase 2C)
+  const [pendingSaleProposal, setPendingSaleProposal] = useState(null);
+  const [mixingContextForSale, setMixingContextForSale] = useState(null);
+
+  // House call system state (Phase 3A)
+  const [pendingHouseCall, setPendingHouseCall] = useState(null);
+
+  // Phase 3B/4: Travel animation state
+  const [travelAnimationState, setTravelAnimationState] = useState(null);
+
   // Item consumption modal state
-  const [isConsumptionModalOpen, setIsConsumptionModalOpen] = useState(false);
+  const isConsumptionModalOpen = modals.consumption;
+  const setIsConsumptionModalOpen = (value) => value ? openModal('consumption') : closeModal('consumption');
   const [itemToConsume, setItemToConsume] = useState(null);
 
   // Game over state
   const [isGameOver, setIsGameOver] = useState(false);
   const [causeOfDeath, setCauseOfDeath] = useState('');
 
-  // PHASE 1: Primary portrait file (LLM-selected portrait)
-  const [primaryPortraitFile, setPrimaryPortraitFile] = useState(null);
+  // NOTE: primaryPortraitFile now from NPCContext (PHASE 1.4)
 
   // Dynamic action chips from narrative parser
   const [dynamicChips, setDynamicChips] = useState(null);
@@ -310,26 +395,21 @@ const GameContent = () => {
   // Narration settings state
   const [narrationFontSize, setNarrationFontSize] = useState('text-base');
   const [narrationDarkMode, setNarrationDarkMode] = useState(false);
-  const [isNarrationSettingsOpen, setIsNarrationSettingsOpen] = useState(false);
-  const [isLLMViewOpen, setIsLLMViewOpen] = useState(false);
+  const isNarrationSettingsOpen = modals.narrationSettings;
+  const setIsNarrationSettingsOpen = (value) => value ? openModal('narrationSettings') : closeModal('narrationSettings');
+  const isLLMViewOpen = modals.llmView;
+  const setIsLLMViewOpen = (value) => value ? openModal('llmView') : closeModal('llmView');
 
   // Portrait state: temporary "determined" override (shows for 5 seconds after XP gain)
-  const [showDeterminedPortrait, setShowDeterminedPortrait] = useState(false);
+  const showDeterminedPortrait = modals.determinedPortrait;
+  const setShowDeterminedPortrait = (value) => value ? openModal('determinedPortrait') : closeModal('determinedPortrait');
   const determinedTimerRef = React.useRef(null);
 
   // Reputation system
   const { reputation, updateReputation, reputationEmoji, setReputation: setReputationDirect } = useReputation();
 
-  // Skills system (pass character data for proper initialization)
-  const {
-    playerSkills,
-    activeEffects: skillEffects,
-    awardXP: rawAwardXP,
-    awardSkillXP: rawAwardSkillXP,
-    learnNewSkill,
-    improveSkill,
-    resetSkills
-  } = useSkills(characterData, null); // No callback needed - character XP is managed by playerSkills now
+  // NOTE: Skills system now provided by PlayerContext (see usePlayer hook above)
+  // playerSkills, rawAwardXP, rawAwardSkillXP, activeEffects all come from usePlayer()
 
   // Wrap XP award functions to apply Scholar profession bonuses
   const awardXP = useCallback((xp, source = 'unknown') => {
@@ -453,31 +533,39 @@ const GameContent = () => {
     playerSkills.level
   ]);
 
-  // Active effects (not core stats - this is for temporary buffs/debuffs)
-  const [activeEffects, setActiveEffects] = useState([]);
-  const [consecutiveLowEnergyTurns, setConsecutiveLowEnergyTurns] = useState(0);
+  // NOTE: activeEffects and consecutiveLowEnergyTurns now provided by PlayerContext (see usePlayer hook above)
 
   // XP gain notification state
   const [xpGain, setXPGain] = useState(null);
   const [xpGainKey, setXPGainKey] = useState(0); // Force re-render for animations
 
-  // Popups and modals
-  const [showMixingPopup, setShowMixingPopup] = useState(false);
-  const [showSymptomsPopup, setShowSymptomsPopup] = useState(false);
-  const [isPrescribePopupOpen, setIsPrescribePopupOpen] = useState(false);
+  // Popups and modals (now using ModalContext)
+  const showMixingPopup = modals.mixing;
+  const setShowMixingPopup = (value) => value ? openModal('mixing') : closeModal('mixing');
+  const showSymptomsPopup = modals.symptoms;
+  const setShowSymptomsPopup = (value) => value ? openModal('symptoms') : closeModal('symptoms');
+  const isPrescribePopupOpen = modals.prescribe;
+  const setIsPrescribePopupOpen = (value) => value ? openModal('prescribe') : closeModal('prescribe');
+  const isBuyOpen = modals.buy;
+  const setIsBuyOpen = (value) => value ? openModal('buy') : closeModal('buy');
+  const isSleepOpen = modals.sleep;
+  const setIsSleepOpen = (value) => value ? openModal('sleep') : closeModal('sleep');
+  const isRestDurationOpen = modals.restDuration;
+  const setIsRestDurationOpen = (value) => value ? openModal('restDuration') : closeModal('restDuration');
+  const isEatOpen = modals.eat;
+  const setIsEatOpen = (value) => value ? openModal('eat') : closeModal('eat');
+  const isForageOpen = modals.forage;
+  const setIsForageOpen = (value) => value ? openModal('forage') : closeModal('forage');
+  const isPdfOpen = modals.pdf;
+  const setIsPdfOpen = (value) => value ? openModal('pdf') : closeModal('pdf');
+
+  // Non-modal state (kept as useState)
   const [isPrescribing, setIsPrescribing] = useState(false);
   const [currentPrescriptionType, setCurrentPrescriptionType] = useState(null);
-  const [currentPatient, setCurrentPatient] = useState(null);
+  // NOTE: currentPatient now from NPCContext
   const [selectedNpcName, setSelectedNpcName] = useState('');
-  const [isBuyOpen, setIsBuyOpen] = useState(false);
-  const [isSleepOpen, setIsSleepOpen] = useState(false);
-  const [isRestDurationOpen, setIsRestDurationOpen] = useState(false);
   const [sleepHours, setSleepHours] = useState(8);
-  const [isEatOpen, setIsEatOpen] = useState(false);
-  const [isForageOpen, setIsForageOpen] = useState(false);
-  const [isPdfOpen, setIsPdfOpen] = useState(false);
-  const [selectedPDF, setSelectedPDF] = useState(null);
-  const [selectedCitation, setSelectedCitation] = useState(null);
+  // selectedPDF and selectedCitation now come from ModalContext
 
   // Study Tab - Discovered Books
   const [discoveredBooks, setDiscoveredBooks] = useState(() => {
@@ -485,32 +573,49 @@ const GameContent = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [showEndGamePopup, setShowEndGamePopup] = useState(false);
+  // Entity modals (now using ModalContext)
+  const showEndGamePopup = modals.endGame;
+  const setShowEndGamePopup = (value) => value ? openModal('endGame') : closeModal('endGame');
+  const showPatientModal = modals.patient;
+  const setShowPatientModal = (value) => value ? openModal('patient') : closeModal('patient');
+  const showNPCModal = modals.npc;
+  const setShowNPCModal = (value) => value ? openModal('npc') : closeModal('npc');
+  const showItemModal = modals.item;
+  const setShowItemModal = (value) => value ? openModal('item') : closeModal('item');
+  const showEquipmentModal = modals.equipment;
+  const setShowEquipmentModal = (value) => value ? openModal('equipment') : closeModal('equipment');
+  const showReputationModal = modals.reputation;
+  const setShowReputationModal = (value) => value ? openModal('reputation') : closeModal('reputation');
+  const showSkillsModal = modals.skills;
+  const setShowSkillsModal = (value) => value ? openModal('skills') : closeModal('skills');
+  // detailSkillId now comes from ModalContext
+  const showPOIModal = modals.poi;
+  const setShowPOIModal = (value) => value ? openModal('poi') : closeModal('poi');
+  const isLedgerOpen = modals.ledger;
+  const setIsLedgerOpen = (value) => value ? openModal('ledger') : closeModal('ledger');
+  const isFastTravelOpen = modals.fastTravel;
+  const setIsFastTravelOpen = (value) => value ? openModal('fastTravel') : closeModal('fastTravel');
+  const isBloodlettingOpen = modals.bloodletting;
+  const setIsBloodlettingOpen = (value) => value ? openModal('bloodletting') : closeModal('bloodletting');
+  const isPatientRosterOpen = modals.patientRoster;
+  const setIsPatientRosterOpen = (value) => value ? openModal('patientRoster') : closeModal('patientRoster');
+
+  // Leveling system modals (now using ModalContext)
+  const showLevelUpNotification = modals.levelUp;
+  const setShowLevelUpNotification = (value) => value ? openModal('levelUp') : closeModal('levelUp');
+  const showProfessionChoiceModal = modals.professionChoice;
+  const setShowProfessionChoiceModal = (value) => value ? openModal('professionChoice') : closeModal('professionChoice');
+  const showAbilityUnlockNotification = modals.abilityUnlock;
+  const setShowAbilityUnlockNotification = (value) => value ? openModal('abilityUnlock') : closeModal('abilityUnlock');
+
+  // Non-modal state (kept as useState)
   const [gameOver, setGameOver] = useState(false);
   const [gameAssessment, setGameAssessment] = useState('');
-  const [showPatientModal, setShowPatientModal] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [showNPCModal, setShowNPCModal] = useState(false);
-  const [selectedNPC, setSelectedNPC] = useState(null);
-  const [showItemModal, setShowItemModal] = useState(false);
+  // NOTE: selectedPatient, selectedNPC now from NPCContext
   const [selectedItem, setSelectedItem] = useState(null);
-  const [showEquipmentModal, setShowEquipmentModal] = useState(false);
-  const [showReputationModal, setShowReputationModal] = useState(false);
   const [reputationModalFaction, setReputationModalFaction] = useState(null);
-  const [showSkillsModal, setShowSkillsModal] = useState(false);
-  const [detailSkillId, setDetailSkillId] = useState(null); // For SkillsDetailModal
-  const [showPOIModal, setShowPOIModal] = useState(false);
   const [selectedPOIEntity, setSelectedPOIEntity] = useState(null);
-  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
-  const [isFastTravelOpen, setIsFastTravelOpen] = useState(false);
-  const [isBloodlettingOpen, setIsBloodlettingOpen] = useState(false);
-  const [isPatientRosterOpen, setIsPatientRosterOpen] = useState(false);
-
-  // Leveling system modals
-  const [showLevelUpNotification, setShowLevelUpNotification] = useState(false);
   const [levelUpData, setLevelUpData] = useState(null);
-  const [showProfessionChoiceModal, setShowProfessionChoiceModal] = useState(false);
-  const [showAbilityUnlockNotification, setShowAbilityUnlockNotification] = useState(false);
   const [abilityUnlockData, setAbilityUnlockData] = useState(null);
 
   // Item action popup state (for drag-drop on portraits)
@@ -707,6 +812,7 @@ const GameContent = () => {
     setIsMapOpen,
     setIsDiagnoseOpen,
     setShowMixingPopup,
+    toggleModal, // Modal context toggle function
     setSelectedPDF,
     setSelectedCitation,
     setIsPdfOpen,
@@ -714,6 +820,8 @@ const GameContent = () => {
     setShowPatientModal,
     setSelectedNPC,
     setShowNPCModal,
+    setSelectedItem,
+    setShowItemModal,
     setJournal,
     setCustomJournalEntry,
     setEnergy,  // Now uses gameState
@@ -752,6 +860,11 @@ const GameContent = () => {
     setIsBloodlettingOpen,
     setIsPatientRosterOpen,
     setPendingContract,
+    setPendingSaleInquiry,
+    setPendingMixingDecision,
+    setPendingSaleProposal,
+    setMixingContextForSale,
+    setPendingHouseCall, // House call system (Phase 3A)
     setIsContractModalOpen,
     setPendingExitData, // Exit confirmation system
     setShowExitConfirmation, // Exit confirmation system
@@ -766,6 +879,7 @@ const GameContent = () => {
     setSelectedPOIEntity, // Selected entity for POI modal
 
     // State values
+    isLoading, // CRITICAL FIX: Pass loading state for double-click guard
     energy: gameState.energy,  // From gameState
     health: gameState.health,  // From gameState
     currentWealth: gameState.wealth,  // From gameState
@@ -852,7 +966,35 @@ const GameContent = () => {
     handleMovement,
     handleEnterBuilding,
     handleExitBuilding,
+    handleHouseCallArrival, // Phase 3B/3C: House call arrival
+    handleCompleteHouseCall, // Phase 3D: House call completion
   } = handlers;
+
+  // Wrap addCompoundToInventory to trigger sale proposal after mixing (Phase 2C)
+  const addCompoundToInventoryWithSaleTrigger = useCallback((compound) => {
+    // Call original function from GameStateContext
+    addCompoundToInventory(compound);
+
+    // Check if there's a pending mixing context for sale
+    if (mixingContextForSale) {
+      console.log('[Phase 2C] Mixing complete, triggering sale proposal for:', compound.name);
+
+      // Create sale proposal context
+      const saleContext = {
+        ...mixingContextForSale,
+        craftedItem: {
+          name: compound.name,
+          ingredients: compound.ingredients || []
+        }
+      };
+
+      // Show sale proposal card
+      setPendingSaleProposal(saleContext);
+
+      // Clear mixing context
+      setMixingContextForSale(null);
+    }
+  }, [addCompoundToInventory, mixingContextForSale, setPendingSaleProposal, setMixingContextForSale]);
 
   // Keyboard event listener for arrow key movement and A/D rotation
   useEffect(() => {
@@ -1038,19 +1180,29 @@ const GameContent = () => {
   const handleConfirmExit = () => {
     if (!pendingExitData) return;
 
-    // Execute the exit
+    console.log('[Exit] Confirming exit to:', pendingExitData.location);
+
+    // Execute the exit - update game state immediately
     updateLocation(pendingExitData.location);
     setCurrentMapId(pendingExitData.mapId);
     setPlayerPosition(pendingExitData.position);
 
-    // Show exit message
-    setHistoryOutput(pendingExitData.exitMessage);
-    addToHistory({ role: 'assistant', content: pendingExitData.exitMessage });
-    setUserActions(prev => [...prev, 'leave']);
-
-    // Clear state
+    // Clear modal state
     setShowExitConfirmation(false);
-    setPendingExitData(null);
+
+    // Trigger a full narrative turn to show the exit happening
+    // This lets the LLM describe the player leaving and arriving in the new location
+    const simulatedAction = `leave ${pendingExitData.locationName || 'the building'} and step outside`;
+
+    // Clear pending data after a brief delay to allow LLM to reference it
+    setTimeout(() => {
+      setPendingExitData(null);
+    }, 100);
+
+    // Trigger narrative turn
+    setTimeout(() => {
+      handleSubmit(null, simulatedAction);
+    }, 100);
   };
 
   // Study Tab - Book Click Handler
@@ -1146,7 +1298,8 @@ const GameContent = () => {
 
   // Get fresh NPC list on every render (cheap operation, spreads 5-item array)
   // Don't memoize - causes stale data bugs since npcTracker mutates internally
-  const recentNPCs = npcTracker.getRecentNPCs();
+  // NOTE: getRecentNPCs now from NPCContext
+  const recentNPCs = getRecentNPCs();
 
   // Memoize filtered NPC positions
   const filteredNPCPositions = useMemo(() =>
@@ -1166,113 +1319,31 @@ const GameContent = () => {
     setIsDiagnoseOpen(true);
   }, []);
 
-  // Common props for both mobile and desktop layouts
-  const layoutProps = {
-    gameState,
-    narrationDarkMode,
-    activeTab,
-    handleTabChange,
-    conversationHistory,
-    recentNPCs,
-    isLoading,
-    handleShowPrescribePopup,
-    handleShowDiagnosePopup,
-    gameLog,
-    activePatient,
-    patientDialogue,
-    handleAskQuestion,
-    pendingContract,
-    setIsContractModalOpen,
-    showExitConfirmation,
-    pendingExitData,
-    handleConfirmExit,
-    setShowExitConfirmation,
-    handleAcceptTrade,
-    handleDeclineTrade,
-    pendingSimpleInteraction,
-    handleSimpleInteractionChoice,
-    pendingRandomEvent,
-    handleRandomEventChoice,
-    handleEntityClick,
-    mariaPortraitUrl,
-    updateInventory,
-    addJournalEntry,
-    setHistoryOutput,
-    setConversationHistory,
-    setTurnNumber,
-    currentPrescriptionType,
-    advanceTime,
-    updateEnergy,
-    transactionManager,
-    TRANSACTION_CATEGORIES,
-    toggleInventory,
-    setLeftSidebarTab,
-    setShowMixingPopup,
-    setPendingPrescription,
-    setActiveTab,
-    pendingPrescription,
-    narrationFontSize,
-    isNarrationSettingsOpen,
-    isLLMViewOpen,
-    setNarrationFontSize,
-    setNarrationDarkMode,
-    setIsNarrationSettingsOpen,
-    setIsLLMViewOpen,
-    userInput,
-    setUserInput,
-    handleSubmit,
-    handleQuickAction,
-    handleItemDrop,
-    dynamicChips,
-    nearbyLocations,
-    primaryPortraitFile,
-    historyOutput,
-    scenarioLoader,
-    scenarioId,
-    filteredNPCPositions,
-    playerPosition,
-    playerFacing,
-    currentMapId,
-    toggleShopSign,
-    toast,
-    currentEntities,
-    discoveredBooks,
-    handleBookClick,
-    updateLocation,
-    handlePortraitClick,
-    setIsInteractiveMapModalOpen,
-    handleItemDropOnNPC,
-    handleEnterBuilding,
-    handleExitBuilding,
-    handleFurnitureClick,
-    handleSaveGame,
-    setIsSettingsOpen,
-    isCharacterCardCollapsed,
-    reputation,
-    reputationEmoji,
-    playerSkills,
-    activeEffects,
-    setShowEquipmentModal,
-    setSelectedItem,
-    setShowItemModal,
-    setReputationModalFaction,
-    setShowReputationModal,
-    setShowSkillsModal,
-    setDetailSkillId,
-    handleOpenFullInventory,
-    handleItemDropOnPlayer,
-    leftSidebarTab,
-    setIsCharacterCardCollapsed,
-    xpGain,
-    xpGainKey,
-    handleActionClick
-  };
-
   return (
       <DndProvider backend={HTML5Backend}>
         {/* Conditional rendering: Mobile layout for phones/tablets, Desktop layout for larger screens */}
         {(isMobile || isTablet) ? (
-          <MobileGameLayout {...layoutProps} />
+          <MobileGameLayout
+            handlers={handlers}
+            nearbyLocations={nearbyLocations}
+            filteredNPCPositions={filteredNPCPositions}
+            discoveredBooks={discoveredBooks}
+            dynamicChips={dynamicChips}
+            conversationHistory={conversationHistory}
+            historyOutput={historyOutput}
+            isLoading={isLoading}
+            userInput={userInput}
+            setUserInput={setUserInput}
+            turnNumber={turnNumber}
+            activeTab={activeTab}
+            narrationFontSize={narrationFontSize}
+            narrationDarkMode={narrationDarkMode}
+            gameLog={gameLog}
+            transactionManager={transactionManager}
+            TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
+            mariaPortraitUrl={mariaPortraitUrl}
+            currentMapId={currentMapId}
+          />
         ) : (
           <div className={`h-screen flex flex-col overflow-hidden bg-gradient-to-br from-parchment-100 via-parchment-50/50 to-parchment-50/80 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500 ${narrationDarkMode ? 'dark' : ''}`}>
 
@@ -1290,9 +1361,39 @@ const GameContent = () => {
           wealth={gameState.wealth}
         />
 
+        {/* House Call Active Indicator */}
+        {activePatient && (currentMapId === 'humble-house-interior' || currentMapId === 'middling-house-interior') && (
+          <div style={{
+            position: 'fixed',
+            top: '80px',
+            right: '20px',
+            zIndex: 1000,
+            backgroundColor: '#059669',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            maxWidth: '280px'
+          }}>
+            <div style={{ fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>🏥</span>
+              House Call Active
+            </div>
+            <div style={{ fontSize: '12px', opacity: 0.9 }}>
+              Patient: {activePatient.name}
+            </div>
+            <div style={{ fontSize: '11px', opacity: 0.8 }}>
+              Type "return to botica" when finished
+            </div>
+          </div>
+        )}
+
         {/* Main Content Area */}
         <div className="flex-1 overflow-hidden">
-          <div className={`h-full max-w-screen-2xl mx-auto px-4 py-4 flex gap-6 transition-all duration-500 ease-in-out ${
+          <div className={`h-full max-w-screen-2xl mx-auto px-4 py-1 flex gap-6 transition-all duration-500 ease-in-out ${
             activeTab === 'patient' ? 'gap-6' : 'gap-6'
           }`}>
 
@@ -1363,6 +1464,18 @@ const GameContent = () => {
                 // Simple interaction props
                 pendingSimpleInteraction={pendingSimpleInteraction}
                 onSimpleInteractionChoice={handleSimpleInteractionChoice}
+                // Sale inquiry props
+                pendingSaleInquiry={pendingSaleInquiry}
+                onPursueSale={handlers.handlePursueSale}
+                onDeclineSale={handlers.handleDeclineSale}
+                // Mixing decision props
+                pendingMixingDecision={pendingMixingDecision}
+                onOpenMixingWorkshop={handlers.handleOpenMixingWorkshop}
+                onAbandonMixing={handlers.handleAbandonMixing}
+                // Sale proposal props (Phase 2C)
+                pendingSaleProposal={pendingSaleProposal}
+                onCompleteSale={handlers.handleCompleteSale}
+                onAbandonSaleProposal={handlers.handleAbandonSaleProposal}
                 // Random event props
                 pendingRandomEvent={pendingRandomEvent}
                 onRandomEventChoice={handleRandomEventChoice}
@@ -1437,8 +1550,8 @@ const GameContent = () => {
                 recentNarrativeTurn={historyOutput} // Most recent narrative turn for LLM analysis
                 scenario={scenarioLoader.getScenario(scenarioId || '1680-mexico-city')}
                 npcs={filteredNPCPositions} // Only show NPCs mentioned in narrative
-                playerPosition={playerPosition} // Pass player position to map
-                playerFacing={playerFacing} // Pass player facing direction for interior map
+                playerPosition={travelAnimationState?.position || playerPosition} // Phase 4: Use animated position during travel
+                playerFacing={travelAnimationState?.direction || playerFacing} // Phase 4: Use animated direction during travel
                 currentMapId={currentMapId} // Pass current map ID to control which map is rendered
                 shopSignHung={gameState.shopSign?.hung || false} // Pass shop sign status
                 setIsLedgerOpen={setIsLedgerOpen} // Open Ledger Modal when Accounts button clicked
@@ -1447,6 +1560,9 @@ const GameContent = () => {
                 entities={currentEntities} // Entities for Wikipedia context panel
                 discoveredBooks={discoveredBooks} // Books discovered during gameplay
                 onBookClick={handleBookClick} // Handle book clicks in Study tab
+                pendingHouseCall={pendingHouseCall} // Phase 3B: House call data (triggers map view)
+                travelPath={travelAnimationState?.path || null} // Phase 4: Travel path for map animation
+                isTraveling={!!pendingHouseCall && !!travelAnimationState} // Phase 4: Whether currently traveling
                 onLocationChange={(newLocation) => {
                   console.log('Location changed to:', newLocation);
                   updateLocation(newLocation);
@@ -1572,7 +1688,7 @@ const GameContent = () => {
 
           // Callbacks and state setters
           addJournalEntry={addJournalEntry}
-          addCompoundToInventory={addCompoundToInventory}
+          addCompoundToInventory={addCompoundToInventoryWithSaleTrigger}
           updateInventory={updateInventory}
           advanceTime={advanceTime}
           handleJournalEntrySubmit={handleJournalEntrySubmit}
@@ -1685,7 +1801,34 @@ const GameContent = () => {
           onDecline={handleDeclineContract}
           inventory={gameState.inventory}
           theme={narrationDarkMode ? 'dark' : 'light'}
+          conversationHistory={conversationHistory}
         />
+
+        {/* Phase 3B: Travel Card - displayed when traveling to house call */}
+        {pendingHouseCall && (
+          <TravelCard
+            houseCallData={pendingHouseCall}
+            gameTime={gameState.time}
+            onArrival={handleHouseCallArrival}
+            onTravelUpdate={(travelState) => {
+              console.log('[GamePage] Travel state update:', travelState);
+              setTravelAnimationState(travelState);
+            }}
+            onCancel={() => {
+              console.log('[House Call] User cancelled travel');
+              setPendingHouseCall(null);
+              setTravelAnimationState(null); // Clear travel animation
+              // Refund payment
+              const refundAmount = pendingHouseCall.paymentAmount || 0;
+              if (refundAmount > 0) {
+                setWealth(prev => prev + refundAmount);
+                toast.info(`House call cancelled. ${refundAmount} reales refunded.`, { duration: 3000 });
+              } else {
+                toast.info('House call cancelled.', { duration: 2000 });
+              }
+            }}
+          />
+        )}
 
         {/* Item Consumption Modal - for consuming items by dragging to player portrait */}
         <ItemConsumptionModal
@@ -1707,11 +1850,42 @@ const GameContent = () => {
   );
 };
 
+/**
+ * GamePageWithProvider - Intermediate component to extract scenarioId from URL
+ * before passing it to providers
+ */
+function GamePageWithProvider() {
+  const { scenarioId } = useParams();
+
+  // Load scenario character data for PlayerProvider
+  const scenario = scenarioLoader.getScenario(scenarioId || '1680-mexico-city');
+  const characterData = scenario?.character;
+
+  return (
+    <GameStateProvider scenarioId={scenarioId || '1680-mexico-city'}>
+      <ModalProvider>
+        <PlayerProvider characterData={characterData}>
+          <NPCProvider>
+            <GameContent />
+          </NPCProvider>
+        </PlayerProvider>
+      </ModalProvider>
+    </GameStateProvider>
+  );
+}
+
+/**
+ * GamePage - Main export with all necessary providers
+ * PHASE 1.1: Added GameStateProvider to eliminate prop drilling
+ * PHASE 1.2: Added ModalProvider to manage all modal states
+ * PHASE 1.3: Added PlayerProvider to manage player state and skills
+ * PHASE 1.4: Added NPCProvider to manage NPC tracking and entity state
+ */
 export default function GamePage() {
   return (
     <ToastProvider>
       <MobileLayoutProvider>
-        <GameContent />
+        <GamePageWithProvider />
       </MobileLayoutProvider>
     </ToastProvider>
   );

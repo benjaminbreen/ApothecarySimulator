@@ -14,7 +14,7 @@ export default {
     width: 1200,
     height: 500
   },
-  startPosition: [600, 250], // Center aisle near entrance
+  startPosition: [120, 250], // Just inside west entrance
 
   // Three main areas: North stalls, South stalls, Central aisle
   rooms: [

@@ -807,6 +807,7 @@ Return ONLY the single best emoji to represent this:`;
                 src={headerImage}
                 alt={entity.name}
                 className="w-full h-full object-cover"
+                style={{ objectPosition: 'center 25%' }}
                 onError={handleImageError}
               />
             )}

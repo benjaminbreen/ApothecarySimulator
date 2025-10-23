@@ -30,7 +30,12 @@ const MobileBottomNav = ({
   className = ''
 }) => {
   const handleItemClick = (item) => {
-    if (item.disabled) return;
+    console.log('[MobileBottomNav] handleItemClick called with:', item);
+
+    if (item.disabled) {
+      console.log('[MobileBottomNav] Item is disabled, ignoring click');
+      return;
+    }
 
     // Trigger haptic feedback
     if (enableHaptics) {
@@ -39,12 +44,20 @@ const MobileBottomNav = ({
 
     // Call click handler
     if (onItemClick) {
+      console.log('[MobileBottomNav] Calling onItemClick with item:', item);
       onItemClick(item);
+    } else {
+      console.warn('[MobileBottomNav] No onItemClick handler provided!');
     }
   };
 
   return (
-    <nav className={`mobile-bottom-nav ${className}`} role="navigation">
+    <nav
+      className={`mobile-bottom-nav ${className}`}
+      role="navigation"
+      onClick={() => console.log('[MobileBottomNav] NAV ELEMENT CLICKED - clicks are reaching the nav!')}
+      style={{ border: '3px solid red' }}
+    >
       <div className="mobile-bottom-nav__container">
         {items.map((item) => {
           const isActive = activeItem === item.id;

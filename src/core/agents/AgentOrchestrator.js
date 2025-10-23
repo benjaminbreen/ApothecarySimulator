@@ -223,7 +223,8 @@ export async function orchestrateTurn({
       scenarioId,
       turnNumber,
       mapData,
-      availableLocations // NEW: Pass location registry for granular location tracking
+      availableLocations, // NEW: Pass location registry for granular location tracking
+      primaryNPC: narrativeResult.primaryNPC || null // NEW: Pass primary NPC for contract name resolution
     });
 
     // Step 5: Validate state changes
@@ -235,6 +236,7 @@ export async function orchestrateTurn({
     console.log('[AgentOrchestrator] primaryPortrait from narrative:', narrativeResult.primaryPortrait);
     console.log('[AgentOrchestrator] primaryNPC from narrative:', narrativeResult.primaryNPC ? narrativeResult.primaryNPC.name : 'null');
     console.log('[AgentOrchestrator] requestNewPatient from narrative:', narrativeResult.requestNewPatient);
+    console.log('[AgentOrchestrator] npcDeparted from narrative:', narrativeResult.npcDeparted);
     if (stateResult.contractOffer) {
       console.log('[AgentOrchestrator] contractOffer from state:', stateResult.contractOffer.type, stateResult.contractOffer);
     }
@@ -254,6 +256,7 @@ export async function orchestrateTurn({
       simpleInteraction: narrativeResult.simpleInteraction || null, // Simple interaction data from NarrativeAgent
       requestNewPatient: narrativeResult.requestNewPatient || false, // LLM controls patient flow
       patientContext: narrativeResult.patientContext || null, // Reason for patient arrival
+      npcDeparted: narrativeResult.npcDeparted || false, // NPC has left the scene
       gameState: validatedState,
       inventoryChanges: stateResult.inventoryChanges || [],
       relationshipChanges: stateResult.relationshipChanges || [], // NPC relationship changes

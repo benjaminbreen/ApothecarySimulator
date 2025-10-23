@@ -25,6 +25,30 @@ export default function SimpleInteractionCard({
     );
   };
 
+  // Helper: Check if donation is abstract (non-physical)
+  const isAbstractDonation = (itemName) => {
+    if (!itemName) return false;
+    const lower = itemName.toLowerCase();
+    // Abstract donations: time, access, permission, information, advice, etc.
+    const abstractPatterns = [
+      'time',
+      'access',
+      'permission',
+      'information',
+      'advice',
+      'guidance',
+      'knowledge',
+      'wisdom',
+      'favor',
+      'blessing',
+      'prayer',
+      'secret',
+      'help',
+      'assistance'
+    ];
+    return abstractPatterns.some(pattern => lower.includes(pattern));
+  };
+
   // Helper: Check if player can afford
   const canAfford = (price) => currentWealth >= price;
 
@@ -154,7 +178,8 @@ export default function SimpleInteractionCard({
   // Donation request (beggar asking for charity)
   if (type === 'donation_request' && interaction.request) {
     const { item, reason, urgency, reputationImpact } = interaction.request;
-    const hasTheItem = hasItem(item);
+    const isAbstract = isAbstractDonation(item);
+    const hasTheItem = isAbstract ? true : hasItem(item); // Abstract donations always available
 
     return (
       <div className="animate-fade-in mb-4">
@@ -198,7 +223,7 @@ export default function SimpleInteractionCard({
                 disabled={!hasTheItem}
                 className={`px-4 py-2 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                Donate {item}
+                Donate {isAbstract ? '' : item}
               </button>
               <button
                 onClick={() => onChoice('refuse', interaction)}

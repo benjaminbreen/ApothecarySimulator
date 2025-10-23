@@ -316,9 +316,8 @@ export function ActionPanel({
       buttonRefs.current[refKey] = { current: null };
     }
 
-    // Stagger animation delay
-    const animationDelay = isInitialRender ? `${slot * 100}ms` : '0ms';
-    const animationClass = isInitialRender ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0';
+    // Stagger animation delay using cascade-in
+    const animationDelay = isInitialRender ? `${slot * 50}ms` : '0ms';
 
     return (
       <div key={slot} className="relative group/tooltip">
@@ -328,7 +327,7 @@ export function ActionPanel({
           onMouseLeave={() => setHoveredAction(null)}
           onClick={() => onActionClick?.(actionId)}
           rippleColor={colorScheme.glowColor}
-          className={`relative overflow-hidden ${animationClass} ${
+          className={`relative overflow-hidden ${isInitialRender ? 'animate-cascade-in' : ''} ${
             isSignActive
               ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/30 dark:to-orange-900/30 border-2 border-amber-400 dark:border-amber-600 shadow-lg shadow-amber-200/50 dark:shadow-amber-900/30 animate-pulse-slow'
               : 'bg-white dark:bg-gray-800 border-2 border-[#e5dcc9] dark:border-gray-700'
@@ -336,7 +335,7 @@ export function ActionPanel({
             isPressed ? 'scale-95' : 'hover:-translate-y-1'
           }`}
           style={{
-            transitionDelay: animationDelay
+            animationDelay: animationDelay
           }}
         >
           {/* Subtle radial gradient around emoji on hover */}
@@ -401,9 +400,8 @@ export function ActionPanel({
       buttonRefs.current[refKey] = { current: null };
     }
 
-    // Stagger animation delay (start after primary buttons)
-    const animationDelay = isInitialRender ? `${(index + 4) * 100}ms` : '0ms';
-    const animationClass = isInitialRender ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0';
+    // Stagger animation delay (start after primary buttons with cascade-in)
+    const animationDelay = isInitialRender ? `${(index + 3) * 50}ms` : '0ms';
 
     return (
       <div key={action.id} className="relative group/tooltip">
@@ -413,9 +411,9 @@ export function ActionPanel({
           onMouseLeave={() => setHoveredAction(null)}
           onClick={() => onActionClick?.(action.id)}
           rippleColor={greenRippleColor}
-          className={`${animationClass} group bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 border border-[#e5dcc9] dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700/50 rounded-lg p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-all duration-300 w-full`}
+          className={`${isInitialRender ? 'animate-cascade-in' : ''} group bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 border border-[#e5dcc9] dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700/50 rounded-lg p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-all duration-300 w-full`}
           style={{
-            transitionDelay: animationDelay
+            animationDelay: animationDelay
           }}
         >
           {/* Icon */}
@@ -504,7 +502,7 @@ export function ActionPanel({
         </div>
 
         {/* Action Buttons - Compact */}
-        <div className="flex gap-2 pt-2">
+        <div className="flex gap-2 pt-1">
           <button
             onClick={handleSaveSettings}
             className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-2 px-3 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 font-sans text-sm"
@@ -536,7 +534,7 @@ export function ActionPanel({
     <div className={className}>
       {/* Main Panel with Glassomorphic Effect - Bottom-Right Variant */}
       <div
-        className="group rounded-2xl p-3.5 transition-all duration-500 relative overflow-hidden"
+        className="group rounded-2xl p-3 transition-all duration-500 relative overflow-hidden"
         style={{
           background: isDark
             ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(30, 41, 59, 0.92) 50%, rgba(15, 23, 42, 0.90) 100%)'
@@ -551,7 +549,7 @@ export function ActionPanel({
       >
 
         {/* Primary Actions Section Header with Elegant Dividers */}
-        <div className="flex items-center gap-2.5 mb-2.5">
+        <div className="flex items-center gap-2.5 mb-2">
           <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#d4c5a9] to-[#d4c5a9] dark:via-gray-600 dark:to-gray-600"></div>
           <span className="font-sans text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-[0.15em] whitespace-nowrap">
             Primary Actions
@@ -592,13 +590,13 @@ export function ActionPanel({
         </div>
 
         {/* Resources Section Header with Elegant Dividers */}
-        <div className="flex items-center gap-2.5 mb-2">
+        <div className="flex items-center gap-2 mb-2">
           <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#d4c5a9] to-[#d4c5a9] dark:via-gray-600 dark:to-gray-600"></div>
           
         </div>
 
         {/* 4 Secondary Buttons (2x2 GRID) - Compact */}
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1">
           {renderSecondaryButton({
             id: 'roster',
             icon: <FaClipboardList />,
@@ -625,15 +623,7 @@ export function ActionPanel({
           }, 3)}
         </div>
 
-        {/* NPC Active Indicator */}
-        {hasActiveNPC && (
-          <div className="mt-2.5 bg-[#fff8e7] dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-1.5 flex items-center justify-center space-x-2">
-            <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></div>
-            <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">
-              NPC Active — Press <kbd className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded font-mono text-xs">3</kbd> to {currentSlot3 === 'diagnose' ? 'Diagnose' : AVAILABLE_ACTIONS[currentSlot3].name}
-            </span>
-          </div>
-        )}
+       
       </div>
     </div>
   );

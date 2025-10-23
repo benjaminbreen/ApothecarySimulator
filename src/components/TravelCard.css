@@ -1,0 +1,227 @@
+/**
+ * TravelCard.css
+ *
+ * Styling for Phase 3B Travel Card
+ * Theme: Teal/cyan gradient for travel/journey
+ */
+
+.travel-card {
+  /* MODAL OVERLAY POSITIONING */
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+
+  /* VISUAL STYLING */
+  background: linear-gradient(135deg, #0d9488 0%, #06b6d4 100%);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 600px;
+  width: 90%;
+  box-shadow: 0 8px 24px rgba(6, 182, 212, 0.5), 0 0 0 9999px rgba(0, 0, 0, 0.6);
+  color: white;
+  animation: slideIn 0.4s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.travel-card-header {
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+
+.travel-card-header h3 {
+  margin: 0 0 12px 0;
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.travel-destination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+}
+
+.destination-label {
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.destination-name {
+  font-weight: 700;
+  font-size: 18px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.travel-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.patient-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 10px 16px;
+  border-radius: 8px;
+}
+
+.patient-info .label {
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.patient-info .value {
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.travel-details {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.detail-item .label {
+  font-size: 13px;
+  opacity: 0.8;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-item .value {
+  font-size: 18px;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.travel-narrative {
+  background: rgba(255, 255, 255, 0.12);
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid rgba(255, 255, 255, 0.4);
+}
+
+.travel-narrative p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  font-style: italic;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-bar {
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #34d399 0%, #10b981 100%);
+  border-radius: 12px;
+  transition: width 0.1s linear;
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.6);
+}
+
+.progress-text {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.travel-card-footer {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.skip-travel-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  color: white;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.skip-travel-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.skip-travel-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive design */
+@media (max-width: 640px) {
+  .travel-card {
+    padding: 20px;
+    margin: 12px;
+  }
+
+  .travel-card-header h3 {
+    font-size: 20px;
+  }
+
+  .travel-details {
+    gap: 12px;
+  }
+
+  .detail-item .value {
+    font-size: 16px;
+  }
+
+  .travel-narrative p {
+    font-size: 14px;
+  }
+}

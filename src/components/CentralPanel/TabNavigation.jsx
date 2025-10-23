@@ -39,7 +39,7 @@ export function TabNavigation({ activeTab, onTabChange, hasActivePatient, onOpen
   const tabs = allTabs.filter(tab => tab.showIf === undefined || tab.showIf === true);
 
   return (
-    <div className="relative flex items-center gap-1 px-5 py-0 bg-gradient-to-b from-parchment-50 to-white/40 dark:from-slate-800 dark:to-slate-900/40 backdrop-blur-sm transition-colors duration-300">
+    <div className="relative flex items-center border-b-2 border-slate-400/30 bg-parchment-50/40 opacity-90 gap-1 px-5 py-0 bg-gradient-to-b from-parchment-50 to-white/40 dark:from-slate-800 dark:to-slate-900/40 backdrop-blur-sm transition-colors duration-300">
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -56,7 +56,7 @@ export function TabNavigation({ activeTab, onTabChange, hasActivePatient, onOpen
             zIndex: activeTab === tab.id ? 10 : 1,
           }}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             {tab.icon}
             <span>{tab.label}</span>
           </div>

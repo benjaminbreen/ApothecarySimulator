@@ -151,13 +151,14 @@ export function selectContextAwareEntity(context) {
       weight *= 0.1; // Much less likely to repeat
     }
 
-    // Location-based probability (workplace keywords)
+    // PATIENT PRIORITY: Patients should be ~50% of encounters
+    // Goal: 50% patients, 25% messengers, 25% simple interactions
     const workplaceKeywords = ['botica', 'shop', 'apothecary', 'pharmacy', 'store', 'clinic', 'office'];
     const isAtWorkplace = workplaceKeywords.some(keyword =>
       location.toLowerCase().includes(keyword)
     );
     if (isAtWorkplace && (entity.entityType || entity.type) === 'patient') {
-      weight *= 2.0; // Patients more likely at workplace
+      weight *= 4.0; // Patients more likely at workplace (balanced with ~30 total patients)
     }
 
     // Time-based probability
@@ -173,7 +174,7 @@ export function selectContextAwareEntity(context) {
 
     // Morning: more likely to get regular patients
     if (actualHour >= 8 && actualHour <= 12) {
-      if ((entity.entityType || entity.type) === 'patient') weight *= 1.5;
+      if ((entity.entityType || entity.type) === 'patient') weight *= 1.5; // Boost patients in morning
     }
 
     // Faction-based reputation effects
@@ -221,6 +222,13 @@ export function selectContextAwareEntity(context) {
       if (conditionCheck.reason) {
         console.log(`[EntityAgent] Condition modifier for ${entity.name}: ${conditionCheck.weight}x (${conditionCheck.reason})`);
       }
+    }
+
+    // SIMPLE INTERACTION PENALTY: Reduce frequency to ~25% of encounters
+    // Simple interactions (vendors, beggars, etc.) should be less common than patients
+    // Condition weights are 5-6x, penalty brings them to 2.5-3x effective
+    if (entity.simpleInteractionType) {
+      weight *= 0.5; // Reduce simple interaction frequency
     }
 
     return weight;

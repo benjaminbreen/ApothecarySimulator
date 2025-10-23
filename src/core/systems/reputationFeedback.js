@@ -72,7 +72,7 @@ export function applyRelationshipToReputation(npcId, relationshipDelta, reason, 
   }
 
   // Get NPC data
-  const npc = entityManager.get(npcId);
+  const npc = entityManager.getById(npcId);
 
   if (!npc || !npc.social?.faction) {
     console.log('[ReputationFeedback] NPC has no faction:', npcId);

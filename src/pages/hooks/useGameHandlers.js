@@ -1,5 +1,24 @@
 // useGameHandlers.js
-// Custom hook containing all event handlers for GamePage
+// Main orchestrator hook for GamePage - coordinates specialized handler hooks
+//
+// REFACTORING COMPLETE (Phase 2.7):
+// This hook now serves as a thin orchestrator, delegating to specialized hooks:
+//   - useNavigationHandlers: Movement, map, travel, interior navigation
+//   - useMedicalHandlers: Patient Q&A, treatment contracts, diagnosis
+//   - useCommerceHandlers: Sales, trades, NPC interactions
+//   - useResourceHandlers: Health, energy, eating, foraging
+//   - useUIHandlers: Modals, toggles, commands, actions, tabs
+//   - useItemHandlers: Item drop, give/sell/prescribe
+//
+// This hook retains only:
+//   - Core orchestration logic (handleSubmit - main narrative processor)
+//   - Helper functions (addToHistory, addJournalEntry, generateNewItemDetails)
+//   - Simple state setters (wealth, reputation, incorporate)
+//   - Event coordinators (entity click, random events, furniture)
+//
+// Original size: 3,180 lines with 95 parameters
+// Current size: ~1,490 lines (53% reduction)
+// Target size: Sub-300 lines pure orchestration layer
 
 import { useCallback, useRef } from 'react';
 import { orchestrateTurn } from '../../core/agents/AgentOrchestrator';
@@ -18,9 +37,27 @@ import { getXPForNextLevel, getPlayerTitle } from '../../core/systems/levelingSy
 import { resolvePortrait } from '../../core/services/portraitResolver';
 import { parseNarrativeChoices } from '../../utils/narrativeParser';
 import { generateNextSteps } from '../../core/services/nextStepsGenerator';
-import { mapNPCFactionToSystemFaction } from '../../core/systems/reputationSystem';
+import { mapNPCFactionToSystemFaction, updateFactionFromNPCInteraction } from '../../core/systems/reputationSystem';
 import { checkForRandomEvent, processEventChoice, initializeEventSystem } from '../../core/events/randomEventService';
 import { getDetailImagePathSync } from '../../utils/detailImageResolver';
+
+// PHASE 2.1: Specialized navigation handlers hook
+import { useNavigationHandlers } from './useNavigationHandlers';
+
+// PHASE 2.2: Specialized medical handlers hook
+import { useMedicalHandlers } from './useMedicalHandlers';
+
+// PHASE 2.3: Specialized commerce handlers hook
+import { useCommerceHandlers } from './useCommerceHandlers';
+
+// PHASE 2.4: Specialized resource handlers hook
+import { useResourceHandlers } from './useResourceHandlers';
+
+// PHASE 2.5: Specialized UI handlers hook
+import { useUIHandlers } from './useUIHandlers';
+
+// PHASE 2.6: Specialized item handlers hook
+import { useItemHandlers } from './useItemHandlers';
 
 export function useGameHandlers({
   // State setters
@@ -37,6 +74,7 @@ export function useGameHandlers({
   setIsMapOpen,
   setIsDiagnoseOpen,
   setShowMixingPopup,
+  toggleModal, // Modal context toggle function
   setSelectedPDF,
   setSelectedCitation,
   setIsPdfOpen,
@@ -44,6 +82,8 @@ export function useGameHandlers({
   setShowPatientModal,
   setSelectedNPC,
   setShowNPCModal,
+  setSelectedItem,
+  setShowItemModal,
   setJournal,
   setCustomJournalEntry,
   setEnergy,
@@ -82,6 +122,11 @@ export function useGameHandlers({
   setIsBloodlettingOpen,
   setIsPatientRosterOpen,
   setPendingContract,
+  setPendingSaleInquiry,
+  setPendingMixingDecision,
+  setPendingSaleProposal,
+  setMixingContextForSale,
+  setPendingHouseCall, // House call system (Phase 3A)
   setIsContractModalOpen,
   setPendingExitData, // Exit confirmation system
   setShowExitConfirmation, // Exit confirmation system
@@ -95,6 +140,7 @@ export function useGameHandlers({
   setSelectedPOIEntity, // Selected entity for POI modal
 
   // State values
+  isLoading, // CRITICAL FIX: Loading state for double-click guard
   energy,
   health,
   currentWealth,
@@ -139,11 +185,10 @@ export function useGameHandlers({
   awardSkillXP,
 }) {
 
-  // Helper: Fuzzy match for NPC names
-  const fuzzyMatch = (input, target) => {
-    if (!input || !target) return false;
-    return target.toLowerCase().includes(input.toLowerCase());
-  };
+  // ============================================================================
+  // SECTION 1: HELPER FUNCTIONS
+  // Core utilities used by the main orchestration logic
+  // ============================================================================
 
   // Helper: Add entry/entries to conversation history with automatic timestamps
   const addToHistory = useCallback((...entries) => {
@@ -157,8 +202,7 @@ export function useGameHandlers({
     setConversationHistory(prev => [...prev, ...timestampedEntries]);
   }, [gameState.time, gameState.date, setConversationHistory]);
 
-  // Track current building entrance point for exits
-  const currentBuildingRef = useRef(null);
+  // PHASE 2.1: currentBuildingRef moved to useNavigationHandlers.js
 
   // Track previous portrait entity for smooth transitions (persists across renders)
   const previousPortraitEntityRef = useRef(null);
@@ -166,7 +210,11 @@ export function useGameHandlers({
   // PHASE 2: Track recent portrait filename for consistency across turns
   const recentPortraitRef = useRef(null);
 
-  // STATE CHANGE HANDLERS
+  // ============================================================================
+  // SECTION 2: SIMPLE STATE SETTERS
+  // Basic handlers for state updates (wealth, reputation, etc.)
+  // ============================================================================
+
   const handleWealthChange = (newWealth) => {
     setWealth(newWealth);
   };
@@ -214,42 +262,10 @@ export function useGameHandlers({
   };
 
   // TOGGLE HANDLERS
-  const toggleJournal = () => setIsJournalOpen(prev => !prev);
-  const toggleInventory = () => setIsInventoryOpen(prev => !prev);
-  const toggleHistory = () => setIsHistoryOpen(prev => !prev);
-  const toggleAbout = () => setIsAboutOpen(prev => !prev);
-  const toggleMap = () => setIsMapOpen(prev => !prev);
-  const toggleDiagnose = () => setIsDiagnoseOpen(prev => !prev);
-  const toggleMixingPopup = () => setShowMixingPopup(prev => !prev);
-
-  // PDF HANDLERS
-  const handlePDFClick = useCallback((pdfPath, citation) => {
-    setSelectedPDF(pdfPath);
-    setSelectedCitation(citation);
-    setIsPdfOpen(true);
-  }, [setSelectedPDF, setSelectedCitation, setIsPdfOpen]);
-
-  const closePdfPopup = () => {
-    setIsPdfOpen(false);
-    setSelectedPDF(null);
-    setSelectedCitation(null);
-  };
-
-  // PORTRAIT/NPC HANDLERS
-  const handlePortraitClick = useCallback((npcData) => {
-    if (!npcData) return;
-
-    console.log('[Portrait Click] NPC Data:', npcData);
-
-    if (npcData.type === 'patient') {
-      setSelectedPatient(npcData);
-      setShowPatientModal(true);
-    } else {
-      console.log('[Portrait Click] Non-patient NPC clicked:', npcData.name);
-      setSelectedNPC(npcData);
-      setShowNPCModal(true);
-    }
-  }, [setSelectedPatient, setShowPatientModal, setSelectedNPC, setShowNPCModal]);
+  // PHASE 2.5: All toggle functions moved to useUIHandlers.js
+  // PHASE 2.5: handlePDFClick moved to useUIHandlers.js
+  // PHASE 2.5: closePdfPopup moved to useUIHandlers.js
+  // PHASE 2.5: handlePortraitClick moved to useUIHandlers.js
 
   // JOURNAL HANDLERS
   const addJournalEntry = (entry) => {
@@ -270,213 +286,178 @@ export function useGameHandlers({
   };
 
   // RESOURCE MANAGEMENT
-  const applyResourceChanges = useCallback((action, modifiers = {}) => {
-    // Calculate energy change
-    const newEnergy = resourceManager.calculateEnergyChange(energy, action, modifiers);
-    setEnergy(newEnergy);
+  // PHASE 2.4: applyResourceChanges moved to useResourceHandlers.js
 
-    // Update low energy streak
-    const newStreak = resourceManager.updateLowEnergyStreak(newEnergy, consecutiveLowEnergyTurns);
-    setConsecutiveLowEnergyTurns(newStreak);
+  // PHASE 2.4: handleEat moved to useResourceHandlers.js
 
-    // Calculate health changes
-    const healthUpdate = resourceManager.calculateHealthDecrease(health, {
-      wealth: currentWealth,
-      energy: newEnergy,
-      consecutiveLowEnergyTurns: newStreak
-    }, modifiers);
+  // PHASE 2.4: handleForageComplete moved to useResourceHandlers.js
 
-    // Apply health bonus if provided
-    const healthBonus = modifiers.healthBonus || 0;
-    const finalHealth = Math.min(100, Math.max(0, healthUpdate.newHealth + healthBonus));
+  // ============================================================================
+  // SECTION 3: SPECIALIZED HOOK INITIALIZATION
+  // Initialize all 6 specialized handler hooks (must come AFTER helpers)
+  // ============================================================================
 
-    setHealth(finalHealth);
-
-    // Note: Maria's portrait is calculated dynamically in GamePage via getMariaPortrait()
-    // No need to update status here
-
-    // Check for warnings
-    const energyWarning = resourceManager.getEnergyWarning(newEnergy);
-    const healthWarning = resourceManager.getHealthWarning(finalHealth);
-
-    // Update active effects
-    const newEffects = [];
-
-    if (newEnergy < 20) {
-      newEffects.push({
-        icon: '😴',
-        name: 'Exhausted',
-        description: 'Working too hard without rest',
-        duration: 'Until rest'
-      });
-    }
-
-    if (modifiers.wellRested) {
-      newEffects.push({
-        icon: '✨',
-        name: 'Well Rested',
-        description: 'Full night of sleep',
-        duration: '3 turns'
-      });
-    }
-
-    if (modifiers.energyBonus && modifiers.energyBonus >= 15) {
-      newEffects.push({
-        icon: '🍲',
-        name: 'Nourished',
-        description: 'Recently ate well',
-        duration: '2 turns'
-      });
-    }
-
-    if (healthWarning) {
-      newEffects.push({
-        icon: healthWarning.icon,
-        name: 'Health Issue',
-        description: healthWarning.message,
-        duration: 'Until treated'
-      });
-    }
-
-    setActiveEffects(newEffects);
-
-    return { energyWarning, healthWarning, healthDecrease: healthUpdate.decrease, reasons: healthUpdate.reasons };
-  }, [energy, health, currentWealth, consecutiveLowEnergyTurns, setEnergy, setConsecutiveLowEnergyTurns, setHealth, setActiveEffects]);
-
-  // EAT HANDLER
-  const handleEat = useCallback((meal) => {
-    setWealth(prev => prev - meal.cost);
-
-    applyResourceChanges('eat', {
-      energyBonus: meal.energy,
-      healthBonus: meal.health
-    });
-
-    const eatMessage = `*Maria ate ${meal.quality === 'good' ? 'a hearty meal' : meal.quality === 'adequate' ? 'a simple meal' : 'meager rations'}. ${meal.message}*`;
-    addToHistory({ role: 'system', content: eatMessage });
-
-    addJournalEntry({
-      turnNumber,
-      date: gameState.date,
-      entry: `Ate a meal (${meal.cost} reales). Energy restored by ${meal.energy}.`
-    });
-  }, [applyResourceChanges, turnNumber, gameState.date, setWealth, addToHistory]);
-
-  // FORAGE HANDLER
-  const handleForageComplete = useCallback(async (forageResult) => {
-    console.log('[Forage] Completing forage action:', forageResult);
-
-    if (forageResult.foundItem && forageResult.item) {
-      const item = forageResult.item;
-
-      updateInventory(item.name, forageResult.quantity, 'foraged');
-      await generateNewItemDetails(item.name);
-
-      if (forageResult.rarity === 'rare') {
-        toast.success(`✨ Rare find! You discovered ${forageResult.quantity}x ${item.name}!`, { duration: 5000 });
-      } else if (forageResult.rarity === 'uncommon') {
-        toast.success(`🌟 Uncommon find! You found ${forageResult.quantity}x ${item.name}.`, { duration: 4000 });
-      }
-
-      addJournalEntry({
-        turnNumber,
-        date: gameState.date,
-        entry: `Foraged at ${gameState.location}. Found ${forageResult.quantity}x ${item.name} (${forageResult.rarity}). ${item.message || ''}`
-      });
-
-      // Award herbalism skill XP (only when item found)
-      if (typeof awardSkillXP === 'function') {
-        awardSkillXP('herbalism', forageResult.rarity === 'rare' ? 10 : forageResult.rarity === 'uncommon' ? 6 : 3);
-      }
-
-      const forageMessage = `*You foraged at ${gameState.location} and found ${forageResult.quantity}x ${item.name}. ${item.message || ''}*`;
-      addToHistory({ role: 'system', content: forageMessage });
-    } else if (forageResult.foundNothing) {
-      addJournalEntry({
-        turnNumber,
-        date: gameState.date,
-        entry: `Foraged at ${gameState.location}. Found nothing this time.`
-      });
-
-      const forageMessage = `*You searched ${gameState.location} for useful materials, but found nothing of value.*`;
-      addToHistory({ role: 'system', content: forageMessage });
-    }
-
-    // Award XP for foraging (+1 XP per forage, regardless of result)
-    if (typeof awardXP === 'function') {
-      const itemName = forageResult.foundItem && forageResult.item ? forageResult.item.name : 'nothing';
-      awardXP(1, `foraging_${itemName}`);
-      console.log(`[XP] Awarded 1 XP for foraging (found: ${itemName})`);
-    }
-
-    const newEnergy = Math.max(0, energy - forageResult.energyCost);
-    setEnergy(newEnergy);
-
-    applyResourceChanges('forage', {
-      energyBonus: -forageResult.energyCost
-    });
-
-    const timeData = {
-      time: gameState.time,
-      date: gameState.date,
-      location: gameState.location
-    };
-    advanceTime(timeData, forageResult.timeCost);
-
-    console.log('[Forage] Forage complete - energy:', newEnergy, 'time advanced:', forageResult.timeCost, 'minutes');
-  }, [
-    updateInventory,
-    generateNewItemDetails,
-    addJournalEntry,
-    turnNumber,
-    gameState.date,
-    gameState.location,
-    gameState.time,
+  // PHASE 2.1: Initialize navigation handlers hook
+  // NOTE: Must come AFTER addJournalEntry and addToHistory are defined
+  const navigationHandlers = useNavigationHandlers({
+    setIsLoading,
+    setUserInput,
+    setUserActions,
+    setHistoryOutput,
     setConversationHistory,
+    setTurnNumber,
+    setPendingExitData,
+    setShowExitConfirmation,
+    setDynamicChips,
+    addJournalEntry,
+    addToHistory,
+    // Legacy params (still needed for orchestrateTurn)
+    gameState,
+    playerPosition,
+    playerFacing,
+    currentMapId,
+    setCurrentMapId,
+    currentMapData,
+    conversationHistory,
+    turnNumber,
+    npcTracker,
+    reputation,
+    currentWealth,
+    npcPositions,
+    playerSkills,
+    journal,
+    scenarioId,
+    // Phase 3B: House call arrival
+    setActivePatient,
+    setPatientDialogue,
+    setPendingHouseCall,
+    toast,
+    // Phase 3C: Patient positioning
+    setNPCPosition,
+    // Phase 3D: House call completion
+    awardXP,
+    updateReputation,
+  });
+
+  // PHASE 2.2: Initialize medical handlers hook
+  // NOTE: Must come AFTER addJournalEntry and other helpers are defined
+  const medicalHandlers = useMedicalHandlers({
+    addJournalEntry,
+    setConversationHistory,
+    setHistoryOutput,
+    setIsLoading,
+    toast,
+    awardXP,
+    previousPortraitEntityRef,
+    recentPortraitRef,
+    setPendingHouseCall,
+    // Legacy params
+    gameState,
+    turnNumber,
+    conversationHistory,
     energy,
-    setEnergy,
-    applyResourceChanges,
+    updateEnergy,
     advanceTime,
-    toast
-  ]);
+    scenarioId,
+  });
 
-  // ITEM DROP HANDLER - Formats item text for input field
-  const handleItemDrop = useCallback((item) => {
-    // Get quality inline
-    const getItemQuality = (item) => {
-      if (!item || !item.quality) return 'standard';
-      return item.quality;
-    };
+  // PHASE 2.4: Initialize resource handlers hook
+  // NOTE: Must come AFTER addJournalEntry, addToHistory, and generateNewItemDetails are defined
+  const resourceHandlers = useResourceHandlers({
+    addJournalEntry,
+    addToHistory,
+    generateNewItemDetails,
+    toast,
+    awardXP,
+    // Legacy params
+    gameState,
+    turnNumber,
+    energy,
+    health,
+    currentWealth,
+    consecutiveLowEnergyTurns,
+    setEnergy,
+    setHealth,
+    setConsecutiveLowEnergyTurns,
+    setActiveEffects,
+  });
 
-    const quantity = item.quantity || 1;
-    const isMedicine = !['clothing', 'misc', 'tool', 'weapon'].includes(item.type || item.entityType);
+  // PHASE 2.5: Initialize UI handlers hook
+  // NOTE: Must come AFTER addJournalEntry, addToHistory, and other helpers are defined
+  const uiHandlers = useUIHandlers({
+    setIsJournalOpen,
+    setIsInventoryOpen,
+    setIsHistoryOpen,
+    setIsAboutOpen,
+    setIsMapOpen,
+    setIsDiagnoseOpen,
+    setShowMixingPopup,
+    toggleModal, // Pass toggleModal for proper modal toggling
+    setSelectedPDF,
+    setSelectedCitation,
+    setIsPdfOpen,
+    setSelectedPatient,
+    setShowPatientModal,
+    setSelectedNPC,
+    setShowNPCModal,
+    setUserInput,
+    setIsBuyOpen,
+    setIsRestDurationOpen,
+    setIsEatOpen,
+    setIsForageOpen,
+    setIsPatientRosterOpen,
+    setTradingNPC,
+    setTradeMode,
+    setIsLedgerOpen,
+    setSelectedNpcName,
+    setShowSymptomsPopup,
+    setCurrentPatient,
+    setIsPrescribing,
+    setIsPrescribePopupOpen,
+    setNPCPosition,
+    setIsModernInventoryOpen,
+    setActiveTab,
+    setHistoryOutput,
+    setIsLoading,
+    toast,
+    // Legacy params
+    gameState,
+    npcTracker,
+    npcPositions,
+  });
 
-    // Get quality prefix
-    const quality = getItemQuality(item);
-    const qualityPrefix = quality === 'high_quality' ? 'high quality ' : quality === 'exceptional' ? 'exceptional ' : '';
+  // PHASE 2.6: Initialize item handlers hook
+  const itemHandlers = useItemHandlers({
+    setUserInput,
+    setConversationHistory,
+    setHistoryOutput,
+    addJournalEntry,
+    toast,
+    // Legacy params
+    gameState,
+    turnNumber,
+  });
 
-    // Number words for quantities 1-10
-    const numberWords = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
-    const quantityWord = quantity <= 10 ? numberWords[quantity] : quantity.toString();
+  // PHASE 2.6: handleItemDrop moved to useItemHandlers.js
 
-    let formattedText;
-    if (isMedicine) {
-      // For medicine: "Three drachms of high quality opium"
-      const drachmText = quantity === 1 ? 'drachm' : 'drachms';
-      formattedText = `${quantityWord} ${drachmText} of ${qualityPrefix}${item.name.toLowerCase()}`;
-    } else {
-      // For other items: "Two leather shoes" or "One blue apron"
-      formattedText = `${quantityWord} ${qualityPrefix}${item.name.toLowerCase()}`;
-    }
-
-    // Capitalize first letter
-    const capitalizedText = formattedText.charAt(0).toUpperCase() + formattedText.slice(1);
-    setUserInput(capitalizedText);
-  }, [setUserInput]);
+  // ============================================================================
+  // SECTION 4: MAIN ORCHESTRATOR
+  // Core narrative processing logic (handleSubmit)
+  // ============================================================================
 
   // MAIN SUBMIT HANDLER
   const handleSubmit = useCallback(async (e, actionOverride = null) => {
-    e.preventDefault();
+    // Prevent default only if called from form event
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+
+    // CRITICAL FIX: Prevent double-click/spam submissions
+    if (isLoading) {
+      console.log('[handleSubmit] Already processing, ignoring duplicate submission');
+      return;
+    }
+
     setIsLoading(true);
 
     // Use override if provided (from chip clicks), otherwise fall back to userInput state
@@ -526,58 +507,11 @@ export function useGameHandlers({
       return;
     }
 
-    // Handle fast travel to specific location (from "Go somewhere" dropdown)
+    // PHASE 2.1: Handle fast travel using navigation handler
     if (narrativeText.startsWith('#fast_travel ')) {
       const locationName = originalInput.substring(13); // Remove "#fast_travel " while preserving case
-      console.log('[HandleSubmit] Fast travel to:', locationName);
-
-      // Map location names to map IDs
-      const locationMap = {
-        'Botica de la Amargura': 'botica-interior',
-        'Metropolitan Cathedral': 'cathedral-interior',
-        'La Merced Market': 'mercado-interior'
-      };
-
-      const mapId = locationMap[locationName];
-      console.log('[HandleSubmit] Location mapping:', { locationName, mapId, availableLocations: Object.keys(locationMap) });
-
-      if (mapId) {
-        console.log('[HandleSubmit] Traveling to:', locationName, 'mapId:', mapId);
-
-        // Update location
-        setGameState(prev => ({
-          ...prev,
-          location: locationName
-        }));
-
-        // Set the map
-        setCurrentMapId(mapId);
-
-        // Deduct travel energy (5 energy for local destinations)
-        setEnergy(prevEnergy => Math.max(0, prevEnergy - 5));
-
-        // Advance time by 20 minutes
-        advanceTime({ time: gameState.time, date: gameState.date }, 20);
-
-        // Add journal entry
-        addJournalEntry({
-          turnNumber,
-          date: gameState.date,
-          entry: `Traveled to ${locationName}.`
-        });
-
-        // Add narrative message
-        const travelNarrative = `You make your way through the streets of Mexico City to ${locationName}.`;
-        setConversationHistory(prev => [
-          ...prev,
-          { role: 'assistant', content: travelNarrative }
-        ]);
-      } else {
-        console.error('[HandleSubmit] Location not found in map:', locationName);
-      }
-
-      setUserInput('');
-      setIsLoading(false);
+      setIsLoading(false); // CRITICAL FIX: Reset loading state before delegating
+      navigationHandlers.handleFastTravel(locationName);
       return;
     }
 
@@ -682,48 +616,11 @@ export function useGameHandlers({
       return;
     }
 
-    // Handle natural language navigation to specific locations (interior only)
-    const navigationPatterns = [
-      { phrases: ['go to laboratory', 'walk to laboratory', 'head to laboratory', 'enter laboratory'], position: { x: 700, y: 250, gridX: 35, gridY: 12 }, room: 'Laboratory' },
-      { phrases: ['go to bedroom', 'walk to bedroom', 'head to bedroom', 'enter bedroom'], position: { x: 300, y: 250, gridX: 15, gridY: 12 }, room: 'Bedroom' },
-      { phrases: ['go to shop floor', 'walk to shop', 'go to counter', 'walk to counter'], position: { x: 510, y: 480, gridX: 25, gridY: 24 }, room: 'Shop Floor' },
-      { phrases: ['go to door', 'walk to door', 'go to entrance', 'walk to entrance'], position: { x: 400, y: 670, gridX: 20, gridY: 33 }, room: 'Shop Floor' },
-      { phrases: ['go to workbench', 'walk to workbench'], position: { x: 640, y: 210, gridX: 32, gridY: 10 }, room: 'Laboratory' },
-      { phrases: ['go to bed', 'walk to bed'], position: { x: 350, y: 200, gridX: 17, gridY: 10 }, room: 'Bedroom' },
-      { phrases: ['go to bookshelf', 'walk to bookshelf'], position: { x: 140, y: 260, gridX: 7, gridY: 13 }, room: 'Bedroom' }
-    ];
-
-    const matchedNavigation = navigationPatterns.find(pattern =>
-      pattern.phrases.some(phrase => narrativeText.includes(phrase))
-    );
-
-    if (matchedNavigation && isInsideBotica) {
-      console.log(`[Navigation] Moving to ${matchedNavigation.room}`);
-
-      // Update player position
-      setPlayerPosition(matchedNavigation.position);
-
-      // Update facing direction based on movement direction
-      const dx = matchedNavigation.position.x - playerPosition.x;
-      const dy = matchedNavigation.position.y - playerPosition.y;
-
-      // Determine primary direction (larger delta wins)
-      if (Math.abs(dx) > Math.abs(dy)) {
-        setPlayerFacing(dx > 0 ? 90 : 270); // East or West
-      } else if (Math.abs(dy) > 0) {
-        setPlayerFacing(dy > 0 ? 180 : 0); // South or North
-      }
-      // If no movement (already at target), don't change facing
-
-      // Show simple system message
-      const navMessage = `You walk to the ${matchedNavigation.room.toLowerCase()}.`;
-      setHistoryOutput(navMessage);
-      setConversationHistory(prev => [...prev, { role: 'assistant', content: navMessage }]);
+    // PHASE 2.1: Handle natural language navigation using navigation handler
+    if (navigationHandlers.handleNaturalLanguageNavigation(narrativeText)) {
       setUserInput('');
       setUserActions(prev => [...prev, actionOverride || userInput]);
       setIsLoading(false);
-
-      // Don't continue with LLM turn processing
       return;
     }
 
@@ -1009,6 +906,24 @@ export function useGameHandlers({
         previousPortraitEntityRef.current = null;
       }
 
+      // NPC DEPARTURE HANDLING: Remove NPC from tracker when they leave
+      if (result.npcDeparted) {
+        const recentNPCs = npcTracker.getRecentNPCs();
+        const departingNPC = recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
+
+        if (departingNPC) {
+          console.log(`[NPC Departure] ${departingNPC} has left the scene`);
+          npcTracker.removeNPC(departingNPC);
+
+          // Clear portrait since NPC is gone
+          setPrimaryPortraitFile(null);
+          recentPortraitRef.current = null;
+          previousPortraitEntityRef.current = null;
+        } else {
+          console.warn('[NPC Departure] npcDeparted=true but no NPC in tracker to remove');
+        }
+      }
+
       // Log all entities for debugging
       if (result.newNPCs && result.newNPCs.length > 0) {
         console.log(`[Entities] ${result.newNPCs.length} entities mentioned in narrative:`,
@@ -1063,14 +978,19 @@ export function useGameHandlers({
       // The narrative itself already mentions who appears
 
       // PHASE 3: Add response type and dialogue fields for UI display
-      newHistory.push({
+      // CARD EMBEDDING: Store card data in conversation history so cards stay in place
+      const assistantMessage = {
         role: 'assistant',
         content: result.responseType === 'dialogue' ? result.dialogue : result.narrative,
         responseType: result.responseType || 'narration',
         dialogue: result.dialogue || null,
         npcSpeaker: result.npcSpeaker || null,
-        primaryPortrait: result.primaryPortrait || null
-      });
+        primaryPortrait: result.primaryPortrait || null,
+        primaryNPCName: result.primaryNPC?.name || null, // Store primary NPC name for portrait matching
+        // Cards will be added below if detected
+        card: null
+      };
+      newHistory.push(assistantMessage);
 
       if (result.systemAnnouncements && result.systemAnnouncements.length > 0) {
         result.systemAnnouncements.forEach(announcement => {
@@ -1100,9 +1020,14 @@ export function useGameHandlers({
           setGameState(prev => ({ ...prev, status: result.gameState.status }));
           console.log('[State] Updated status:', result.gameState.status);
         }
-        if (result.gameState.reputation) {
-          // Reputation updates from LLM temporarily disabled during migration
-          console.log('[useGameHandlers] LLM reputation update (ignored):', result.gameState.reputation);
+
+        // Handle reputation events from extreme actions
+        if (result.reputationEvents && result.reputationEvents.length > 0) {
+          result.reputationEvents.forEach(event => {
+            const factionName = event.faction.toUpperCase(); // church → CHURCH
+            console.log(`[Reputation Event] ${factionName}: ${event.delta > 0 ? '+' : ''}${event.delta} - ${event.reason}`);
+            updateReputation(factionName, event.delta, event.reason);
+          });
         }
 
         // Handle location changes with coordinate matching
@@ -1177,13 +1102,20 @@ export function useGameHandlers({
         // Update player position if movement occurred (with validation)
         // Only accept position updates with valid pixel coordinates (x, y)
         // Ignore grid-only coordinates from StateAgent - we manage position ourselves
-        if (result.gameState.position &&
+        // CRITICAL: Don't update position from StateAgent during movement turns
+        // useNavigationHandlers already updated position with correct gridX/gridY
+        // StateAgent only returns {x, y} which would strip grid coordinates causing NaN
+        const isMovementTurn = narrativeText.toLowerCase().match(/\b(go|walk|move|head|travel)\s+(north|south|east|west)\b/);
+
+        if (!isMovementTurn && result.gameState.position &&
             typeof result.gameState.position.x === 'number' &&
             typeof result.gameState.position.y === 'number' &&
             !isNaN(result.gameState.position.x) &&
             !isNaN(result.gameState.position.y)) {
           setPlayerPosition(result.gameState.position);
-          console.log(`[Movement] Player moved to: (${result.gameState.position.x}, ${result.gameState.position.y})`);
+          console.log(`[Position] Player position updated to: (${result.gameState.position.x}, ${result.gameState.position.y})`);
+        } else if (isMovementTurn) {
+          console.log('[Position] Skipping StateAgent position update during movement (already set by useNavigationHandlers)');
         } else if (result.gameState.position) {
           console.log('[Position] Ignoring incomplete position data from StateAgent:', result.gameState.position);
           // Keep current position - StateAgent doesn't have enough info to update it
@@ -1228,22 +1160,22 @@ export function useGameHandlers({
 
           console.log(`[Relationship] ${change.npcName}: ${change.delta > 0 ? '+' : ''}${change.delta} (${change.reason})`);
 
-          // Apply reputation feedback
-          const newReputation = applyRelationshipToReputation(
-            change.npcId,
-            change.delta,
-            change.reason,
-            reputation,
-            {
-              profession: gameState.chosenProfession,
-              playerLevel: gameState.playerLevel,
-              itemUsed: change.itemUsed || ''
-            }
-          );
+          // Update faction reputation based on NPC relationship change
+          const npc = entityManager.getById(change.npcId);
+          if (npc) {
+            const newReputation = updateFactionFromNPCInteraction(
+              reputation,
+              npc,
+              change.delta,
+              change.reason
+            );
 
-          if (newReputation) {
-            setReputation(newReputation);
-            console.log('[Reputation] Updated from relationship change');
+            if (newReputation) {
+              setReputation(newReputation);
+              console.log('[Reputation] Updated faction reputation from relationship change');
+            }
+          } else {
+            console.warn(`[Reputation] NPC not found for relationship change: ${change.npcId}`);
           }
         }
       }
@@ -1251,30 +1183,50 @@ export function useGameHandlers({
       // Handle contract offers (treatment or sale)
       // Store contract offer but DON'T auto-open modal
       // Player will see a clickable card in NarrativePanel
-      // TIMING FIX: Only show card when system announcement confirms contract is ready
-      // This prevents premature card display on first NPC mention (Turn 1)
-      // and ensures card appears when negotiation is actually finalized (Turn 2-3)
-      // TURN 1 BLOCK: Never show contract offers on Turn 1 (initial door opening scene)
+      // Only show card when StateAgent confirms with system announcement
+      // This ensures contracts appear when NPC makes a CLEAR REQUEST (any turn)
+      // but not for vague mentions or completed transactions
       if (result.contractOffer &&
           result.contractOffer.type &&
           result.contractOffer.type !== 'null' &&
-          result.systemAnnouncements?.some(msg => msg.toLowerCase().includes('contract')) &&
-          turnNumber >= 2) {
-        console.log('[Contract] Offer finalized and ready for player decision:', result.contractOffer.type, result.contractOffer);
-        setPendingContract(result.contractOffer);
-        // Note: Modal is NOT auto-opened, user must click the contract card
-      } else if (result.contractOffer && result.contractOffer.type && result.contractOffer.type !== 'null' && turnNumber < 2) {
-        // Turn 1 - suppress contract offers
-        console.log('[Contract] Turn 1 detected - suppressing contract offer until Turn 2+');
+          result.systemAnnouncements?.some(msg => msg.toLowerCase().includes('contract'))) {
+
+        // Handle sale_inquiry separately from treatment contracts
+        if (result.contractOffer.type === 'sale_inquiry') {
+          console.log('[SaleInquiry] Remedy request detected:', result.contractOffer);
+          // Add portrait from current NPC
+          const enrichedInquiry = {
+            ...result.contractOffer,
+            npcPortrait: primaryPortraitFile ? `/portraits/${primaryPortraitFile}` : null
+          };
+          // Store in conversation history so card stays in place
+          assistantMessage.card = {
+            type: 'sale_inquiry',
+            data: enrichedInquiry
+          };
+          setPendingSaleInquiry(enrichedInquiry);
+        } else {
+          // Treatment or other contract types
+          console.log('[Contract] Offer finalized and ready for player decision:', result.contractOffer.type, result.contractOffer);
+          // Store in conversation history so card stays in place
+          assistantMessage.card = {
+            type: 'contract',
+            data: result.contractOffer
+          };
+          setPendingContract(result.contractOffer);
+        }
+        // Note: Modal/card is NOT auto-opened, user must click the card
       } else if (result.contractOffer && result.contractOffer.type && result.contractOffer.type !== 'null') {
-        // Contract detected but not yet finalized (no system announcement)
-        console.log('[Contract] Offer detected but not yet finalized (waiting for negotiation):', result.contractOffer.type);
+        // Contract detected but StateAgent didn't confirm with announcement
+        // This means it's a vague mention or not yet finalized
+        console.log('[Contract] Offer detected but not confirmed by StateAgent (no announcement):', result.contractOffer.type);
         // Don't show card yet - let negotiation continue
       } else {
         // Clear any previous contract when none is active
         if (result.contractOffer && result.contractOffer.type === 'null') {
           console.log('[Contract] No active contract, clearing previous offer');
           setPendingContract(null);
+          setPendingSaleInquiry(null);
         }
       }
 
@@ -1297,6 +1249,11 @@ export function useGameHandlers({
           result.simpleInteraction.type &&
           result.simpleInteraction.type !== 'null') {
         console.log('[SimpleInteraction] Detected:', result.simpleInteraction.type, result.simpleInteraction);
+        // Store in conversation history so card stays in place
+        assistantMessage.card = {
+          type: 'simple_interaction',
+          data: result.simpleInteraction
+        };
         setPendingSimpleInteraction(result.simpleInteraction);
       } else if (result.simpleInteraction && result.simpleInteraction.type === 'null') {
         // Clear any previous simple interaction when none is active
@@ -1316,6 +1273,11 @@ export function useGameHandlers({
 
         if (eventCard) {
           console.log('[RandomEvent] Event triggered:', eventCard.title);
+          // Store in conversation history so card stays in place
+          assistantMessage.card = {
+            type: 'random_event',
+            data: eventCard
+          };
           setPendingRandomEvent(eventCard);
         } else {
           // Clear any previous random event
@@ -1361,7 +1323,7 @@ export function useGameHandlers({
         console.log('[Time] Default narrative turn: +5 minutes');
       }
 
-      applyResourceChanges(actionType);
+      resourceHandlers.applyResourceChanges(actionType);
 
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -1397,7 +1359,6 @@ export function useGameHandlers({
     setIsPrescribePopupOpen,
     setIsSleepOpen,
     setWealth,
-    applyResourceChanges,
     setUserActions,
     setIsEatOpen,
     setIsForageOpen,
@@ -1410,560 +1371,80 @@ export function useGameHandlers({
     setCurrentMapId,
     setGameLog,
     energy,
-    updateEnergy
+    updateEnergy,
+    resourceHandlers,
+    // CRITICAL FIX: Added missing dependencies to prevent stale closures
+    // Note: isLoading is now a parameter, automatically tracked by React
+    playerSkills, // Used for skill checks (bookkeeping, anatomy)
+    journal, // Used in orchestrateTurn
+    setPrimaryPortraitFile, // Used for portrait updates
+    setDynamicChips, // Used for narrative-driven action chips
+    setCurrentEntities, // Used for entity tracking
+    setPendingContract, // Used for contract offers
+    addTradeOpportunity, // Used for trade opportunities
+    cleanupExpiredOpportunities, // Used for trade cleanup
+    setPendingSimpleInteraction, // Used for simple interactions
+    setPendingRandomEvent, // Used for random events
+    toggleShopSign, // Used for shop sign toggle
+    navigationHandlers, // Used for fast travel
+    toast, // Used throughout for notifications
+    setIsRestDurationOpen, // Used for sleep command
+    setIsFastTravelOpen, // Used for travel command
+    setIsBloodlettingOpen, // Used for bloodlet command
+    setIsLedgerOpen, // Used for ledger command
+    setShowExitConfirmation, // Used for exit confirmation
+    setPendingExitData, // Used for exit data
+    addJournalEntry, // Used for journal entries
+    addToHistory // Used for conversation history
   ]);
 
-  // ARROW KEY MOVEMENT HANDLER
-  const handleMovement = useCallback(async (direction) => {
-    // CRITICAL: Load map data fresh to avoid stale closure values
-    // This prevents race conditions when exiting building then immediately moving
-    const scenario = scenarioLoader.getScenario(gameState.scenarioId || '1680-mexico-city');
-    const freshMapData = scenario?.maps?.interior?.[currentMapId] || scenario?.maps?.exterior?.[currentMapId];
-
-    if (!freshMapData) {
-      console.error('[Movement] No map data found for:', currentMapId);
-      return;
-    }
-
-    console.log('[Movement] Using fresh map data:', {
-      mapId: currentMapId,
-      mapType: freshMapData.type,
-      bounds: freshMapData.bounds
-    });
-
-    // Map direction to movement delta and text
-    // Use larger steps for interior maps (150px) vs exterior (50px) for better coverage
-    const isInterior = freshMapData?.type === 'interior';
-    const MOVEMENT_STEP = isInterior ? 110 : 50;
-
-    const movements = {
-      north: { dx: 0, dy: -MOVEMENT_STEP, text: 'I walk north' },
-      south: { dx: 0, dy: MOVEMENT_STEP, text: 'I walk south' },
-      west: { dx: -MOVEMENT_STEP, dy: 0, text: 'I walk west' },
-      east: { dx: MOVEMENT_STEP, dy: 0, text: 'I walk east' }
-    };
-
-    const movement = movements[direction];
-    if (!movement) return;
-
-    // EXIT ZONE DETECTION: Check if player is trying to exit through main entrance
-    // This must happen BEFORE grid validation (which would block the move)
-    if (isInterior && currentMapId === 'botica-interior' && direction === 'south') {
-      const mainEntranceDoor = { x: 400, y: 700, width: 60 };
-      const exitZoneRadius = 120; // Detection radius in pixels
-
-      const distanceToExit = Math.sqrt(
-        Math.pow(playerPosition.x - mainEntranceDoor.x, 2) +
-        Math.pow(playerPosition.y - mainEntranceDoor.y, 2)
-      );
-
-      if (distanceToExit <= exitZoneRadius) {
-        console.log('[Exit] Player near main entrance, moving south - showing exit confirmation');
-
-        // Store exit data for later execution
-        setPendingExitData({
-          location: 'Mexico City',
-          mapId: 'mexico-city-center',
-          position: { x: 1350, y: 930, gridX: 67, gridY: 46 },
-          exitMessage: "You step outside into the bustling streets of Mexico City.",
-          locationName: "Botica de la Amargura",
-          gameTime: gameState.time
-        });
-
-        // Show confirmation card
-        setShowExitConfirmation(true);
-
-        // Don't continue with movement or LLM processing
-        return;
-      }
-    }
-
-    // PRE-VALIDATE MOVEMENT: Check if move is blocked before calling LLM
-    let newPosition;
-    if (freshMapData && currentMapId) {
-      const { getGridSystem } = await import('../../features/map/services/gridMovementSystem');
-      const gridSystem = getGridSystem(currentMapId, freshMapData);
-      const validation = gridSystem.validateMove(playerPosition, direction, MOVEMENT_STEP);
-
-      if (!validation.valid) {
-        // Movement blocked - show system message instead of calling LLM
-        console.log('[Movement] Blocked by:', validation.reason);
-
-        const blockedMessage = `*That way is not accessible.*`;
-
-        // Update UI with system message
-        setHistoryOutput(blockedMessage);
-        addToHistory({ role: 'system', content: blockedMessage });
-
-        // Don't update position, don't call LLM
-        return;
-      }
-
-      // Use the grid-aligned validated position (prevents wall phasing)
-      newPosition = validation.newPosition;
-      console.log('[Movement] Position update:', {
-        old: { x: playerPosition.x, y: playerPosition.y, gridX: playerPosition.gridX, gridY: playerPosition.gridY },
-        new: newPosition,
-        direction,
-        distance: MOVEMENT_STEP
-      });
-    } else {
-      // Fallback: manual calculation if no map data available
-      newPosition = {
-        ...playerPosition,
-        x: playerPosition.x + movement.dx,
-        y: playerPosition.y + movement.dy
-      };
-      console.log('[Movement] No map data, using fallback position:', newPosition);
-    }
-
-    // Calculate new facing direction
-    const directionToDegrees = {
-      north: 0,
-      east: 90,
-      south: 180,
-      west: 270
-    };
-    const newFacing = directionToDegrees[direction] !== undefined ? directionToDegrees[direction] : playerFacing;
-
-    // Update player position and facing immediately for visual feedback
-    setPlayerPosition(newPosition);
-    setPlayerFacing(newFacing);
-
-    // PRE-WRITTEN NARRATIVE CHECK: For interior maps, check if we have a pre-written narrative
-    // This eliminates expensive LLM calls for simple position changes
-    if (isInterior && currentMapId === 'botica-interior') {
-      const { getInteriorNarrative, hasPreWrittenNarrative } = await import('../../features/map/services/interiorNarratives');
-
-      if (hasPreWrittenNarrative(currentMapId, newPosition.x, newPosition.y)) {
-        console.log('[Movement] Using pre-written interior narrative for position:', newPosition);
-
-        const narrative = getInteriorNarrative(newPosition.x, newPosition.y, gameState.time);
-
-        // Add narrative to conversation history with movement flag
-        const newEntry = {
-          role: 'assistant',
-          content: narrative.description,
-          timestamp: new Date().toISOString(),
-          responseType: 'movement',
-          isMovement: true,
-          position: newPosition
-        };
-
-        setConversationHistory(prev => [...prev, newEntry]);
-        setHistoryOutput(narrative.description);
-
-        // No time passage, no energy cost for simple repositioning within same room
-        // (Player is just shifting position on the shop floor, not traveling)
-
-        console.log('[Movement] Pre-written narrative applied - no LLM call needed');
-        return; // Exit early - skip LLM call
-      }
-    }
-
-    // Calculate new time (add 5 minutes for movement)
-    const addMinutesToTime = (timeStr, dateStr, minutes) => {
-      try {
-        const dateTime = new Date(`${dateStr} ${timeStr}`);
-        dateTime.setMinutes(dateTime.getMinutes() + minutes);
-
-        const newTime = dateTime.toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        });
-
-        const newDate = dateTime.toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric'
-        });
-
-        return { time: newTime, date: newDate };
-      } catch (error) {
-        console.error('[Movement] Time calculation error:', error);
-        return { time: timeStr, date: dateStr };
-      }
-    };
-
-    const { time: newTime, date: newDate } = addMinutesToTime(
-      gameState.time,
-      gameState.date,
-      5
-    );
-
-    // Set loading state
-    setIsLoading(true);
-
-    // NOTE: Don't add to userActions or setUserInput - keep movement command hidden from player
-    // It's only in conversation history for LLM context
-
-    // Call orchestrateTurn directly with movement text (bypasses state timing issues)
-    try {
-      const result = await orchestrateTurn({
-        scenarioId: gameState.scenarioId || '1680-mexico-city',
-        playerAction: movement.text, // Pass movement text directly
-        conversationHistory,
-        gameState: {
-          ...gameState,
-          position: newPosition, // Use new position
-          currentMap: currentMapId,
-          time: newTime, // Use incremented time
-          date: newDate
-        },
-        turnNumber,
-        recentNPCs: npcTracker.getRecentNPCs(),
-        reputation: reputation,
-        wealth: currentWealth,
-        mapData: freshMapData, // Use fresh map data, not stale state
-        playerPosition: newPosition, // CRITICAL: Pass new position, not old state
-        playerFacing: newFacing, // CRITICAL: Pass new facing, not old state
-        currentMapId: currentMapId, // CRITICAL: Pass as top-level param for map context
-        npcPositions,
-        playerSkills,
-        journal,
-        shopSignHung: gameState.shopSign?.hung || false,
-        isContinuation: false, // IMPORTANT: Movement breaks conversation continuation
-        continuationNPC: null, // No NPC continuity for movement
-      });
-
-      // Check if result is valid
-      // Note: result.narrative is a STRING, not an object
-      if (!result || !result.narrative || typeof result.narrative !== 'string') {
-        console.error('[Movement] Invalid result structure:', result);
-        throw new Error('Invalid response from narrative agent');
-      }
-
-      // Process result same as handleSubmit (abbreviated for movement)
-      const primaryPortraitFile = result.primaryPortrait || null;
-
-      if (primaryPortraitFile) {
-        console.log('[Portrait Phase 2] Movement: Setting portrait:', primaryPortraitFile);
-        setPrimaryPortraitFile(primaryPortraitFile);
-      } else {
-        console.log('[Portrait Phase 2] Movement: No portrait (solo exploration)');
-        setPrimaryPortraitFile(null); // Clear portrait when walking alone
-      }
-
-      // Update conversation history
-      // Mark movement commands as hidden so they don't display in narrative panel
-      addToHistory(
-        { role: 'user', content: movement.text, isMovement: true, hidden: true },
-        {
-          role: 'assistant',
-          content: result.narrative,
-          responseType: result.responseType || 'movement',
-          primaryPortrait: result.primaryPortrait || null
-        }
-      );
-
-      // Update narrative output
-      setHistoryOutput(result.narrative);
-
-      // Parse narrative for dynamic action chips
-      if (result.narrative && setDynamicChips) {
-        const parsedChips = parseNarrativeChoices(result.narrative);
-        if (parsedChips) {
-          console.log('[Dynamic Chips] Parsed choices from dialogue:', parsedChips.map(c => c.label).join(', '));
-          setDynamicChips(parsedChips);
-        } else {
-          console.log('[Dynamic Chips] No choice pattern detected in dialogue, using defaults');
-          setDynamicChips(null);
-        }
-      }
-
-      // Handle game state updates
-      if (result.gameState) {
-        // Handle inventory changes properly (don't call updateInventory with null)
-        if (result.inventoryChanges && result.inventoryChanges.length > 0) {
-          for (const change of result.inventoryChanges) {
-            updateInventory(change.item, change.quantity);
-          }
-        }
-
-        // CRITICAL: NEVER update location during arrow key movement
-        // Arrow keys should ONLY move within the current map, never trigger map switches
-        // Location changes should ONLY happen via:
-        // - Explicit "exit"/"leave" commands (handled separately above)
-        // - Natural language like "go outside" (handled separately above)
-        // - Clicking exit button on map
-        // The StateAgent shouldn't be touching location during simple arrow key movement
-        console.log('[Movement] Ignoring any location updates from StateAgent during arrow key movement');
-
-        // DON'T overwrite position during movement - we already set it manually above
-        // The LLM doesn't track pixel coordinates, so its position data would be stale
-      }
-
-      // Update time/date - ALWAYS add 5 minutes for movement (even if no gameState returned)
-      // This happens regardless of LLM output
-      advanceTime({
-        time: newTime,
-        date: newDate,
-        location: gameState.location
-      });
-
-      // Increment turn
-      setTurnNumber(prevTurn => prevTurn + 1);
-
-      // Don't clear input (we never set it for movement)
-    } catch (error) {
-      console.error('[Movement] Error:', error);
-      console.error('[Movement] Error details:', error.message);
-      console.error('[Movement] Error stack:', error.stack);
-
-      // Show error to player
-      const errorMessage = `*Movement failed: ${error.message || 'Unknown error'}*`;
-      setHistoryOutput(errorMessage);
-
-      // Add error to conversation history
-      addToHistory({ role: 'system', content: errorMessage });
-
-      // Revert position on error
-      setPlayerPosition(playerPosition);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    setPlayerPosition,
-    setCurrentMapId,
-    setIsLoading,
-    setUserInput,
-    setUserActions,
-    orchestrateTurn,
+  // PHASE 2.3: Initialize commerce handlers hook
+  // NOTE: Must come AFTER handleSubmit is defined
+  const commerceHandlers = useCommerceHandlers({
+    addJournalEntry,
+    setConversationHistory,
+    toast,
+    awardXP,
+    updateReputation,
+    advanceTime,
+    setTradingNPC,
+    setTradeMode,
+    setIsBuyOpen,
+    removeTradeOpportunity,
+    setPendingSimpleInteraction,
+    setPendingMixingDecision,
+    setPendingSaleInquiry,
+    setPendingSaleProposal,
+    setMixingContextForSale,
+    setShowMixingPopup,
+    setGameState,
+    recentPortraitRef, // Portrait ref for clearing on NPC dismissal
+    previousPortraitEntityRef, // Portrait entity ref for clearing on NPC dismissal
+    handleSubmit, // For triggering full narrative turns after simple interactions
+    conversationHistory, // For NarrativeAgent context
+    journal, // For NarrativeAgent context
+    // Legacy params
     gameState,
-    conversationHistory,
     turnNumber,
     npcTracker,
-    reputation,
-    currentWealth,
-    currentMapData,
-    playerPosition,
-    currentMapId,
-    npcPositions,
-    playerSkills,
-    journal,
-    setPrimaryPortraitFile,
-    addToHistory,
-    setHistoryOutput,
-    updateInventory,
-    updateLocation,
-    setTurnNumber
-  ]);
+  });
 
-  // QUICK ACTION HANDLER
-  const handleQuickAction = (action) => {
-    setUserInput(action);
-  };
+  // ARROW KEY MOVEMENT HANDLER
+  // PHASE 2.1: handleMovement moved to useNavigationHandlers.js
 
-  // ACTION CLICK HANDLER
-  const handleActionClick = (action) => {
-    if (action.startsWith('#')) {
-      const commandType = action.split(' ')[0].toLowerCase();
+  // PHASE 2.5: handleQuickAction moved to useUIHandlers.js
 
-      switch (commandType) {
-        case '#mix':
-          setShowMixingPopup(true);
-          break;
-        case '#buy':
-          setIsBuyOpen(true);
-          break;
-        case '#sleep':
-          setIsRestDurationOpen(true);
-          break;
-        case '#eat':
-          setIsEatOpen(true);
-          break;
-        case '#forage':
-          setIsForageOpen(true);
-          break;
-        // NOTE: #hangsign and #removesign removed - now handled as direct button actions in ContextPanel
-        case '#prescribe':
-        case '#symptoms':
-        case '#diagnose':
-          setUserInput(action);
-          break;
-        default:
-          setUserInput(action);
-          break;
-      }
-    } else {
-      // Handle non-command actions (from ActionPanel secondary buttons)
-      switch (action) {
-        case 'roster':
-          setIsPatientRosterOpen(true);
-          break;
-        case 'rest':
-          setIsRestDurationOpen(true);
-          break;
-        case 'bargain': {
-          // Context-aware trading: detect if at market, with NPC, or viewing full inventory
-          const location = gameState?.location || '';
-          const locationLower = location.toLowerCase();
+  // PHASE 2.5: handleActionClick moved to useUIHandlers.js
 
-          // Check if location is a market
-          const marketKeywords = ['market', 'tianguis', 'plaza', 'mercado', 'bazaar', 'trade'];
-          const isAtMarket = marketKeywords.some(keyword => locationLower.includes(keyword));
+  // PHASE 2.5: handleCommandClick moved to useUIHandlers.js
 
-          // Get recent NPCs to check if we're interacting with someone
-          const recentNPCs = npcTracker.getRecentNPCs();
-          const recentNPC = recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
+  // PHASE 2.5: handleSaveGame moved to useUIHandlers.js
+  // PHASE 2.5: handleTabChange moved to useUIHandlers.js
 
-          // Check if there's a trade opportunity for this NPC
-          const tradeOpportunity = gameState.tradeOpportunities?.find(
-            opp => opp.npcName === recentNPC
-          );
-
-          if (tradeOpportunity) {
-            // If there's an active trade opportunity, use NPC mode with that opportunity
-            console.log('[Trade] Opening trade with NPC from opportunity:', tradeOpportunity.npcName);
-            setTradingNPC(tradeOpportunity);
-            setTradeMode('npc');
-          } else if (recentNPC && !isAtMarket) {
-            // If interacting with NPC but not at market, use NPC trade mode
-            console.log('[Trade] Opening trade with recent NPC:', recentNPC);
-            setTradingNPC({
-              npcName: recentNPC,
-              type: 'both', // Allow both buying and selling
-              interest: { items: [], reason: 'General trade', urgency: 'moderate', priceMultiplier: 1.0 },
-              offering: { items: [] }
-            });
-            setTradeMode('npc');
-          } else if (isAtMarket) {
-            // If at a market, use market mode
-            console.log('[Trade] Opening market trade at:', location);
-            setTradeMode('market');
-          } else {
-            // Default: Full inventory mode (no market, no NPC)
-            console.log('[Trade] Opening full inventory mode');
-            setTradeMode('inventory');
-          }
-
-          setIsBuyOpen(true);
-          break;
-        }
-        case 'accounts':
-          setIsLedgerOpen(true);
-          break;
-        default:
-          setUserInput(action);
-          break;
-      }
-    }
-  };
-
-  // COMMAND CLICK HANDLER
-  const handleCommandClick = (command) => {
-    const commandParts = command.split(' ');
-    const commandType = commandParts[0].toLowerCase();
-    const targetName = commandParts.slice(1).join(' ');
-    let npcName;
-
-    // Get most recent NPC from tracker if no explicit name provided
-    if (commandType !== '#sleep') {
-      const recentNPCs = npcTracker.getRecentNPCs();
-      npcName = recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
-    }
-
-    // Try fuzzy matching for NPC name
-    const getMatchedNPC = (name) => {
-      const EntityList = require('../../EntityList').default;
-      return EntityList.find(entity => fuzzyMatch(name, entity.name));
-    };
-
-    switch (commandType) {
-      case '#buy':
-        setIsBuyOpen(true);
-        setUserInput('');
-        setIsLoading(false);
-        toggleInventory();
-        break;
-
-      case '#symptoms':
-        let matchedNPC = getMatchedNPC(npcName);
-        if (matchedNPC) {
-          setSelectedNpcName(matchedNPC.name);
-          setShowSymptomsPopup(true);
-
-          const npcId = matchedNPC.id || matchedNPC.name;
-          const npcPos = npcPositions.find(npc => npc.npcId === npcId);
-          if (npcPos) {
-            setNPCPosition(npcId, matchedNPC.name, npcPos.position, 'interacting');
-          }
-        } else {
-          setHistoryOutput('No NPC is currently selected.');
-        }
-        break;
-
-      case '#prescribe':
-        let targetNPC = getMatchedNPC(targetName || npcName);
-        if (targetNPC) {
-          setCurrentPatient(targetNPC);
-          setIsPrescribing(true);
-          setIsInventoryOpen(true);
-          setIsPrescribePopupOpen(true);
-
-          const npcId = targetNPC.id || targetNPC.name;
-          const npcPos = npcPositions.find(npc => npc.npcId === npcId);
-          if (npcPos) {
-            setNPCPosition(npcId, targetNPC.name, npcPos.position, 'interacting');
-          }
-        } else {
-          setHistoryOutput('No valid NPC found for prescription. Make sure an NPC is present in the current scene or specify a valid NPC name.');
-        }
-        break;
-
-      case '#diagnose':
-        setIsDiagnoseOpen(true);
-        break;
-
-      case '#sleep':
-        setIsRestDurationOpen(true);
-        break;
-
-      case '#eat':
-        setIsEatOpen(true);
-        break;
-
-      case '#forage':
-        setIsForageOpen(true);
-        break;
-
-      case '#mix':
-        toggleMixingPopup();
-        break;
-
-      case '#inventory':
-        setIsModernInventoryOpen(true);
-        break;
-
-      case 'see patients':
-        const EntityList = require('../../EntityList').default;
-        const patients = EntityList.filter(npc => npc.type === 'patient');
-
-        if (patients.length > 0) {
-          setSelectedPatient(patients[0]);
-          setShowPatientModal(true);
-          console.log(`[See Patients] Opening patient modal for: ${patients[0].name}`);
-        } else {
-          setHistoryOutput('No patients are currently waiting to see you. Try asking around or going to the market.');
-        }
-        break;
-
-      default:
-        break;
-    }
-  };
-
-  // SAVE GAME HANDLER
-  const handleSaveGame = () => {
-    toast.success('Game saved successfully!');
-    // Add actual save logic here
-  };
-
-  // CENTRAL PANEL HANDLERS
-  const handleTabChange = (newTab) => {
-    setActiveTab(newTab);
-  };
+  // ============================================================================
+  // SECTION 5: EVENT COORDINATORS
+  // Handlers for entity clicks, random events, and furniture interactions
+  // ============================================================================
 
   const handleEntityClick = useCallback((entityType, entityName) => {
     console.log('[Entity Click]', entityType, entityName);
@@ -1983,1020 +1464,40 @@ export function useGameHandlers({
       setActiveTab('patient');
       setPatientDialogue([]); // Clear previous dialogue
     } else if (entityType === 'npc' || entity.type === 'npc') {
-      // For now, just log - could open NPC modal in future
+      // Open NPC modal
       console.log('[Entity Click] NPC clicked:', entityName);
-      setSelectedPatient(entity);
-      setShowPatientModal(true);
+      setSelectedNPC(entity);
+      setShowNPCModal(true);
     } else if (entityType === 'item') {
-      // Could open item modal
+      // Open item modal
       console.log('[Entity Click] Item clicked:', entityName);
+      setSelectedItem(entity);
+      setShowItemModal(true);
     }
-  }, [setActivePatient, setActiveTab, setPatientDialogue, setSelectedPatient, setShowPatientModal]);
+  }, [setActivePatient, setActiveTab, setPatientDialogue, setSelectedNPC, setShowNPCModal, setSelectedItem, setShowItemModal]);
 
-  const handleAskQuestion = useCallback(async (question) => {
-    if (!activePatient || !question.trim()) return;
-
-    try {
-      console.log('[handleAskQuestion] Processing question for:', activePatient.name);
-
-      // Extract narrative context if not already cached
-      // This ensures patient knows about family, occupation, symptoms mentioned in narrative
-      if (!activePatient.narrativeContext) {
-        console.log('[handleAskQuestion] Extracting narrative context from conversation history...');
-        const context = await extractPatientContext(activePatient, conversationHistory);
-
-        if (context) {
-          activePatient.narrativeContext = context;
-          // Persist to EntityManager for future use
-          entityManager.update(activePatient.id, activePatient);
-          console.log('[handleAskQuestion] Cached narrative context:', context);
-        } else {
-          console.log('[handleAskQuestion] No narrative context found');
-        }
-      } else {
-        console.log('[handleAskQuestion] Using cached narrative context');
-      }
-
-      // Use PatientDialogueAgent to get response with structured data extraction
-      const result = await processPatientDialogue({
-        patient: activePatient,
-        question,
-        conversationHistory: patientDialogue,
-        narrativeContext: activePatient.narrativeContext // Pass extracted context
-      });
-
-      const { dialogue, patientDataUpdates } = result;
-
-      // Enrich patient entity with extracted data
-      let enrichedPatient = activePatient;
-      let newSymptoms = [];
-
-      if (patientDataUpdates) {
-        const enrichmentResult = enrichPatientData(activePatient, patientDataUpdates);
-        enrichedPatient = enrichmentResult.patient;
-        newSymptoms = enrichmentResult.newSymptoms || [];
-
-        // Update active patient state
-        setActivePatient(enrichedPatient);
-
-        // Persist to EntityManager
-        entityManager.update(enrichedPatient.id, enrichedPatient);
-
-        console.log('[handleAskQuestion] Patient data enriched:', {
-          newSymptoms: newSymptoms.length,
-          totalSymptoms: enrichedPatient.symptoms?.length
-        });
-      }
-
-      // Add to patient dialogue history
-      const newDialogue = {
-        question,
-        answer: dialogue,
-        timestamp: gameState.time || new Date().toLocaleTimeString(),
-        dataExtracted: patientDataUpdates // For debugging/review
-      };
-
-      setPatientDialogue(prev => [...prev, newDialogue]);
-
-      // Show toast notification for newly discovered symptoms
-      if (newSymptoms.length > 0) {
-        const symptomNames = newSymptoms.map(s => s.name).join(', ');
-        toast.success(`New symptom${newSymptoms.length > 1 ? 's' : ''} recorded: ${symptomNames}`, {
-          duration: 4000
-        });
-      }
-
-      // Add journal entry
-      addJournalEntry({
-        turnNumber,
-        date: gameState.date,
-        entry: `Examined ${activePatient.name}. Asked: "${question}". ` +
-          (newSymptoms.length > 0
-            ? `Discovered ${newSymptoms.length} new symptom(s): ${newSymptoms.map(s => s.name).join(', ')}.`
-            : `Patient responded: ${dialogue.substring(0, 100)}...`)
-      });
-
-      // Add to main conversation history so LLM has context for future turns
-      addToHistory(
-        { role: 'user', content: `Maria asked ${activePatient.name}: "${question}"` },
-        { role: 'assistant', content: dialogue },
-        { role: 'system', content: `*[PATIENT EXAMINATION] ${newSymptoms.length > 0 ? `Discovered symptoms: ${newSymptoms.map(s => s.name).join(', ')}` : 'Gathering patient information'}*` }
-      );
-
-      // Apply minimal energy cost for patient Q&A (1 energy per question)
-      // Represents mental focus during examination
-      const currentEnergy = energy || 50;
-      const newEnergy = Math.max(0, currentEnergy - 1);
-      updateEnergy(newEnergy);
-      console.log('[Energy] Patient Q&A cost: -1 energy');
-
-      // Advance time by 5 minutes per question
-      advanceTime({ minutes: 5 });
-      console.log('[Time] Patient Q&A: +5 minutes');
-
-    } catch (error) {
-      console.error('[Ask Question] Error:', error);
-      toast.error('Failed to get patient response. Please try again.');
-    }
-  }, [activePatient, patientDialogue, setPatientDialogue, scenarioId, addJournalEntry, turnNumber, gameState.date, toast, setConversationHistory, energy, updateEnergy, advanceTime, conversationHistory, gameState.time]);
+  // PHASE 2.2: handleAskQuestion moved to useMedicalHandlers.js
 
   // Helper: Build prompt for item action
-  const buildItemActionPrompt = useCallback((action, item, npc, npcEntity, affinity, gameState) => {
-    const scenario = scenarioLoader.getScenario(gameState.scenarioId || '1680-mexico-city');
-
-    const basePrompt = `You are simulating ${npc.name}, a character in 1680 Mexico City.
-
-**NPC Profile:**
-- Name: ${npc.name}
-- Type: ${npcEntity?.entityType || npc.type || 'npc'}
-- Background: ${npcEntity?.background || npc.background || 'Unknown'}
-- Personality: ${npcEntity?.personality || npc.personality || 'Reserved'}
-- Social Class: ${npcEntity?.socialClass || npc.socialClass || 'Middle class'}
-- Wealth: ${npcEntity?.wealth || npc.wealth || 'Moderate means'}
-- Current Relationship with Maria: ${affinity > 50 ? 'Friendly' : affinity > 0 ? 'Neutral' : affinity < -50 ? 'Hostile' : 'Cautious'} (${affinity}/100)
-
-**Item Details:**
-- Name: ${item.name}
-- Type: ${item.type || 'medicine'}
-- Price: ${item.price || 0} reales
-- Quality: ${item.quality || 'standard'}
-- Properties: ${item.properties?.join(', ') || 'Unknown'}
-- Description: ${item.description || 'No description'}
-
-**Context:**
-Maria de Lima, a converso apothecary, is attempting to ${action === 'give' ? 'give this item as a gift' : action === 'sell' ? 'sell this item' : 'prescribe this item as medical treatment'} to ${npc.name}.
-
-**Instructions:**
-Based on ${npc.name}'s personality, social status, current relationship with Maria, and the nature of the item, determine how they would respond.
-
-Consider:
-1. Would they accept/buy/use this item? Why or why not?
-2. How does their relationship with Maria affect their response?
-3. ${action === 'sell' ? 'Is the price fair? Would they negotiate?' : action === 'give' ? 'Do they appreciate gifts? Is this gift appropriate?' : 'Do they trust Maria\'s medical expertise? Are they suffering from an ailment this could treat?'}
-4. Historical context (Inquisition, social hierarchy, converso prejudice)
-
-Respond with ONLY a JSON object in this exact format:
-{
-  "accepted": true or false,
-  "narrative": "A 2-3 sentence response from ${npc.name} in their voice, showing their reaction",
-  "relationshipDelta": number between -15 and +15 (how this interaction affects their relationship),
-  "priceAdjustment": ${action === 'sell' ? 'number (positive if they pay more, negative if they bargain down)' : '0'},
-  "systemMessage": "One sentence explaining the outcome (e.g., 'They appreciated the gesture but politely declined' or 'They paid 5 reales for the medicine')"
-}`;
-
-    return basePrompt;
-  }, []);
-
-  // Helper: Parse LLM response for item action
-  const parseItemActionOutcome = useCallback((response, action, item) => {
-    try {
-      // Try to parse as JSON
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          accepted: parsed.accepted || false,
-          narrative: parsed.narrative || `${parsed.accepted ? 'They accept.' : 'They decline.'}`,
-          relationshipDelta: parsed.relationshipDelta || 0,
-          priceAdjustment: parsed.priceAdjustment || 0,
-          price: action === 'sell' ? (item.price + (parsed.priceAdjustment || 0)) : 0,
-          systemMessage: parsed.systemMessage || `${parsed.accepted ? 'Transaction completed' : 'Offer declined'}.`
-        };
-      }
-    } catch (error) {
-      console.error('[Item Action] Failed to parse LLM response:', error);
-    }
-
-    // Fallback response if parsing fails
-    return {
-      accepted: false,
-      narrative: "They seem uncertain and politely decline for now.",
-      relationshipDelta: 0,
-      priceAdjustment: 0,
-      price: 0,
-      systemMessage: "The interaction was inconclusive."
-    };
-  }, []);
-
-  // ITEM ACTION HANDLER - Give/Sell/Prescribe items to NPCs
-  const handleItemAction = useCallback(async (action, item, npc, closePopup) => {
-    console.log(`[Item Action] Starting: ${action} ${item.name} to ${npc.name}`);
-
-    try {
-      // Get full NPC entity data from EntityManager
-      const npcEntity = entityManager.getByName(npc.name);
-      console.log('[Item Action] NPC Entity:', npcEntity);
-
-      // Get relationship value if available
-      const relationship = relationshipGraph.getRelationship(npc.id || npc.name, 'player');
-      const affinity = relationship?.value || 0;
-      console.log('[Item Action] Relationship affinity:', affinity);
-
-      // Build prompt based on action type
-      const systemPrompt = buildItemActionPrompt(action, item, npc, npcEntity, affinity, gameState);
-      console.log('[Item Action] Prompt built, calling LLM...');
-
-      // Call LLM to get NPC response
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Maria attempts to ${action === 'give' ? 'give' : action === 'sell' ? 'sell' : 'prescribe'} ${item.name} to ${npc.name}.` }
-      ];
-
-      const response = await createChatCompletion(
-        messages,
-        0.8,  // temperature
-        500   // maxTokens
-      );
-
-      console.log('[Item Action] LLM Response:', response);
-
-      // Extract text content from response
-      const responseText = response.choices?.[0]?.message?.content || response;
-      console.log('[Item Action] Response text:', responseText);
-
-      // Parse response
-      const outcome = parseItemActionOutcome(responseText, action, item);
-      console.log('[Item Action] Parsed outcome:', outcome);
-
-      // Update game state based on outcome
-      if (outcome.accepted) {
-        // Remove item from inventory
-        updateInventory(item.name, -1, action);
-
-        // Update wealth if selling
-        if (action === 'sell' && outcome.price) {
-          const finalPrice = item.price + (outcome.priceAdjustment || 0);
-          setWealth(prev => prev + finalPrice);
-
-          toast.success(`Sold ${item.name} for ${finalPrice} reales!`, { duration: 3000 });
-        } else if (action === 'give') {
-          toast.success(`${npc.name} accepted your gift!`, { duration: 3000 });
-        } else if (action === 'prescribe') {
-          toast.success(`${npc.name} accepted the prescription!`, { duration: 3000 });
-        }
-
-        // Update relationship
-        if (outcome.relationshipDelta) {
-          relationshipGraph.updateRelationship(
-            npc.id || npc.name,
-            'player',
-            outcome.relationshipDelta,
-            `${action === 'give' ? 'Received gift' : action === 'sell' ? 'Purchased item' : 'Received prescription'}: ${item.name}`
-          );
-
-          console.log(`[Relationship] ${npc.name}: ${outcome.relationshipDelta > 0 ? '+' : ''}${outcome.relationshipDelta} (${action} ${item.name})`);
-        }
-      } else {
-        // Action rejected - item stays in inventory
-        if (action === 'sell') {
-          toast.error(`${npc.name} declined to buy ${item.name}`, { duration: 3000 });
-        } else if (action === 'give') {
-          toast.info(`${npc.name} politely refused your gift`, { duration: 3000 });
-        } else if (action === 'prescribe') {
-          toast.warning(`${npc.name} declined the prescription`, { duration: 3000 });
-        }
-      }
-
-      // Add to conversation history
-      const narrativeMessage = { role: 'assistant', content: outcome.narrative };
-      const systemMessage = { role: 'system', content: `*${outcome.systemMessage}*` };
-
-      setConversationHistory(prev => [...prev, narrativeMessage, systemMessage]);
-
-      // Also update history output to display in narrative panel
-      setHistoryOutput(outcome.narrative);
-
-      // Add journal entry
-      const journalText = outcome.accepted
-        ? `${action === 'give' ? 'Gave' : action === 'sell' ? 'Sold' : 'Prescribed'} ${item.name} to ${npc.name}. ${outcome.systemMessage}`
-        : `Attempted to ${action} ${item.name} to ${npc.name}, but they declined. ${outcome.systemMessage}`;
-
-      addJournalEntry({
-        turnNumber,
-        date: gameState.date,
-        entry: journalText
-      });
-
-      // Close popup
-      if (closePopup) {
-        closePopup();
-      }
-
-    } catch (error) {
-      console.error('[Item Action] Error details:', error);
-      console.error('[Item Action] Error stack:', error.stack);
-      toast.error(`Failed to ${action} item: ${error.message}`, { duration: 5000 });
-
-      if (closePopup) {
-        closePopup();
-      }
-    }
-  }, [
-    updateInventory,
-    setWealth,
-    setConversationHistory,
-    setHistoryOutput,
-    addJournalEntry,
-    turnNumber,
-    gameState,
-    toast,
-    buildItemActionPrompt,
-    parseItemActionOutcome
-  ]);
+  // PHASE 2.6: buildItemActionPrompt moved to useItemHandlers.js
+  // PHASE 2.6: parseItemActionOutcome moved to useItemHandlers.js
+  // PHASE 2.6: handleItemAction moved to useItemHandlers.js
 
   // CONTRACT HANDLERS
 
   // Handle accepting treatment contract
-  const handleAcceptTreatment = useCallback(async (patientEntity, paymentAmount) => {
-    console.log('[Contract] Accepting treatment:', patientEntity.name, 'Payment:', paymentAmount);
+  // PHASE 2.2: handleAcceptTreatment moved to useMedicalHandlers.js
 
-    // Update wealth immediately (payment received upfront)
-    setWealth(prev => prev + paymentAmount);
+  // PHASE 2.3: handleAcceptSale moved to useCommerceHandlers.js
 
-    // Award XP for entering contract
-    if (typeof awardXP === 'function') {
-      awardXP(1, `contract_treatment_${patientEntity.name}`);
-    }
-
-    // Add journal entry
-    addJournalEntry({
-      turnNumber,
-      date: gameState.date,
-      entry: `Accepted contract to treat ${patientEntity.name} for ${paymentAmount} reales.`
-    });
-
-    toast.success(`Contract accepted! Preparing to examine ${patientEntity.name}...`, { duration: 3000 });
-
-    // Generate transition narrative (Maria preparing/traveling)
-    try {
-      setIsLoading(true);
-
-      const scenario = scenarioLoader.loadScenario(scenarioId);
-      const systemPrompt = `You are narrating a brief transition scene in a historical medical RPG.
-
-Maria de Lima, a converso apothecary in 1680 Mexico City, has just accepted a contract to treat ${patientEntity.name} for ${paymentAmount} reales.
-
-Write a short (2-3 sentences) narrative showing:
-- If the patient is present: Maria preparing her workspace and asking the patient to sit
-- If the patient is elsewhere: Maria gathering her medical bag and traveling to the patient's location
-- Maria's thoughts about the case or the payment
-
-Keep it brief and atmospheric. End with Maria ready to begin the examination.`;
-
-      const userPrompt = `Patient: ${patientEntity.name}
-Payment: ${paymentAmount} reales
-Location: ${gameState.location}
-Time: ${gameState.time}
-
-Generate the transition narrative.`;
-
-      const response = await createChatCompletion(
-        [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        0.7, // Slightly higher temperature for narrative variety
-        200 // Short response
-      );
-
-      const transitionNarrative = response.choices[0].message.content;
-
-      // Add to conversation history
-      setConversationHistory(prev => [...prev,
-        { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales.*` },
-        { role: 'assistant', content: transitionNarrative }
-      ]);
-
-      // Display narrative
-      setHistoryOutput(transitionNarrative);
-
-      // NOW set active patient (triggers "Patient Ready for Examination" card)
-      // Do NOT auto-switch to patient tab - let player click the card
-      setActivePatient(patientEntity);
-      setPatientDialogue([]); // Clear previous dialogue
-
-      // PHASE 2 FIX: Update portrait to show the patient who is now physically present
-      // Since transition narrative doesn't go through NarrativeAgent, manually update portrait
-      console.log('[Portrait Phase 2] Patient now present, updating portrait for:', patientEntity.name);
-
-      // Enrich patient if needed to get appearance data
-      const enrichedPatient = entityManager.getById(patientEntity.id) || patientEntity;
-
-      // Use old portrait resolver as fallback for this edge case (transition scenes)
-      const patientPortrait = resolvePortrait(enrichedPatient);
-      if (patientPortrait) {
-        const portraitFilename = patientPortrait.replace('/portraits/', '');
-        console.log('[Portrait Phase 2] Setting patient portrait:', portraitFilename);
-
-        // Store portrait in patient entity for display in "Patient Ready" card and patient view
-        enrichedPatient.image = portraitFilename;
-        if (!enrichedPatient.visual) enrichedPatient.visual = {};
-        enrichedPatient.visual.image = portraitFilename;
-        console.log('[Portrait Phase 2] Stored portrait in patient entity:', portraitFilename);
-
-        setPrimaryPortraitFile(portraitFilename);
-
-        // CRITICAL FIX: Update entity reference so ContextPanel displays correct name
-        previousPortraitEntityRef.current = enrichedPatient;
-        console.log('[Portrait Phase 2] Updated entity reference to:', enrichedPatient.name);
-
-        // Update recent portrait for next turn's continuity
-        recentPortraitRef.current = portraitFilename;
-        console.log('[Portrait Phase 2] Stored portrait for next turn:', portraitFilename);
-
-        // Update active patient to include the portrait
-        setActivePatient({ ...enrichedPatient });
-      } else {
-        console.warn('[Portrait Phase 2] Could not resolve portrait for patient:', patientEntity.name);
-      }
-
-      // Clear the contract and close modal
-      setPendingContract(null);
-      setIsContractModalOpen(false);
-
-      setIsLoading(false);
-
-    } catch (error) {
-      console.error('[Contract] Transition narrative error:', error);
-      setIsLoading(false);
-
-      // Fallback: simple message
-      const fallbackNarrative = `Maria accepts the payment and prepares to examine ${patientEntity.name}.`;
-      setConversationHistory(prev => [...prev,
-        { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales.*` },
-        { role: 'assistant', content: fallbackNarrative }
-      ]);
-      setHistoryOutput(fallbackNarrative);
-      setActivePatient(patientEntity);
-      setPatientDialogue([]);
-
-      // PHASE 2 FIX: Update portrait for patient (even in fallback case)
-      const enrichedPatient = entityManager.getById(patientEntity.id) || patientEntity;
-      const patientPortrait = resolvePortrait(enrichedPatient);
-      if (patientPortrait) {
-        const portraitFilename = patientPortrait.replace('/portraits/', '');
-        setPrimaryPortraitFile(portraitFilename);
-
-        // CRITICAL FIX: Update entity reference so ContextPanel displays correct name
-        previousPortraitEntityRef.current = enrichedPatient;
-        console.log('[Portrait Phase 2 Fallback] Updated entity reference to:', enrichedPatient.name);
-
-        // Update recent portrait for next turn's continuity
-        recentPortraitRef.current = portraitFilename;
-        console.log('[Portrait Phase 2 Fallback] Stored portrait for next turn:', portraitFilename);
-      }
-
-      // Clear the contract and close modal (even in error case)
-      setPendingContract(null);
-      setIsContractModalOpen(false);
-    }
-  }, [setWealth, awardXP, addJournalEntry, turnNumber, gameState.date, gameState.location, gameState.time, toast, setIsLoading, scenarioId, setConversationHistory, setHistoryOutput, setActivePatient, setPatientDialogue, setPendingContract, setIsContractModalOpen, setPrimaryPortraitFile]);
-
-  // Handle accepting sale contract
-  const handleAcceptSale = useCallback(async (item, price, customerName) => {
-    console.log('[Contract] Proposing sale:', item.name, 'Price:', price, 'Customer:', customerName);
-
-    // Update inventory (remove item)
-    updateInventory(item.name, -1, 'sold');
-
-    // Update wealth
-    setWealth(prev => prev + price);
-
-    // Award XP for completing sale
-    if (typeof awardXP === 'function') {
-      awardXP(1, `sale_${item.name}_to_${customerName}`);
-    }
-
-    // Log to conversation history
-    setConversationHistory(prev => [...prev,
-      { role: 'system', content: `*[SALE COMPLETED] Maria sold ${item.name} to ${customerName} for ${price} reales.*` }
-    ]);
-
-    // Add journal entry
-    addJournalEntry({
-      turnNumber,
-      date: gameState.date,
-      entry: `Sold ${item.name} to ${customerName} for ${price} reales.`
-    });
-
-    toast.success(`Sold ${item.name} for ${price} reales!`, { duration: 3000 });
-
-    // Clear the contract and close modal
-    setPendingContract(null);
-    setIsContractModalOpen(false);
-  }, [updateInventory, setWealth, awardXP, setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast, setPendingContract, setIsContractModalOpen]);
-
-  // Handle declining contract
-  const handleDeclineContract = useCallback(() => {
-    console.log('[Contract] Declined offer');
-
-    // Log to conversation history
-    setConversationHistory(prev => [...prev,
-      { role: 'system', content: `*[CONTRACT DECLINED] Maria declined the offer.*` }
-    ]);
-
-    // Add journal entry
-    addJournalEntry({
-      turnNumber,
-      date: gameState.date,
-      entry: `Declined a contract offer.`
-    });
-
-    toast.info('Contract declined.', { duration: 2000 });
-
-    // Clear the contract and close modal
-    setPendingContract(null);
-    setIsContractModalOpen(false);
-  }, [setConversationHistory, addJournalEntry, turnNumber, gameState.date, toast, setPendingContract, setIsContractModalOpen]);
+  // PHASE 2.2: handleDeclineContract moved to useMedicalHandlers.js
 
   // EXPLICIT ENTER BUILDING HANDLER (for clicking building on map)
-  const handleEnterBuilding = useCallback((buildingData) => {
-    console.log('[Enter Button] Player entering building:', buildingData);
+  // PHASE 2.1: handleEnterBuilding and handleExitBuilding moved to useNavigationHandlers.js
 
-    if (!buildingData || !buildingData.hasInterior) {
-      console.warn('[Enter Button] Building has no interior:', buildingData);
-      return;
-    }
+  // PHASE 2.3: handleAcceptTrade and handleDeclineTrade moved to useCommerceHandlers.js
 
-    // Temporarily disable input during transition
-    setIsLoading(true);
-
-    // Load the scenario to access maps
-    const scenario = scenarioLoader.getScenario(scenarioId);
-    if (!scenario || !scenario.maps) {
-      console.error('[Enter Button] Cannot load scenario maps');
-      setIsLoading(false);
-      return;
-    }
-
-    // Get the interior map data
-    const interiorMapId = buildingData.hasInterior;
-    const interiorMap = scenario.maps.interior[interiorMapId];
-
-    if (!interiorMap) {
-      console.error('[Enter Button] Interior map not found:', interiorMapId);
-      setIsLoading(false);
-      return;
-    }
-
-    // Store building data for exit handling
-    currentBuildingRef.current = buildingData;
-
-    // Get spawn position from interior map (or use default)
-    const spawnPosition = interiorMap.startPosition || [400, 400];
-    const [spawnX, spawnY] = spawnPosition;
-
-    // Update all states for interior map
-    const buildingName = buildingData.fullName || buildingData.name;
-    updateLocation(`${buildingName}, Mexico City`);
-    setCurrentMapId(interiorMapId);
-    setPlayerPosition({ x: spawnX, y: spawnY });
-
-    // Generate dynamic enter message based on building type
-    let enterMessage = `You step inside the ${buildingName}.`;
-    if (buildingData.type === 'church') {
-      enterMessage = `You enter the ${buildingName}. The vast sacred space echoes with whispered prayers, and the scent of incense fills the air.`;
-    } else if (buildingData.type === 'government') {
-      enterMessage = `You step into the ${buildingName}. The grand halls speak of colonial power and authority.`;
-    } else if (buildingData.type === 'market') {
-      enterMessage = `You enter the ${buildingName}. The bustling market is alive with vendors calling out their wares and the mingled scents of food, spices, and goods.`;
-    } else if (buildingData.type === 'residence') {
-      enterMessage = `You step into the ${buildingName}. The ${buildingData.subtype === 'humble' ? 'cramped space' : 'modest rooms'} speak of daily life in colonial Mexico City.`;
-    }
-
-    setHistoryOutput(enterMessage);
-    setConversationHistory(prev => [
-      ...prev,
-      { role: 'system', content: `*[LOCATION CHANGE] Maria enters ${buildingName}. Interior: ${interiorMapId}*` },
-      { role: 'assistant', content: enterMessage }
-    ]);
-
-    // Add to user actions for context
-    setUserActions(prev => [...prev, `enter ${buildingData.name.toLowerCase()}`]);
-
-    // Small delay to ensure all states sync, then re-enable input
-    setTimeout(() => {
-      setIsLoading(false);
-      console.log('[Enter Button] Transition complete');
-    }, 100);
-  }, [
-    scenarioId,
-    updateLocation,
-    setCurrentMapId,
-    setPlayerPosition,
-    setHistoryOutput,
-    setConversationHistory,
-    setUserActions,
-    setIsLoading
-  ]);
-
-  // EXPLICIT EXIT BUILDING HANDLER (for Exit button on map)
-  const handleExitBuilding = useCallback(() => {
-    console.log('[Exit Button] Player exiting to exterior');
-
-    // Temporarily disable input during transition
-    setIsLoading(true);
-
-    // Get building data from ref (stored when entering)
-    const building = currentBuildingRef.current;
-
-    // Determine exit position (use building's entrancePoint or default)
-    let exitPosition = { x: 1350, y: 930 }; // Default to botica position
-
-    if (building && building.entrancePoint) {
-      exitPosition = building.entrancePoint;
-    }
-
-    // Update all states for exterior map
-    updateLocation('Mexico City');
-    setCurrentMapId('mexico-city-center');
-    setPlayerPosition(exitPosition);
-
-    // Generate dynamic exit message based on building type
-    const buildingName = building ? (building.name || 'the building') : 'the building';
-    let exitMessage = `You step outside into the bustling streets of Mexico City.`;
-
-    if (building) {
-      if (building.type === 'church') {
-        exitMessage = `You exit the ${buildingName} and step into the sunlight. The sounds of the city replace the sacred silence.`;
-      } else if (building.type === 'government') {
-        exitMessage = `You leave the ${buildingName} and return to the streets. The weight of colonial authority fades behind you.`;
-      } else if (building.type === 'market') {
-        exitMessage = `You exit the ${buildingName} into the open air. The market bustle continues around you.`;
-      } else if (building.type === 'residence') {
-        exitMessage = `You step out of the ${buildingName} back into the street.`;
-      } else {
-        exitMessage = `You exit the ${buildingName} into the streets of Mexico City.`;
-      }
-    }
-
-    setHistoryOutput(exitMessage);
-    setConversationHistory(prev => [
-      ...prev,
-      { role: 'system', content: `*[LOCATION CHANGE] Maria exits ${buildingName} and is now standing outside in Mexico City. Position: (${exitPosition.x}, ${exitPosition.y})*` },
-      { role: 'assistant', content: exitMessage }
-    ]);
-
-    // Add to user actions for context
-    setUserActions(prev => [...prev, 'exit building']);
-
-    // Small delay to ensure all states sync, then re-enable input
-    setTimeout(() => {
-      setIsLoading(false);
-      console.log('[Exit Button] Transition complete');
-    }, 100);
-  }, [
-    updateLocation,
-    setCurrentMapId,
-    setPlayerPosition,
-    setHistoryOutput,
-    setConversationHistory,
-    setUserActions,
-    setIsLoading
-  ]);
-
-  // Handle accepting trade opportunity
-  const handleAcceptTrade = useCallback((opportunity) => {
-    console.log('[Trade] Accepted trade opportunity:', opportunity);
-
-    // Set the trading NPC and mode
-    setTradingNPC(opportunity);
-    setTradeMode('npc');
-
-    // Open the trade modal (this will be connected to TradeModal via isBuyOpen or a new isTradeOpen state)
-    // For now, using isBuyOpen as it's the existing trade modal trigger
-    setIsBuyOpen(true);
-
-    // Log to conversation history
-    setConversationHistory(prev => [...prev,
-      { role: 'system', content: `*[TRADE OPENED] Maria opens trade with ${opportunity.npcName}.*` }
-    ]);
-
-    toast.success(`Opening trade with ${opportunity.npcName}`, { duration: 2000 });
-  }, [setTradingNPC, setTradeMode, setIsBuyOpen, setConversationHistory, toast]);
-
-  // Handle declining trade opportunity
-  const handleDeclineTrade = useCallback((opportunityId) => {
-    console.log('[Trade] Declined trade opportunity:', opportunityId);
-
-    // Remove the opportunity
-    removeTradeOpportunity(opportunityId);
-
-    // Log to conversation history
-    setConversationHistory(prev => [...prev,
-      { role: 'system', content: `*[TRADE DECLINED] Maria declined the trade offer.*` }
-    ]);
-
-    toast.info('Trade opportunity declined.', { duration: 2000 });
-  }, [removeTradeOpportunity, setConversationHistory, toast]);
-
-  // Handle simple interaction choices (service offers, donations, competitive checks, info exchange)
-  const handleSimpleInteractionChoice = useCallback(async (action, interaction) => {
-    console.log('[SimpleInteraction] Player chose:', action, interaction);
-
-    const { type, npcName } = interaction;
-
-    // Detect if this is a dismissal action (NPC should be removed from tracking)
-    const isDismissal = ['refuse', 'decline', 'not_now', 'not_today', 'no_thanks'].includes(action.toLowerCase());
-
-    // Determine time increment based on interaction type
-    const timeIncrements = {
-      service_offer: 5,
-      donation_request: 5,
-      competitive_check: 10,
-      information_exchange: 5,
-      social_visit: 15
-    };
-    const timeIncrement = timeIncrements[type] || 5;
-
-    // Process action based on type
-    let journalText = '';
-    let reputationChange = 0;
-    let xpAmount = 1; // Base XP for simple interactions
-
-    switch (type) {
-      case 'service_offer': {
-        const { item, price } = interaction.offer;
-        if (action === 'buy') {
-          // Deduct wealth
-          setWealth(prev => prev - price);
-          // Add item to inventory
-          updateInventory(item, 1, `purchased from ${npcName}`);
-          journalText = `Purchased ${item} from ${npcName} for ${price} reales.`;
-          toast.success(`Bought ${item} for ${price} reales`, { duration: 2000 });
-        } else {
-          journalText = `Declined to purchase ${item} from ${npcName}.`;
-          toast.info('Purchase declined', { duration: 1500 });
-        }
-        break;
-      }
-
-      case 'donation_request': {
-        const { item, reputationImpact } = interaction.request;
-        if (action === 'donate') {
-          // Remove item from inventory
-          updateInventory(item, -1, `donated to ${npcName}`);
-          reputationChange = reputationImpact.donate;
-          journalText = `Donated ${item} to ${npcName}. A small act of charity.`;
-          toast.success(`Donated ${item}. Reputation +${reputationChange}`, { duration: 2500 });
-        } else {
-          reputationChange = reputationImpact.refuse;
-          journalText = `Refused ${npcName}'s request for charity.`;
-          toast.warning(`Refused donation. Reputation ${reputationChange}`, { duration: 2000 });
-        }
-        break;
-      }
-
-      case 'competitive_check': {
-        const { targetItem, offeredPrice, actualValue } = interaction.competitive;
-        if (action === 'sell_lowball') {
-          // Sell at lowball price
-          updateInventory(targetItem, -1, `sold to ${npcName}`);
-          setWealth(prev => prev + offeredPrice);
-          reputationChange = -2; // Slight reputation hit for appearing desperate
-          journalText = `Sold ${targetItem} to ${npcName} for ${offeredPrice} reales (below market value).`;
-          toast.warning(`Sold for ${offeredPrice} reales. Market value was ${actualValue}`, { duration: 3000 });
-        } else if (action === 'demand_fair') {
-          // Demand fair price - competitive check passed
-          updateInventory(targetItem, -1, `sold to ${npcName}`);
-          setWealth(prev => prev + actualValue);
-          reputationChange = +3; // Reputation boost for standing firm
-          xpAmount = 2; // Extra XP for good business sense
-          journalText = `Refused lowball offer and sold ${targetItem} to ${npcName} for fair price (${actualValue} reales).`;
-          toast.success(`Sold for fair price: ${actualValue} reales! +3 reputation`, { duration: 3000 });
-        } else {
-          // Dismiss the rival
-          reputationChange = +1; // Small reputation boost for refusing to engage
-          journalText = `Dismissed ${npcName}'s attempt to undercut prices.`;
-          toast.info('Dismissed rival apothecary', { duration: 2000 });
-        }
-        break;
-      }
-
-      case 'information_exchange': {
-        const { topic, cost } = interaction.information;
-        if (action === 'pay') {
-          // Parse cost (could be "1 real", "1 bread", etc.)
-          const coinMatch = cost.match(/(\d+)\s*(real|reale)/i);
-          if (coinMatch) {
-            const coinCost = parseInt(coinMatch[1]);
-            setWealth(prev => prev - coinCost);
-            journalText = `Paid ${coinCost} reales to ${npcName} for information about ${topic}.`;
-            toast.success(`Learned about ${topic}`, { duration: 2500 });
-          } else {
-            // Item cost - extract item name
-            const itemMatch = cost.match(/(\d+)\s+(\w+)/i);
-            if (itemMatch) {
-              const itemName = itemMatch[2];
-              updateInventory(itemName, -1, `paid to ${npcName} for information`);
-              journalText = `Paid ${itemName} to ${npcName} for information about ${topic}.`;
-              toast.success(`Learned about ${topic}`, { duration: 2500 });
-            }
-          }
-          xpAmount = 2; // Extra XP for gaining knowledge
-
-          // Generate follow-up narrative revealing the information
-          // This is a CRITICAL fix - information_exchange needs continuation narrative
-          const shouldGenerateNarrative = true;
-          if (shouldGenerateNarrative) {
-            console.log('[SimpleInteraction] Information accepted - will generate follow-up narrative');
-          }
-        } else {
-          journalText = `Refused to pay ${npcName} for information about ${topic}.`;
-          toast.info('Declined information', { duration: 1500 });
-        }
-        break;
-      }
-
-      case 'social_visit': {
-        // Social visits are just conversational, no resource exchange
-        journalText = `Spent time with ${npcName}. ${interaction.social.purpose}`;
-        reputationChange = +2; // Small reputation boost for maintaining relationships
-        toast.info(`Visit with ${npcName} complete`, { duration: 2000 });
-        break;
-      }
-
-      default:
-        console.warn('[SimpleInteraction] Unknown interaction type:', type);
-        journalText = `Interaction with ${npcName} complete.`;
-    }
-
-    // Apply faction-based reputation change
-    if (reputationChange !== 0 && npcName) {
-      // Look up NPC entity to get their faction
-      const npcEntity = entityManager.getByName(npcName);
-
-      if (npcEntity) {
-        // Get NPC's casta or faction
-        const casta = npcEntity.social?.casta || npcEntity.appearance?.casta;
-        const npcFaction = npcEntity.social?.faction;
-
-        // Map casta to faction if no explicit faction set
-        let factionToUpdate = null;
-        if (npcFaction) {
-          factionToUpdate = mapNPCFactionToSystemFaction(npcFaction);
-        } else if (casta) {
-          // Map common castas to factions
-          const castaLower = casta.toLowerCase();
-          if (castaLower.includes('indígena') || castaLower.includes('indigenous') || castaLower.includes('indio')) {
-            factionToUpdate = 'indigenous';
-          } else if (castaLower.includes('español') || castaLower.includes('peninsular')) {
-            factionToUpdate = 'elite';
-          } else if (castaLower.includes('criollo')) {
-            factionToUpdate = 'elite';
-          } else if (castaLower.includes('mestizo') || castaLower.includes('mulato')) {
-            factionToUpdate = 'commonFolk';
-          } else if (castaLower.includes('africano')) {
-            factionToUpdate = 'commonFolk';
-          }
-        }
-
-        if (factionToUpdate) {
-          const actionType = type === 'donation_request' ?
-            (reputationChange > 0 ? 'charity' : 'refusal') :
-            'interaction';
-          updateReputation(factionToUpdate, reputationChange, `${actionType} with ${npcName}`);
-          console.log(`[SimpleInteraction] Updated ${factionToUpdate} reputation by ${reputationChange}`);
-        } else {
-          console.warn('[SimpleInteraction] Could not determine faction for NPC:', npcName);
-        }
-      } else {
-        console.warn('[SimpleInteraction] NPC not found in EntityManager:', npcName);
-      }
-    }
-
-    // Award XP
-    awardXP(xpAmount, `simple_interaction_${type}`);
-
-    // Advance time
-    advanceTime({ minutes: timeIncrement });
-
-    // Add journal entry
-    addJournalEntry({
-      turnNumber,
-      date: gameState.date,
-      entry: journalText
-    });
-
-    // Add to conversation history (system message for record keeping)
-    setConversationHistory(prev => [...prev, {
-      role: 'system',
-      content: `*[SIMPLE INTERACTION] ${journalText}*`
-    }]);
-
-    // Clear the pending interaction
-    setPendingSimpleInteraction(null);
-
-    // ALWAYS generate continuation narrative for ALL simple interactions
-    console.log('[SimpleInteraction] Generating continuation narrative for:', type, action);
-
-    try {
-      // Step 1: If information_exchange + pay, generate info reveal first
-      if (type === 'information_exchange' && action === 'pay') {
-        console.log('[SimpleInteraction] Generating information reveal narrative');
-
-        const infoPrompt = `You are narrating a historical RPG set in 1680 Mexico City. Maria de Lima, a converso apothecary, just paid ${npcName} for information about ${interaction.information.topic}.
-
-Generate a SHORT continuation (2-3 sentences) revealing what ${npcName} tells Maria. Make it specific, useful, and potentially dangerous knowledge.
-
-**Keep it under 60 words.**`;
-
-        const infoMessages = [
-          { role: 'system', content: 'You are a historical fiction narrator. Generate brief, evocative continuations.' },
-          { role: 'user', content: infoPrompt }
-        ];
-
-        const infoResponse = await createChatCompletion(
-          infoMessages,
-          0.8, // Creative but focused
-          200, // Short response
-          null,
-          { agent: 'InfoReveal' }
-        );
-
-        const revealNarrative = infoResponse.choices[0].message.content.trim();
-
-        // Add reveal to conversation history (not as next_steps, just regular narrative)
-        setConversationHistory(prev => [...prev, {
-          role: 'assistant',
-          content: revealNarrative
-        }]);
-
-        console.log('[SimpleInteraction] Information revealed:', revealNarrative.substring(0, 100));
-      }
-
-      // Step 2: If dismissal, remove NPC and clear portrait
-      if (isDismissal && npcName) {
-        console.log('[SimpleInteraction] Dismissal detected, removing NPC');
-        npcTracker.removeNPC(npcName);
-        setPrimaryPortraitFile(null);
-      }
-
-      // Step 3: Generate continuation with next steps for ALL interactions
-      const continuationPrompt = `You are narrating a historical RPG set in 1680 Mexico City. Maria de Lima, a converso apothecary, just completed a simple interaction:
-
-**What happened**: ${journalText}
-
-Generate a brief continuation (2-3 sentences) that:
-1. Acknowledges the choice Maria made
-2. Describes what happens immediately after (NPC reaction, scene transition, etc.)
-3. Ends with a reflective line suggesting what Maria might do next
-
-${isDismissal ? `The NPC has left. Describe Maria alone again, considering her options.` : `Keep it focused on the immediate aftermath of this interaction.`}
-
-**Keep it under 80 words. Use second person ("you").**`;
-
-      const continuationMessages = [
-        { role: 'system', content: 'You are a historical fiction narrator. Generate brief, evocative continuations that advance the story.' },
-        { role: 'user', content: continuationPrompt }
-      ];
-
-      const continuationResponse = await createChatCompletion(
-        continuationMessages,
-        0.8, // Creative but focused
-        250, // Short response
-        null,
-        { agent: 'SimpleInteractionContinuation' }
-      );
-
-      const continuationNarrative = continuationResponse.choices[0].message.content.trim();
-
-      // Add to conversation history with next_steps responseType (? icon)
-      setConversationHistory(prev => [...prev, {
-        role: 'assistant',
-        content: continuationNarrative,
-        responseType: 'next_steps' // Special type for question mark icon
-      }]);
-
-      console.log('[SimpleInteraction] Continuation generated:', continuationNarrative.substring(0, 100));
-
-    } catch (error) {
-      console.error('[SimpleInteraction] Failed to generate continuation:', error);
-      // Fallback: Add a basic next steps message
-      setConversationHistory(prev => [...prev, {
-        role: 'assistant',
-        content: `The interaction concludes. What will you do next?`,
-        responseType: 'next_steps'
-      }]);
-    }
-
-  }, [
-    setWealth,
-    updateInventory,
-    updateReputation,
-    awardXP,
-    advanceTime,
-    addJournalEntry,
-    turnNumber,
-    gameState,
-    scenarioId,
-    journal,
-    npcTracker,
-    setConversationHistory,
-    setPendingSimpleInteraction,
-    setPrimaryPortraitFile,
-    toast
-  ]);
+  // PHASE 2.3: handleSimpleInteractionChoice moved to useCommerceHandlers.js
 
   /**
    * Handle random event choice
@@ -3025,7 +1526,7 @@ ${isDismissal ? `The NPC has left. Describe Maria alone again, considering her o
 
     // Apply costs
     if (costs.wealth) {
-      setWealth(prev => prev + costs.wealth); // costs.wealth is already negative
+      setWealth(currentWealth + costs.wealth); // costs.wealth is already negative
     }
     if (costs.energy) {
       setEnergy(prev => prev + costs.energy); // costs.energy is already negative
@@ -3134,47 +1635,34 @@ ${isDismissal ? `The NPC has left. Describe Maria alone again, considering her o
 
   }, [setShowPOIModal, setSelectedPOIEntity, toast]);
 
+  // ============================================================================
+  // SECTION 6: RETURN STATEMENT
+  // Export all handlers (orchestrator + 6 specialized hooks)
+  // ============================================================================
+
   // Return all handlers
   return {
     handleWealthChange,
 
     handleReputationChange,
     handleIncorporate,
-    toggleJournal,
-    toggleInventory,
-    toggleHistory,
-    toggleAbout,
-    toggleMap,
-    toggleDiagnose,
-    toggleMixingPopup,
-    handlePDFClick,
-    closePdfPopup,
-    handlePortraitClick,
     addJournalEntry,
     handleJournalEntrySubmit,
-    applyResourceChanges,
-    handleEat,
-    handleForageComplete,
-    handleItemDrop,
     handleSubmit,
-    handleQuickAction,
-    handleActionClick,
-    handleCommandClick,
-    handleSaveGame,
-    handleTabChange,
     handleEntityClick,
-    handleAskQuestion,
-    handleItemAction,
-    handleAcceptTreatment,
-    handleAcceptSale,
-    handleDeclineContract,
-    handleAcceptTrade,
-    handleDeclineTrade,
-    handleSimpleInteractionChoice,
     handleRandomEventChoice,
     handleFurnitureClick,
-    handleMovement,
-    handleEnterBuilding,
-    handleExitBuilding,
+    // PHASE 2.1: Navigation handlers from useNavigationHandlers
+    ...navigationHandlers,
+    // PHASE 2.2: Medical handlers from useMedicalHandlers
+    ...medicalHandlers,
+    // PHASE 2.3: Commerce handlers from useCommerceHandlers
+    ...commerceHandlers,
+    // PHASE 2.4: Resource handlers from useResourceHandlers
+    ...resourceHandlers,
+    // PHASE 2.5: UI handlers from useUIHandlers
+    ...uiHandlers,
+    // PHASE 2.6: Item handlers from useItemHandlers
+    ...itemHandlers,
   };
 }

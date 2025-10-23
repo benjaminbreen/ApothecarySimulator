@@ -36,7 +36,7 @@ const CompoundResultCard = ({ compound }) => {
 
   return (
     <div className={`
-      relative rounded-3xl p-8 mb-6 border-4 border-double shadow-2xl overflow-hidden
+      relative rounded-3xl p-6 mb-6 border-3 border-double shadow-2xl overflow-hidden
       ${isSuccess
         ? 'bg-gradient-to-br from-botanical-50 via-emerald-50 to-botanical-100 dark:from-emerald-950/50 dark:via-emerald-900/40 dark:to-emerald-950/50 border-botanical-400 dark:border-emerald-600/50'
         : 'bg-gradient-to-br from-danger-50 via-red-50 to-danger-100 dark:from-red-950/50 dark:via-red-900/40 dark:to-red-950/50 border-danger-400 dark:border-red-600/50'
@@ -164,7 +164,7 @@ const CompoundResultCard = ({ compound }) => {
           </div>
 
           {/* Citation & Historical Accuracy */}
-          <div className="border-t-2 border-ink-200 dark:border-slate-700 pt-4">
+          <div className="border-t-2 border-ink-200 dark:border-slate-700 pt-2">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-2">
@@ -200,17 +200,7 @@ const CompoundResultCard = ({ compound }) => {
               )}
             </div>
 
-            {/* Historical Accuracy Rationale */}
-            {isSuccess && compound.historicalAccuracyRationale && (
-              <div className="mt-3 pt-3 border-t border-ink-200/50 dark:border-slate-700/50">
-                <div className="flex items-start gap-2">
-                  <span className="text-ink-400 dark:text-amber-400/50 text-sm flex-shrink-0">💡</span>
-                  <p className="text-xs text-ink-600 dark:text-amber-300/70 font-serif italic leading-relaxed">
-                    {compound.historicalAccuracyRationale}
-                  </p>
-                </div>
-              </div>
-            )}
+            
           </div>
         </div>
       </div>

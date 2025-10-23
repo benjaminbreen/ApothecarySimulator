@@ -14,8 +14,10 @@ import './Map.css';
  * @param {Function} props.onLandmarkClick - Callback when landmark is clicked
  * @param {Object} props.viewBox - ViewBox to use for zoom/pan {x, y, width, height} (optional, defaults to full map)
  * @param {string} props.theme - Theme mode: 'light' or 'dark' (defaults to 'light')
+ * @param {Array<[number, number]>} props.travelPath - Phase 3B: Animated travel path for house calls
+ * @param {boolean} props.isTraveling - Phase 3B: Whether travel animation is active
  */
-export default function ExteriorMap({ mapData, npcs = [], playerPosition = null, playerFacing = 180, onBuildingClick, onLandmarkClick, viewBox, theme = 'light' }) {
+export default function ExteriorMap({ mapData, npcs = [], playerPosition = null, playerFacing = 180, onBuildingClick, onLandmarkClick, viewBox, theme = 'light', travelPath = null, isTraveling = false }) {
   const [hoveredBuilding, setHoveredBuilding] = useState(null);
   const [hoveredNPC, setHoveredNPC] = useState(null);
 
@@ -657,6 +659,65 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
           </g>
         )}
 
+        {/* Phase 3B: Render travel path during house calls */}
+        {isTraveling && travelPath && travelPath.length > 1 && (
+          <g className="travel-path-layer">
+            {/* Travel path line */}
+            <polyline
+              points={travelPath.map(p => `${p[0]},${p[1]}`).join(' ')}
+              fill="none"
+              stroke={theme === 'dark' ? '#fbbf24' : '#0d9488'}
+              strokeWidth="4"
+              strokeDasharray="8 4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.7"
+              filter={theme === 'dark' ? 'url(#amber-glow)' : 'url(#glow)'}
+            >
+              {/* Animated dash movement */}
+              <animate
+                attributeName="stroke-dashoffset"
+                values="0;-12;0"
+                dur="1.5s"
+                repeatCount="indefinite"
+              />
+            </polyline>
+
+            {/* Destination marker (end of path) */}
+            <g>
+              <circle
+                cx={travelPath[travelPath.length - 1][0]}
+                cy={travelPath[travelPath.length - 1][1]}
+                r="12"
+                fill="none"
+                stroke={theme === 'dark' ? '#fbbf24' : '#0d9488'}
+                strokeWidth="3"
+                opacity="0.6"
+              >
+                <animate
+                  attributeName="r"
+                  values="12;18;12"
+                  dur="1.5s"
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  values="0.6;0.3;0.6"
+                  dur="1.5s"
+                  repeatCount="indefinite"
+                />
+              </circle>
+              <circle
+                cx={travelPath[travelPath.length - 1][0]}
+                cy={travelPath[travelPath.length - 1][1]}
+                r="6"
+                fill={theme === 'dark' ? '#fbbf24' : '#0d9488'}
+                opacity="0.8"
+              />
+            </g>
+          </g>
+        )}
+
         {/* Render player position */}
         {playerPosition && (
           <g className="player-layer">
@@ -714,15 +775,18 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
               className="player-marker"
             />
 
-            {/* Direction indicator (north arrow) */}
-            <path
-              d={`M ${playerPosition.x} ${playerPosition.y - 16} L ${playerPosition.x - 4} ${playerPosition.y - 10} L ${playerPosition.x} ${playerPosition.y - 12} L ${playerPosition.x + 4} ${playerPosition.y - 10} Z`}
-              fill={colors.playerMarker}
-              stroke={colors.playerStroke}
-              strokeWidth="1"
-              filter={theme === 'dark' ? 'url(#glow)' : 'none'}
-              style={{ pointerEvents: 'none' }}
-            />
+            {/* Direction indicator (arrow pointing in facing direction) */}
+            {/* Phase 5: Fixed to use angle in degrees instead of direction strings */}
+            <g transform={`rotate(${playerFacing}, ${playerPosition.x}, ${playerPosition.y})`}>
+              <path
+                d={`M ${playerPosition.x} ${playerPosition.y - 16} L ${playerPosition.x - 4} ${playerPosition.y - 10} L ${playerPosition.x} ${playerPosition.y - 12} L ${playerPosition.x + 4} ${playerPosition.y - 10} Z`}
+                fill={colors.playerMarker}
+                stroke={colors.playerStroke}
+                strokeWidth="1"
+                filter={theme === 'dark' ? 'url(#glow)' : 'none'}
+                style={{ pointerEvents: 'none' }}
+              />
+            </g>
 
             {/* Player label with better typography */}
             <g>

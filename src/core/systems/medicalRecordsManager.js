@@ -17,11 +17,14 @@ export class MedicalRecordsManager {
    * @param {Object} sessionData - Session data
    * @param {string} sessionData.date - Session date
    * @param {number} sessionData.turnNumber - Turn number
+   * @param {string} sessionData.sessionType - "examination" or "purchase"
    * @param {Array} sessionData.qaExchanges - Q&A exchanges [{ question, answer }]
    * @param {Array} sessionData.symptoms - Reported symptoms
    * @param {string} sessionData.diagnosis - Diagnosis text
    * @param {Array} sessionData.prescriptions - Prescriptions [{ medicine, route, dosage }]
    * @param {string} sessionData.outcome - Treatment outcome
+   * @param {number} sessionData.payment - Payment amount (for purchases)
+   * @param {string} sessionData.ailment - Brief ailment description (for purchases)
    * @returns {Object} Updated medical records
    */
   static addSession(currentRecords, patient, sessionData) {
@@ -49,17 +52,20 @@ export class MedicalRecordsManager {
     const session = {
       date: sessionData.date,
       turnNumber: sessionData.turnNumber,
+      sessionType: sessionData.sessionType || 'examination', // "examination" or "purchase"
       qaExchanges: sessionData.qaExchanges || [],
       symptoms: sessionData.symptoms || [],
       diagnosis: sessionData.diagnosis || '',
       prescriptions: sessionData.prescriptions || [],
       outcome: sessionData.outcome || 'In progress',
+      payment: sessionData.payment || 0,
+      ailment: sessionData.ailment || '', // For purchases: brief description
       timestamp: Date.now()
     };
 
     updatedRecords[patientId].sessions.push(session);
 
-    console.log(`[MedicalRecords] Added session for ${patient.name}:`, session);
+    console.log(`[MedicalRecords] Added ${session.sessionType} session for ${patient.name}:`, session);
 
     return updatedRecords;
   }

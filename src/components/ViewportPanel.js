@@ -32,7 +32,10 @@ const ViewportPanel = ({
   onBookClick = null, // Callback when book is clicked
   narrativeTurn = '', // Most recent narrative turn for Study tab
   primaryPortraitFile = null, // Primary portrait filename for status detection
-  onFurnitureClick = null // Callback when furniture is clicked on map
+  onFurnitureClick = null, // Callback when furniture is clicked on map
+  pendingHouseCall = null, // Phase 3B: House call data (triggers map view)
+  travelPath = null, // Phase 4: Travel animation path
+  isTraveling = false // Phase 4: Whether currently traveling
 }) => {
   const defaultTab = npcPresent ? 'portrait' : 'map';
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -53,9 +56,16 @@ const ViewportPanel = ({
     console.log('ViewportPanel - maps data:', scenario?.maps);
   }, [scenario]);
 
+  // Track previous npcPresent value to detect NEW arrivals
+  const prevNpcPresentRef = React.useRef(npcPresent);
+
   React.useEffect(() => {
-    if (npcPresent && activeTab !== 'portrait') {
-      // New NPC arrived while on different tab - pulse the portrait tab
+    const npcJustArrived = npcPresent && !prevNpcPresentRef.current;
+    const npcJustLeft = !npcPresent && prevNpcPresentRef.current;
+
+    if (npcJustArrived && activeTab !== 'portrait') {
+      // NEW NPC arrived while on different tab - auto-switch to portrait (ONCE)
+      console.log('[ViewportPanel] New NPC arrived - auto-switching to portrait view');
       setPulsePortraitTab(true);
 
       // Smoothly transition to portrait tab after a brief delay
@@ -64,12 +74,38 @@ const ViewportPanel = ({
         setActiveTab('portrait');
         setPulsePortraitTab(false);
       }, 800);
-    } else if (!npcPresent && activeTab === 'portrait') {
+    } else if (npcJustLeft && activeTab === 'portrait') {
       // NPC left while on portrait tab - switch to map tab
+      console.log('[ViewportPanel] NPC left - switching to map view');
       setPreviousTab(activeTab);
       setActiveTab('map');
     }
-  }, [npcPresent, activeTab]);
+
+    // Update ref for next render
+    prevNpcPresentRef.current = npcPresent;
+  }, [npcPresent]); // Removed activeTab from deps - only trigger on npcPresent changes!
+
+  // Phase 3B: Auto-switch to map view when house call starts
+  const prevPendingHouseCallRef = React.useRef(pendingHouseCall);
+
+  React.useEffect(() => {
+    const houseCallJustStarted = pendingHouseCall && !prevPendingHouseCallRef.current;
+    const houseCallJustEnded = !pendingHouseCall && prevPendingHouseCallRef.current;
+
+    if (houseCallJustStarted && activeTab !== 'map') {
+      // House call just started - auto-switch to map (ONCE)
+      console.log('[ViewportPanel] House call started - auto-switching to map view');
+      setPreviousTab(activeTab);
+      setActiveTab('map');
+    } else if (houseCallJustEnded && previousTab && previousTab !== 'map' && activeTab === 'map') {
+      // House call ended - revert to previous tab if it wasn't map
+      console.log('[ViewportPanel] House call ended - reverting to previous tab:', previousTab);
+      setActiveTab(previousTab);
+    }
+
+    // Update ref for next render
+    prevPendingHouseCallRef.current = pendingHouseCall;
+  }, [pendingHouseCall]); // Only trigger on pendingHouseCall changes!
 
   // Handle tab change with previous tab tracking
   const handleTabChange = (newTab) => {
@@ -211,6 +247,8 @@ const ViewportPanel = ({
                   onRoomCommand={onRoomCommand}
                   onFurnitureClick={onFurnitureClick}
                   theme={currentTheme}
+                  travelPath={travelPath}
+                  isTraveling={isTraveling}
                 />
               </div>
             ) : (
@@ -276,7 +314,7 @@ const ViewportPanel = ({
                         )}
                       </div>
 
-                      <div className="w-[260px] h-[215px] rounded-lg overflow-hidden border-4 border-botanical-500 dark:border-amber-500 shadow-elevation-3 group-hover:shadow-elevation-4 transition-all">
+                      <div className="w-[260px] h-[210px] rounded-lg overflow-hidden border-4 border-botanical-500 dark:border-amber-500 shadow-elevation-3 group-hover:shadow-elevation-4 transition-all">
                         <img src={npcPortrait} alt={npcName} className="w-full h-full object-cover" />
                       </div>
                     </div>
@@ -295,7 +333,7 @@ const ViewportPanel = ({
                   }}>
                     {[
                       npcData.appearance?.gender || npcData.gender,
-                      (npcData.appearance?.age || npcData.age) ? `Age ${npcData.appearance?.age || npcData.age}` : null,
+                      (npcData.appearance?.age || npcData.age) ? `${npcData.appearance?.age || npcData.age}` : null,
                       npcData.social?.occupation || npcData.occupation
                     ].filter(Boolean).map((text, i) =>
                       i === 0 ? text.charAt(0).toUpperCase() + text.slice(1) : text

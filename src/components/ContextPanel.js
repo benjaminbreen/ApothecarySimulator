@@ -36,10 +36,14 @@ const ContextPanel = ({
   entities = [], // Entities from LLM (with Wikipedia integration)
   discoveredBooks = [], // Books discovered during gameplay
   onBookClick = null, // Callback when book is clicked
-  onFurnitureClick = null // Callback when furniture is clicked on map
+  onFurnitureClick = null, // Callback when furniture is clicked on map
+  defaultCollapsed = true, // Default collapsed state (set to false for mobile)
+  pendingHouseCall = null, // Phase 3B: House call data (triggers map view)
+  travelPath = null, // Phase 4: Travel animation path
+  isTraveling = false // Phase 4: Whether currently traveling
 }) => {
-  // Collapse entire panel state - default to collapsed
-  const [isCollapsed, setIsCollapsed] = React.useState(true);
+  // Collapse entire panel state
+  const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
 
   // Animated entry state
   const [isVisible, setIsVisible] = React.useState(false);
@@ -328,7 +332,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
   const isDark = document.documentElement.classList.contains('dark');
 
   return (
-    <aside className="hidden xl:flex flex-col w-96 gap-5 h-full overflow-hidden px-1">
+    <aside className="hidden xl:flex flex-col w-96 gap-4 h-full overflow-hidden px-1">
 
       {/* Viewport Panel - Map/Portrait/Weather */}
       <div className="flex-shrink-0 rounded-2xl overflow-hidden shadow-elevation-2 dark:shadow-dark-elevation-3 transition-shadow duration-300 hover:shadow-elevation-3 dark:hover:shadow-dark-elevation-4">
@@ -354,11 +358,14 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
           narrativeTurn={recentNarrativeTurn}
           primaryPortraitFile={primaryPortraitFile}
           onFurnitureClick={onFurnitureClick}
+          pendingHouseCall={pendingHouseCall}
+          travelPath={travelPath}
+          isTraveling={isTraveling}
         />
       </div>
 
       {/* Action Panel */}
-      <div className="flex-shrink-0 rounded-2xl overflow-hidden shadow-elevation-2 dark:shadow-dark-elevation-3 transition-shadow duration-300 hover:shadow-elevation-3 dark:hover:shadow-dark-elevation-4">
+      <div className="flex-shrink-0 rounded-2xl overflow-hidden shadow-elevation-1 dark:shadow-dark-elevation-2 transition-shadow duration-300 hover:shadow-elevation-2 dark:hover:shadow-dark-elevation-3">
         <ActionPanel
           hasActiveNPC={hasPortrait}
           onActionClick={handleActionPanelClick}
@@ -442,10 +449,10 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
         />
 
         {/* Header with Elegant Dividers + Collapse Toggle */}
-        <div className="flex-shrink-0 px-4 pt-4 pb-2.5 relative z-10">
+        <div className="flex-shrink-0 px-4 pt-2 pb-2 relative z-10">
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-parchment-400/60 dark:via-amber-600/30 to-parchment-400/60 dark:to-amber-600/30 transition-colors duration-300"></div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
       
               <span className="font-sans text-xs font-semibold text-gray-600 dark:text-amber-400 uppercase tracking-[0.15em] whitespace-nowrap transition-colors duration-300" style={{ letterSpacing: '0.08em' }}>
                 Historical Context
@@ -472,7 +479,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
 
         {/* Enhanced Action Buttons - Always Visible */}
         <div
-          className="flex-shrink-0 px-3 pb-4 relative z-10"
+          className="flex-shrink-0 px-3 pb-2 relative z-10"
           onMouseEnter={() => setIsPanelHovered(true)}
           onMouseLeave={() => setIsPanelHovered(false)}
         >
@@ -568,7 +575,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
 
         {/* Content Area - Scrollable (Collapsible) - scrollbar color based on active mode */}
         <div
-          className={`flex-1 overflow-y-auto px-5 pb-5 relative z-10 transition-all duration-500 custom-scrollbar ${
+          className={`flex-1 overflow-y-auto px-5 pb-3 relative z-10 transition-all duration-500 custom-scrollbar ${
             isCollapsed ? 'max-h-0 opacity-0 pointer-events-none overflow-hidden' : 'max-h-full opacity-100'
           }`}
           style={{

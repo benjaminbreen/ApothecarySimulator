@@ -416,9 +416,9 @@ function PrescribePopup({
           }}
           onClick={onClose}
         >
-          {/* Modal Container */}
+          {/* Modal Container - Responsive: Full screen on mobile */}
           <div
-            className="relative w-full max-w-5xl max-h-[95vh] overflow-hidden rounded-xl"
+            className="relative w-full max-w-full sm:max-w-5xl h-screen sm:h-auto sm:max-h-[95vh] overflow-hidden rounded-none sm:rounded-xl"
             style={{
               background: isDark
                 ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%)'
@@ -439,9 +439,9 @@ function PrescribePopup({
               }}
             />
 
-            {/* Header */}
+            {/* Header - Responsive padding */}
             <div
-              className="relative px-8 py-6 border-b"
+              className="relative px-4 sm:px-6 md:px-8 py-4 sm:py-6 border-b"
               style={{
                 background: isDark
                   ? 'linear-gradient(to bottom, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.6))'
@@ -453,10 +453,10 @@ function PrescribePopup({
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-3xl">🧪</span>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="text-2xl sm:text-3xl">🧪</span>
                     <h1
-                      className="text-3xl tracking-tight"
+                      className="text-xl sm:text-2xl md:text-3xl tracking-tight"
                       style={{
                         fontFamily: "'Cormorant Garamond', Georgia, serif",
                         fontWeight: 700,
@@ -509,9 +509,9 @@ function PrescribePopup({
               </div>
             </div>
 
-            {/* Content */}
+            {/* Content - Responsive padding */}
             <div
-              className="p-8 overflow-y-auto"
+              className="p-4 sm:p-6 md:p-8 overflow-y-auto"
               style={{
                 maxHeight: 'calc(95vh - 180px)',
                 background: isDark
@@ -800,7 +800,7 @@ function PrescribePopup({
           }}
         >
           <div
-            className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-xl"
+            className="relative w-full max-w-full sm:max-w-2xl h-screen sm:h-auto sm:max-h-[90vh] overflow-hidden rounded-none sm:rounded-xl"
             style={{
               background: isDark
                 ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%)'
@@ -820,8 +820,8 @@ function PrescribePopup({
               }}
             />
 
-            {/* Content */}
-            <div className="p-10 overflow-y-auto" style={{ maxHeight: '90vh' }}>
+            {/* Content - Responsive padding */}
+            <div className="p-4 sm:p-6 md:p-10 overflow-y-auto" style={{ maxHeight: '90vh' }}>
               <h2
                 className="text-2xl font-bold text-center mb-4"
                 style={{

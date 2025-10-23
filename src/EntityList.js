@@ -2919,6 +2919,276 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   interactionFrequency: "low", // Appears once every 3-5 game days
   relationshipTracking: true // Friendship deepens over time
 },
+{
+  entityType: "npc",
+  name: "Martín the Tax Collector",
+  age: 42,
+  gender: "male",
+  birthplace: "Mexico City",
+  currentResidence: "Mexico City",
+  casta: "criollo",
+  class: "official (low-level)",
+  occupation: "tax collector",
+  image: "criollomaleofficialmiddleaged.jpg",
+  caption: "Martín, a tax collector seeking 'voluntary donations'",
+  description: "Martín is a minor colonial official who collects taxes and fees for the Crown. He's learned that his meager salary can be supplemented by 'voluntary donations' from merchants who wish to avoid lengthy audits or inconvenient inspections. He's not overtly corrupt, but operates in the gray area that colonial bureaucracy permits.",
+  personality: {
+    traits: ["pragmatic", "bureaucratic", "opportunistic", "polite"],
+    likes: ["donations", "avoiding paperwork", "maintaining appearances"],
+    dislikes: ["defiance", "scrutiny from superiors", "merchants who refuse"],
+    fears: ["being caught in outright bribery", "poverty in old age"],
+    motivations: ["supplementing his salary", "retiring comfortably"]
+  },
+  background: "Born in Mexico City to a modest criollo family, Martín secured his position through family connections. He's discovered that the real money isn't in his salary but in the discretionary power he wields. A small donation means he overlooks irregularities; refusal means he finds reasons for lengthy inspections.",
+  faction: "Colonial Administration",
+  portraitImage: "criollomaleofficialmiddleaged.jpg",
+  imgdescription: "Martín is a middle-aged criollo man with a round face and receding hairline. He wears a modest black doublet with worn silver buttons, clean but unfashionable clothes befitting a minor official. He carries a leather satchel of documents and has the bored, officious manner of a bureaucrat.",
+  simpleInteractionType: "extortion_demand", // Pay 'donation' or face audit
+  interactionFrequency: "low" // Appears once every 4-5 game days
+},
+{
+  entityType: "npc",
+  name: "Citlali",
+  age: 28,
+  gender: "female",
+  birthplace: "Texcoco",
+  currentResidence: "Mexico City, markets",
+  casta: "india",
+  class: "artisan",
+  occupation: "weaver",
+  image: "indigenousfemalecraftswoman.jpg",
+  caption: "Citlali, an Indigenous weaver selling fine textiles",
+  description: "Citlali creates beautiful woven goods using traditional techniques passed down through her family. She travels from Texcoco to Mexico City's markets to sell her work - rebozos, huipils, and decorative cloths. Her goods are of exceptional quality, sought after by those who appreciate Indigenous craftsmanship.",
+  personality: {
+    traits: ["skilled", "proud of her work", "reserved", "observant"],
+    likes: ["people who appreciate quality", "fair prices", "respect for her culture"],
+    dislikes: ["haggling that demeans her work", "Spanish who mock Indigenous goods"],
+    fears: ["losing her traditional knowledge", "being cheated by merchants"],
+    motivations: ["supporting her family", "preserving weaving traditions"]
+  },
+  background: "Citlali learned weaving from her grandmother, who learned from hers in an unbroken line stretching back before the conquest. Her work incorporates ancient patterns and natural dyes that few weavers still know. She makes the journey to Mexico City several times a month to sell her goods, always wary but proud.",
+  faction: "Common Folk",
+  portraitImage: "indigenousfemalecraftswoman.jpg",
+  imgdescription: "Citlali is a young Indigenous woman with dark hair in traditional braids and intelligent, watchful eyes. She wears a beautifully woven huipil of her own making with intricate geometric patterns. She carries her goods wrapped in cloth bundles and has the careful posture of someone protecting valuable items.",
+  simpleInteractionType: "indigenous_trade", // Buy fine textiles or politely decline
+  interactionFrequency: "medium" // Appears once every 2-3 game days
+},
+{
+  entityType: "npc",
+  name: "Gaspar the Night Watchman",
+  age: 51,
+  gender: "male",
+  birthplace: "Guadalajara",
+  currentResidence: "Mexico City",
+  casta: "mestizo",
+  class: "laborer",
+  occupation: "night watchman",
+  image: "mestizomalewatchman.jpg",
+  caption: "Gaspar, the night watchman on his rounds",
+  description: "Gaspar patrols the streets at night, ostensibly to prevent crime and watch for fires. In practice, he also runs a protection racket - shop owners who pay him a few reales each month are 'protected' from robberies and vandalism. Those who refuse find their shops mysteriously vulnerable.",
+  personality: {
+    traits: ["intimidating", "gruff", "practical", "shrewd"],
+    likes: ["respect", "regular payments", "being feared slightly"],
+    dislikes: ["defiance", "complaints to authorities", "actual criminals who threaten his territory"],
+    fears: ["being replaced", "real crime that makes him look incompetent"],
+    motivations: ["supplementing meager wages", "maintaining control of his route"]
+  },
+  background: "Gaspar has walked these streets for fifteen years. He knows every alley, every shop, every resident. He's not a bad man by his own lights - he does prevent some crime, and his 'protection fees' are modest. But he's made clear that businesses who don't pay have unfortunately frequent problems.",
+  faction: "None",
+  portraitImage: "mestizomalewatchman.jpg",
+  imgdescription: "Gaspar is a weathered mestizo man in his 50s with gray-streaked hair and a scarred face. He wears a worn leather jerkin, carries a cudgel and lantern, and has the solid build of a man used to physical confrontation. His expression is stern but not cruel.",
+  simpleInteractionType: "protection_racket", // Pay for 'protection' or risk harassment
+  interactionFrequency: "low" // Appears once every 5-6 game days
+},
+{
+  entityType: "npc",
+  name: "Rodrigo the Musician",
+  age: 26,
+  gender: "male",
+  birthplace: "Mexico City",
+  currentResidence: "Mexico City, streets and plazas",
+  casta: "mestizo",
+  class: "entertainer",
+  occupation: "street musician",
+  image: "mestizomalemusician.jpg",
+  caption: "Rodrigo, a talented musician seeking coins",
+  description: "Rodrigo plays guitar and sings in the streets and plazas of Mexico City. He knows hundreds of songs - Spanish romances, Indigenous melodies, African rhythms, and new corridos about local events. His voice is beautiful and his playing skilled enough that he makes a modest living from tips.",
+  personality: {
+    traits: ["talented", "charming", "optimistic", "romantic"],
+    likes: ["generous audiences", "new songs", "beautiful women", "pulque"],
+    dislikes: ["being ignored", "city guards who chase him off", "rainy days"],
+    fears: ["losing his voice", "his guitar being broken"],
+    motivations: ["making enough to eat and drink", "being appreciated for his art", "perhaps composing a song that lasts"]
+  },
+  background: "Rodrigo's father was a Spanish soldier and his mother an Indigenous woman. He learned music from a traveling minstrel who passed through when he was young. He's never held regular work, preferring the freedom of the streets, even if it means irregular meals. He composes songs about local scandals that sometimes get him in trouble.",
+  faction: "Common Folk",
+  portraitImage: "mestizomalemusician.jpg",
+  imgdescription: "Rodrigo is a handsome young mestizo man with long dark hair and an easy smile. He wears colorful but worn clothes - a shirt with embroidered sleeves, patched breeches, a hat with a bedraggled feather. He carries a well-maintained guitar and has the confident manner of a performer.",
+  simpleInteractionType: "entertainment_tip", // Give coins or politely decline
+  interactionFrequency: "medium" // Appears once every 2-3 game days
+},
+{
+  entityType: "npc",
+  name: "Juana the Milk Vendor",
+  age: 38,
+  gender: "female",
+  birthplace: "Tacuba",
+  currentResidence: "Tacuba (travels to Mexico City daily)",
+  casta: "india",
+  class: "vendor",
+  occupation: "milk seller",
+  image: "indigenousfemalevendormiddleaged.jpg",
+  caption: "Juana, selling fresh milk from her family's cows",
+  description: "Juana walks from Tacuba to Mexico City each morning before dawn, carrying clay jugs of fresh milk from her family's small herd. She sells door-to-door to regular customers, offering good quality at fair prices. She's reliable and honest, and her customers depend on her daily visits.",
+  personality: {
+    traits: ["hardworking", "honest", "maternal", "tired"],
+    likes: ["reliable customers", "fair payment", "being home before dark"],
+    dislikes: ["hagglers", "customers who waste her time", "the long walk"],
+    fears: ["her cows dying", "being robbed on the road", "losing customers"],
+    motivations: ["feeding her family", "maintaining customer relationships"]
+  },
+  background: "Juana's family has kept a small dairy herd for three generations. The work is exhausting - milking before dawn, the long walk to the city, making her rounds, walking back. But it feeds her five children and aging mother. She's known her regular customers for years and relies on their loyalty.",
+  faction: "Common Folk",
+  portraitImage: "indigenousfemalevendormiddleaged.jpg",
+  imgdescription: "Juana is a sturdy Indigenous woman in her late 30s with work-weathered hands and a tired but kind face. She wears a practical huipil and rebozo, carries a wooden yoke across her shoulders with clay milk jugs suspended on each side. Her feet are dusty from the long walk.",
+  simpleInteractionType: "food_purchase", // Buy milk or politely decline
+  interactionFrequency: "high" // Appears every 1-2 game days (daily rounds)
+},
+{
+  entityType: "npc",
+  name: "Don Esteban the Lottery Seller",
+  age: 63,
+  gender: "male",
+  birthplace: "Valladolid, Spain",
+  currentResidence: "Mexico City",
+  casta: "peninsular",
+  class: "middling (fallen)",
+  occupation: "lottery ticket seller",
+  image: "peninsularmaleelderlypoor.jpg",
+  caption: "Don Esteban, selling church lottery tickets",
+  description: "Don Esteban was once a prosperous merchant, but bad investments and gambling debts left him nearly destitute. Now he makes a small commission selling tickets for the cathedral's charity lottery. He maintains his dignity with worn but clean clothes and courteous manners, trying not to show how far he's fallen.",
+  personality: {
+    traits: ["dignified", "desperate", "persuasive", "nostalgic"],
+    likes: ["people who buy tickets", "talking about the old days", "maintaining appearances"],
+    dislikes: ["pity", "reminders of his failure", "being dismissed as a beggar"],
+    fears: ["complete destitution", "dying in poverty", "being forgotten"],
+    motivations: ["surviving with some dignity", "perhaps one last chance at fortune"]
+  },
+  background: "Esteban came to New Spain forty years ago with grand ambitions. He did well for decades, but a series of bad investments and a weakness for cards destroyed him. Too proud to beg, he secured this position selling lottery tickets. He buys a ticket himself each week, hoping for the miracle that will restore his fortune.",
+  faction: "Church (peripherally)",
+  portraitImage: "peninsularmaleelderlypoor.jpg",
+  imgdescription: "Don Esteban is an elderly peninsular man with white hair, a lined face, and sad, dignified eyes. He wears an old-fashioned doublet that was once fine but is now threadbare, carefully mended and kept spotlessly clean. He carries a wooden box of lottery tickets and maintains erect posture despite his circumstances.",
+  simpleInteractionType: "gamble_opportunity", // Buy lottery ticket or decline
+  interactionFrequency: "low" // Appears once every 4-5 game days
+},
+{
+  entityType: "npc",
+  name: "Miguel the Apprentice",
+  age: 16,
+  gender: "male",
+  birthplace: "Puebla",
+  currentResidence: "Mexico City (recently arrived)",
+  casta: "mestizo",
+  class: "laborer",
+  occupation: "seeking apprenticeship",
+  image: "mestizoyoungmalelaborer.jpg",
+  caption: "Miguel, a young man seeking work",
+  description: "Miguel recently arrived in Mexico City from Puebla, hoping to find an apprenticeship with an apothecary or physician. He's eager, hardworking, and has basic literacy - rare for someone of his class. He needs work desperately but is willing to learn any trade if given the chance.",
+  personality: {
+    traits: ["eager", "hardworking", "humble", "intelligent"],
+    likes: ["learning", "being useful", "books", "people who teach him"],
+    dislikes: ["idleness", "being dismissed without consideration", "his poverty"],
+    fears: ["failing in the city", "having to return home in shame", "never escaping poverty"],
+    motivations: ["learning a skilled trade", "making something of himself", "supporting his family"]
+  },
+  background: "Miguel's father, a village shopkeeper, taught him to read and do basic arithmetic - unusual for a mestizo boy. When the family fell on hard times, they sent Miguel to Mexico City to find opportunity. He's been searching for an apprenticeship for weeks, but most masters want payment he can't afford.",
+  faction: "None",
+  portraitImage: "mestizoyoungmalelaborer.jpg",
+  imgdescription: "Miguel is a thin young mestizo man of 16 with earnest eyes and nervous energy. He wears simple, worn clothes that are nevertheless clean and carefully maintained. He carries a small bundle of his possessions and has the eager, hopeful expression of someone seeking their chance.",
+  simpleInteractionType: "labor_offer", // Hire as apprentice/helper or turn away
+  interactionFrequency: "low" // Appears once every 6-7 game days (until hired)
+},
+{
+  entityType: "npc",
+  name: "Señora Beatriz",
+  age: 45,
+  gender: "female",
+  birthplace: "Mexico City",
+  currentResidence: "Mexico City (neighbor)",
+  casta: "criollo",
+  class: "middling",
+  occupation: "housewife (neighbor)",
+  image: "criollofemalemiddleaged.jpg",
+  caption: "Señora Beatriz, your neighbor with a complaint",
+  description: "Beatriz lives next door to Maria's apothecary and has strong opinions about proper behavior. She's quick to complain about noise, strange smells, or the 'questionable' people who visit the shop. She considers herself a pillar of respectability and watches the neighborhood closely.",
+  personality: {
+    traits: ["judgmental", "gossipy", "proper", "sharp-tongued"],
+    likes: ["propriety", "gossip", "being consulted", "feeling superior"],
+    dislikes: ["noise", "impropriety", "being ignored", "new people disrupting her street"],
+    fears: ["scandal touching her family", "crime in the neighborhood", "loss of respectability"],
+    motivations: ["maintaining neighborhood standards", "being the first to know everything", "protecting her reputation"]
+  },
+  background: "Beatriz married a moderately successful merchant and considers herself above the common folk, though not quite elite. She fills her days managing household servants, attending mass, and monitoring neighborhood activities. She views Maria with suspicion - a single woman running a business attracts too many strange visitors.",
+  faction: "None",
+  portraitImage: "criollofemalemiddleaged.jpg",
+  imgdescription: "Señora Beatriz is a stern-faced criolla woman in her mid-40s with hair pulled back severely and sharp, judgmental eyes. She wears respectable dark clothing with a spotless white collar and maintains rigid posture. Her expression is perpetually disapproving.",
+  simpleInteractionType: "neighbor_complaint", // Apologize/compensate or defend yourself
+  interactionFrequency: "medium" // Appears once every 2-3 game days (when triggered)
+},
+{
+  entityType: "npc",
+  name: "Padre Alonso the Sacristan",
+  age: 56,
+  gender: "male",
+  birthplace: "Cádiz, Spain",
+  currentResidence: "Mexico City, Cathedral",
+  casta: "peninsular",
+  class: "clergy (minor)",
+  occupation: "sacristan",
+  image: "peninsularpriestmiddleaged.jpg",
+  caption: "Padre Alonso, collecting donations for the cathedral",
+  description: "Padre Alonso is a minor church official responsible for maintaining the cathedral and collecting donations for various church causes. He makes regular rounds of shops and businesses, requesting contributions for feast days, repairs, charity works, or missions. He's persistent but not unkind.",
+  personality: {
+    traits: ["dutiful", "persistent", "pious", "somewhat bureaucratic"],
+    likes: ["generous donors", "well-maintained churches", "liturgical precision"],
+    dislikes: ["excuses", "impiety", "donations that fall short"],
+    fears: ["the bishop's disapproval", "church property falling into disrepair"],
+    motivations: ["serving the Church faithfully", "maintaining cathedral grandeur", "meeting collection quotas"]
+  },
+  background: "Alonso came to New Spain as a young priest with missionary zeal, but was assigned administrative duties instead. He's made peace with his role as sacristan and performs it conscientiously. He keeps careful records of who donates and who refuses, noting that the Church remembers both charity and stinginess.",
+  faction: "Church",
+  portraitImage: "peninsularpriestmiddleaged.jpg",
+  imgdescription: "Padre Alonso is a middle-aged peninsular man with graying hair in a simple clerical tonsure and a round, well-fed face. He wears plain black clerical robes with a simple wooden cross. He carries a leather-bound ledger for recording donations and has the patient, persistent manner of a professional fundraiser.",
+  simpleInteractionType: "church_donation", // Donate to church cause or politely decline
+  interactionFrequency: "medium" // Appears once every 2-3 game days
+},
+{
+  entityType: "npc",
+  name: "Carmen the Fish Seller",
+  age: 33,
+  gender: "female",
+  birthplace: "Xochimilco",
+  currentResidence: "Xochimilco (travels to Mexico City)",
+  casta: "india",
+  class: "vendor",
+  occupation: "fish seller",
+  image: "indigenousfemalevendor.jpg",
+  caption: "Carmen, selling fresh fish from the lake",
+  description: "Carmen comes from the lake communities of Xochimilco, bringing fresh fish to sell in Mexico City. She catches fish with her brothers in the early morning, then paddles to the city to sell her catch. She's cheerful and loud, calling out her wares with practiced cries that echo through the streets.",
+  personality: {
+    traits: ["cheerful", "loud", "energetic", "shrewd"],
+    likes: ["good catches", "quick sales", "lively haggling", "returning home early"],
+    dislikes: ["slow sales", "fish going bad", "customers who insult her catch"],
+    fears: ["bad fishing seasons", "her canoe capsizing", "fish spoiling unsold"],
+    motivations: ["selling her catch quickly", "good prices", "supporting extended family"]
+  },
+  background: "Carmen learned fishing from her father and trading from her mother. She's part of a large extended family that works the chinampas and lakes around Xochimilco. The fish trade is competitive, so she's developed a loud, cheerful selling style and sharp trading instincts. Fresh fish won't keep, so she needs to sell everything before returning home.",
+  faction: "Common Folk",
+  portraitImage: "indigenousfemalevendor.jpg",
+  imgdescription: "Carmen is a robust Indigenous woman in her early 30s with sun-darkened skin and strong arms. She wears a practical huipil with the hem tucked up for easier movement and carries a large basket of fresh fish. Her voice is loud and cheerful, and she has the confident manner of an experienced trader.",
+  simpleInteractionType: "food_purchase", // Buy fresh fish or decline
+  interactionFrequency: "medium" // Appears once every 2-3 game days
+},
 
 ];
 

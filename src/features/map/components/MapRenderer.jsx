@@ -18,8 +18,10 @@ import { LocationDropdown } from '../../../components/LocationDropdown';
  * @param {Function} props.onLocationChange - Callback when user clicks to change location
  * @param {Function} props.onFurnitureClick - Callback when furniture is clicked
  * @param {string} props.theme - Theme mode: 'light' or 'dark' (defaults to 'light')
+ * @param {Array<[number, number]>} props.travelPath - Phase 3B: Animated travel path for house calls
+ * @param {boolean} props.isTraveling - Phase 3B: Whether travel animation is active
  */
-export default function MapRenderer({ scenario, currentLocation, currentMapId, npcs = [], playerPosition = null, playerFacing = 180, onLocationChange, onMapClick = null, onEnterBuilding = null, onExitBuilding = null, onRoomCommand = null, onFurnitureClick = null, theme = 'light' }) {
+export default function MapRenderer({ scenario, currentLocation, currentMapId, npcs = [], playerPosition = null, playerFacing = 180, onLocationChange, onMapClick = null, onEnterBuilding = null, onExitBuilding = null, onRoomCommand = null, onFurnitureClick = null, theme = 'light', travelPath = null, isTraveling = false }) {
   const [activeMapId, setActiveMapId] = useState(null);
   const [mapType, setMapType] = useState('exterior'); // 'exterior' or 'interior'
   const [showModal, setShowModal] = useState(false);
@@ -584,6 +586,8 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
               onLandmarkClick={handleLandmarkClick}
               viewBox={viewBox}
               theme={theme}
+              travelPath={travelPath}
+              isTraveling={isTraveling}
             />
           ) : (
             <InteriorMap
@@ -717,6 +721,8 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
                   onLandmarkClick={handleLandmarkClick}
                   viewBox={undefined}
                   theme={theme}
+                  travelPath={travelPath}
+                  isTraveling={isTraveling}
                 />
               ) : (
                 <InteriorMap

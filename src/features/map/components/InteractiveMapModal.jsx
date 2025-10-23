@@ -73,11 +73,12 @@ export default function InteractiveMapModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/90 flex items-center justify-center z-[9999] p-10 animate-fadeIn"
+      className="fixed inset-0 bg-black/90 flex items-center justify-center z-[9999] p-0 sm:p-4 md:p-10 animate-fadeIn"
       onClick={onClose}
     >
+      {/* Modal Container - Responsive: Full screen on mobile */}
       <div
-        className="w-[90%] max-w-6xl h-[90vh] bg-[#fffcf5] dark:bg-slate-900 rounded-2xl border-2 border-emerald-600/30 dark:border-sky-400/30 shadow-2xl dark:shadow-sky-400/20 flex flex-col overflow-hidden"
+        className="w-full sm:w-[90%] max-w-full sm:max-w-6xl h-screen sm:h-[90vh] bg-[#fffcf5] dark:bg-slate-900 rounded-none sm:rounded-2xl border-2 border-emerald-600/30 dark:border-sky-400/30 shadow-2xl dark:shadow-sky-400/20 flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal header */}

@@ -198,18 +198,18 @@ export function checkNPCConditions(npcName, gameState) {
     // ==================== SIMPLE INTERACTION NPCs ====================
 
     case "Pedro Vázquez":
-      // Water seller - appears frequently during daytime at shop
+      // Water seller - appears during daytime at shop
       const hour = parseTimeToHour(time);
       if (hour < 8 || hour > 18) {
         // Not working hours for water seller
         available = false;
         reason = "Water seller doesn't work at night";
       } else if (location && location.toLowerCase().includes('botica')) {
-        // High frequency when at shop
-        weight = 15;
+        // Balanced frequency with other simple interactions
+        weight = 5;
         reason = "Water seller making rounds";
       } else {
-        weight = 3;
+        weight = 2;
         reason = "Chance encounter with water seller";
       }
       break;
@@ -222,13 +222,13 @@ export function checkNPCConditions(npcName, gameState) {
         reason = "Widow Socorro seeks shelter at night";
       } else if ((reputation.commonFolk || 50) >= 60) {
         // Known to be kind to the poor
-        weight = 10;
+        weight = 6;
         reason = "Widow knows Maria is charitable";
       } else if ((reputation.commonFolk || 50) >= 40) {
         weight = 5;
         reason = "Widow has heard Maria might help";
       } else {
-        weight = 2;
+        weight = 4;
         reason = "Widow desperate enough to ask anyone";
       }
       break;
@@ -243,13 +243,13 @@ export function checkNPCConditions(npcName, gameState) {
         reason = "Too early for rival to appear";
       } else if ((reputation.merchants || 50) >= 65) {
         // Maria's reputation threatens rival
-        weight = 12;
+        weight = 6;
         reason = "Rival threatened by Maria's reputation";
       } else if ((reputation.merchants || 50) >= 50) {
-        weight = 6;
+        weight = 5;
         reason = "Rival scouting competitor";
       } else {
-        weight = 2;
+        weight = 4;
         reason = "Rival keeping tabs on new apothecary";
       }
       break;
@@ -262,10 +262,10 @@ export function checkNPCConditions(npcName, gameState) {
         reason = "Tomás sleeping in alley";
       } else if (location && (location.toLowerCase().includes('market') || location.toLowerCase().includes('street'))) {
         // More likely to encounter on streets/market
-        weight = 8;
+        weight = 6;
         reason = "Tomás spotted on the streets";
       } else {
-        weight = 4;
+        weight = 5;
         reason = "Tomás making his rounds";
       }
       break;
@@ -277,15 +277,166 @@ export function checkNPCConditions(npcName, gameState) {
         reason = "Too early for nun's friendship";
       } else if ((reputation.church || 50) < 30) {
         // Trying to warn Maria of danger
-        weight = 10;
+        weight = 6;
         reason = "Sister Teresa concerned about Inquisition threat";
       } else if ((reputation.church || 50) >= 60) {
         // Friendly social visits
         weight = 5;
         reason = "Sister Teresa friendly visit";
       } else {
-        weight = 2;
+        weight = 4;
         reason = "Sister Teresa passing by";
+      }
+      break;
+
+    case "Martín the Tax Collector":
+      // Tax collector seeking 'voluntary donations'
+      const hourMartin = parseTimeToHour(time);
+      if (hourMartin < 9 || hourMartin > 17) {
+        // Not working hours for officials
+        available = false;
+        reason = "Tax collector only works during business hours";
+      } else if (location && location.toLowerCase().includes('botica')) {
+        // Shop visits during business hours
+        weight = 5;
+        reason = "Tax collector making rounds";
+      } else {
+        weight = 3;
+        reason = "Chance encounter with tax collector";
+      }
+      break;
+
+    case "Citlali":
+      // Indigenous weaver selling textiles
+      const hourCitlali = parseTimeToHour(time);
+      if (hourCitlali < 8 || hourCitlali > 17) {
+        available = false;
+        reason = "Citlali returns to Texcoco before dark";
+      } else if (location && (location.toLowerCase().includes('market') || location.toLowerCase().includes('plaza'))) {
+        weight = 6;
+        reason = "Citlali selling in the market";
+      } else {
+        weight = 5;
+        reason = "Citlali making her rounds";
+      }
+      break;
+
+    case "Gaspar the Night Watchman":
+      // Night watchman running protection racket
+      const hourGaspar = parseTimeToHour(time);
+      if (hourGaspar >= 6 && hourGaspar < 20) {
+        // Only appears at night
+        available = false;
+        reason = "Gaspar only patrols at night";
+      } else if (location && location.toLowerCase().includes('botica')) {
+        weight = 5;
+        reason = "Gaspar on his rounds";
+      } else {
+        weight = 4;
+        reason = "Gaspar patrolling streets";
+      }
+      break;
+
+    case "Rodrigo the Musician":
+      // Street musician seeking tips
+      const hourRodrigo = parseTimeToHour(time);
+      if (hourRodrigo < 10 || hourRodrigo > 21) {
+        available = false;
+        reason = "Rodrigo sleeping off last night's pulque";
+      } else if (location && (location.toLowerCase().includes('plaza') || location.toLowerCase().includes('market'))) {
+        weight = 6;
+        reason = "Rodrigo performing in public spaces";
+      } else {
+        weight = 5;
+        reason = "Rodrigo wandering and singing";
+      }
+      break;
+
+    case "Juana the Milk Vendor":
+      // Milk vendor making daily rounds
+      const hourJuana = parseTimeToHour(time);
+      if (hourJuana < 6 || hourJuana > 12) {
+        // Milk sold in morning only (goes bad in heat)
+        available = false;
+        reason = "Juana only sells milk in the morning";
+      } else if (location && location.toLowerCase().includes('botica')) {
+        weight = 6;
+        reason = "Juana on her morning rounds";
+      } else {
+        weight = 5;
+        reason = "Juana selling milk nearby";
+      }
+      break;
+
+    case "Don Esteban the Lottery Seller":
+      // Lottery ticket seller (fallen merchant)
+      const hourEsteban = parseTimeToHour(time);
+      if (hourEsteban < 9 || hourEsteban > 18) {
+        available = false;
+        reason = "Don Esteban retired for the day";
+      } else {
+        weight = 5;
+        reason = "Don Esteban selling lottery tickets";
+      }
+      break;
+
+    case "Miguel the Apprentice":
+      // Young man seeking apprenticeship
+      if (turnNumber < 7) {
+        available = false;
+        reason = "Miguel hasn't arrived in the city yet";
+      } else if (location && location.toLowerCase().includes('botica')) {
+        // More likely to approach apothecary shops
+        weight = 5;
+        reason = "Miguel seeking apothecary apprenticeship";
+      } else {
+        weight = 3;
+        reason = "Miguel searching for work";
+      }
+      break;
+
+    case "Señora Beatriz":
+      // Complaining neighbor
+      const hourBeatriz = parseTimeToHour(time);
+      if (hourBeatriz < 8 || hourBeatriz > 19) {
+        available = false;
+        reason = "Señora Beatriz at home for the evening";
+      } else if (location && location.toLowerCase().includes('botica')) {
+        // Only appears at the shop (neighbor)
+        weight = 5;
+        reason = "Señora Beatriz with a complaint";
+      } else {
+        available = false;
+        reason = "Señora Beatriz only visits the shop";
+      }
+      break;
+
+    case "Padre Alonso the Sacristan":
+      // Church donation collector
+      const hourAlonso = parseTimeToHour(time);
+      if (hourAlonso < 9 || hourAlonso > 17) {
+        available = false;
+        reason = "Padre Alonso at cathedral for prayers";
+      } else if ((reputation.church || 50) < 40) {
+        // More pressure if church reputation is low
+        weight = 6;
+        reason = "Padre Alonso pressing for donations";
+      } else {
+        weight = 5;
+        reason = "Padre Alonso collecting for the church";
+      }
+      break;
+
+    case "Carmen the Fish Seller":
+      // Fish seller from Xochimilco
+      const hourCarmen = parseTimeToHour(time);
+      if (hourCarmen < 7 || hourCarmen > 14) {
+        // Must sell fish before they spoil in afternoon heat
+        available = false;
+        reason = "Carmen's fish sold out or spoiled";
+      } else {
+        weight = 5;
+        reason = "Carmen selling fresh fish";
       }
       break;
 

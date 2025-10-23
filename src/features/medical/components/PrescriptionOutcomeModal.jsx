@@ -17,19 +17,17 @@ function PrescriptionOutcomeModal({
   outcome,
   onContinue
 }) {
-  // Debug logging
-  console.log('[PrescriptionOutcomeModal] Render check', {
-    isOpen,
-    hasPatient: !!patient,
-    hasPrescriptionData: !!prescriptionData,
-    hasOutcome: !!outcome,
-    outcomeLength: outcome?.length
-  });
-
+  // Early return if not ready - no logging to avoid console spam
   if (!isOpen || !patient || !prescriptionData || !outcome) {
-    console.log('[PrescriptionOutcomeModal] Not rendering - missing required prop');
     return null;
   }
+
+  // Debug logging only when modal is actually rendering
+  // console.log('[PrescriptionOutcomeModal] Rendering with', {
+  //   patient: patient.name,
+  //   prescriptionData,
+  //   outcomeLength: outcome?.length
+  // });
 
   const portraitUrl = resolvePortrait(patient);
 

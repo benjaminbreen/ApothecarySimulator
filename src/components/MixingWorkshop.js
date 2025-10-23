@@ -52,6 +52,24 @@ const MixingWorkshop = ({
   const [inventoryPage, setInventoryPage] = useState(0);
   const [medicineTypeFilter, setMedicineTypeFilter] = useState('all');
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Handle smooth close with exit animation
+  const handleClose = () => {
+    if (isLoading) return; // Don't close while loading
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 200);
+  };
+
+  // Reset closing state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsClosing(false);
+    }
+  }, [isOpen]);
 
   // Watch for dark mode changes
   useEffect(() => {
@@ -69,7 +87,7 @@ const MixingWorkshop = ({
   const gestureRef = useGesture({
     onSwipeDown: () => {
       if (!isLoading) {
-        onClose();
+        handleClose();
       }
     },
     minSwipeDistance: 80,
@@ -124,7 +142,7 @@ const MixingWorkshop = ({
 
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleClose();
     };
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
@@ -489,6 +507,13 @@ Compounding Method: ${selectedMethod}
     return counts;
   }, [simples]);
 
+  // Get selected method costs
+  const selectedMethodCosts = useMemo(() => {
+    const selectedMethodName = Object.keys(selectedSimples).find(method => selectedSimples[method]?.length > 0);
+    const method = allMethods.find(m => m.name === selectedMethodName);
+    return method ? { energy: method.energyCost, time: method.timeCost } : null;
+  }, [selectedSimples, allMethods]);
+
   // Predict medicine type based on selected ingredients and method
   const predictedMedicineType = useMemo(() => {
     const selectedMethod = Object.keys(selectedSimples).find(method => selectedSimples[method]?.length > 0);
@@ -586,8 +611,21 @@ Compounding Method: ${selectedMethod}
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="fixed inset-0 bg-ink-900/90 dark:bg-black/95 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-        <div ref={gestureRef} className="bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-3xl shadow-2xl max-w-7xl w-full max-h-[95vh] flex flex-col border-4 border-double border-amber-700/50 dark:border-amber-500/30 relative overflow-hidden">
+      <div
+        className={`fixed inset-0 bg-ink-900/90 dark:bg-black/95 backdrop-blur-sm flex items-center justify-center z-50 p-4 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}
+        onClick={(e) => {
+          // Close modal when clicking backdrop
+          if (e.target === e.currentTarget && !isLoading) {
+            handleClose();
+          }
+        }}
+      >
+        <div
+          ref={gestureRef}
+          className={`bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-none sm:rounded-3xl shadow-2xl max-w-full sm:max-w-7xl w-full h-screen sm:h-[92vh] flex flex-col border-4 border-double border-amber-700/50 dark:border-amber-500/30 relative transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
+          onClick={(e) => e.stopPropagation()}
+          style={{ maxHeight: '95vh', overflow: 'hidden' }}
+        >
 
           {/* Ornate corner decorations */}
           <div className="absolute top-0 left-0 w-32 h-32 border-l-4 border-t-4 border-amber-600/40 dark:border-amber-400/30 rounded-tl-3xl pointer-events-none"></div>
@@ -596,27 +634,29 @@ Compounding Method: ${selectedMethod}
           <div className="absolute bottom-0 right-0 w-32 h-32 border-r-4 border-b-4 border-amber-600/40 dark:border-amber-400/30 rounded-br-3xl pointer-events-none"></div>
 
           {/* Header */}
-          <div className="relative px-6 py-4 border-b border-amber-700/30 dark:border-amber-500/20 bg-gradient-to-r from-amber-100/50 via-parchment-100/50 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/50 dark:to-slate-800/50">
+          <div className="relative px-6 py-4 border-b border-amber-700/30 dark:border-amber-500/20 bg-gradient-to-r from-amber-100/50 via-parchment-100/50 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/50 dark:to-slate-800/50 shadow-sm">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-2xl font-bold text-ink-900 dark:text-amber-100 tracking-wide">
+              <h2 className="text-2xl font-bold text-parchment-900 dark:text-amber-100 tracking-wide">
                 Alchemical Workshop
               </h2>
               <button
-                onClick={onClose}
-                className="px-4 py-2 bg-ink-800 hover:bg-ink-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-lg font-sans text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200"
+                onClick={handleClose}
+                className="px-4 py-2 bg-ink-800 hover:bg-ink-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-lg font-sans text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
               >
-                Close
+                <span className="text-lg leading-none">✕</span>
+                <span>Close</span>
               </button>
             </div>
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-6 ">
 
-            {/* Instructions - Clean typography */}
-            <div className="bg-gradient-to-r from-amber-50 via-parchment-50 to-amber-50 dark:from-slate-800/40 dark:via-slate-700/30 dark:to-slate-800/40 border-l-4 border-r-4 border-amber-600/60 dark:border-amber-500/50 rounded-lg px-6 py-4 mb-6 shadow-sm">
-              <p className="font-serif text-lg text-ink-800 dark:text-amber-100 leading-relaxed text-center italic">
-                Drag ingredients onto a method below. Each produces different results based on humoral theory.
+            {/* Instructions - Compact */}
+            <div className="bg-amber-50/50 dark:bg-slate-800/20 border-l-2 border-amber-600/40 dark:border-amber-500/30 rounded px-4 py-2 mb-4">
+              <p className="font-serif text-lg text-ink-800 dark:text-amber-200/70 italic flex items-center gap-2">
+                
+                <span>Drag ingredients onto methods below. Each produces different results.</span>
               </p>
             </div>
 
@@ -638,13 +678,13 @@ Compounding Method: ${selectedMethod}
             )}
 
             {/* Method Grid - Centered and responsive */}
-            <div className="flex justify-center mb-8">
-              <div className={`grid gap-6 w-full ${
+            <div className="flex justify-center mb-5">
+              <div className={`grid gap-5 w-full ${
                 availableMethods.length === 1 ? 'grid-cols-1 max-w-md' :
                 availableMethods.length === 2 ? 'grid-cols-1 md:grid-cols-2 max-w-3xl' :
                 availableMethods.length === 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-w-5xl' :
                 availableMethods.length === 4 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 max-w-6xl' :
-                'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 max-w-7xl'
+                'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 max-w-6xl'
               }`}>
                 {availableMethods.map(method => (
                   <MethodDropZone
@@ -658,92 +698,60 @@ Compounding Method: ${selectedMethod}
               </div>
             </div>
 
-            {/* Predicted Medicine Type Preview */}
-            {predictedMedicineType && (
-              <div className="mb-6 bg-gradient-to-r from-amber-50 via-parchment-50 to-amber-50 dark:from-slate-800/60 dark:via-slate-700/50 dark:to-slate-800/60 border-2 border-amber-600/40 dark:border-amber-500/30 rounded-xl p-5 shadow-lg animate-fadeIn">
-                <div className="flex items-center gap-4">
-                  <div className="flex-shrink-0">
-                    <div className="text-4xl">⚗️</div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-base font-bold font-serif text-ink-900 dark:text-amber-100 mb-2">
-                      Predicted Result
-                    </h3>
-                    <p className="text-sm font-sans text-ink-700 dark:text-amber-200/80 mb-3">
-                      {predictedMedicineType.reason}
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-sans font-semibold text-ink-800 dark:text-amber-100">
-                        Medicine Type:
-                      </span>
-                      <MedicineTypeBadge
-                        item={{ medicineType: predictedMedicineType.typeId, name: 'Preview' }}
-                        size="medium"
-                        position="inline"
-                        showTooltip={true}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0 text-3xl opacity-40">
-                    💭
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Medicine Type Filter Buttons */}
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              <button
-                onClick={() => setMedicineTypeFilter('all')}
-                className="text-xs px-2.5 py-1.5 rounded-lg transition-all duration-200 font-sans font-medium"
-                title="Show all materia medica"
-                style={{
-                  background: medicineTypeFilter === 'all'
-                    ? (isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.2)')
-                    : (isDark ? 'rgba(71, 85, 105, 0.2)' : 'rgba(229, 231, 235, 0.5)'),
-                  color: medicineTypeFilter === 'all'
-                    ? (isDark ? '#10b981' : '#059669')
-                    : (isDark ? '#94a3b8' : '#64748b'),
-                  border: medicineTypeFilter === 'all'
-                    ? (isDark ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(16, 185, 129, 0.3)')
-                    : '1px solid transparent'
-                }}
-              >
-                All ({medicineCountsByType.all})
-              </button>
-              {getAllMedicineTypes().map(type => (
-                <button
-                  key={type.id}
-                  onClick={() => setMedicineTypeFilter(type.id)}
-                  className="text-xs px-2.5 py-1.5 rounded-lg transition-all duration-200 font-sans font-medium flex items-center gap-1"
-                  title={type.description}
-                  style={{
-                    background: medicineTypeFilter === type.id
-                      ? `${type.color}30`
-                      : (isDark ? 'rgba(71, 85, 105, 0.2)' : 'rgba(229, 231, 235, 0.5)'),
-                    color: medicineTypeFilter === type.id
-                      ? type.color
-                      : (isDark ? '#94a3b8' : '#64748b'),
-                    border: medicineTypeFilter === type.id
-                      ? `1px solid ${type.color}60`
-                      : '1px solid transparent'
-                  }}
-                >
-                  <span style={{ fontSize: '0.9rem' }}>{type.emoji}</span>
-                  <span>{medicineCountsByType[type.id] || 0}</span>
-                </button>
-              ))}
-            </div>
-
             {/* Inventory Section - Paginated */}
-            <div className="bg-ink-50/50 dark:bg-slate-800/30 rounded-xl p-4 border border-ink-200/30 dark:border-slate-600/30">
-              <div className="flex items-center justify-between mb-3">
+            <div className="bg-ink-50/50 dark:bg-slate-800/30 rounded-xl p-3 border border-ink-200/30 dark:border-slate-600/30 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
                 <h3 className="font-serif text-base font-bold text-ink-800 dark:text-amber-100 flex items-center gap-2">
-                  <span>{medicineTypeFilter === 'all' ? 'Materia Medica' : getAllMedicineTypes().find(t => t.id === medicineTypeFilter)?.name || 'Materia Medica'}</span>
+                  <span>Materia Medica</span>
                   <span className="text-sm font-normal text-ink-500 dark:text-amber-300/60">
                     ({filteredSimples.length} items)
                   </span>
                 </h3>
+
+                {/* Medicine Type Filter Buttons - Now inline with header */}
+                <div className="flex flex-wrap gap-1 flex-1 justify-center">
+                  <button
+                    onClick={() => setMedicineTypeFilter('all')}
+                    className="text-xs px-2 py-1 rounded-md transition-all duration-150 font-sans font-normal"
+                    title="Show all materia medica"
+                    style={{
+                      background: medicineTypeFilter === 'all'
+                        ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)')
+                        : (isDark ? 'rgba(71, 85, 105, 0.1)' : 'rgba(229, 231, 235, 0.3)'),
+                      color: medicineTypeFilter === 'all'
+                        ? (isDark ? '#10b981' : '#059669')
+                        : (isDark ? '#94a3b8' : '#6b7280'),
+                      border: medicineTypeFilter === 'all'
+                        ? (isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(16, 185, 129, 0.2)')
+                        : '1px solid transparent'
+                    }}
+                  >
+                    All ({medicineCountsByType.all})
+                  </button>
+                  {getAllMedicineTypes().map(type => (
+                    <button
+                      key={type.id}
+                      onClick={() => setMedicineTypeFilter(type.id)}
+                      className="text-xs px-2 py-1 rounded-md transition-all duration-150 font-sans font-normal flex items-center gap-1"
+                      title={type.description}
+                      style={{
+                        background: medicineTypeFilter === type.id
+                          ? `${type.color}20`
+                          : (isDark ? 'rgba(71, 85, 105, 0.1)' : 'rgba(229, 231, 235, 0.3)'),
+                        color: medicineTypeFilter === type.id
+                          ? type.color
+                          : (isDark ? '#94a3b8' : '#6b7280'),
+                        border: medicineTypeFilter === type.id
+                          ? `1px solid ${type.color}40`
+                          : '1px solid transparent'
+                      }}
+                    >
+                      <span style={{ fontSize: '0.95rem' }}>{type.emoji}</span>
+                      <span>{medicineCountsByType[type.id] || 0}</span>
+                    </button>
+                  ))}
+                </div>
+
                 {filteredSimples.length > 14 && (
                   <div className="flex items-center gap-2">
                     <button
@@ -774,6 +782,9 @@ Compounding Method: ${selectedMethod}
               </div>
               {filteredSimples.length === 0 ? (
                 <div className="text-center py-12">
+                  <div className="text-6xl mb-4 opacity-30">
+                    {simples.length === 0 ? '🧪' : '🔍'}
+                  </div>
                   <p className="text-lg text-ink-500 dark:text-amber-300/50 font-serif italic">
                     {simples.length === 0
                       ? 'Your inventory is empty. Purchase ingredients from the market to begin mixing.'
@@ -781,8 +792,8 @@ Compounding Method: ${selectedMethod}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-7 gap-3 h-auto" style={{ gridTemplateRows: 'repeat(2, minmax(0, 1fr))' }}>
-                  {filteredSimples.slice(inventoryPage * 14, (inventoryPage + 1) * 14).map(simple => (
+                <div className="grid grid-cols-9 gap-3 p-2 auto-rows-fr">
+                  {filteredSimples.slice(inventoryPage * 18, (inventoryPage + 1) * 18).map(simple => (
                     <DraggableIngredient
                       key={simple.id}
                       simple={simple}
@@ -798,10 +809,10 @@ Compounding Method: ${selectedMethod}
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-3 border-t border-amber-700/30 dark:border-amber-500/20 bg-gradient-to-r from-amber-100/50 via-parchment-100/50 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/50 dark:to-slate-800/50 flex justify-between items-center">
+          <div className="px-6 py-3 border-t border-amber-700/30 dark:border-amber-500/20 bg-gradient-to-r from-amber-100/50 via-parchment-100/50 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/50 dark:to-slate-800/50 flex justify-between items-center shadow-inner">
             <button
               onClick={resetSelection}
-              className="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 dark:from-slate-600 dark:to-slate-700 dark:hover:from-slate-700 dark:hover:to-slate-800 text-white rounded-xl font-sans text-base font-semibold shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 active:scale-95"
+              className="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 dark:from-slate-600 dark:to-slate-700 dark:hover:from-slate-700 dark:hover:to-slate-800 text-white rounded-xl font-sans text-base font-semibold shadow-md hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-95"
             >
               Reset
             </button>
@@ -809,7 +820,7 @@ Compounding Method: ${selectedMethod}
             <button
               onClick={handleMixing}
               disabled={!isMixButtonEnabled || isLoading}
-              className={`relative px-8 py-3 rounded-xl font-sans text-base font-bold shadow-lg transition-all duration-300 overflow-hidden group ${
+              className={`relative px-8 py-3 rounded-xl font-sans text-base font-bold shadow-lg transition-all duration-200 overflow-hidden group ${
                 isMixButtonEnabled && !isLoading
                   ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:via-amber-600 hover:to-amber-700 dark:from-amber-500 dark:via-amber-400 dark:to-amber-500 dark:hover:from-amber-600 dark:hover:via-amber-500 dark:hover:to-amber-600 text-white shadow-amber-600/40 hover:shadow-xl hover:shadow-amber-600/50 hover:scale-105 active:scale-95'
                   : 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-500 cursor-not-allowed opacity-60'
@@ -830,7 +841,14 @@ Compounding Method: ${selectedMethod}
                 ) : (
                   <>
                     <span className="text-xl">⚗️</span>
-                    <span>Begin Transmutation</span>
+                    <div className="flex flex-col items-center">
+                      <span>Begin Transmutation</span>
+                      {selectedMethodCosts && (
+                        <span className="text-xs opacity-75 font-normal">
+                          ({selectedMethodCosts.energy} energy, {selectedMethodCosts.time} {selectedMethodCosts.time === 1 ? 'hour' : 'hours'})
+                        </span>
+                      )}
+                    </div>
                   </>
                 )}
               </span>
@@ -845,7 +863,7 @@ Compounding Method: ${selectedMethod}
             onClick={() => setCompoundResult(null)}
           >
             <div
-              className="bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden border-4 border-double border-amber-700/50 dark:border-amber-500/30 animate-slideUp"
+              className="bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-none sm:rounded-2xl shadow-2xl max-w-full sm:max-w-3xl w-full h-screen sm:max-h-[90vh] overflow-hidden border-4 border-double border-amber-700/50 dark:border-amber-500/30 animate-slideUp"
               onClick={(e) => e.stopPropagation()}
             >
               <CompoundResultCard compound={compoundResult} />

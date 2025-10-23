@@ -106,9 +106,9 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
       className={`fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}
       onClick={handleClose}
     >
-      {/* Modal Container */}
+      {/* Modal Container - Responsive: Full screen on mobile */}
       <div
-        className={`relative w-full max-w-6xl h-[88vh] rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
+        className={`relative w-full max-w-full sm:max-w-6xl h-screen sm:h-[88vh] rounded-none sm:rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: isDark

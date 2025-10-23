@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useDrag } from 'react-dnd';
+import ReactMarkdown from 'react-markdown';
 import { getPositionForLocation } from '../../utils/bodyPositionMapper';
 import PrescribePanelIntegrated from '../../features/medical/components/PrescribePanelIntegrated';
 import DiagnosisPanel from '../../features/medical/components/DiagnosisPanel';
@@ -45,10 +46,20 @@ export function PatientViewTab({
   const [showDiagnoseButton, setShowDiagnoseButton] = useState(false);
   const [manualHumorTemp, setManualHumorTemp] = useState(null);
   const [manualHumorMoisture, setManualHumorMoisture] = useState(null);
+  const [manualAstrology, setManualAstrology] = useState(null);
 
-  // Show diagnose button after first question is answered
+  // Initialize manual values from patient data on mount/patient change
   useEffect(() => {
-    if (patientDialogue.length > 0) {
+    if (patient) {
+      setManualHumorTemp(patient.humors?.temperature || null);
+      setManualHumorMoisture(patient.humors?.moisture || null);
+      setManualAstrology(patient.astrology || null);
+    }
+  }, [patient?.id]); // Only reset when patient changes
+
+  // Show diagnose button after 3+ questions are answered
+  useEffect(() => {
+    if (patientDialogue.length >= 3) {
       setShowDiagnoseButton(true);
     }
   }, [patientDialogue]);
@@ -91,6 +102,37 @@ export function PatientViewTab({
     }
   };
 
+  // Handler for manual astrology update
+  const handleAstrologyUpdate = (value) => {
+    if (!patient || !patient.id) return;
+
+    // Update local state
+    setManualAstrology(value);
+
+    // Update patient entity in EntityManager
+    const updatedPatient = {
+      ...patient,
+      astrology: value,
+      lastUpdated: new Date().toISOString()
+    };
+
+    try {
+      entityManager.update(patient.id, updatedPatient);
+      console.log('[PatientViewTab] Updated patient astrology:', value);
+
+      // Also update journal
+      if (addJournalEntry) {
+        addJournalEntry({
+          turnNumber: gameState?.turnNumber || 0,
+          date: gameState?.date || new Date().toLocaleDateString(),
+          entry: `Recorded astrological sign for ${patient.name}: ${value}`
+        });
+      }
+    } catch (error) {
+      console.error('[PatientViewTab] Failed to update patient astrology:', error);
+    }
+  };
+
   // Show prescribe banner/button only after diagnosis is submitted
   useEffect(() => {
     if (diagnosisData) {
@@ -106,7 +148,7 @@ export function PatientViewTab({
   }, [viewMode, onOpenInventoryTab]);
 
   // Handle diagnosis submission
-  const handleDiagnosisSubmit = (diagnosis) => {
+  const handleDiagnosisSubmit = async (diagnosis) => {
     setDiagnosisData(diagnosis);
 
     // Apply energy cost and time advancement
@@ -130,7 +172,7 @@ export function PatientViewTab({
 
       setConversationHistory(prev => [
         ...prev,
-        { role: 'user', content: `[DIAGNOSIS SUBMITTED] Based on examination, diagnose ${patient.name}` },
+        { role: 'user', content: `Diagnose ${patient.name}`, hidden: true }, // Hidden - just context for LLM
         { role: 'assistant', content: diagnosisSummary },
         { role: 'system', content: `*[MEDICAL DIAGNOSIS] Diagnosis: ${diagnosis.diagnosis}. Evidence: ${evidenceSummary}*` }
       ]);
@@ -139,6 +181,13 @@ export function PatientViewTab({
     // Update history output for narration panel
     if (setHistoryOutput) {
       setHistoryOutput(`You have diagnosed ${patient.name} with **${diagnosis.diagnosis}**. Now you may offer a prescription.`);
+    }
+
+    // Get patient's reaction to the diagnosis
+    if (onAskQuestion) {
+      console.log('[DiagnosisPanel] Requesting patient reaction to diagnosis:', diagnosis.diagnosis);
+      // Simulate Maria announcing the diagnosis to the patient
+      await onAskQuestion(`[Maria tells the patient her diagnosis: "${diagnosis.diagnosis}"] How do you react to this diagnosis?`);
     }
 
     // Return to examine mode to show the prescribe option
@@ -277,8 +326,8 @@ export function PatientViewTab({
               <div className="text-xs uppercase tracking-wider text-ink-500 font-sans font-semibold mb-3">
                 Patient Response
               </div>
-              <div className="text-lg leading-relaxed text-ink-900 font-serif">
-                {currentResponse.answer}
+              <div className="text-xl leading-relaxed text-ink-900 font-serif prose prose-lg max-w-none">
+                <ReactMarkdown>{currentResponse.answer}</ReactMarkdown>
               </div>
             </div>
           ) : (
@@ -291,6 +340,18 @@ export function PatientViewTab({
             </div>
           )}
         </div>
+
+        {/* Diagnosis Button - Appears after 3+ questions */}
+        {viewMode === 'examine' && showDiagnoseButton && !diagnosisData && (
+          <div className="px-5 pt-4 pb-2 border-t-2 border-ink-100 bg-gradient-to-b from-blue-50 to-white">
+            <button
+              onClick={() => setViewMode('diagnose')}
+              className="w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white font-bold py-3 px-4 rounded-lg text-sm uppercase tracking-wide transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+            >
+              🩺 Would you like to make a diagnosis?
+            </button>
+          </div>
+        )}
 
         {/* Question Input Area */}
         <div className="px-5 py-5 border-t-2 border-ink-100 bg-white">
@@ -452,13 +513,29 @@ export function PatientViewTab({
                 <div className="bg-white/5 border border-white/10 rounded-lg p-3">
                   <InfoCardHeader>ASTROLOGY</InfoCardHeader>
                   <div className="text-3xl text-center my-1">
-                    {patient.astrology ? getZodiacSymbol(patient.astrology) : '?'}
+                    {manualAstrology ? getZodiacSymbol(manualAstrology) : '?'}
                   </div>
-                  <div className="text-xs text-center text-emerald-400 font-semibold">
-                    {patient.astrology || 'Unknown'}
-                  </div>
+                  <select
+                    value={manualAstrology || ''}
+                    onChange={(e) => handleAstrologyUpdate(e.target.value)}
+                    className="w-full text-xs font-bold bg-transparent border border-white/20 text-center cursor-pointer text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded px-2 py-1"
+                  >
+                    <option value="" className="bg-slate-800">Unknown</option>
+                    <option value="Aries" className="bg-slate-800">♈ Aries</option>
+                    <option value="Taurus" className="bg-slate-800">♉ Taurus</option>
+                    <option value="Gemini" className="bg-slate-800">♊ Gemini</option>
+                    <option value="Cancer" className="bg-slate-800">♋ Cancer</option>
+                    <option value="Leo" className="bg-slate-800">♌ Leo</option>
+                    <option value="Virgo" className="bg-slate-800">♍ Virgo</option>
+                    <option value="Libra" className="bg-slate-800">♎ Libra</option>
+                    <option value="Scorpio" className="bg-slate-800">♏ Scorpio</option>
+                    <option value="Sagittarius" className="bg-slate-800">♐ Sagittarius</option>
+                    <option value="Capricorn" className="bg-slate-800">♑ Capricorn</option>
+                    <option value="Aquarius" className="bg-slate-800">♒ Aquarius</option>
+                    <option value="Pisces" className="bg-slate-800">♓ Pisces</option>
+                  </select>
                   <div className="text-[9px] text-center text-ink-400 mt-1">
-                    Ask for birth date
+                    Ask for birth date or set manually
                   </div>
                 </div>
 
@@ -469,7 +546,7 @@ export function PatientViewTab({
                     <div className="text-center p-1.5 bg-white/5 rounded">
                       <div className="text-[9px] text-ink-400 uppercase tracking-wide mb-0.5">Temp</div>
                       <select
-                        value={manualHumorTemp || patient.humors?.temperature || ''}
+                        value={manualHumorTemp || ''}
                         onChange={(e) => handleHumorUpdate('temperature', e.target.value)}
                         className="w-full text-sm font-bold bg-transparent border-none text-center cursor-pointer text-orange-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
                       >
@@ -483,7 +560,7 @@ export function PatientViewTab({
                     <div className="text-center p-1.5 bg-white/5 rounded">
                       <div className="text-[9px] text-ink-400 uppercase tracking-wide mb-0.5">Moisture</div>
                       <select
-                        value={manualHumorMoisture || patient.humors?.moisture || ''}
+                        value={manualHumorMoisture || ''}
                         onChange={(e) => handleHumorUpdate('moisture', e.target.value)}
                         className="w-full text-sm font-bold bg-transparent border-none text-center cursor-pointer text-yellow-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
                       >

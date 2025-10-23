@@ -5,7 +5,7 @@ import { useDrag } from 'react-dnd';
 const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
   const [iconPath, setIconPath] = useState(null);
   const [hasIcon, setHasIcon] = useState(false);
-  const [tooltipPosition, setTooltipPosition] = useState('right');
+  const [tooltipPosition, setTooltipPosition] = useState({ horizontal: 'right', vertical: 'top' });
 
   // Generate icon path from item name
   const getItemIcon = (itemName) => {
@@ -32,20 +32,24 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
     img.src = iconUrl;
   }, [simple.name]);
 
-  // Determine tooltip position based on element position
+  // Determine tooltip position based on element position (flip to avoid clipping)
   const handleMouseEnter = (e) => {
     if (isDisabled) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
     const distanceFromRight = viewportWidth - rect.right;
+    const distanceFromBottom = viewportHeight - rect.bottom;
 
-    // If less than 300px from right edge, show tooltip on left
-    if (distanceFromRight < 300) {
-      setTooltipPosition('left');
-    } else {
-      setTooltipPosition('right');
-    }
+    // Determine horizontal position: flip left if < 300px from right edge
+    const horizontal = distanceFromRight < 300 ? 'left' : 'right';
+
+    // Determine vertical position: flip up if < 250px from bottom edge (more aggressive)
+    // Tooltips are ~180-200px tall, so need more space
+    const vertical = distanceFromBottom < 250 ? 'bottom' : 'top';
+
+    setTooltipPosition({ horizontal, vertical });
 
     if (onHover) onHover(simple);
   };
@@ -119,36 +123,40 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
         }}
       ></div>
 
-      {/* Hover Tooltip - appears beside item, flips to left if near right edge */}
+      {/* Hover Tooltip - flips position to avoid clipping on edges */}
       {!isDisabled && (
         <div
-          className={`absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-[100] min-w-[240px] ${
-            tooltipPosition === 'left' ? 'right-full mr-2' : 'left-full ml-2'
+          className={`absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 min-w-[200px] max-w-[240px] ${
+            // Horizontal positioning
+            tooltipPosition.horizontal === 'left' ? 'right-full mr-2' : 'left-full ml-2'
+          } ${
+            // Vertical positioning
+            tooltipPosition.vertical === 'bottom' ? 'bottom-0' : 'top-0'
           }`}
         >
-          <div className="bg-ink-900 dark:bg-slate-900 backdrop-blur-md rounded-lg p-3 shadow-2xl border-2 border-amber-500/70 dark:border-amber-400/70">
-            <h4 className="font-serif text-base font-bold text-amber-50 dark:text-amber-100 mb-2 pb-2 border-b border-amber-500/40">
+          <div className="bg-ink-900 dark:bg-slate-900 backdrop-blur-md rounded-lg p-2 shadow-2xl border-2 border-amber-500/70 dark:border-amber-400/70">
+            <h4 className="font-serif text-sm font-bold text-amber-50 dark:text-amber-100 mb-1.5 pb-1.5 border-b border-amber-500/40">
               {simple.name}
             </h4>
-            <div className="space-y-1.5 text-xs text-amber-100 dark:text-amber-200 font-sans">
-              <div className="flex justify-between">
+            <div className="space-y-1 text-xs text-amber-100 dark:text-amber-200 font-sans">
+              <div className="flex justify-between gap-2">
                 <span className="font-medium text-amber-200 dark:text-amber-300">Price:</span>
                 <span className="font-bold text-yellow-200 dark:text-yellow-300">{simple.price} reales</span>
               </div>
-              <div className="flex justify-between">
-                <span className="font-medium text-amber-200 dark:text-amber-300">Quantity:</span>
+              <div className="flex justify-between gap-2">
+                <span className="font-medium text-amber-200 dark:text-amber-300">Qty:</span>
                 <span className="font-bold text-green-200 dark:text-green-300">{simple.quantity}</span>
               </div>
               {simple.humoralQualities && (
-                <div className="pt-1.5 border-t border-amber-500/30">
-                  <p className="text-amber-200 dark:text-amber-300/90 font-semibold mb-0.5">Qualities:</p>
-                  <p className="text-amber-50 dark:text-amber-100">{simple.humoralQualities}</p>
+                <div className="pt-1 border-t border-amber-500/30">
+                  <p className="text-amber-200 dark:text-amber-300/90 font-semibold mb-0.5 text-[10px]">Qualities:</p>
+                  <p className="text-amber-50 dark:text-amber-100 text-[10px] leading-tight">{simple.humoralQualities}</p>
                 </div>
               )}
               {simple.medicinalEffects && (
-                <div className="pt-1">
-                  <p className="text-amber-200 dark:text-amber-300/90 font-semibold mb-0.5">Effects:</p>
-                  <p className="text-amber-50 dark:text-amber-100 leading-snug">{simple.medicinalEffects}</p>
+                <div className="pt-0.5">
+                  <p className="text-amber-200 dark:text-amber-300/90 font-semibold mb-0.5 text-[10px]">Effects:</p>
+                  <p className="text-amber-50 dark:text-amber-100 leading-tight text-[10px]">{simple.medicinalEffects}</p>
                 </div>
               )}
             </div>

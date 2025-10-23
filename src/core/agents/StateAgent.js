@@ -88,7 +88,8 @@ function buildStatePrompt(scenario, movementData = null) {
   },
   "inventoryChanges": [{"item": "string", "quantity": number, "action": "bought|sold|used|foraged|received|lost", "price": number}],
   "relationshipChanges": [{"npcId": "kebab-case", "npcName": "Full Name", "delta": -20 to +20, "reason": "brief"}],
-  "contractOffer": {"type": "treatment|sale|null", "offeredBy": "string", "offeredByDescription": "string", "patientName": "string", "patientDescription": "string", "paymentOffered": number, "itemRequested": "string"},
+  "reputationEvents": [{"faction": "church|elite|common_folk|indigenous|guild|merchants", "delta": number (-50 to +50), "reason": "brief description of what happened"}],
+  "contractOffer": {"type": "treatment|sale_inquiry|null", "offeredBy": "string", "offeredByDescription": "string", "patientName": "string", "patientDescription": "string", "patientLocation": "string or null", "paymentOffered": number, "ailmentDescription": "string"},
   "tradeOpportunity": {"npcId": "kebab-case", "npcName": "Full Name", "npcPortrait": "/portraits/filename.jpg", "type": "buy|sell|null", "interest": {"items": ["item1", "item2"], "reason": "brief explanation", "urgency": "low|moderate|high", "priceMultiplier": 1.0}, "offering": {"items": [{"name": "item", "quantity": 1, "price": 10}]}, "context": "brief context"},
   "journalEntry": "**Date, Time, Location**: One sentence with **NPC names bolded**",
   "systemAnnouncements": []
@@ -104,12 +105,100 @@ function buildStatePrompt(scenario, movementData = null) {
 **Relationships**: Most interactions are neutral (delta: 0). Only track meaningful changes. Major positive +10 to +20, moderate +5 to +9, minor +1 to +4, minor negative -1 to -4, moderate -5 to -9, major -10 to -20.
 
 **Contract Detection** (BE CONSERVATIVE):
-- **Detect ONLY when**: Player action includes "negotiate", "how much", "payment", "terms" OR NPC offers payment AND player engaged
-- **DO NOT detect**: First turn with NPC, player hasn't asked about payment, no negotiation yet, already completed transaction
-- **Type "treatment"**: Extract offeredBy, offeredByDescription, patientName, patientDescription, paymentOffered (number or 0)
-- **Type "sale"**: Extract offeredBy, offeredByDescription, itemRequested, paymentOffered
-- **Type null**: Default (no contract)
-- **System announcement**: Add "A potential contract for [type] has been offered, pending acceptance of the terms ([payment])." when type is NOT null
+
+**CRITICAL: Never detect contracts for actions that already happened or are narrated as complete!**
+
+**⚠️ PRIORITY RULE: Treatment contracts take absolute priority. If a treatment contract is detected, DO NOT also detect a sale_inquiry contract, even if the NPC mentions wanting medicine. One NPC can only have ONE contract type at a time.**
+
+**Treatment vs Sale**: treatment = "I'm sick, help me" (needs exam), sale_inquiry = "I need headache medicine" (knows remedy)
+
+**Type "treatment"** - Patient examination/treatment request:
+- **Detect when**:
+  - NPC makes a CLEAR REQUEST for Maria to EXAMINE, DIAGNOSE, or SEE a patient
+  - Language implies consultation: "can you help", "look at", "examine", "what's wrong with me"
+  - Patient is PRESENT at shop OR house call to patient's location
+  - Patient has symptoms needing professional medical assessment
+  - **Payment amount is explicitly mentioned** (e.g., "I can pay 5 reales", "offers 20 reales")
+  - Player has NOT yet examined the patient (examination happens in Patient View)
+- **DO NOT detect**:
+  - NPC just wants to BUY a specific remedy without examination (use "sale_inquiry")
+  - Vague mentions of illness without an explicit request ("my son has been sick lately")
+  - Treatment already completed in narrative
+  - Player explicitly declined the request already
+  - **SCHOLARLY/PROFESSIONAL requests**: translation, preservation, copying, teaching, research about texts/codices/manuscripts
+  - **NON-MEDICAL help**: NPC wants intellectual/professional assistance (translation, literacy, teaching), not medical treatment
+- **Extract**:
+  - offeredBy: Person making request (might be family member, not patient)
+  - offeredByDescription: Brief description of requester
+  - patientName: EXACT NAME of the person who is actually sick
+    * If Primary NPC (from context) is the patient themselves → use their exact name
+    * If Primary NPC is a messenger/intermediary → extract actual patient name from narrative
+    * Use specific names like "Tomas", "the laborers at Alameda construction site"
+    * **If only relationship given** ("my son", "a colleague", "the servant") → format as "[NPC name]'s [relationship]" (e.g., "Fernando de Toledo's colleague")
+    * **If completely vague** ("a friend", "someone") → use "unknown patient (details pending)"
+  - patientDescription: Brief description of patient (age, relation, condition)
+  - patientLocation:
+    - **null** if patient physically PRESENT at Maria's shop (visible in narrative)
+    - **"[location]"** if patient elsewhere (house call needed)
+    - **HOUSE CALL INDICATORS**: Patient "at home/in [place]", "confined/bedridden", "cannot travel/too weak", "I traveled from [place]"
+    - **MESSENGER PATTERN**: If offeredBy is a servant/maid/messenger and patientName is their master/mistress/employer → ALWAYS set to "[Patient]'s residence" (patient is at home, messenger came to fetch Maria)
+    - **Location format**: Use exact address if given ("Calle de Tacuba"), else "[Name]'s residence". Use "pending" only if truly ambiguous.
+  - paymentOffered: Amount in reales (number) or 0 if not specified yet
+  - ailmentDescription: What symptoms/problem are described (e.g., "fever and chills", "persistent cough")
+
+**Type "sale_inquiry"** - Request for remedy to purchase:
+- **⚠️ REMEMBER: If a treatment contract was already detected above, DO NOT detect sale_inquiry. Only ONE contract type per NPC.**
+- **Detect when**:
+  - NPC makes a CLEAR REQUEST for a specific remedy/medicine for a symptom or condition
+  - Transactional language: "Do you have", "Can you make", "I need [remedy for X]", "I'll pay"
+  - NO examination or diagnosis requested (just wants medicine)
+  - Focus is on OBTAINING a remedy, not being examined
+  - Remedy needs to be crafted/prepared (implied by request)
+- **DO NOT detect**:
+  - Patient requests examination ("can you look at", "examine me", "what's wrong with me")
+  - Patient wants diagnosis or consultation (use "treatment" instead)
+  - Transaction already completed in narrative
+  - Just browsing/asking vague questions ("Do you sell remedies?")
+  - Player explicitly declined the request already
+  - **SCHOLARLY/PROFESSIONAL requests**: translation, preservation, copying, teaching, research, knowledge exchange about texts/codices/manuscripts
+  - **NON-MEDICAL services**: NPC wants Maria's skills for translation, writing, reading, teaching, or other intellectual work (NOT medicine)
+- **Extract**:
+  - offeredBy: Buyer's name (use Primary NPC name if they are the buyer)
+  - offeredByDescription: Brief description
+  - patientName: Person remedy is for
+    * If Primary NPC is buying for themselves → use their exact name
+    * If buying for someone else → use specific name or relation from narrative
+  - patientDescription: Brief description if given
+  - patientLocation: null (sale inquiries don't involve house calls)
+  - paymentOffered: Amount offered or 0 if not specified
+  - ailmentDescription: What the remedy is for (e.g., "headache", "digestive troubles", "skin rash")
+
+**Type null** - Default (no contract):
+- Normal conversation
+- Completed transactions
+- Vague mentions of illness without explicit request
+- Player explicitly declined the request
+
+**System announcement**: When type is NOT null, add ONE of these announcements:
+- If type is "treatment": "A treatment contract is being discussed (payment: [payment] reales)."
+- If type is "sale_inquiry": "A sales contract is being discussed (payment: [payment] reales)."
+- If payment is 0 or unknown: "A contract is being discussed (payment to be determined)."
+
+**Examples**:
+- "My daughter has a terrible fever, can you examine her? I can pay 5 reales" → **treatment** (requests examination), patientLocation: null (daughter will come to shop), patientName: "[requester's name]'s daughter", ailmentDescription: "fever"
+- **"I am the maid to Doña Elvira. She suffers from terrible cough and cannot leave her bed"** → **treatment** (MESSENGER PATTERN - maid at shop, mistress at home), offeredBy: "Isabel Ramírez", patientName: "Doña Elvira", patientLocation: "Doña Elvira's residence", ailmentDescription: "cough, bedridden"
+- "Please come to my home on Calle de Tacuba, my husband cannot walk" → **treatment** (house call), patientLocation: "Calle de Tacuba", patientName: (husband's name if given), ailmentDescription: based on context
+- "I traveled from Xochimilco, my grandson Tomas suffers a terrible flux" → **treatment** (HOUSE CALL - grandmother is representative, patient is in Xochimilco), patientLocation: "Xochimilco", patientName: "Tomas", offeredBy: (grandmother's name), ailmentDescription: "flux"
+- **"My husband has been confined to his chambers for three weeks with melancholy"** → **treatment** (HOUSE CALL - "confined to chambers" = at home), patientLocation: "[Husband's name]'s residence" OR "[Family name] household", patientName: (husband's name), ailmentDescription: "melancholy"
+- "I have a broken arm, can you help?" → **treatment** (patient present at shop, needs examination), patientLocation: null
+- "Do you have something for headaches? I'll pay 2 reales" → **sale_inquiry** (wants medicine, not examination), ailmentDescription: "headaches"
+- "Can you make me a tonic for sleeplessness?" → **sale_inquiry** (wants product made), ailmentDescription: "sleeplessness"
+- "My mother needs a poultice for burns, I'll pay 3 reales" → **sale_inquiry** (purchasing for someone), ailmentDescription: "burns", patientName: "mother"
+- "Do you sell remedies for stomach troubles?" → **sale_inquiry** (transactional request), ailmentDescription: "stomach troubles"
+- "I heard you sell good medicines" → **null** (too vague, no specific request)
+- **"I carry a codex regarding ancient pharmacopeia. I need your skill with letters and herbs to translate and protect it"** → **null** (scholarly/professional request for translation, NOT medical treatment or remedy purchase)
+- "Can you teach me to read Latin medical texts?" → **null** (educational request, not medical)
+- "I need help preserving an ancient manuscript" → **null** (scholarly preservation, not medical)
 
 **Trade Opportunity Detection** (NEW):
 - **Detect when**: NPC explicitly expresses interest in buying/selling items (e.g., "I need chocolate", "Do you have cinnamon to sell?", "I'm selling silk")
@@ -125,11 +214,60 @@ Examples:
 - NPC says "I'm selling fine silk from China, 10 reales" → type: "sell", offering: [{"name": "Chinese Silk", "quantity": 1, "price": 10}]
 - Normal conversation → type: null
 
+### Reputation Events (CRITICAL - Detect Extreme Actions):
+**Detect when Maria commits EXTREME actions that should affect faction reputation:**
+
+**Church faction** (-50 to +50):
+- Assaulting clergy (-40 to -50): Throwing objects at priests, physical violence, public insults
+- Witchcraft accusations triggered (-30 to -40): Occult behavior, consorting with "devils", suspicious rituals
+- Sacrilege (-20 to -30): Defiling religious items, mocking sacraments
+- Charitable acts (+10 to +20): Donating to church, helping the poor, pious behavior
+- Miraculous cures (+20 to +30): Healing important clergy or nobles
+
+**Elite faction** (-50 to +50):
+- Public scandal (-30 to -40): Embarrassing nobles, causing scenes in public
+- Treating nobles poorly (-10 to -20): Refusing service, insulting, poor treatment outcomes
+- Treating nobles well (+10 to +20): Successful cures, respectful service
+- Gaining noble patronage (+20 to +30): Multiple successful treatments, becoming favored physician
+
+**Common_folk faction** (-50 to +50):
+- Exploiting the poor (-20 to -30): Charging excessive prices, refusing charity
+- Helping the poor (+10 to +20): Free treatments, fair prices, generosity
+- Publicly standing up for common people (+20 to +30): Defending them from authorities
+
+**Indigenous faction** (-50 to +50):
+- Disrespecting indigenous practices (-20 to -30): Mocking traditions, rejecting indigenous medicine
+- Embracing indigenous knowledge (+10 to +20): Using native remedies, respecting traditions
+- Becoming bridge between cultures (+20 to +30): Integrating indigenous and European medicine
+
+**Guild faction** (-50 to +50):
+- Competing unfairly (-20 to -30): Undercutting prices drastically, stealing clients
+- Professional excellence (+10 to +20): Demonstrating superior skill, ethical practice
+
+**Merchants faction** (-50 to +50):
+- Breaking business deals (-20 to -30): Defaulting on debts, cheating in trades
+- Building business relationships (+10 to +20): Paying debts, fair trading
+- Becoming major customer (+20 to +30): Large purchases, repeat business
+
+**EXAMPLES:**
+- "You throw the vial of dead frog at Padre Alonso" → [{"faction": "church", "delta": -45, "reason": "Assaulted priest with occult substance"}]
+- "You successfully cure the Viceroy's daughter" → [{"faction": "elite", "delta": 25, "reason": "Miraculous cure of noble child"}, {"faction": "church", "delta": 15, "reason": "Divine healing"}]
+- "You refuse to treat the beggar child unless paid" → [{"faction": "common_folk", "delta": -25, "reason": "Refused charity to dying child"}]
+- Normal interactions, conversation, walking → []
+
 **Rules**:
 - Wealth changes match inventory (${currencyName})
 - Time moves forward only
 - Location: Include building/region/city BUT NEVER include interior room names (shop floor/laboratory/bedroom)
-- Conservative: Reputation/relationships rarely change
+- **Relationship changes should be FREQUENT and GRANULAR**: Detect small shifts (+2 to -2) in most NPC interactions, larger shifts (+5 to +10 or -5 to -10) for meaningful help/harm, extreme shifts (+15 to +20 or -15 to -20) only for major events
+- **Examples of relationship changes**:
+  - Pleasant conversation: +1 to +2
+  - Helping with small request: +3 to +5
+  - Refusing reasonable request: -2 to -4
+  - Successful medical treatment: +5 to +10
+  - Failed treatment causing harm: -8 to -15
+  - Major betrayal or assault: -15 to -20
+- Extreme actions trigger BOTH relationshipChanges AND reputationEvents (faction-wide impact)
 - Contracts: Only when actively negotiating, never on first mention
 - Trade opportunities: Only when NPC explicitly mentions buying/selling, not at markets`;
 }
@@ -154,7 +292,8 @@ export async function extractGameState({
   selectedEntity = null,
   mapData = null,
   turnNumber = 0,
-  availableLocations = [] // NEW: Location registry for granular location tracking
+  availableLocations = [], // NEW: Location registry for granular location tracking
+  primaryNPC = null // NEW: Primary NPC for contract name resolution
 }) {
   try {
     // Load scenario
@@ -192,6 +331,19 @@ ${availableLocations.map(loc => `- ${loc.fullName}`).join('\n')}
 Player Action: ${playerAction}
 
 ${selectedEntity ? `NPC Involved: ${selectedEntity.name}` : ''}
+
+${primaryNPC ? `
+### Primary NPC (Person Physically Present):
+Name: ${primaryNPC.name}
+Demographics: ${primaryNPC.age || 'unknown'} ${primaryNPC.gender || 'unknown'} ${primaryNPC.casta || 'unknown'}
+Occupation: ${primaryNPC.occupation || 'unknown'}
+
+**Contract Name Guidance:**
+- If ${primaryNPC.name} is seeking treatment FOR THEMSELVES → use "${primaryNPC.name}" as patientName
+- If ${primaryNPC.name} is a MESSENGER (sent by, on behalf of, asking for others) → extract actual patient name from narrative
+- Use specific names, not generic descriptions like "young man" or "messenger"
+- If multiple patients mentioned, extract specific names or "laborers at [location]" format
+` : ''}
 
 ${movementData ? `\n### Movement Analysis:
 Direction: ${movementData.direction}

@@ -79,9 +79,9 @@ const Diagnose = ({ isOpen, onClose, patient = null, previousOutput = '', theme 
         onClick={onClose}
       >
 
-        {/* Modal Container */}
+        {/* Modal Container - Responsive: Full screen on mobile */}
         <div
-          className="relative w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-xl"
+          className="relative w-full max-w-full sm:max-w-3xl h-screen sm:max-h-[90vh] overflow-hidden rounded-none sm:rounded-xl"
           style={{
             background: isDark
               ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1e293b 100%)'
@@ -103,9 +103,9 @@ const Diagnose = ({ isOpen, onClose, patient = null, previousOutput = '', theme 
             }}
           />
 
-          {/* Header */}
+          {/* Header - Responsive padding */}
           <div
-            className="relative px-8 py-6 border-b"
+            className="relative px-4 sm:px-6 md:px-8 py-4 sm:py-6 border-b"
             style={{
               background: isDark
                 ? 'linear-gradient(to bottom, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.6))'
@@ -118,9 +118,9 @@ const Diagnose = ({ isOpen, onClose, patient = null, previousOutput = '', theme 
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl">🩺</span>
+                  <span className="text-2xl sm:text-3xl">🩺</span>
                   <h1
-                    className="text-3xl tracking-tight"
+                    className="text-2xl sm:text-3xl tracking-tight"
                     style={{
                       fontFamily: "'Cormorant Garamond', Georgia, serif",
                       fontWeight: 700,
@@ -180,9 +180,9 @@ const Diagnose = ({ isOpen, onClose, patient = null, previousOutput = '', theme 
             </div>
           </div>
 
-          {/* Content */}
+          {/* Content - Responsive padding */}
           <div
-            className="p-8 overflow-y-auto"
+            className="p-4 sm:p-6 md:p-8 overflow-y-auto"
             style={{
               maxHeight: 'calc(90vh - 140px)',
               background: isDark

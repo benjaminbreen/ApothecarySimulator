@@ -6,7 +6,9 @@ import { buildContextSummary, buildEntityContext, buildSkillsContext } from '../
 import { scenarioLoader } from '../services/scenarioLoader';
 import { getGridSystem } from '../../features/map/services/gridMovementSystem';
 import { getReputationTier, getFactionStanding, FACTION_INFO } from '../systems/reputationSystem';
-import { formatPortraitListForPrompt } from '../config/portraits.config';
+// Portrait list removed from prompt - system does lookup after demographics provided
+import { findPortraitByName, portraitExists } from '../services/portraitMatcher';
+import { resolvePortrait } from '../services/portraitResolver';
 
 /**
  * Build reputation context for narrative generation
@@ -228,24 +230,46 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 
 ### Response Type Detection:
 
-**MOVEMENT MODE** - Use when player navigates:
-- Patterns: "I walk [direction]", "I go [direction]", "go to [place]"
-- Set \`responseType: "movement"\`
-- Brief description in \`narrative\` field (2-3 sentences, 40-60 words)
-- **MUST use SECOND PERSON ("You walk...", "You step...") - NEVER first person ("I walk...") or third person ("Maria walks...")**
+**MOVEMENT MODE** - Two types of movement:
+
+1. **Directional movement** (single step):
+   - Patterns: "go east", "walk north", "head south", "turn left"
+   - Set \`responseType: "movement"\`
+   - Brief description (2-3 sentences, 40-60 words)
+   - Describe ONE unit of movement in that direction
+   - Player stays in movement mode, can continue moving
+   - **MUST use SECOND PERSON ("You walk...", "You step...") - NEVER first person**
+
+2. **Destination movement** (arrive at target):
+   - Patterns: "go to the meeting", "go to the market", "go home", "head to [specific place]"
+   - If destination mentioned in recent context (last 1-3 turns) → player wants to ARRIVE there
+   - Set \`responseType: "narration"\` (switching to full scene mode)
+   - Summarize journey briefly (1 sentence)
+   - Then describe arrival and what happens AT the destination (full narration)
+   - **MUST use SECOND PERSON throughout**
+   - **Example**: "go to the meeting" after summons → summarize walk, arrive at Alcalde's office, describe the office interior and who's there
 
 **NARRATION MODE (DEFAULT)** - All other actions:
 - Player actions, NPC interactions, examining, choices, contracts, commands
 - Set \`responseType: "narration"\`
-- Full scene in \`narrative\` field (1-3 paragraphs)
+- Full scene in \`narrative\` field (1-2 paragraphs)
 - **Use SECOND PERSON ("You examine...", "You say...", "You notice...")**
 - **Embed NPC dialogue naturally** using quotation marks
-- **Accurately represent player input** - don't contradict what they said
-- **Show consequences** - NPC responses, game events, what happens next
+
+**CRITICAL - PLAYER AGENCY RULES:**
+- **NEVER invent Maria's dialogue** - if player says something, that's exactly what she says (no embellishment, no adding thoughts/tone)
+- **NEVER invent Maria's major actions** - if player says "go to market", she goes to market (don't make her stop to talk to someone first)
+- **FOLLOW PLAYER COMMANDS LITERALLY**:
+  * "buy cannabis" → purchase cannabis immediately, show the transaction
+  * "go away" → NPC leaves (unless strong in-character reason like guard, authority figure with power over Maria)
+  * "go to market" → describe arrival at market, NOT detours or conversations along the way
+- **DON'T elaborate on player inputs** - if player says "ask for price", jump straight to NPC stating the price
+- **Show CONSEQUENCES immediately** - NPC reactions, what happens next - NOT what Maria does/thinks/feels (player controls that)
 
 **Examples:**
 
 \`\`\`json
+// Directional movement (single step)
 {
   "responseType": "movement",
   "narrative": "You walk north along the dusty Calle de Plateros. The cathedral's unfinished towers loom ahead, scaffolding wrapped around stone. A vendor calls out, selling tamales."
@@ -253,20 +277,30 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 \`\`\`
 
 \`\`\`json
+// Destination movement (arrive at target)
+// Player said "go to the meeting" after receiving summons to Alcalde's office
 {
   "responseType": "narration",
-  "narrative": "Beatriz's weathered face brightens. \\"The ipecacuanha, Doña Maria,\\" she says, gesturing to the bundles. \\"The bitter one for purging the stomach.\\" She unwraps the cloth to reveal dark, gnarled specimens."
+  "narrative": "You make your way east through the crowded streets, passing the market and the cathedral. Within minutes, you arrive at the imposing stone building housing the Alcalde Ordinario's offices. The anteroom smells of ink and old parchment. A clerk in dark robes looks up from his ledger, studying you with narrowed eyes. \\"You are Maria de Lima?\\" he asks curtly, gesturing toward a heavy wooden door. \\"The Alcalde will see you now.\\""
+}
+\`\`\`
+
+\`\`\`json
+// Regular narration
+{
+  "responseType": "narration",
+  "narrative": "Beatriz's face brightens. \\"The ipecacuanha, Doña Maria,\\" she says, gesturing to the bundles. \\"The bitter one for purging the stomach.\\" She unwraps the cloth to reveal dark, gnarled specimens."
 }
 \`\`\`
 
 ### Response Format (JSON):
+
+
+
 \`\`\`json
 {
   "responseType": "movement|narration - REQUIRED (use 'narration' for everything except movement)",
-  "narrative": "Story text (1-3 paragraphs, markdown) - ALWAYS populate this field with the narrative",
-  "dialogue": "RESERVED - leave null (future companion travel mode only)",
-  "npcSpeaker": "RESERVED - leave null (future companion travel mode only)",
-  "npcDialogue": "RESERVED - leave null (legacy field)",
+  "narrative": "Story text (1-3 paragraphs, markdown) - PURE NARRATIVE ONLY, no meta-commentary or explanations",
   "sceneDescription": "Brief scene/setting description",
   "suggestedCommands": ["#symptoms", "#prescribe"],
   "showPortraitFor": "string or null - name of the primary character Maria is directly interacting with",
@@ -295,6 +329,7 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
   },
   "requestNewPatient": "boolean - true if a new patient should arrive next turn, false otherwise",
   "patientContext": "string or null - Brief reason why patient is arriving (only if requestNewPatient is true). Examples: 'Morning rush at botica', 'Messenger sent by nobleman', 'Word of Maria's skill has spread'",
+  "npcDeparted": "boolean - true if the current NPC has completed their business and is leaving the scene, false otherwise",
   "entities": [
     {
       "text": "exact text from narrative",
@@ -319,37 +354,46 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 
 **CRITICAL - NEVER USE simpleInteraction FOR MEDICAL SITUATIONS:**
 - ✗ Patients arriving with symptoms
-- ✗ Messengers requesting treatment for sick relatives
-- ✗ Anyone seeking medical consultation, diagnosis, or prescriptions
-- ✗ House call requests for the ill
-- ✗ Medical contract negotiations
+- ✗ Messengers requesting treatment for sick relatives, etc
 
 **ONLY USE simpleInteraction FOR NON-MEDICAL ENCOUNTERS:**
-- ✓ Water seller offering barrels (mundane goods)
+- ✓ itinerant merchants (mundane goods)
 - ✓ Beggar asking for bread/coins (charity)
 - ✓ Rival apothecary testing prices (business)
 - ✓ Street urchin selling gossip (information)
 - ✓ Friend bringing books/warnings (social)
 
-**If the interaction involves illness, symptoms, or medical services → Set type to NULL.**
+**CRITICAL MUTUAL EXCLUSIVITY RULES:**
 
-**DEFAULT RULE: If the user prompt does NOT contain "SIMPLE INTERACTION MODE" instructions, set type to NULL.**
-This field should ONLY be populated when explicitly instructed to do so.
+1. **If the interaction involves illness, symptoms, or requests for medical treatment → ALWAYS set type to NULL**
+   - Requests like "my son is sick, can you help?" = NULL (StateAgent will detect as treatment contract)
+   - Requests like "I need medicine for flux" = NULL (StateAgent will detect as sale_inquiry contract)
+   - Even if NPC offers payment ("I have 5 reales for treating my daughter") = NULL (treatment contract)
+   - Even if NPC is poor/desperate = NULL (medical requests go through contract system, not simpleInteraction)
 
-Set type to null for normal interactions. Otherwise, extract the appropriate data:
+2. **If the NPC is requesting medicine, treatment, or medical examination → ALWAYS set type to NULL**
+   - Do NOT use donation_request for medical charity cases
+   - Do NOT use service_offer for medicine sales
+   - Medical interactions use the contractOffer system (detected by StateAgent), NOT simpleInteraction
+
+3. **DEFAULT RULE: If the user prompt does NOT contain "SIMPLE INTERACTION MODE" instructions, set type to NULL.**
+   This field should ONLY be populated when explicitly instructed to do so.
+
+**Only use simpleInteraction for non-medical interactions:**
 - **service_offer**: Water seller, food vendor → Extract item, price, description, stock
 - **donation_request**: Beggar asking for charity → Extract item, reason, urgency, reputationImpact (donate: +3 to +10, refuse: -3 to -10)
 - **competitive_check**: Rival testing prices → Extract targetItem, offeredPrice, actualValue, intent
 - **information_exchange**: STREET GOSSIP ONLY (street urchin selling rumors for 1-2 reales). DO NOT use for examining documents, helping with complex requests, or risky involvement. Only for buying simple gossip/rumors.
-- **social_visit**: Friend visiting → Extract purpose, mood
+- **social_visit**: Acquaintance, friend or enemy visiting → Extract purpose, mood
 
 **CRITICAL - DO NOT use simpleInteraction for:**
-- Examining forbidden/dangerous documents → use null (let narrative flow naturally)
 - Helping NPCs with specialized tasks (extraction, translation, etc.) → use null or contractOffer
 - Getting involved in risky/dangerous situations → use null (these are story decisions, not transactions)
 - Complex multi-turn interactions → use null (simple interactions are 1-click resolved)
 
 **Examples:**
+
+**CORRECT - Water seller (service_offer):**
 \`\`\`json
 {
   "simpleInteraction": {
@@ -367,6 +411,7 @@ Set type to null for normal interactions. Otherwise, extract the appropriate dat
 }
 \`\`\`
 
+**CORRECT - Non-medical charity (donation_request):**
 \`\`\`json
 {
   "simpleInteraction": {
@@ -384,14 +429,40 @@ Set type to null for normal interactions. Otherwise, extract the appropriate dat
 }
 \`\`\`
 
+
+### Player Agency:
+
+**STOP before mechanical actions** (mixing, selling, buying, prescribing) - player uses modals for these.
+**RESPECT player input** - if they say "examine mother", don't substitute "offer remedy".
+
+**Examples**:
+❌ "You measure guayaba leaves and prepare a decoction..." (mixing - use modal instead)
+✓ "You consider which remedy might help."
+
+❌ Player says "examine" → You narrate offering remedy (wrong action)
+✓ Player says "examine" → You narrate examining (player's exact action)
+
+**PLAYER AGENCY & IMPROVISATION:**
+- **ALWAYS honor the player's stated action, no matter how unusual, unexpected, or improvised**
+- If the player says "eat the frog", Maria eats the frog - show the consequences (taste, texture, reactions, effects)
+- If the player says "throw herbs at the Inquisitor", Maria throws herbs - show what happens next
+- **DO NOT substitute a different action** because you think it's "more appropriate" or "makes more sense"
+- **DO NOT refuse or ignore weird/unusual player choices** - this is a freeform narrative game
+- Unusual actions are historically plausible: eating frogs, insects, strange remedies, eccentric behavior were all normal in 1680
+- Show REAL consequences of unusual actions: NPCs react, physical effects happen, reputation changes, etc.
+- The only exception: physically impossible actions (flying, teleporting) - in those cases, narrate an attempt that fails realistically
+
+End narrative at decision points. Let player choose next action.
+
 ### Primary NPC & Portrait System (NEW):
 **Show the person who is PHYSICALLY PRESENT in the scene with Maria, NOT people being discussed or mentioned.**
 
 **CRITICAL RULE: Show who Maria is LOOKING AT and TALKING TO, not who she's HEARING ABOUT.**
 
-${formatPortraitListForPrompt()}
+**Portrait Selection:**
+Provide demographics in primaryNPC (gender, age, casta, class, occupation) and select best-matching portrait filename in primaryPortrait. System will automatically check for exact name matches and override if found (e.g., "Pedro Vázquez" → pedrovásquez.png).
 
-**When to provide primaryPortrait & primaryNPC:**
+**When to provide primaryNPC:**
 ✓ NPC in the same room/location as Maria, actively conversing
 ✓ Person Maria is examining, treating, or directly interacting with
 ✗ Person being TALKED ABOUT but not present (sick relative, absent friend, etc.)
@@ -401,7 +472,6 @@ ${formatPortraitListForPrompt()}
 ✗ Maria alone navigating
 
 **EXAMPLES:**
-✓ Mother at door talking about sick son → Show mother's portrait (she's present)
 ✓ Priest tells you about merchant → Show priest's portrait (he's present)
 ✗ Servant delivers message from Doña Isabel → null (Isabel absent)
 
@@ -413,15 +483,12 @@ Check conversation history. If same NPC still present → reuse EXACT name + por
 - age, gender (for portrait matching)
 - occupation (specific job of the person Maria is LOOKING AT, not who they represent)
 - casta, class (colonial social hierarchy)
-- personality (2-3 traits describing their demeanor and character: "Direct and businesslike, seems accustomed to giving orders", "Soft-spoken but determined", "Nervous but respectful, chooses words carefully")
-- appearance (physical description of the person PRESENT: build, clothing, distinguishing features)
-- description (1-2 sentence summary of THIS person, not who they're talking about)
+- personality (1-2 traits describing their demeanor and character: "Direct and businesslike, seems accustomed to giving orders", "Soft-spoken but determined", "Nervous but respectful, chooses words carefully")
+- appearance (short description of the person PRESENT: build, clothing, distinguishing features)
+- description (1 sentence summary of THIS person, not who they're talking about)
 
 **IMPORTANT - NPC Emotional Variety:**
-Not every NPC should show strong physical reactions (wincing, flinching, recoiling, grimacing). Most people speak calmly and directly. Reserve intense physical reactions for:
-- Patients in acute pain
-- NPCs receiving shocking news
-- Moments of genuine crisis
+NPCs show a wide variety of reactions. This is a gritty, realistic world with no punches pulled. 
 
 Most conversations should be straightforward without constant physical distress signals.
 
@@ -431,30 +498,43 @@ Most conversations should be straightforward without constant physical distress 
 3. Match casta third (español, criollo, mestizo) OF THE PERSON PRESENT
 4. If no perfect match, choose closest approximate
 
-**CRITICAL:** Keep showPortraitFor for compatibility, but primaryPortrait is now authoritative.
-
 ### Patient Request System (requestNewPatient):
-**YOU control when new patients arrive.** Only request a new patient when it makes narrative sense.
+**YOU control when new patients arrive.** Only request a new patient when it makes narrative sense. It often does in Maria's shop.
 
 **Set requestNewPatient to TRUE when:**
-- Maria is clearly waiting for patients at her shop 
-- Player says something like "wait for patients" or "open the shop"
-- It's day at the botica and no one has visited recently
+- It's day at the botica and no one is currently visiting
 - The narrative suggests patients would naturally seek Maria out
 
 **Set requestNewPatient to FALSE when:**
 - Currently treating an active patient (don't interrupt)
-- Maria is away from her shop/workplace
 - It's late evening 
-- Maria is busy with other activities (mixing medicines, studying, eating)
 - The scene doesn't support a new arrival (traveling, sleeping, in crisis)
-- Someone already arrived this turn
 
-**patientContext examples:**
-- "Nobleman sends messenger requesting treatment"
-- "Patient returns for follow-up treatment"
 
 **Default to FALSE unless context clearly supports a new patient arrival.**
+
+### NPC Departure System (npcDeparted):
+**YOU control when NPCs leave the scene.** Set this flag to dismiss NPCs when their business is complete.
+
+**Set npcDeparted to TRUE when:**
+- NPC's stated purpose is accomplished (message delivered, summons given, question answered)
+- Transaction is completed (item sold, information shared, donation given/refused)
+- Player explicitly dismisses them ("thank you, goodbye", "you may go", "that's all I needed")
+- Conversation reaches natural conclusion (greetings exchanged, business finished, nothing more to discuss)
+
+**Set npcDeparted to FALSE when:**
+- Conversation is ongoing and unresolved
+- NPC is waiting for player response to a question or offer
+- Transaction is proposed but not yet accepted/declined
+- Medical examination/treatment is in progress
+
+**CRITICAL - When npcDeparted is TRUE:**
+- MUST narrate the departure in the narrative field ("The corporal nods sharply, turns on his heel, and strides back toward the street")
+- Set primaryPortrait to null (no one present anymore)
+- Set primaryNPC to null
+- Make it clear the NPC is LEAVING, not just standing silently
+
+**Don't keep NPCs present indefinitely.** People arrive, conduct business, and leave. Natural flow.
 
 ### Contract Offers (CRITICAL):
 When NPC requests treatment/purchase, STOP before Maria responds. Let player decide.
@@ -473,18 +553,17 @@ List 2-3 most important interactive elements in "entities" array.
 
 **Include ONLY:**
 - Named NPCs ("Don Luis", "Señora Beatriz")
-- Unnamed characters with narrative significance ("a beggar blocking the path", "a messenger with urgent news")
-- Important animals that are central to the scene ("a stray dog barking at you")
-- Significant items that are plot-relevant ("a bloodstained letter", "a mysterious vial")
+- Unnamed characters with narrative significance
+- Important animals that are central to the scene, if any
+- Significant items that are plot-relevant
 - Key locations ("the alley entrance", "the Cathedral")
 
 **EXCLUDE (Do NOT list as entities):**
-- Currency amounts ("three reales", "10 pesos", "silver coins")
-- Generic objects mentioned in passing ("the door", "the sun", "thread", "cloth")
-- Abstract concepts ("fear", "urgency", "hope")
-- Weather/atmosphere ("rain", "heat", "dust")
-- Body parts or common items ("hands", "eyes", "a chair")
-- Trivial possessions that aren't plot-critical ("her shawl", "his hat")
+- Currency amounts ("three reales", "silver coins")
+- Generic objects mentioned in passing ("the door")
+- Abstract concepts or weather
+- Body parts or common items 
+- Trivial possessions that aren't plot-critical 
 - Generic descriptions ("common clothes", "worn sandals")
 
 **Guideline:** Only include entities the player might want to click on or interact with meaningfully
@@ -494,9 +573,8 @@ List 2-3 most important interactive elements in "entities" array.
 - "tier": story-critical (plot-essential) | recurring (named, likely to reappear) | background (unnamed one-time)
 - "description": Required for unnamed entities
 - "wikipediaQuery": **ONE Wikipedia article suggestion per turn (max)**
-  - **CRITICAL:** Use SIMPLE, GENERAL Wikipedia article titles that actually exist. Avoid overly specific phrases.
-  - **Test mentally:** Would this exact phrase be a Wikipedia article title? If unsure, use simpler/broader term.
-  - **ONLY ONE** wikipediaQuery per turn across ALL entities (not one per entity). Choose the most educationally valuable term.
+  - Use SIMPLE, GENERAL Wikipedia article titles that actually exist. Avoid overly specific phrases.
+  - Choose the most educationally valuable term.
 
   - **For NPCs/patients:** Suggest pages about their ROLE/OCCUPATION/SOCIAL CONTEXT (not personal names)
     - ✓ Good: "Converso", "Midwife", "Spanish Inquisition", "Criollo people"
@@ -504,13 +582,10 @@ List 2-3 most important interactive elements in "entities" array.
 
   - **For items/objects:** Use the SIMPLEST form of the item name
     - ✓ Good: "Molcajete", "Hacienda", "Copal", "Metate"
-    - ✗ Bad: "Hacienda system in New Spain" (too specific - use "Hacienda"), "Traditional grinding tools" (too generic)
 
   - **For locations:** Use the actual Wikipedia article title
     - ✓ Good: "Mexico City Metropolitan Cathedral", "Zócalo"
-    - ✗ Bad: "Cathedral" (too vague), "The main plaza" (not an article title)
 
-  - **When in doubt:** Use the SHORTEST viable term. "Hacienda" not "Hacienda system". "Converso" not "Converso in New Spain".
 - "demographics": **REQUIRED for NPCs and patients** - Provides portrait matching data
   - "gender": Physical presentation (male, female, or unknown if ambiguous/group)
   - "age": Apparent age category (child <12, youth 12-20, adult 20-40, middle-aged 40-60, elderly 60+)
@@ -525,10 +600,16 @@ List 2-3 most important interactive elements in "entities" array.
 - Item: \`{ "text": "molcajete", "entityType": "item", "tier": "background", "description": "A stone mortar and pestle", "wikipediaQuery": null }\`
 - Location: \`{ "text": "the Cathedral", "entityType": "location", "tier": "recurring", "description": "The grand Metropolitan Cathedral", "wikipediaQuery": null }\`
 
-**Remember:** Only ONE entity should have a non-null wikipediaQuery per turn. Choose the most educationally valuable term.
+
+### Anti-Repetition System:
+
+**Check conversation history for repetitive player actions:**
+- If player repeated same action 2+ consecutive turns :
+  → STOP offering that exact choice again
+  → INJECT new event/interruption to break the loop
 
 ### Writing Style:
-${core.tone || 'Clear, concise prose. No purple language. Interesting details, historically vivid touches. 1-3 paragraphs max.'}
+${core.tone || 'Clear, concise prose. No purple language. Interesting details, historically vivid touches. 1-2 paragraphs max.'}
 
 ${mechanics.commands ? `\n### Commands Available:\n${mechanics.commands}` : ''}
 
@@ -556,25 +637,20 @@ ${mechanics.commands ? `\n### Commands Available:\n${mechanics.commands}` : ''}
   - Two choices: "**Will you see who is there, or ignore them?**"
   - Three choices: "**Will you greet them, ask what they need, or turn away?**"
 
-**Complete Examples:**
+** Example:**
 {
-  "narrative": "The door creaks open. A figure stands in shadow. **Will you see who is there, or ignore them?**",
-  "entities": [...]
-}
-
-{
-  "narrative": "She waits for your response, hands clasped. **Do you accept her offer, or decline politely?**",
+  "narrative": " **Will you see who is there, or ignore them?**",
   "entities": [...]
 }
 
 **Guidelines:**
 - Make choices contextual to the narrative (not generic)
 - Use active verbs (see, speak, go, refuse, accept, examine, help, etc.)
-- Keep options brief (3-7 words each)
+- Keep options brief (3-5 words each)
 - Natural language, not game commands
 - Make the question feel organic to the story, not mechanical
 
-**This ending question structure is REQUIRED for all narrative responses.** The question MUST be inside the JSON "narrative" field.
+**This ending question structure is recommended for all narrative responses besides those which have a clear implicit choice or next step, like when a patient requests treatment.** The question MUST be inside the JSON "narrative" field.
 
 ### Historical Context:
 ${historical.accuracy || 'Maintain accuracy. No anachronisms. Use period terminology.'}
@@ -780,38 +856,42 @@ export async function generateNarrative({
     // Build simple interaction context (if applicable)
     let simpleInteractionContext = '';
     if (selectedEntity?.simpleInteractionType) {
-      const interactionTypeExamples = {
-        service_offer: 'NPC offers mundane items for sale (water, firewood, food). Example: "Fresh water from the aqueduct, 3 reales per barrel!" Keep it SHORT (1-2 sentences). NO medical consultations.',
-        donation_request: 'NPC asks for charity (bread, medicine, coins). Example: "Please, señora, my children are starving. Just one loaf of bread?" Show urgency and dignity. NO medical consultations.',
-        competitive_check: 'Rival apothecary tests Maria with lowball offers or price scouting. Example: "I\'ll pay 8 reales for your European mercury." Be calculating and businesslike. NO medical consultations.',
-        information_exchange: 'Street urchin/gossip offers intel for payment. Example: "I know when the Inquisitor plans to visit... but I\'m hungry." Be coy and street-smart. NO medical consultations.',
-        social_visit: 'Friend brings warnings, books, or friendly conversation. Example: Sister Teresa arrives with herbs and concerns about Inquisition activity. Be warm but purposeful. NO medical consultations.'
+      // Compressed interaction type guidance 
+      const interactionGuidance = {
+        service_offer: { tone: 'cheerful, direct, salesmanlike', items: 'aqueduct water (3 reales), river water (2r), firewood (oak/pine, 4r), charcoal (6r)', vary: 'quality claims, source, urgency' },
+        donation_request: { tone: 'urgent but dignified, humble, specific', items: 'bread (1r), tortillas, medicine, coins (2-3r)', vary: 'family situation, desperation level' },
+        competitive_check: { tone: 'calculating, businesslike, subtly condescending', items: 'lowball offers (50-70% value), quality criticism, price scouting', vary: 'politeness, directness' },
+        information_exchange: { tone: 'coy, street-smart, transactional', items: 'gossip (1-2r), warnings, intel about Inquisitor/officials', vary: 'how much revealed upfront' },
+        social_visit: { tone: 'warm but purposeful, concerned, friendly', items: 'warnings, books, herbs, advice', vary: 'urgency of warning' },
+        extortion_demand: { tone: 'politely threatening, bureaucratic, matter-of-fact', items: '"voluntary donation" (5-10r), inspection fees, permits', vary: 'explicitness of threat' },
+        indigenous_trade: { tone: 'proud, dignified, knowledgeable', items: 'huipils from Texcoco (12r), pottery, baskets, carved santos', vary: 'craftsmanship details' },
+        protection_racket: { tone: 'matter-of-fact, casual threat, businesslike', items: 'monthly protection (5r), one-time payment (10r)', vary: 'how explicit the threat is' },
+        entertainment_tip: { tone: 'charming, lighthearted, performative', items: 'songs (1r), stories, guitar music', vary: 'how much performed before asking' },
+        food_purchase: { tone: 'cheerful, energetic, persuasive', items: 'fish from Xochimilco (2r), milk (1r), fresh tortillas, tamales', vary: 'freshness claims, time of day' },
+        gamble_opportunity: { tone: 'persuasive, hopeful, slightly desperate', items: 'cathedral lottery (2r/ticket, 200r prize), card games, dice', vary: 'prize amount' },
+        labor_offer: { tone: 'earnest, humble, eager', items: 'work for food/shelter, apprentice position, temporary help', vary: 'skills offered, desperation' },
+        neighbor_complaint: { tone: 'judgmental, indignant, self-righteous', items: 'noise complaints, smell complaints, impropriety accusations', vary: 'severity, specific grievance' },
+        church_donation: { tone: 'persistent but pious, professional fundraiser', items: 'cathedral repairs, feast day expenses, charity for poor (2-10r)', vary: 'cause, urgency' }
       };
 
-      const example = interactionTypeExamples[selectedEntity.simpleInteractionType] || '';
+      const guidance = interactionGuidance[selectedEntity.simpleInteractionType] || { tone: 'direct', items: 'mundane goods', vary: 'approach' };
 
       simpleInteractionContext = `
-**CRITICAL - SIMPLE INTERACTION MODE:**
-This is a FAST, SIMPLE interaction - NOT a medical consultation or complex negotiation.
+**SIMPLE INTERACTION MODE:**
+Type: ${selectedEntity.simpleInteractionType}
 
-NPC Type: ${selectedEntity.simpleInteractionType}
-${example}
+**Approach**: ${guidance.tone}
+**Typical items/offers**: ${guidance.items}
+**Vary this encounter**: ${guidance.vary}, demographics, exact dialogue
 
-**RULES FOR SIMPLE INTERACTIONS:**
-1. Keep narrative BRIEF (1-2 short paragraphs, 50-100 words MAX)
-2. Get straight to the point - what does the NPC want/offer?
-3. NO lengthy backstories, NO medical complaints about relatives
-4. NO complex negotiations - just a simple offer or request
-5. Player should be able to respond with a quick yes/no or simple choice
-6. This should feel like a quick street encounter, not a consultation
+**Rules**: BRIEF (50 words), direct offer/request, NO medical consultations, NO lengthy backstories
+**Format**: One physical action + one line of dialogue (or vice versa)
 
-**EXAMPLES TO FOLLOW:**
-✓ "A water seller stops at your door. 'Fresh water, 3 reales!' he calls cheerfully."
-✓ "An elderly woman approaches timidly. 'Please, señora... just one loaf of bread for my grandchildren?'"
-✗ "A man arrives saying his wife has the bloody flux and needs pomegranate bark..." (TOO MEDICAL)
-✗ "Pedro explains his wife's symptoms in great detail..." (TOO LONG, TOO COMPLEX)
+**Examples of variation:**
+✓ "A water seller stops. 'Aqueduct water, 3 reales!'"
+✗ "Pedro explains his wife's symptoms in detail..." (TOO MEDICAL—WRONG TYPE)
 
-Generate a SHORT, SIMPLE interaction matching the type above.
+Generate a BRIEF, VARIED encounter. Don't reuse exact dialogue from previous turns.
 `;
     }
 
@@ -853,6 +933,27 @@ DO:
 `;
     }
 
+    // PHASE 3B: Build "no encounter" context when NPCs have departed
+    let noEncounterContext = '';
+    if (!selectedEntity && !isContinuation) {
+      noEncounterContext = `
+**CRITICAL - No NPC Present:**
+No NPC entity was selected for this turn.
+
+If previous turns mentioned NPCs:
+- They have DEPARTED and are NO LONGER in the scene
+- Do NOT continue their scenes or bring them back
+- Do NOT set primaryNPC or primaryPortrait (use null)
+- Generate a scene showing Maria ALONE or in a new situation
+
+If player action suggests waiting/passive behavior ("wait for a patient", "rest", "sort herbs"):
+- Introduce some new event that is historically and contextually accurate, unexpected, dynamic and interesting
+
+Introduce NPCs if:
+- No NPC is currently present and the narrative seems static or boring
+`;
+    }
+
     // Build conversation history (5 full turns + 10 journal entries)
     const recentHistory = buildConversationHistory(conversationHistory, journal, turnNumber);
 
@@ -866,6 +967,7 @@ ${entityContext ? `\n${entityContext}\n` : ''}
 ${simpleInteractionContext ? `\n${simpleInteractionContext}\n` : ''}
 ${recentPortraitContext}
 ${continuationContext}
+${noEncounterContext}
 ${reputationContext}
 
 ${skillsContext ? `\n${skillsContext}\n` : ''}
@@ -915,6 +1017,17 @@ Generate narrative response. Remember: JSON format, concise, historically accura
     console.log('[NarrativeAgent] LLM returned primaryNPC:', narrativeData.primaryNPC ? narrativeData.primaryNPC.name : 'null');
     console.log('[NarrativeAgent] LLM returned requestNewPatient:', narrativeData.requestNewPatient);
 
+    // NAME-BASED PORTRAIT MATCHING: Check if exact name match exists BEFORE LLM demographic selection
+    // This allows specific portrait files (e.g., "pedrovázquez.png") to override generic demographic portraits
+    // Only do this on NEW encounters, not continuations (to maintain portrait consistency)
+    if (!isContinuation && narrativeData.primaryNPC && narrativeData.primaryNPC.name) {
+      const nameBasedPortrait = findPortraitByName(narrativeData.primaryNPC.name);
+      if (nameBasedPortrait) {
+        console.log(`[NarrativeAgent] 🎯 NAME MATCH: Overriding LLM portrait "${narrativeData.primaryPortrait}" with exact name match "${nameBasedPortrait}" for "${narrativeData.primaryNPC.name}"`);
+        narrativeData.primaryPortrait = nameBasedPortrait;
+      }
+    }
+
     // PHASE 2 ENFORCEMENT: Override LLM portrait choice during conversation continuation
     // This ensures portrait consistency even if LLM ignores prompt instructions
     if (isContinuation && recentPortrait) {
@@ -926,6 +1039,31 @@ Generate narrative response. Remember: JSON format, concise, historically accura
         narrativeData.primaryPortrait = recentPortrait;
       } else {
         console.log(`[NarrativeAgent] ✓ PORTRAIT CONSISTENCY: LLM correctly maintained portrait: ${recentPortrait}`);
+      }
+    }
+
+    // PORTRAIT VALIDATION: Check if LLM-selected portrait file actually exists
+    // If not, fall back to demographic-based portrait resolution
+    if (narrativeData.primaryPortrait && narrativeData.primaryNPC) {
+      const llmPortraitExists = portraitExists(narrativeData.primaryPortrait);
+
+      if (!llmPortraitExists) {
+        console.log(`[NarrativeAgent] ⚠️ PORTRAIT VALIDATION: LLM selected non-existent portrait "${narrativeData.primaryPortrait}"`);
+
+        // Use portraitResolver to find valid portrait based on demographics
+        const validPortraitPath = resolvePortrait(narrativeData.primaryNPC);
+
+        if (validPortraitPath) {
+          // Extract filename from path (e.g., "/portraits/foo.jpg" → "foo.jpg")
+          const validPortraitFilename = validPortraitPath.replace(/^\/portraits\//, '');
+          console.log(`[NarrativeAgent] ✓ PORTRAIT VALIDATION: Using demographic-matched portrait "${validPortraitFilename}" instead`);
+          narrativeData.primaryPortrait = validPortraitFilename;
+        } else {
+          console.log(`[NarrativeAgent] ⚠️ PORTRAIT VALIDATION: No valid portrait found, using default`);
+          narrativeData.primaryPortrait = 'defaultnpc.jpg';
+        }
+      } else {
+        console.log(`[NarrativeAgent] ✓ PORTRAIT VALIDATION: LLM portrait exists: ${narrativeData.primaryPortrait}`);
       }
     }
 
@@ -944,6 +1082,7 @@ Generate narrative response. Remember: JSON format, concise, historically accura
       simpleInteraction: narrativeData.simpleInteraction || null, // Simple interaction data (service offer, donation, etc.)
       requestNewPatient: narrativeData.requestNewPatient || false, // LLM controls patient flow
       patientContext: narrativeData.patientContext || null, // Reason for patient arrival
+      npcDeparted: narrativeData.npcDeparted || false, // NPC has left the scene
       entities: narrativeData.entities || [] // Entity list from LLM
     };
 
@@ -957,6 +1096,103 @@ Generate narrative response. Remember: JSON format, concise, historically accura
   }
 }
 
+/**
+ * Generate brief continuation narrative after simple interactions
+ * Uses standard narrative voice with conversation context for consistency
+ *
+ * @param {Object} params
+ * @param {string} params.scenarioId - Scenario identifier
+ * @param {Array} params.conversationHistory - Recent conversation history
+ * @param {Array} params.journal - Journal entries for compression
+ * @param {string} params.journalText - What just happened (journal entry)
+ * @param {boolean} params.isDismissal - Whether NPC is leaving
+ * @param {Object} params.gameState - Current game state
+ * @param {number} params.turnNumber - Current turn
+ * @returns {Promise<string>} Continuation narrative text
+ */
+export async function generateContinuationNarrative({
+  scenarioId = '1680-mexico-city',
+  conversationHistory,
+  journal = [],
+  journalText,
+  isDismissal = false,
+  gameState,
+  turnNumber
+}) {
+  try {
+    // Load scenario for narrative context
+    const scenario = scenarioLoader.loadScenario(scenarioId);
+
+    // Build conversation history (last 10 turns for context)
+    const recentHistory = buildConversationHistory(conversationHistory, journal, turnNumber);
+
+    // Build simplified prompt that returns PLAIN TEXT, not JSON
+    const continuationPrompt = `You are the Narrative Engine for a historical simulation set in ${scenario.name}.
+
+**Character**: ${scenario.character.name}, ${scenario.character.description}
+
+**Setting**: ${scenario.setting}, ${scenario.year}
+
+**Recent Events**:
+${recentHistory}
+
+**What Just Happened**: ${journalText}
+
+**Your Task**: Generate a SHORT continuation (max 100 words) that:
+1. Acknowledges Maria's choice (1 sentence)
+2. Describes immediate aftermath - NPC reaction, scene change, or Maria's internal thoughts (1-2 sentences)
+3. **ENDS WITH A COMPELLING QUESTION** that offers TWO specific, plot-relevant choices
+
+**Critical - The Final Question**:
+- Review the recent narrative for active plot threads (debts, conflicts, mysteries, opportunities, threats, NPC relationships)
+- Reference at least ONE of these threads in your question
+- Format: "Will you [specific action A], or [specific action B]?"
+- Make both options feel urgent, interesting, or consequential
+- AVOID generic choices that result in no action
+- Connect to the drama: debts, dangers, relationships, mysteries, opportunities
+
+**Examples of GOOD questions**:
+- "Will you forage for herbs in the fields outside the city, or visit the market?"
+- "Will you accept the stranger's suspicious offer, or turn instead to the church for sanctuary?"
+
+**Examples of BAD questions (NEVER use these)**:
+- "What do you do?" ❌
+- "What is your next move?" ❌
+
+**Style**:
+- Second person ("you")
+- Brief and evocative (3-4 sentences total)
+- Dynamic, plot-driven choices that make player excited to act
+
+**IMPORTANT**: Return ONLY the narrative text, NOT JSON. No field names, no structure - just the prose.`;
+
+    const messages = [
+      { role: 'system', content: continuationPrompt },
+      { role: 'user', content: 'Generate the brief continuation narrative.' }
+    ];
+
+    const response = await createChatCompletion(
+      messages,
+      0.7, // Match standard narrative temperature
+      250, // Short response
+      null,
+      { agent: 'NarrativeAgent_Continuation' }
+    );
+
+    const continuationNarrative = response.choices[0].message.content.trim();
+
+    console.log('[NarrativeAgent] Generated continuation:', continuationNarrative.substring(0, 100));
+
+    return continuationNarrative;
+
+  } catch (error) {
+    console.error('[NarrativeAgent] Continuation error:', error);
+    // Fallback to simple acknowledgment
+    return `You take a moment to consider your next move.`;
+  }
+}
+
 export default {
-  generateNarrative
+  generateNarrative,
+  generateContinuationNarrative
 };

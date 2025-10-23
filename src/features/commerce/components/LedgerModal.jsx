@@ -261,15 +261,15 @@ export default function LedgerModal({
 
   return (
     <div
-      className={`fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}
+      className={`fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-0 sm:p-4 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}
       style={{
         background: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(41, 37, 36, 0.5)'
       }}
       onClick={handleClose}
     >
-      {/* Modal Container */}
+      {/* Modal Container - Responsive: Full screen on mobile */}
       <div
-        className={`relative w-full max-w-7xl h-[90vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
+        className={`relative w-full max-w-full sm:max-w-7xl h-screen sm:h-[90vh] rounded-none sm:rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: isDark
@@ -308,8 +308,8 @@ export default function LedgerModal({
           </svg>
         </button>
 
-        {/* Header */}
-        <div className="flex-shrink-0 px-6 py-5 border-b relative z-10 transition-colors duration-300"
+        {/* Header - Responsive padding */}
+        <div className="flex-shrink-0 px-4 sm:px-6 py-4 sm:py-5 border-b relative z-10 transition-colors duration-300"
           style={{
             background: isDark
               ? 'linear-gradient(to bottom, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.9))'
@@ -344,8 +344,8 @@ export default function LedgerModal({
 
         </div>
 
-        {/* Summary Cards */}
-        <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-4 gap-4 p-6 border-b relative z-10 transition-colors duration-300"
+        {/* Summary Cards - Responsive padding */}
+        <div className="flex-shrink-0 grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4 p-3 sm:p-4 md:p-6 border-b relative z-10 transition-colors duration-300"
           style={{
             background: isDark
               ? 'linear-gradient(to bottom, rgba(15, 23, 42, 0.4), rgba(30, 41, 59, 0.2))'

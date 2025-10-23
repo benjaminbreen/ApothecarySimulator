@@ -67,11 +67,11 @@ export default {
   // Initial narrative text displayed at game start
   initialNarrative: `You are **Maria de Lima**, apothecary. Dawn light bathes your shop in Mexico City. The year is 1680, and you have just awoken from a strange dream, only to find that your shop has been visited by a local moneylender, **Don Luis**, who has left behind a message warning you to pay him 100 reales in a week... or else. 
 
-As you grind cacao in a *molcajete* to make hot chocolate, you ponder what to do about your debts. For now, your next move is to feed some scraps of dried fish to a friendly street kitten who you've named **João**.
+As make your way to the shop floor where you greet customers, you ponder what to do about your debts. For now, your next move is to feed some scraps of dried fish to a friendly street kitten who you've named **João**.
 
 Meanwhile, the street outside comes to life. Servants hurry past with baskets of fresh produce. A line of Dominican friars makes their way towards the nearby church, casting disapproving glances at a boisterous group of students. A patrol of soldiers carrying pikes is a reminder of troubling rumors – whispers of unrest in the northern provinces.
 
-Just as you begin to sort through your supply of aloe leaves, a sharp knock at the door announces the day's first visitor.
+Just as you begin to sort through your inventory, a sharp knock at the door announces the day's first visitor.
 
 **Will you see who is there, or ignore them?**`,
 

@@ -1461,16 +1461,16 @@ export default function TradeModal({
 
   return (
     <div
-      className="fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 backdrop-blur-md z-50 flex items-center justify-center p-0 sm:p-4"
       style={{
         background: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(41, 37, 36, 0.5)'
       }}
       onClick={onClose}
     >
-      {/* Modal Container - ReputationModal Style */}
+      {/* Modal Container - Responsive: Full screen on mobile */}
       <div
-        className={`relative w-full h-[85vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${
-          activeTab === 'full-inventory' || activeTab === 'history' ? 'max-w-7xl' : 'max-w-5xl'
+        className={`relative w-full h-screen sm:h-[85vh] rounded-none sm:rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${
+          activeTab === 'full-inventory' || activeTab === 'history' ? 'max-w-full sm:max-w-7xl' : 'max-w-full sm:max-w-5xl'
         }`}
         onClick={(e) => e.stopPropagation()}
         style={{

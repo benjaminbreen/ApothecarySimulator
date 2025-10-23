@@ -211,7 +211,7 @@ const InputArea = ({
   const chipRefs = useRef({});
 
   return (
-    <div className="rounded-2xl p-2.5 transition-all duration-300" style={{
+    <div className="rounded-2xl p-3 transition-all duration-300 mb-1 mt-1" style={{
       background: isDark
         ? 'linear-gradient(to bottom right, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.92) 100%)'
         : 'linear-gradient(to bottom right, rgba(255, 255, 255, 0.96) 0%, rgba(249, 245, 235, 0.92) 100%)',
@@ -219,8 +219,8 @@ const InputArea = ({
       WebkitBackdropFilter: 'blur(12px) saturate(120%)',
       border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(228, 218, 195, 0.3)',
       boxShadow: isDark
-        ? '0 4px 12px rgba(0, 0, 0, 0.4)'
-        : '0 4px 6px rgba(0, 0, 0, 0.1)',
+        ? '0 4px 5px rgba(0, 0, 0, 0.4)'
+        : '0 2px 4px rgba(0, 0, 0, 0.1)',
     }}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
         <div className="flex gap-2.5 relative">

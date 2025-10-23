@@ -491,7 +491,7 @@ const handleSummaryContinue = () => {
 
   setConversationHistory(prev => [
     ...prev,
-    { role: 'user', content: prescriptionPrompt },
+    { role: 'user', content: prescriptionPrompt, hidden: true }, // Hidden - LLM prompt not shown to player
     { role: 'assistant', content: simulatedOutput },
   ]);
 

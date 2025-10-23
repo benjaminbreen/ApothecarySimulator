@@ -104,9 +104,9 @@ export default function NPCPatientModal({
       }`}
       onClick={onClose}
     >
-      {/* Modal Container - FIXED DIMENSIONS */}
+      {/* Modal Container - Responsive: Full screen on mobile */}
       <div
-        className={`relative w-full max-w-6xl h-[76vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${
+        className={`relative w-full max-w-full sm:max-w-6xl h-screen sm:h-[76vh] rounded-none sm:rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300 ${
           isVisible ? 'scale-100 translate-y-0' : 'scale-98 translate-y-2'
         }`}
         onClick={(e) => e.stopPropagation()}

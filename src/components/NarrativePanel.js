@@ -7,6 +7,9 @@ import NPCPatientModal from '../features/medical/components/NPCPatientModal';
 import POIModal from './POIModal';
 import { EntityTooltip, EntityPopup } from './EntityTooltipPopup';
 import SaleOpportunityCard from '../features/commerce/components/SaleOpportunityCard';
+import SaleInquiryCard from '../features/commerce/components/SaleInquiryCard';
+import MixingDecisionCard from '../features/crafting/components/MixingDecisionCard';
+import SaleProposalCard from '../features/commerce/components/SaleProposalCard';
 import SimpleInteractionCard from './SimpleInteractionCard';
 import RandomEventCard from './RandomEventCard';
 import ExitConfirmationCard from './ExitConfirmationCard';
@@ -203,7 +206,21 @@ const TypingIndicator = () => (
   </div>
 );
 
-const NarrativeEntry = React.memo(({ entry, index, recentNPCs = [], isBookmarked, onToggleBookmark, playerPortrait, entityComponents }) => {
+const NarrativeEntry = React.memo(({
+  entry,
+  index,
+  recentNPCs = [],
+  isBookmarked,
+  onToggleBookmark,
+  playerPortrait,
+  entityComponents,
+  // Card-related props
+  onOpenContractModal,
+  onSimpleInteractionChoice,
+  onRandomEventChoice,
+  gameState,
+  isDarkMode
+}) => {
   const isUser = entry.role === 'user';
   const isSystem = entry.role === 'system';
   const content = entry.content || '';
@@ -244,6 +261,34 @@ const NarrativeEntry = React.memo(({ entry, index, recentNPCs = [], isBookmarked
   };
 
   const tags = getTags(content);
+
+  // Get tooltip text for entry icon
+  const getTooltipText = () => {
+    if (isUser) {
+      return "Maria's action";
+    }
+    if (isSystem) {
+      return "System message";
+    }
+
+    // NPC portrait present
+    if (entry.primaryPortrait) {
+      return "This turn shows an NPC physically present in the scene";
+    }
+
+    // Movement turn
+    if (entry.responseType === 'movement') {
+      return "This is a *movement turn*, recording movement in space";
+    }
+
+    // Next steps turn (after simple interactions)
+    if (entry.responseType === 'next_steps') {
+      return "This is a *next steps turn*, offering guidance after a brief interaction";
+    }
+
+    // Default: narration turn
+    return "This is a *narration turn*, focusing on describing events";
+  };
 
   // Determine entry icon based on content or role
   const getEntryIcon = () => {
@@ -338,7 +383,7 @@ const NarrativeEntry = React.memo(({ entry, index, recentNPCs = [], isBookmarked
   // Special handling for initial narrative (index 0) - full width, no icon, larger text, pure markdown with NPC highlighting
   if (index === 0 && !isUser && !isSystem) {
     return (
-      <div className="narrative-entry-animated">
+      <div className="narrative-entry-animated" data-entry-index={index} data-primary-portrait={entry.primaryPortrait || ''} data-primary-npc-name={entry.primaryNPCName || ''}>
         <div className="bg-gradient-to-br from-white to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-6 border border-ink-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
           <div className="prose prose-lg max-w-none initial-narrative">
             <ReactMarkdown
@@ -355,14 +400,17 @@ const NarrativeEntry = React.memo(({ entry, index, recentNPCs = [], isBookmarked
   }
 
   return (
-    <div className="narrative-entry-animated space-y-2">
+    <div className="narrative-entry-animated space-y-2" data-entry-index={index} data-primary-portrait={entry.primaryPortrait || ''} data-primary-npc-name={entry.primaryNPCName || ''}>
       <div className={`flex items-start gap-3 relative group ${isUser ? 'flex-row-reverse' : ''}`}>
         {/* NPC Mini Portrait - show for dialogue, positioned inside container */}
       
       
 
         {/* Circular icon */}
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-parchment-100 to-white dark:from-slate-700 dark:to-slate-800 border-2 border-ink-200 dark:border-slate-600 flex items-center justify-center shadow-elevation-1 dark:shadow-dark-elevation-1 mt-1 overflow-hidden transition-colors duration-300">
+        <div
+          className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-parchment-100 to-white dark:from-slate-700 dark:to-slate-800 border-2 border-ink-200 dark:border-slate-600 flex items-center justify-center shadow-elevation-1 dark:shadow-dark-elevation-1 mt-1 overflow-hidden transition-colors duration-300 cursor-help"
+          title={getTooltipText()}
+        >
           {getEntryIcon()}
         </div>
         <div className="flex-1 min-w-0 relative">
@@ -434,7 +482,7 @@ const NarrativeEntry = React.memo(({ entry, index, recentNPCs = [], isBookmarked
                   </div>
                   {/* Optional: Show speaker name */}
                   {entry.npcSpeaker && (
-                    <div className="text-xs text-parchment-600 dark:text-parchment-400 mt-2 font-sans">
+                    <div className="text-xs text-parchment-600 dark:text-parchment-400 mt-2 font-serif">
                       — {entry.npcSpeaker}
                     </div>
                   )}
@@ -545,6 +593,76 @@ const NarrativeEntry = React.memo(({ entry, index, recentNPCs = [], isBookmarked
           </div>
         </div>
       )}
+
+      {/* Embedded Cards - Rendered from conversation history metadata */}
+      {entry.card && (
+        <div className="mt-3 animate-fade-in">
+          {/* Contract Card */}
+          {entry.card.type === 'contract' && onOpenContractModal && (
+            <div className="w-full p-4 bg-gradient-to-r from-amber-500/90 to-yellow-600 dark:from-amber-700 dark:to-yellow-800 rounded-xl shadow-lg border-2 border-amber-400/20 dark:border-amber-600/30">
+              <div className="flex items-center gap-3">
+                {/* Contract Icon */}
+                <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="text-white font-bold text-lg mb-0.5">
+                    {entry.card.data.type === 'treatment' ? 'Treatment Contract Available' : 'Sale Request'}
+                  </div>
+                  <div className="text-amber-100 dark:text-amber-200 text-sm font-medium">
+                    {entry.card.data.offeredBy} is seeking your services
+                  </div>
+                </div>
+                <button
+                  onClick={onOpenContractModal}
+                  className="flex-shrink-0 px-4 py-2 bg-white hover:bg-amber-50 text-amber-600 font-semibold rounded-lg transition-colors shadow-md flex items-center gap-2"
+                >
+                  Negotiate Terms
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Simple Interaction Card */}
+          {entry.card.type === 'simple_interaction' && onSimpleInteractionChoice && (
+            <SimpleInteractionCard
+              interaction={entry.card.data}
+              onChoice={(action) => onSimpleInteractionChoice(action, entry.card.data)}
+              currentWealth={gameState.wealth || 0}
+              inventory={gameState.inventory || []}
+              isDark={isDarkMode}
+            />
+          )}
+
+          {/* Random Event Card */}
+          {entry.card.type === 'random_event' && onRandomEventChoice && (
+            <RandomEventCard
+              eventCard={entry.card.data}
+              onChoice={(action) => onRandomEventChoice(action, entry.card.data)}
+              currentWealth={gameState.wealth || 0}
+              energy={gameState.energy || 100}
+              health={gameState.health || 100}
+              inventory={gameState.inventory || []}
+              isDark={isDarkMode}
+            />
+          )}
+
+          {/* Exit Confirmation Card */}
+          {entry.card.type === 'exit_confirmation' && onConfirmExit && onCancelExit && (
+            <ExitConfirmationCard
+              exitData={entry.card.data}
+              onConfirm={onConfirmExit}
+              onCancel={onCancelExit}
+              isDark={isDarkMode}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {
@@ -578,6 +696,15 @@ const NarrativePanel = ({
   onDeclineTrade = null, // Handler to decline trade opportunity
   pendingSimpleInteraction = null, // Simple interaction (service offers, donations, etc.)
   onSimpleInteractionChoice = null, // Handler for simple interaction choices
+  pendingSaleInquiry = null, // Sale inquiry (remedy crafting request)
+  onPursueSale = null, // Handler to pursue sale opportunity
+  onDeclineSale = null, // Handler to decline sale inquiry
+  pendingMixingDecision = null, // Mixing decision (craft remedy prompt)
+  onOpenMixingWorkshop = null, // Handler to open mixing workshop
+  onAbandonMixing = null, // Handler to abandon mixing opportunity
+  pendingSaleProposal = null, // Sale proposal (complete crafted remedy sale)
+  onCompleteSale = null, // Handler to complete sale
+  onAbandonSaleProposal = null, // Handler to abandon sale proposal
   pendingRandomEvent = null, // Random event (variety gameplay moments)
   onRandomEventChoice = null, // Handler for random event choices
   gameState = {}, // Game state for wealth/inventory
@@ -639,11 +766,34 @@ const NarrativePanel = ({
     };
   }, [isOpen, toggleHistory]);
 
-  const handleNPCClick = (npcName) => {
+  const handleNPCClick = (npcName, clickEvent = null) => {
     // Clear hover tooltip when clicking on entity
     setHoveredEntity(null);
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
+    }
+
+    // Try to find the primary portrait from the conversation history entry
+    // BUT only use it if the clicked NPC matches the primary NPC name
+    let primaryPortrait = null;
+    if (clickEvent && clickEvent.target) {
+      // Walk up DOM to find the narrative-entry-animated container
+      let element = clickEvent.target;
+      while (element && !element.classList.contains('narrative-entry-animated')) {
+        element = element.parentElement;
+      }
+      if (element) {
+        const entryPrimaryNPCName = element.getAttribute('data-primary-npc-name') || null;
+        const entryPrimaryPortrait = element.getAttribute('data-primary-portrait') || null;
+
+        // Only use the portrait if the clicked entity matches the primary NPC
+        if (entryPrimaryNPCName && entryPrimaryPortrait && npcName === entryPrimaryNPCName) {
+          primaryPortrait = entryPrimaryPortrait;
+          console.log('[NarrativePanel] Clicked NPC matches primary NPC, using portrait:', primaryPortrait);
+        } else if (entryPrimaryNPCName && npcName !== entryPrimaryNPCName) {
+          console.log('[NarrativePanel] Clicked NPC does NOT match primary NPC, portrait will be resolved independently');
+        }
+      }
     }
 
     // Find entity data from EntityManager
@@ -654,7 +804,8 @@ const NarrativePanel = ({
       setSelectedEntity({
         name: npcName,
         description: 'No additional information available.',
-        entityType: 'unknown'
+        entityType: 'unknown',
+        image: primaryPortrait ? `/portraits/${primaryPortrait}` : null
       });
       setShowPOIModal(true);
       return;
@@ -670,7 +821,12 @@ const NarrativePanel = ({
     }
 
     // For all other entities (NPCs, locations, items), open POI modal directly
-    setSelectedEntity(entityData);
+    // Enrich entity with portrait from conversation history if available
+    const enrichedEntity = {
+      ...entityData,
+      image: primaryPortrait ? `/portraits/${primaryPortrait}` : entityData.image
+    };
+    setSelectedEntity(enrichedEntity);
     setShowPOIModal(true);
   };
 
@@ -712,7 +868,7 @@ const NarrativePanel = ({
           e.target.classList.contains('item-name') ||
           e.target.classList.contains('location-name')) {
         const npcName = e.target.getAttribute('data-npc-name');
-        handleNPCClick(npcName);
+        handleNPCClick(npcName, e);
       }
     };
 
@@ -782,10 +938,10 @@ const NarrativePanel = ({
 
   return (
     <>
-      <div className="h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg rounded-2xl overflow-hidden flex flex-col shadow-elevation-3 dark:shadow-dark-elevation-3 border border-white/20 dark:border-slate-700/50 transition-colors duration-300">
+      <div className="h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg rounded-2xl overflow-hidden flex flex-col  dark:shadow-dark-elevation-3 border-1 border-white/20 dark:border-slate-700/50 transition-colors duration-300">
         <div
           ref={narrativeRef}
-          className={`flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-[25px] py-[21px] space-y-4 ${fontSize}`}
+          className={`flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-[20px] py-[22px] space-y-3 ${fontSize}`}
         >
           {conversationHistory.length === 0 ? (
             <div className="text-center py-20">
@@ -800,7 +956,7 @@ const NarrativePanel = ({
           ) : (
             <>
               {conversationHistory
-                .filter(entry => !entry.hidden) // Skip hidden entries (e.g., movement commands)
+                .filter(entry => !entry.hidden && entry.role !== 'system') // Skip hidden entries and system messages (system messages only appear in Log tab)
                 .map((entry, index) => (
                 <NarrativeEntry
                   key={index}
@@ -811,11 +967,19 @@ const NarrativePanel = ({
                   onToggleBookmark={handleToggleBookmark}
                   playerPortrait={playerPortrait}
                   entityComponents={entityComponents}
+                  // Card-related props
+                  onOpenContractModal={onOpenContractModal}
+                  onSimpleInteractionChoice={onSimpleInteractionChoice}
+                  onRandomEventChoice={onRandomEventChoice}
+                  gameState={gameState}
+                  isDarkMode={isDarkMode}
                 />
               ))}
 
-              {/* Contract Offer Card - Amber/Gold */}
-              {pendingContract && onOpenContractModal && (
+              {/* Contract Offer Card - Amber/Gold
+                  LEGACY: Only show if not already embedded in conversation history
+                  Cards are now embedded in conversation history for persistence */}
+              {pendingContract && onOpenContractModal && !conversationHistory.some(entry => entry.card?.type === 'contract') && (
                 <div className="animate-fade-in mb-4">
                   <div className="w-full p-4 bg-gradient-to-r from-amber-500/90 to-yellow-600 dark:from-amber-700 dark:to-yellow-800 rounded-xl shadow-lg border-2 border-amber-400/20 dark:border-amber-600/30">
                     <div className="flex items-center gap-3">
@@ -847,8 +1011,10 @@ const NarrativePanel = ({
                 </div>
               )}
 
-              {/* Exit Confirmation Card - Amber/Warning */}
-              {pendingExitConfirmation && onConfirmExit && onCancelExit && (
+              {/* Exit Confirmation Card - Amber/Warning
+                  LEGACY: Only show if not already embedded in conversation history
+                  Cards are now embedded in conversation history for persistence */}
+              {pendingExitConfirmation && onConfirmExit && onCancelExit && !conversationHistory.some(entry => entry.card?.type === 'exit_confirmation') && (
                 <div className="mb-4 animate-fade-in">
                   <ExitConfirmationCard
                     exitData={pendingExitConfirmation}
@@ -873,8 +1039,10 @@ const NarrativePanel = ({
                 ))
               )}
 
-              {/* Simple Interaction Card - Fast Gameplay Loops */}
-              {pendingSimpleInteraction && onSimpleInteractionChoice && (
+              {/* Simple Interaction Card - Fast Gameplay Loops
+                  LEGACY: Only show if not already embedded in conversation history
+                  Cards are now embedded in conversation history for persistence */}
+              {pendingSimpleInteraction && onSimpleInteractionChoice && !conversationHistory.some(entry => entry.card?.type === 'simple_interaction') && (
                 <div className="mb-4 animate-fade-in">
                   <SimpleInteractionCard
                     interaction={pendingSimpleInteraction}
@@ -886,8 +1054,46 @@ const NarrativePanel = ({
                 </div>
               )}
 
-              {/* Random Event Card - Variety Gameplay Moments */}
-              {pendingRandomEvent && onRandomEventChoice && (
+              {/* Sale Inquiry Card - Remedy Crafting Requests */}
+              {pendingSaleInquiry && onPursueSale && onDeclineSale && (
+                <div className="mb-4 animate-fade-in">
+                  <SaleInquiryCard
+                    inquiry={pendingSaleInquiry}
+                    onPursue={() => onPursueSale(pendingSaleInquiry)}
+                    onDecline={() => onDeclineSale(pendingSaleInquiry)}
+                    isDark={isDarkMode}
+                  />
+                </div>
+              )}
+
+              {/* Mixing Decision Card - Craft Remedy Prompt */}
+              {pendingMixingDecision && onOpenMixingWorkshop && onAbandonMixing && (
+                <div className="mb-4 animate-fade-in">
+                  <MixingDecisionCard
+                    mixingContext={pendingMixingDecision}
+                    onOpenMixing={() => onOpenMixingWorkshop(pendingMixingDecision)}
+                    onDecline={() => onAbandonMixing(pendingMixingDecision)}
+                    isDark={isDarkMode}
+                  />
+                </div>
+              )}
+
+              {/* Sale Proposal Card - Complete Crafted Remedy Sale */}
+              {pendingSaleProposal && onCompleteSale && onAbandonSaleProposal && (
+                <div className="mb-4 animate-fade-in">
+                  <SaleProposalCard
+                    saleContext={pendingSaleProposal}
+                    onCompleteSale={() => onCompleteSale(pendingSaleProposal)}
+                    onAbandonSale={() => onAbandonSaleProposal(pendingSaleProposal)}
+                    isDark={isDarkMode}
+                  />
+                </div>
+              )}
+
+              {/* Random Event Card - Variety Gameplay Moments
+                  LEGACY: Only show if not already embedded in conversation history
+                  Cards are now embedded in conversation history for persistence */}
+              {pendingRandomEvent && onRandomEventChoice && !conversationHistory.some(entry => entry.card?.type === 'random_event') && (
                 <div className="mb-4 animate-fade-in">
                   <RandomEventCard
                     eventCard={pendingRandomEvent}
@@ -975,7 +1181,7 @@ const NarrativePanel = ({
                           Prescription Administered
                         </div>
                         <div className="text-blue-100 dark:text-blue-200 text-sm font-medium">
-                          You have prescribed <strong className="text-white">{pendingPrescription.item?.name}</strong> to {pendingPrescription.patient?.name} and wait expectantly to see the result...
+                          You have prescribed <strong className="text-white">{pendingPrescription.item?.name}</strong> to {pendingPrescription.patient?.name}.
                         </div>
                       </div>
                     </div>

@@ -108,9 +108,9 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
       onClick={onClose}
     >
 
-      {/* Modal Container - FIXED DIMENSIONS */}
+      {/* Modal Container - Responsive: Full screen on mobile */}
       <div
-        className="relative w-full max-w-5xl h-[85vh] rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300"
+        className="relative w-full max-w-full sm:max-w-5xl h-screen sm:h-[85vh] rounded-none sm:rounded-2xl overflow-hidden flex flex-col shadow-elevation-4 transition-all duration-300"
         onClick={(e) => e.stopPropagation()}
         style={{
           background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(249, 245, 235, 0.92) 50%, rgba(252, 250, 247, 0.95) 100%)',
@@ -171,7 +171,7 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex-1 px-6 py-4 font-semibold text-sm uppercase tracking-wider transition-all duration-200 relative font-sans"
+              className="flex-1 px-3 sm:px-6 py-3 sm:py-4 font-semibold text-xs sm:text-sm uppercase tracking-wider transition-all duration-200 relative font-sans"
               style={{
                 fontWeight: activeTab === tab.id ? 700 : 600,
                 letterSpacing: '0.08em',
