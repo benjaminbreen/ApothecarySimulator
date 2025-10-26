@@ -14,6 +14,7 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
     { id: 3, content: '', type: 'empty' }
   ]);
   const [diagnosis, setDiagnosis] = useState('');
+  const [confidence, setConfidence] = useState(null); // null, 'low', 'medium', 'high'
   const [nextId, setNextId] = useState(4);
 
   const handleAddCard = () => {
@@ -49,6 +50,11 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
       return;
     }
 
+    if (!confidence) {
+      alert('Please select your confidence level in this diagnosis.');
+      return;
+    }
+
     const evidence = evidenceCards
       .filter(card => card.content)
       .map(card => {
@@ -60,6 +66,7 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
 
     onSubmitDiagnosis({
       diagnosis: diagnosis.trim(),
+      confidence: confidence,
       evidence: evidence,
       timestamp: new Date().toISOString()
     });
@@ -101,7 +108,7 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
 
       {/* Patient Info */}
       {patient && (
-        <div className="mb-4 rounded-lg p-2.5" style={{
+        <div className="mb-3 rounded-lg py-1 p-2.5" style={{
           background: 'rgba(249, 245, 235, 0.5)',
           border: '1px solid rgba(209, 213, 219, 0.3)'
         }}>
@@ -117,13 +124,14 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
         {/* Evidence Section */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm">📋</span>
-            <h3 className="text-sm font-bold text-ink-900 uppercase tracking-wide font-sans">
+            <span className="text-base">📋</span>
+            <h3 className="text-base font-bold text-ink-900 uppercase tracking-wide font-sans">
               Clinical Evidence
             </h3>
           </div>
 
-          <div className="space-y-2">
+          {/* Scrollable Evidence Cards Container */}
+          <div className="max-h-[240px] overflow-y-auto custom-scrollbar space-y-2 pr-1 mb-3">
             {evidenceCards.map((card) => (
               <EvidenceCard
                 key={card.id}
@@ -137,7 +145,7 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
 
           <button
             onClick={handleAddCard}
-            className="mt-3 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all font-sans"
+            className="w-full px-3 py-2 rounded-lg text-sm font-semibold transition-all font-sans"
             style={{
               background: 'rgba(209, 213, 219, 0.15)',
               color: '#059669',
@@ -151,8 +159,8 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
         {/* Diagnosis Section */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm">🩺</span>
-            <h3 className="text-sm font-bold text-ink-900 uppercase tracking-wide font-sans">
+            <span className="text-base">🩺</span>
+            <h3 className="text-base font-bold text-ink-900 uppercase tracking-wide font-sans">
               Your Diagnosis
             </h3>
           </div>
@@ -161,14 +169,123 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
             value={diagnosis}
             onChange={(e) => setDiagnosis(e.target.value)}
             placeholder="Enter your medical diagnosis based on the evidence...&#10;&#10;e.g., 'Considering the patient's persistent headache and melancholic humors, I diagnose an excess of black bile causing humoral imbalance...'"
-            className="w-full px-4 py-3 rounded-lg border resize-none font-serif text-sm leading-relaxed"
-            rows={8}
+            className="w-full px-4 py-3 rounded-lg border resize-none font-serif leading-relaxed"
+            rows={2}
             style={{
               background: 'rgba(255, 255, 255, 0.8)',
               borderColor: 'rgba(209, 213, 219, 0.5)',
-              color: '#1f1b14'
+              color: '#1f1b14',
+              fontSize: '15px'
             }}
           />
+        </div>
+
+        {/* Confidence Meter */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-base">📊</span>
+            <h3 className="text-base font-bold text-ink-900 uppercase tracking-wide font-sans">
+              Diagnostic Certainty
+            </h3>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              {[
+                { value: 'low', label: 'Low', emoji: '❓', color: '#f59e0b', description: 'Uncertain, requires more examination' },
+                { value: 'medium', label: 'Medium', emoji: '⚖️', color: '#3b82f6', description: 'Reasonably confident based on evidence' },
+                { value: 'high', label: 'High', emoji: '✓', color: '#10b981', description: 'Very confident in this diagnosis' }
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setConfidence(option.value)}
+                  className="flex-1 px-4 py-3 rounded-lg transition-all duration-300 font-sans relative overflow-hidden group"
+                  style={{
+                    background: confidence === option.value
+                      ? `linear-gradient(135deg, ${option.color}22 0%, ${option.color}33 100%)`
+                      : 'rgba(255, 255, 255, 0.5)',
+                    border: confidence === option.value
+                      ? `2px solid ${option.color}`
+                      : '2px solid rgba(209, 213, 219, 0.4)',
+                    boxShadow: confidence === option.value
+                      ? `0 4px 12px ${option.color}44`
+                      : 'none',
+                    transform: confidence === option.value ? 'scale(1.02)' : 'scale(1)'
+                  }}
+                >
+                  {/* Animated glow effect on selection */}
+                  {confidence === option.value && (
+                    <div
+                      className="absolute inset-0 animate-pulse"
+                      style={{
+                        background: `radial-gradient(circle at center, ${option.color}22 0%, transparent 70%)`,
+                        pointerEvents: 'none'
+                      }}
+                    />
+                  )}
+
+                  <div className="relative flex flex-col items-center gap-1">
+                    <span className="text-xl">{option.emoji}</span>
+                    <span
+                      className="text-sm font-bold"
+                      style={{
+                        color: confidence === option.value ? option.color : '#6b7280'
+                      }}
+                    >
+                      {option.label}
+                    </span>
+                  </div>
+
+                  {/* Hover tooltip */}
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap text-xs font-sans"
+                    style={{
+                      background: 'rgba(31, 27, 20, 0.95)',
+                      color: 'white',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                      zIndex: 50
+                    }}
+                  >
+                    {option.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Visual Confidence Meter */}
+            {confidence && (
+              <div className="rounded-lg p-4 transition-all duration-500" style={{
+                background: 'rgba(255, 255, 255, 0.6)',
+                border: '1px solid rgba(209, 213, 219, 0.3)'
+              }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-ink-700 uppercase tracking-wide font-sans">Certainty Level</span>
+                  <span className="text-xs font-bold font-sans" style={{
+                    color: confidence === 'high' ? '#10b981' : confidence === 'medium' ? '#3b82f6' : '#f59e0b'
+                  }}>
+                    {confidence === 'high' ? '85-100%' : confidence === 'medium' ? '50-84%' : '0-49%'}
+                  </span>
+                </div>
+                <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700 ease-out"
+                    style={{
+                      width: confidence === 'high' ? '92%' : confidence === 'medium' ? '67%' : '32%',
+                      background: confidence === 'high'
+                        ? 'linear-gradient(to right, #10b981, #059669)'
+                        : confidence === 'medium'
+                        ? 'linear-gradient(to right, #3b82f6, #2563eb)'
+                        : 'linear-gradient(to right, #f59e0b, #d97706)',
+                      boxShadow: confidence === 'high'
+                        ? '0 0 12px #10b98166'
+                        : confidence === 'medium'
+                        ? '0 0 12px #3b82f666'
+                        : '0 0 12px #f59e0b66'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

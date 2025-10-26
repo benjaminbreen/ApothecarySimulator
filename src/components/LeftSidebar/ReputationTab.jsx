@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FaCrown,
   FaUsers,
@@ -12,6 +12,79 @@ import {
   FaExclamationTriangle
 } from 'react-icons/fa';
 import { FACTION_INFO, FACTIONS, getFactionStanding, getReputationTier, INITIAL_REPUTATION } from '../../core/systems/reputationSystem';
+
+/**
+ * Particle Effect Component - Beautiful floating particles on reputation change
+ */
+function ReputationParticles({ delta, color }) {
+  const [particles, setParticles] = useState([]);
+
+  useEffect(() => {
+    if (delta === 0) return;
+
+    // Generate 8-12 particles
+    const particleCount = Math.min(12, Math.max(6, Math.abs(delta)));
+    const newParticles = Array.from({ length: particleCount }, (_, i) => ({
+      id: Date.now() + i,
+      x: Math.random() * 80 - 40, // -40 to 40px horizontal spread
+      y: -(Math.random() * 60 + 40), // -40 to -100px vertical movement
+      rotation: Math.random() * 360,
+      delay: i * 50, // Stagger animation
+      duration: 1000 + Math.random() * 500,
+    }));
+
+    setParticles(newParticles);
+
+    // Clear particles after animation
+    const timeout = setTimeout(() => setParticles([]), 1800);
+    return () => clearTimeout(timeout);
+  }, [delta]);
+
+  if (particles.length === 0) return null;
+
+  const isPositive = delta > 0;
+  const symbol = isPositive ? '+' : '';
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-visible" style={{ zIndex: 100 }}>
+      {particles.map((particle) => (
+        <div
+          key={particle.id}
+          className="absolute"
+          style={{
+            left: '50%',
+            top: '50%',
+            animation: `particle-float-${particle.id} ${particle.duration}ms ease-out forwards`,
+            animationDelay: `${particle.delay}ms`,
+          }}
+        >
+          <div
+            className="text-sm font-bold"
+            style={{
+              color: color,
+              textShadow: `0 0 8px ${color}, 0 0 4px ${color}`,
+              transform: `rotate(${particle.rotation}deg)`,
+            }}
+          >
+            {symbol}{delta}
+          </div>
+          <style>{`
+            @keyframes particle-float-${particle.id} {
+              0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+              }
+              100% {
+                transform: translate(calc(-50% + ${particle.x}px), calc(-50% + ${particle.y}px)) scale(0.4);
+                opacity: 0;
+              }
+            }
+          `}</style>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Get color based on reputation score
@@ -49,7 +122,7 @@ function getFactionIcon(factionId, size = 14, color) {
 /**
  * Enhanced ReputationTab Component - Compact Version
  */
-export function ReputationTab({ reputation, reputationEmoji, onOpenModal }) {
+export function ReputationTab({ reputation, reputationEmoji, onOpenModal, reputationDelta }) {
   const isDark = document.documentElement.classList.contains('dark');
   const repData = reputation || INITIAL_REPUTATION;
   const reputationTier = getReputationTier(repData.overall);
@@ -141,10 +214,24 @@ export function ReputationTab({ reputation, reputationEmoji, onOpenModal }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-baseline gap-0.5">
+            <div className="flex items-baseline gap-0.5 relative">
+              {/* Particle Effect on Reputation Change */}
+              {reputationDelta && reputationDelta !== 0 && (
+                <ReputationParticles
+                  delta={reputationDelta}
+                  color={reputationDelta > 0 ? '#10b981' : '#ef4444'}
+                />
+              )}
+
               <span
-                className="text-xl font-bold font-sans leading-none"
-                style={{ color: isDark ? '#fbbf24' : colors.primary }}
+                className={`text-xl font-bold font-sans leading-none transition-all duration-300 ${
+                  reputationDelta && reputationDelta !== 0 ? 'animate-reputation-pulse' : ''
+                }`}
+                style={{
+                  color: isDark ? '#fbbf24' : colors.primary,
+                  position: 'relative',
+                  zIndex: 1
+                }}
               >
                 {repData.overall}
               </span>
@@ -358,6 +445,28 @@ export function ReputationTab({ reputation, reputationEmoji, onOpenModal }) {
       >
         💡 <span className="font-semibold">Tip:</span> Click any faction for detailed reputation strategies
       </div>
+
+      {/* CSS Animations for reputation change effects */}
+      <style>{`
+        @keyframes reputation-pulse {
+          0%, 100% {
+            transform: scale(1);
+          }
+          25% {
+            transform: scale(1.25);
+          }
+          50% {
+            transform: scale(1.15);
+          }
+          75% {
+            transform: scale(1.2);
+          }
+        }
+
+        .animate-reputation-pulse {
+          animation: reputation-pulse 0.6s ease-in-out;
+        }
+      `}</style>
     </div>
   );
 }

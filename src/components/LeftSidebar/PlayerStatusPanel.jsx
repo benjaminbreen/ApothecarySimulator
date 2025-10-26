@@ -22,7 +22,9 @@ export function PlayerStatusPanel({
   onTabChange,
   inventory, // Add inventory prop
   xpGain, // XP gain notification data
-  xpGainKey // Key to force re-render of XP animation
+  xpGainKey, // Key to force re-render of XP animation
+  reputationDelta, // Reputation change delta for particle effect
+  newlyAddedItemName // Name of newly-added item for particle effect
 }) {
   const [internalActiveTab, setInternalActiveTab] = useState('inventory');
   const [hoveredTab, setHoveredTab] = useState(null);
@@ -164,6 +166,7 @@ export function PlayerStatusPanel({
             reputation={reputation}
             reputationEmoji={reputationEmoji}
             onOpenModal={onOpenReputationModal}
+            reputationDelta={reputationDelta}
           />
         )}
 
@@ -183,6 +186,7 @@ export function PlayerStatusPanel({
             onItemClick={onItemClick}
             onOpenFullInventory={onOpenFullInventory}
             inventory={inventory}
+            newlyAddedItemName={newlyAddedItemName}
           />
         )}
       </div>

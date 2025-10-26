@@ -149,7 +149,8 @@ export function matchLocation(locationString, registry) {
     bedroom: ['bed', 'sleep', 'room', 'quarters', 'chamber', 'sleeping'],
     laboratory: ['lab', 'workshop', 'workbench', 'mixing'],
     'shop floor': ['shop', 'counter', 'store', 'storefront', 'sales'],
-    street: ['outside', 'street', 'exit', 'leave', 'exterior', 'city']
+    street: ['outside', 'street', 'exit', 'leave', 'exterior', 'city'],
+    'plaza mayor': ['zócalo', 'zocalo', 'plaza', 'main square', 'central plaza', 'central square']
   };
 
   for (const [locationName, synonyms] of Object.entries(keywords)) {

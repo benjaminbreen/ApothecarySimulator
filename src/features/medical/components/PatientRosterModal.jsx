@@ -368,6 +368,11 @@ function PatientCard({ patient, onClick, isDark }) {
     return resolvePortrait(patient);
   }, [patient]);
 
+  // Determine session type (purchase vs examination) from latest session - MUST come before chiefComplaint
+  const latestSession = patient.medicalRecord?.sessions[patient.medicalRecord.sessions.length - 1];
+  const sessionType = latestSession?.sessionType || 'examination';
+  const isPurchase = sessionType === 'purchase';
+
   // Extract chief complaint (first sentence of diagnosis or ailment for purchases)
   const chiefComplaint = isPurchase && latestSession?.ailment
     ? latestSession.ailment
@@ -376,11 +381,6 @@ function PatientCard({ patient, onClick, isDark }) {
   // Determine patient status
   const isActive = diagnosis && !diagnosis.toLowerCase().includes('cured');
   const hasRecentInteraction = patient.memory?.interactions?.length > 0;
-
-  // Determine session type (purchase vs examination) from latest session
-  const latestSession = patient.medicalRecord?.sessions[patient.medicalRecord.sessions.length - 1];
-  const sessionType = latestSession?.sessionType || 'examination';
-  const isPurchase = sessionType === 'purchase';
 
   return (
     <button

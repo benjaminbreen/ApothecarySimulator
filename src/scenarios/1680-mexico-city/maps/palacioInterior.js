@@ -1,7 +1,7 @@
 /**
  * Interior map: Palacio Virreinal
- * Seat of the Viceroy of New Spain - 6 grand rooms
- * Layout: Reception Hall (entry) → Throne Room (center) → surrounding offices/chambers
+ * Seat of the Viceroy of New Spain - 9 grand rooms
+ * Layout: 3x3 grid with Throne Room at center, surrounded by offices, chambers, and service rooms
  *
  * @type {import('../../../core/types/map.types').InteriorMapData}
  */
@@ -16,34 +16,35 @@ export default {
   },
   startPosition: [700, 850], // Reception hall near entrance
 
-  // 6 rooms - Reception, Throne Room, Council Chamber, Library, Guard Room, Viceroy Office
+  // 9 rooms - 3x3 grid layout
   rooms: [
-    // Reception Hall - Entry point for visitors (bottom center)
+    // === TOP ROW (left to right) ===
+    // Library - Top left
     {
-      id: 'reception-hall',
-      name: 'Reception Hall',
+      id: 'library',
+      name: 'Library',
       polygon: [
-        [450, 650],
-        [950, 650],
-        [950, 950],
-        [450, 950]
+        [50, 50],
+        [466, 50],
+        [466, 350],
+        [50, 350]
       ],
-      type: 'reception',
-      spawnPoint: { x: 700, y: 850 }
+      type: 'library',
+      spawnPoint: { x: 258, y: 200 }
     },
 
-    // Throne Room - Central power room (middle center)
+    // Viceroy's Study - Top center
     {
-      id: 'throne-room',
-      name: 'Throne Room',
+      id: 'viceroy-study',
+      name: "Viceroy's Study",
       polygon: [
-        [450, 350],
-        [950, 350],
-        [950, 650],
-        [450, 650]
+        [466, 50],
+        [934, 50],
+        [934, 350],
+        [466, 350]
       ],
-      type: 'throne-room',
-      spawnPoint: { x: 700, y: 500 }
+      type: 'study',
+      spawnPoint: { x: 700, y: 200 }
     },
 
     // Council Chamber - Top right
@@ -51,337 +52,300 @@ export default {
       id: 'council-chamber',
       name: 'Council Chamber',
       polygon: [
-        [950, 50],
+        [934, 50],
         [1350, 50],
         [1350, 350],
-        [950, 350]
+        [934, 350]
       ],
       type: 'council',
-      spawnPoint: { x: 1150, y: 200 }
+      spawnPoint: { x: 1142, y: 200 }
     },
 
-    // Viceroy's Office - Top center
+    // === MIDDLE ROW (left to right) ===
+    // West Entrance - Middle left
     {
-      id: 'viceroy-office',
-      name: 'Viceroy Office',
+      id: 'west-entrance',
+      name: 'West Entrance',
       polygon: [
-        [450, 50],
-        [950, 50],
-        [950, 350],
-        [450, 350]
+        [50, 350],
+        [466, 350],
+        [466, 650],
+        [50, 650]
       ],
-      type: 'office',
-      spawnPoint: { x: 700, y: 200 }
+      type: 'entrance',
+      spawnPoint: { x: 258, y: 500 }
     },
 
-    // Library/Archives - Top left
+    // Audience Chamber - Middle center (main throne room)
     {
-      id: 'library',
-      name: 'Library',
+      id: 'audience-chamber',
+      name: 'Audience Chamber',
       polygon: [
-        [50, 50],
-        [450, 50],
-        [450, 350],
-        [50, 350]
+        [466, 350],
+        [934, 350],
+        [934, 650],
+        [466, 650]
       ],
-      type: 'library',
-      spawnPoint: { x: 250, y: 200 }
+      type: 'throne-room',
+      spawnPoint: { x: 700, y: 500 }
     },
 
+    // Anteroom - Middle right
+    {
+      id: 'anteroom',
+      name: 'Anteroom',
+      polygon: [
+        [934, 350],
+        [1350, 350],
+        [1350, 650],
+        [934, 650]
+      ],
+      type: 'anteroom',
+      spawnPoint: { x: 1142, y: 500 }
+    },
+
+    // === BOTTOM ROW (left to right) ===
     // Guard Room - Bottom left
     {
       id: 'guard-room',
       name: 'Guard Room',
       polygon: [
         [50, 650],
-        [450, 650],
-        [450, 950],
+        [466, 650],
+        [466, 950],
         [50, 950]
       ],
       type: 'guard',
-      spawnPoint: { x: 250, y: 800 }
+      spawnPoint: { x: 258, y: 800 }
+    },
+
+    // Entry Hall - Bottom center (main entrance)
+    {
+      id: 'entry-hall',
+      name: 'Entry Hall',
+      polygon: [
+        [466, 650],
+        [934, 650],
+        [934, 950],
+        [466, 950]
+      ],
+      type: 'entrance',
+      spawnPoint: { x: 700, y: 850 }
+    },
+
+    // Waiting Area - Bottom right
+    {
+      id: 'waiting-area',
+      name: 'Waiting Area',
+      polygon: [
+        [934, 650],
+        [1350, 650],
+        [1350, 950],
+        [934, 950]
+      ],
+      type: 'waiting',
+      spawnPoint: { x: 1142, y: 800 }
     }
   ],
 
-  // Doors connecting the rooms
+  // Doors connecting the 9 rooms in 3x3 grid
   doors: [
-    // Main entrance to reception hall
+    // === MAIN ENTRANCE ===
     {
       id: 'main-entrance',
       from: 'street',
-      to: 'reception-hall',
-      position: [670, 950],
+      to: 'entry-hall',
+      position: [700, 950],
       width: 100,
       rotation: 0,
       isLocked: false
     },
 
-    // Reception to throne room
+    // === BOTTOM ROW CONNECTIONS ===
     {
-      id: 'reception-to-throne',
-      from: 'reception-hall',
-      to: 'throne-room',
+      id: 'entry-to-guard',
+      from: 'entry-hall',
+      to: 'guard-room',
+      position: [466, 800],
+      width: 60,
+      rotation: 90,
+      isLocked: false
+    },
+    {
+      id: 'entry-to-waiting',
+      from: 'entry-hall',
+      to: 'waiting-area',
+      position: [934, 800],
+      width: 60,
+      rotation: 90,
+      isLocked: false
+    },
+
+    // === VERTICAL CONNECTIONS (bottom to middle row) ===
+    {
+      id: 'guard-to-west-entrance',
+      from: 'guard-room',
+      to: 'west-entrance',
+      position: [258, 650],
+      width: 60,
+      rotation: 0,
+      isLocked: false
+    },
+    {
+      id: 'entry-to-audience',
+      from: 'entry-hall',
+      to: 'audience-chamber',
       position: [700, 650],
       width: 80,
       rotation: 0,
       isLocked: false
     },
-
-    // Reception to guard room
     {
-      id: 'reception-to-guards',
-      from: 'reception-hall',
-      to: 'guard-room',
-      position: [450, 800],
+      id: 'waiting-to-anteroom',
+      from: 'waiting-area',
+      to: 'anteroom',
+      position: [1142, 650],
+      width: 60,
+      rotation: 0,
+      isLocked: false
+    },
+
+    // === MIDDLE ROW CONNECTIONS ===
+    {
+      id: 'west-to-audience',
+      from: 'west-entrance',
+      to: 'audience-chamber',
+      position: [466, 500],
+      width: 60,
+      rotation: 90,
+      isLocked: false
+    },
+    {
+      id: 'audience-to-anteroom',
+      from: 'audience-chamber',
+      to: 'anteroom',
+      position: [934, 500],
       width: 60,
       rotation: 90,
       isLocked: false
     },
 
-    // Throne room to viceroy office
+    // === VERTICAL CONNECTIONS (middle to top row) ===
     {
-      id: 'throne-to-office',
-      from: 'throne-room',
-      to: 'viceroy-office',
+      id: 'west-to-library',
+      from: 'west-entrance',
+      to: 'library',
+      position: [258, 350],
+      width: 60,
+      rotation: 0,
+      isLocked: false
+    },
+    {
+      id: 'audience-to-study',
+      from: 'audience-chamber',
+      to: 'viceroy-study',
       position: [700, 350],
       width: 80,
       rotation: 0,
       isLocked: false
     },
-
-    // Throne room to library
     {
-      id: 'throne-to-library',
-      from: 'throne-room',
-      to: 'library',
-      position: [450, 500],
-      width: 60,
-      rotation: 90,
-      isLocked: false
-    },
-
-    // Throne room to council chamber
-    {
-      id: 'throne-to-council',
-      from: 'throne-room',
+      id: 'anteroom-to-council',
+      from: 'anteroom',
       to: 'council-chamber',
-      position: [950, 200],
+      position: [1142, 350],
+      width: 60,
+      rotation: 0,
+      isLocked: false
+    },
+
+    // === TOP ROW CONNECTIONS ===
+    {
+      id: 'library-to-study',
+      from: 'library',
+      to: 'viceroy-study',
+      position: [466, 200],
       width: 60,
       rotation: 90,
       isLocked: false
     },
-
-    // Viceroy office to library (private passage)
     {
-      id: 'office-to-library',
-      from: 'viceroy-office',
-      to: 'library',
-      position: [450, 200],
-      width: 60,
-      rotation: 90,
-      isLocked: false
-    },
-
-    // Viceroy office to council chamber (private passage)
-    {
-      id: 'office-to-council',
-      from: 'viceroy-office',
+      id: 'study-to-council',
+      from: 'viceroy-study',
       to: 'council-chamber',
-      position: [950, 200],
+      position: [934, 200],
       width: 60,
       rotation: 90,
       isLocked: false
     }
   ],
 
-  // Furniture for each room
+  // Furniture for each room - simplified, only key pieces visible in background
   furniture: [
-    // === RECEPTION HALL - Waiting area ===
+    // === LIBRARY (top left) ===
     {
-      id: 'reception-bench-1',
-      name: 'Bench',
-      type: 'furniture',
-      position: [520, 750],
-      rotation: 0,
-      size: [120, 50]
-    },
-    {
-      id: 'reception-bench-2',
-      name: 'Bench',
-      type: 'furniture',
-      position: [760, 750],
-      rotation: 0,
-      size: [120, 50]
-    },
-    {
-      id: 'official-portrait',
-      name: 'Royal Portrait',
-      type: 'decoration',
-      position: [690, 680],
-      rotation: 0,
-      size: [100, 140]
-    },
-
-    // === THRONE ROOM - Seat of power ===
-    {
-      id: 'viceroy-throne',
-      name: 'Viceregal Throne',
-      type: 'chair',
-      position: [700, 400],
-      rotation: 0,
-      size: [100, 120]
-    },
-    {
-      id: 'throne-canopy',
-      name: 'Canopy',
-      type: 'decoration',
-      position: [700, 370],
-      rotation: 0,
-      size: [150, 80]
-    },
-    {
-      id: 'royal-seal',
-      name: 'Royal Seal of Spain',
-      type: 'decoration',
-      position: [500, 400],
-      rotation: 0,
-      size: [80, 80]
-    },
-
-    // === VICEROY OFFICE - Private workspace ===
-    {
-      id: 'viceroy-desk',
-      name: 'Viceroy Desk',
-      type: 'table',
-      position: [700, 150],
-      rotation: 0,
-      size: [200, 120]
-    },
-    {
-      id: 'office-chair',
-      name: 'Office Chair',
-      type: 'chair',
-      position: [700, 220],
-      rotation: 180,
-      size: [60, 60]
-    },
-    {
-      id: 'document-cabinet',
-      name: 'Document Cabinet',
+      id: 'library-bookshelf',
+      name: 'Bookshelf',
       type: 'shelf',
-      position: [520, 100],
+      position: [258, 180],
       rotation: 0,
-      size: [100, 180]
-    },
-    {
-      id: 'map-of-new-spain',
-      name: 'Map of New Spain',
-      type: 'decoration',
-      position: [850, 120],
-      rotation: 0,
-      size: [120, 100]
+      size: [300, 200]
     },
 
-    // === COUNCIL CHAMBER - Meeting room ===
+    // === VICEROY'S STUDY (top center) ===
+    {
+      id: 'study-desk-west',
+      name: 'Desk',
+      type: 'table',
+      position: [550, 180],
+      rotation: 0,
+      size: [140, 100]
+    },
+    {
+      id: 'study-desk-east',
+      name: 'Desk',
+      type: 'table',
+      position: [850, 180],
+      rotation: 0,
+      size: [140, 100]
+    },
+
+    // === COUNCIL CHAMBER (top right) ===
     {
       id: 'council-table',
       name: 'Council Table',
       type: 'table',
-      position: [1150, 200],
+      position: [1142, 200],
       rotation: 0,
-      size: [300, 150]
-    },
-    {
-      id: 'council-chair-1',
-      name: 'Chair',
-      type: 'chair',
-      position: [1050, 180],
-      rotation: 0,
-      size: [50, 50]
-    },
-    {
-      id: 'council-chair-2',
-      name: 'Chair',
-      type: 'chair',
-      position: [1250, 180],
-      rotation: 0,
-      size: [50, 50]
-    },
-    {
-      id: 'council-chair-3',
-      name: 'Chair',
-      type: 'chair',
-      position: [1050, 280],
-      rotation: 180,
-      size: [50, 50]
-    },
-    {
-      id: 'council-chair-4',
-      name: 'Chair',
-      type: 'chair',
-      position: [1250, 280],
-      rotation: 180,
-      size: [50, 50]
+      size: [320, 180]
     },
 
-    // === LIBRARY - Archives and documents ===
+    // === AUDIENCE CHAMBER (middle center - throne room) ===
     {
-      id: 'library-shelf-1',
-      name: 'Book Shelf',
-      type: 'shelf',
-      position: [100, 120],
+      id: 'viceregal-throne',
+      name: 'Viceregal Throne',
+      type: 'chair',
+      position: [700, 450],
       rotation: 0,
-      size: [80, 200]
-    },
-    {
-      id: 'library-shelf-2',
-      name: 'Book Shelf',
-      type: 'shelf',
-      position: [240, 120],
-      rotation: 0,
-      size: [80, 200]
-    },
-    {
-      id: 'library-shelf-3',
-      name: 'Book Shelf',
-      type: 'shelf',
-      position: [380, 120],
-      rotation: 0,
-      size: [80, 200]
-    },
-    {
-      id: 'reading-desk',
-      name: 'Reading Desk',
-      type: 'table',
-      position: [240, 290],
-      rotation: 0,
-      size: [140, 80]
+      size: [140, 120]
     },
 
-    // === GUARD ROOM - Security ===
-    {
-      id: 'guard-table',
-      name: 'Guard Table',
-      type: 'table',
-      position: [250, 800],
-      rotation: 0,
-      size: [150, 80]
-    },
+    // === GUARD ROOM (bottom left) ===
     {
       id: 'weapon-rack',
       name: 'Weapon Rack',
       type: 'furniture',
-      position: [120, 720],
+      position: [258, 710],
       rotation: 0,
-      size: [80, 120]
+      size: [200, 50]
     },
     {
-      id: 'guard-chest',
-      name: 'Equipment Chest',
-      type: 'chest',
-      position: [360, 880],
+      id: 'guard-table',
+      name: 'Guard Table',
+      type: 'table',
+      position: [200, 850],
       rotation: 0,
-      size: [100, 70]
+      size: [120, 70]
     }
   ],
 

@@ -34,9 +34,64 @@ const VALID_SEVERITIES = ['mild', 'moderate', 'severe', 'critical'];
  * Build patient dialogue agent system prompt
  * @param {Object} patient - Patient entity
  * @param {Object} narrativeContext - Context extracted from conversation (optional)
+ * @param {boolean} isExaminationAction - Whether this is a physical examination action
  * @returns {string} Complete system prompt
  */
-function buildPatientDialoguePrompt(patient, narrativeContext = null) {
+function buildPatientDialoguePrompt(patient, narrativeContext = null, isExaminationAction = false) {
+  // EXAMINATION ACTION MODE: Narrator describes findings, not patient dialogue
+  if (isExaminationAction) {
+    return `You are the NARRATOR describing the results of a physical examination performed by Maria de Lima, an apothecary in 1680 Mexico City.
+
+## Patient Being Examined:
+- Name: ${patient.name}
+- Age: ${patient.age || 'Unknown'}
+- Gender: ${patient.gender || 'Unknown'}
+- Current condition: ${patient.description || 'Patient with medical complaint'}
+
+## Known Symptoms:
+${patient.symptoms?.length > 0
+  ? patient.symptoms.map(s => `- ${s.name} (${s.location}): ${s.description}`).join('\n')
+  : 'No symptoms formally documented yet'}
+
+## Your Job (CRITICAL):
+You must describe what Maria observes during the examination in **bold text** as the narrator. DO NOT roleplay as the patient speaking.
+
+## Format Requirements:
+- Response must be in **bold markdown** format: **Your text here**
+- Be concise: 1-3 sentences maximum
+- Be clinically descriptive and realistic for 1680s medical knowledge
+- Describe what Maria sees, feels, hears, or measures
+
+## Examples:
+- "check the patient's pulse" → "**The pulse is rapid and thready, beating approximately 110 times per minute - a sign of fever or blood loss.**"
+- "examine the patient's tongue" → "**The tongue appears dry and coated with a thick yellowish film, indicating dehydration and possible excess of yellow bile.**"
+- "inspect the patient's skin" → "**The skin is pale and clammy to the touch, with no visible rashes or lesions. The patient shows signs of anemia or humoral imbalance.**"
+- "listen to the patient's breathing" → "**Wet, rattling sounds emanate from the chest with each labored breath - clear signs of phlegmatic obstruction in the lungs.**"
+- "feel the patient's forehead" → "**The forehead is burning hot to the touch, confirming the presence of a violent fever.**"
+
+## Diagnosis Detection:
+If Maria's action contains diagnostic language (e.g., "diagnose", "you have", "this is", "suffering from"), extract:
+- The diagnosed condition
+- Maria's certainty level based on:
+  - HIGH: Definitive language ("definitely", "clearly", "certainly")
+  - MEDIUM: Reasonably confident ("likely", "appears to be", "seems like")
+  - LOW: Uncertain ("possibly", "might be", "could be")
+
+## Response Format (JSON):
+{
+  "dialogue": "**Bold examination finding description**",
+  "patientDataUpdates": {
+    "vitals": {"pulse": "rapid", "temperature": "hot"},
+    "symptoms": [{"name": "...", "location": "...", "severity": "...", "type": "...", "description": "..."}],
+    "diagnosis": "diagnosed condition (only if Maria states a diagnosis)",
+    "confidence": "low | medium | high (only if Maria states a diagnosis)"
+  }
+}
+
+Now describe the examination finding based on the patient's condition.`;
+  }
+
+  // NORMAL DIALOGUE MODE: Patient responds to questions
   return `You are roleplaying as ${patient.name}, a patient in 1680 Mexico City.
 
 ## Your Character:
@@ -147,6 +202,8 @@ When Maria announces a diagnosis, react authentically based on the severity and 
     "medicalHistory": "past illnesses or treatments if mentioned",
     "occupation": "occupation if mentioned",
     "occupationDetail": "details about occupation if relevant",
+    "diagnosis": "diagnosed condition (only if Maria states a diagnosis like 'I diagnose you with...', 'You have...', 'This appears to be...')",
+    "confidence": "low | medium | high (only if Maria states a diagnosis - based on her language: definitive=high, reasonably confident=medium, uncertain=low)",
     "humors": {
       "temperature": "hot | cold | neutral (only if patient describes feeling hot/cold by nature)",
       "moisture": "dry | moist | neutral (only if patient mentions dry skin, excessive moisture, etc.)"
@@ -318,20 +375,22 @@ function validateSymptom(symptom) {
  * @param {Object} options - Processing options
  * @param {Object} options.patient - Patient entity
  * @param {string} options.question - Apothecary's question
+ * @param {boolean} options.isExaminationAction - Whether this is a physical examination action
  * @param {Array} options.conversationHistory - Previous dialogue
  * @param {Object} options.narrativeContext - Context extracted from game narrative (optional)
  * @returns {Promise<Object>} Response with dialogue and extracted data
  */
-export async function processPatientDialogue({ patient, question, conversationHistory = [], narrativeContext = null }) {
+export async function processPatientDialogue({ patient, question, isExaminationAction = false, conversationHistory = [], narrativeContext = null }) {
   try {
     console.log('[PatientDialogueAgent] Processing patient dialogue for:', patient.name);
+    console.log('[PatientDialogueAgent] Examination action:', isExaminationAction);
 
     if (narrativeContext) {
       console.log('[PatientDialogueAgent] Using narrative context:', narrativeContext);
     }
 
-    // Build system prompt with narrative context
-    const systemPrompt = buildPatientDialoguePrompt(patient, narrativeContext);
+    // Build system prompt with narrative context and examination mode
+    const systemPrompt = buildPatientDialoguePrompt(patient, narrativeContext, isExaminationAction);
 
     // Build messages array (system + conversation history + new question)
     const messages = [
@@ -376,12 +435,19 @@ export async function processPatientDialogue({ patient, question, conversationHi
           .filter(s => s !== null); // Remove invalid symptoms
       }
 
+      // Validate confidence level
+      if (parsed.patientDataUpdates.confidence && !['low', 'medium', 'high'].includes(parsed.patientDataUpdates.confidence)) {
+        console.warn(`[PatientDialogueAgent] Invalid confidence level "${parsed.patientDataUpdates.confidence}", removing`);
+        parsed.patientDataUpdates.confidence = null;
+      }
+
       // If no valid data extracted, set to null
       const hasData =
         (parsed.patientDataUpdates.symptoms?.length > 0) ||
         parsed.patientDataUpdates.family ||
         parsed.patientDataUpdates.medicalHistory ||
-        parsed.patientDataUpdates.vitals;
+        parsed.patientDataUpdates.vitals ||
+        parsed.patientDataUpdates.diagnosis;
 
       if (!hasData) {
         parsed.patientDataUpdates = null;

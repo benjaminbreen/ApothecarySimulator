@@ -8,7 +8,9 @@ const StudyTab = ({
   onBookClick = null,
   theme = 'light',
   narrativeTurn = '', // Most recent narrative turn
-  location = '' // Current location
+  location = '', // Current location
+  documents = [], // Document library (letters, codices, etc.)
+  onDocumentClick = null // Callback when document clicked
 }) => {
   const isDark = theme === 'dark';
   const [readableItems, setReadableItems] = useState([]);
@@ -95,12 +97,51 @@ Example format:
     <div className="h-full flex flex-col p-4 animate-fade-in bg-gradient-to-br from-parchment-50 to-white dark:from-slate-800 dark:to-slate-900 transition-colors duration-300">
 
       {/* Header */}
-      <div className="flex items-center gap-2 mb-2">
-        
+      <div className="flex items-center gap-2 mb-3">
         <h3 className="font-['Cinzel'] text-sm font-semibold text-[#3d2817] dark:text-sky-400 truncate uppercase tracking-widest transition-colors duration-300">
           Readable Texts
         </h3>
       </div>
+
+      {/* Your Library Section */}
+      {documents.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-serif text-xs font-bold text-ink-800 dark:text-parchment-200 uppercase tracking-wider">
+              📚 Your Library
+            </h4>
+            <span className="text-[10px] font-sans text-ink-500 dark:text-parchment-400">
+              {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+            </span>
+          </div>
+          <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+            {documents.map((doc, idx) => (
+              <ReadableCard
+                key={`doc-${doc.name}-${idx}`}
+                item={{
+                  name: doc.name,
+                  type: doc.type || 'document',
+                  description: doc.metadata?.purpose || 'Received document',
+                  isFromLibrary: true,
+                  read: doc.read
+                }}
+                onClick={() => onDocumentClick && onDocumentClick(doc)}
+                isDark={isDark}
+                index={idx}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Current Scene Section Header */}
+      {documents.length > 0 && (
+        <div className="flex items-center gap-2 mb-2 mt-2">
+          <h4 className="font-serif text-xs font-bold text-ink-800 dark:text-parchment-200 uppercase tracking-wider">
+            👁️ Current Scene
+          </h4>
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading ? (
@@ -239,18 +280,30 @@ const ReadableCard = ({ item, onClick, isDark, index }) => {
       }}
     >
       <div className="flex items-start gap-3">
-        {/* Icon */}
-        <div
-          className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center shadow-sm transition-all duration-300 group-hover:scale-110"
-          style={{
-            background: isDark
-              ? 'linear-gradient(135deg, rgba(51, 65, 85, 0.9) 0%, rgba(71, 85, 105, 0.9) 100%)'
-              : 'linear-gradient(135deg, rgba(254, 252, 247, 0.9) 0%, rgba(244, 237, 220, 0.9) 100%)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-          }}
-        >
-          {getIcon()}
+        {/* Icon with unread indicator */}
+        <div className="relative flex-shrink-0">
+          <div
+            className="w-6 h-6 rounded-md flex items-center justify-center shadow-sm transition-all duration-300 group-hover:scale-110"
+            style={{
+              background: isDark
+                ? 'linear-gradient(135deg, rgba(51, 65, 85, 0.9) 0%, rgba(71, 85, 105, 0.9) 100%)'
+                : 'linear-gradient(135deg, rgba(254, 252, 247, 0.9) 0%, rgba(244, 237, 220, 0.9) 100%)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+            }}
+          >
+            {getIcon()}
+          </div>
+          {/* Unread indicator for library documents */}
+          {item.isFromLibrary && !item.read && (
+            <div
+              className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse"
+              style={{
+                background: '#ef4444',
+                boxShadow: '0 0 6px rgba(239, 68, 68, 0.6)'
+              }}
+            />
+          )}
         </div>
 
         {/* Item Info */}

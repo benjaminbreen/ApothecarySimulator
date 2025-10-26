@@ -24,7 +24,9 @@ const INITIAL_MODAL_STATE = {
   mixing: false,
   symptoms: false,
   prescribe: false,
+  simplePrescribe: false,
   buy: false,
+  offer: false,
   sleep: false,
   restDuration: false,
   eat: false,
@@ -81,6 +83,8 @@ export function ModalProvider({ children }) {
   const [selectedPDF, setSelectedPDF] = useState(null);
   const [selectedCitation, setSelectedCitation] = useState(null);
   const [detailSkillId, setDetailSkillId] = useState(null);
+  const [offerRecipient, setOfferRecipient] = useState(null); // { name: string, context: string }
+  const [simplePrescribeRecipient, setSimplePrescribeRecipient] = useState(null); // NPC name for simple prescribe
 
   /**
    * Open a modal by name
@@ -105,6 +109,12 @@ export function ModalProvider({ children }) {
     if (modalName === 'skills') {
       setDetailSkillId(null);
     }
+    if (modalName === 'offer') {
+      setOfferRecipient(null);
+    }
+    if (modalName === 'simplePrescribe') {
+      setSimplePrescribeRecipient(null);
+    }
   }, []);
 
   /**
@@ -124,6 +134,8 @@ export function ModalProvider({ children }) {
     setSelectedPDF(null);
     setSelectedCitation(null);
     setDetailSkillId(null);
+    setOfferRecipient(null);
+    setSimplePrescribeRecipient(null);
   }, []);
 
   /**
@@ -166,6 +178,10 @@ export function ModalProvider({ children }) {
     setSelectedCitation,
     detailSkillId,
     setDetailSkillId,
+    offerRecipient,
+    setOfferRecipient,
+    simplePrescribeRecipient,
+    setSimplePrescribeRecipient,
   }), [
     modals,
     openModal,
@@ -177,6 +193,8 @@ export function ModalProvider({ children }) {
     selectedPDF,
     selectedCitation,
     detailSkillId,
+    offerRecipient,
+    simplePrescribeRecipient,
   ]);
 
   return (
@@ -235,7 +253,9 @@ export const MODALS = {
   MIXING: 'mixing',
   SYMPTOMS: 'symptoms',
   PRESCRIBE: 'prescribe',
+  SIMPLE_PRESCRIBE: 'simplePrescribe',
   BUY: 'buy',
+  OFFER: 'offer',
   SLEEP: 'sleep',
   REST_DURATION: 'restDuration',
   EAT: 'eat',

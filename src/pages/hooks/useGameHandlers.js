@@ -40,6 +40,7 @@ import { generateNextSteps } from '../../core/services/nextStepsGenerator';
 import { mapNPCFactionToSystemFaction, updateFactionFromNPCInteraction } from '../../core/systems/reputationSystem';
 import { checkForRandomEvent, processEventChoice, initializeEventSystem } from '../../core/events/randomEventService';
 import { getDetailImagePathSync } from '../../utils/detailImageResolver';
+import { isDocumentItem, getDocumentType, extractDocumentMetadata, shouldAutoOpenDocument } from '../../utils/documentDetector';
 
 // PHASE 2.1: Specialized navigation handlers hook
 import { useNavigationHandlers } from './useNavigationHandlers';
@@ -65,6 +66,7 @@ export function useGameHandlers({
   setGameState, // For updating gameState fields like status
   setReputation,
   updateReputation, // Faction-based reputation updates
+  setReputationChange, // For UI feedback on reputation changes
   setIncorporatedContent,
   setShowIncorporatePopup,
   setIsJournalOpen,
@@ -75,8 +77,11 @@ export function useGameHandlers({
   setIsDiagnoseOpen,
   setShowMixingPopup,
   toggleModal, // Modal context toggle function
+  openModal, // Modal context open function
   setSelectedPDF,
   setSelectedCitation,
+  setOfferRecipient, // Offer modal recipient data
+  setSimplePrescribeRecipient, // Simple prescribe modal recipient
   setIsPdfOpen,
   setSelectedPatient,
   setShowPatientModal,
@@ -122,10 +127,8 @@ export function useGameHandlers({
   setIsBloodlettingOpen,
   setIsPatientRosterOpen,
   setPendingContract,
-  setPendingSaleInquiry,
+  setPendingActionPrompt,
   setPendingMixingDecision,
-  setPendingSaleProposal,
-  setMixingContextForSale,
   setPendingHouseCall, // House call system (Phase 3A)
   setIsContractModalOpen,
   setPendingExitData, // Exit confirmation system
@@ -138,6 +141,8 @@ export function useGameHandlers({
   setDynamicChips, // Dynamic action chips from narrative parsing
   setShowPOIModal, // POI modal for map furniture clicks
   setSelectedPOIEntity, // Selected entity for POI modal
+  setPendingDocument, // Document modal for letters/codices
+  setIsDocumentModalOpen, // Document modal open state
 
   // State values
   isLoading, // CRITICAL FIX: Loading state for double-click guard
@@ -151,6 +156,7 @@ export function useGameHandlers({
   scenarioId,
   userInput,
   conversationHistory,
+  historyOutput, // Current narrative output for document context
   npcTracker,
   reputation,
   reputationEmoji,
@@ -165,6 +171,7 @@ export function useGameHandlers({
   patientDialogue,
   playerSkills,
   journal,
+  pendingExitData, // Exit confirmation system state
 
   // Callbacks from gameState
   updateInventory,
@@ -179,6 +186,12 @@ export function useGameHandlers({
   removeTradeOpportunity, // Trade system
   addTradeTransaction, // Trade system
   cleanupExpiredOpportunities, // Trade system
+
+  // Document library system
+  addDocument,
+  markDocumentAsRead,
+  getDocuments,
+  getUnreadDocumentsCount,
 
   // Leveling system
   awardXP,
@@ -248,12 +261,7 @@ export function useGameHandlers({
   };
 
   // handleStatusChange removed - portrait now calculated dynamically in GamePage via getMariaPortrait()
-
-  const handleReputationChange = (newReputation) => {
-    // Note: Reputation is now managed by useReputation hook in GamePage
-    // LLM reputation updates are temporarily disabled during reputation system migration
-    console.log('[useGameHandlers] Reputation update (ignored):', newReputation);
-  };
+  // handleReputationChange removed - reputation now updated directly via updateFactionFromNPCInteraction
 
   const handleIncorporate = (content) => {
     setIncorporatedContent(content);
@@ -446,7 +454,7 @@ export function useGameHandlers({
   // ============================================================================
 
   // MAIN SUBMIT HANDLER
-  const handleSubmit = useCallback(async (e, actionOverride = null) => {
+  const handleSubmit = useCallback(async (e, actionOverride = null, options = {}) => {
     // Prevent default only if called from form event
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
@@ -464,7 +472,121 @@ export function useGameHandlers({
     const originalInput = (actionOverride || userInput).trim();
     let narrativeText = originalInput.toLowerCase();
 
+    // Extract metadata options
+    const { actionResultType } = options;
+
     // Handle command shortcuts
+
+    // AUTO-TREAT/DIAGNOSE: "treat [npc]" or "diagnose [npc]"
+    // Automatically sets up NPC as active patient and switches to patient view
+    if (narrativeText.startsWith('treat ') || narrativeText.startsWith('diagnose ')) {
+      const command = narrativeText.split(' ')[0]; // 'treat' or 'diagnose'
+      const searchTerm = originalInput.substring(command.length + 1).trim(); // Preserve case
+
+      console.log(`[AutoTreat] Command: ${command}, searching for: "${searchTerm}"`);
+
+      // Search for matching NPC/patient in recent NPCs
+      const recentNPCs = npcTracker.getRecentNPCs();
+      let matchedEntity = null;
+
+      // Try to find exact or partial match
+      for (const npcName of recentNPCs) {
+        const lowerNPCName = npcName.toLowerCase();
+        const lowerSearch = searchTerm.toLowerCase();
+
+        // Match if search term is contained in NPC name OR NPC name is contained in search term
+        // This handles "goat", "Manso", "the goat", "goat Manso", etc.
+        if (lowerNPCName.includes(lowerSearch) || lowerSearch.includes(lowerNPCName)) {
+          // Find the actual entity from EntityManager or EntityList
+          const EntityList = require('../../EntityList').default;
+          matchedEntity = entityManager.getByName(npcName) || EntityList.find(e => e.name === npcName);
+
+          if (matchedEntity) {
+            console.log(`[AutoTreat] Found match: ${matchedEntity.name}`);
+            break;
+          }
+        }
+      }
+
+      // If no match in recent NPCs, search conversation history for mentions
+      if (!matchedEntity) {
+        console.log('[AutoTreat] No match in recent NPCs, searching conversation history...');
+
+        // Get all entity mentions from recent conversation
+        const recentMessages = conversationHistory.slice(-10);
+        const EntityList = require('../../EntityList').default;
+
+        for (const entity of EntityList) {
+          const lowerEntityName = entity.name.toLowerCase();
+          const lowerSearch = searchTerm.toLowerCase();
+
+          if (lowerEntityName.includes(lowerSearch) || lowerSearch.includes(lowerEntityName)) {
+            // Check if this entity was mentioned in recent conversation
+            const wasMentioned = recentMessages.some(msg =>
+              msg.content && msg.content.toLowerCase().includes(lowerEntityName)
+            );
+
+            if (wasMentioned) {
+              matchedEntity = entity;
+              console.log(`[AutoTreat] Found match in conversation: ${matchedEntity.name}`);
+              break;
+            }
+          }
+        }
+      }
+
+      if (!matchedEntity) {
+        toast.error(`Could not find "${searchTerm}" to treat. Try using their exact name from the narrative.`, { duration: 4000 });
+        setUserInput('');
+        setIsLoading(false);
+        return;
+      }
+
+      // Ensure entity has patient-like properties
+      if (!matchedEntity.entityType) matchedEntity.entityType = 'patient';
+      if (!matchedEntity.symptoms) matchedEntity.symptoms = ['Unknown symptoms'];
+
+      // Enrich the entity if needed
+      const enrichedEntity = entityManager.getById(matchedEntity.id) || matchedEntity;
+
+      // Set up portrait
+      const patientPortrait = resolvePortrait(enrichedEntity);
+      if (patientPortrait) {
+        const portraitFilename = patientPortrait.replace('/portraits/', '');
+        enrichedEntity.image = portraitFilename;
+        if (!enrichedEntity.visual) enrichedEntity.visual = {};
+        enrichedEntity.visual.image = portraitFilename;
+        setPrimaryPortraitFile(portraitFilename);
+        recentPortraitRef.current = portraitFilename;
+        previousPortraitEntityRef.current = enrichedEntity;
+      }
+
+      // Set as active patient
+      console.log(`[AutoTreat] Setting active patient: ${enrichedEntity.name}`);
+      setActivePatient(enrichedEntity);
+      setPatientDialogue([]);
+
+      // Switch to patient tab
+      setActiveTab('patient');
+
+      // Add narrative turn
+      const narrativeAction = command === 'treat' ? 'preparing to treat' : 'beginning to examine';
+      const narrativeText = `You prepare your workspace, ${narrativeAction} ${enrichedEntity.name}.`;
+
+      setConversationHistory(prev => [...prev,
+        { role: 'user', content: originalInput },
+        { role: 'assistant', content: narrativeText }
+      ]);
+      setHistoryOutput(narrativeText);
+      setTurnNumber(t => t + 1);
+
+      toast.success(`Now treating ${enrichedEntity.name}`, { duration: 3000 });
+
+      setUserInput('');
+      setIsLoading(false);
+      return;
+    }
+
     if (narrativeText === '#prescribe') {
       setIsPrescribePopupOpen(true);
       setUserInput('');
@@ -488,6 +610,55 @@ export function useGameHandlers({
 
     if (userInput.trim().toLowerCase() === '#buy') {
       setIsBuyOpen(true);
+      setUserInput('');
+      setIsLoading(false);
+      return;
+    }
+
+    if (userInput.trim().toLowerCase() === '#offer') {
+      // Open offer modal with generic recipient (last NPC in conversation)
+      const recentNPCs = npcTracker.getRecentNPCs();
+      const lastNPC = recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
+      setOfferRecipient({
+        name: lastNPC || 'someone',
+        context: 'Manual offer command'
+      });
+      openModal('offer');
+      setUserInput('');
+      setIsLoading(false);
+      return;
+    }
+
+    // SIMPLE PRESCRIBE: "prescribe [npc]" - Quick dispensing without full patient examination
+    if (narrativeText.startsWith('prescribe ')) {
+      const searchTerm = originalInput.substring('prescribe '.length).trim(); // Preserve case
+
+      console.log(`[SimplePrescribe] Searching for recipient: "${searchTerm}"`);
+
+      // Search for matching NPC in recent NPCs
+      const recentNPCs = npcTracker.getRecentNPCs();
+      let recipientName = null;
+
+      // Try to find exact or partial match
+      for (const npcName of recentNPCs) {
+        const lowerNPCName = npcName.toLowerCase();
+        const lowerSearch = searchTerm.toLowerCase();
+
+        if (lowerNPCName.includes(lowerSearch) || lowerSearch.includes(lowerNPCName)) {
+          recipientName = npcName;
+          console.log(`[SimplePrescribe] Found match: ${recipientName}`);
+          break;
+        }
+      }
+
+      // If no specific NPC found, use search term as-is (might be "the boy", "goat", etc.)
+      if (!recipientName) {
+        recipientName = searchTerm || 'someone';
+        console.log(`[SimplePrescribe] No exact match, using: ${recipientName}`);
+      }
+
+      setSimplePrescribeRecipient(recipientName);
+      openModal('simplePrescribe');
       setUserInput('');
       setIsLoading(false);
       return;
@@ -562,7 +733,8 @@ export function useGameHandlers({
     );
     const isInsideBotica = gameState.location?.includes('Botica de la Amargura');
 
-    if (isExitCommand && isInsideBotica) {
+    // Don't show exit confirmation if we're already processing an exit (prevents duplicate cards)
+    if (isExitCommand && isInsideBotica && !pendingExitData) {
       console.log('[Exit] Showing exit confirmation card');
 
       // Store exit data for later execution
@@ -778,16 +950,18 @@ export function useGameHandlers({
       let primaryPortraitFile = null;
       let portraitForHistory = null; // Separate value for conversation history context
 
-      // SPECIAL CASE: Turn 1 always shows the entrance image (door opening scene)
-      // BUT we store the LLM's original portrait for conversation history
-      if (turnNumber === 1) {
-        primaryPortraitFile = 'ui/boticaentrance.png'; // Show entrance to user
-        portraitForHistory = result.primaryPortrait; // Store LLM's selection for context
-        console.log('[Portrait] Turn 1: Displaying entrance image, but storing LLM portrait for history:', portraitForHistory);
-      } else if (result.primaryPortrait) {
+      // Priority: LLM portrait > Turn 1 entrance fallback > Map
+      if (result.primaryPortrait) {
+        // LLM selected a portrait - use it
         console.log('[Portrait] LLM selected portrait:', result.primaryPortrait);
         primaryPortraitFile = result.primaryPortrait;
         portraitForHistory = result.primaryPortrait;
+      } else if (turnNumber === 1) {
+        // Turn 1 fallback: Show entrance image only if LLM didn't provide a portrait
+        // This allows map to show if player uses Exit button on turn 1
+        primaryPortraitFile = 'ui/boticaentrance.png';
+        portraitForHistory = null;
+        console.log('[Portrait] Turn 1 fallback: Displaying entrance image (no LLM portrait)');
       } else {
         console.log('[Portrait] No portrait this turn - map will be shown');
       }
@@ -987,6 +1161,7 @@ export function useGameHandlers({
         npcSpeaker: result.npcSpeaker || null,
         primaryPortrait: result.primaryPortrait || null,
         primaryNPCName: result.primaryNPC?.name || null, // Store primary NPC name for portrait matching
+        actionResultType: actionResultType || null, // Action result metadata (give/sell/prescribe)
         // Cards will be added below if detected
         card: null
       };
@@ -1023,11 +1198,41 @@ export function useGameHandlers({
 
         // Handle reputation events from extreme actions
         if (result.reputationEvents && result.reputationEvents.length > 0) {
+          // Calculate total overall reputation change from all events
+          const oldOverall = reputation?.overall || 50;
+          let totalDelta = 0;
+
           result.reputationEvents.forEach(event => {
-            const factionName = event.faction.toUpperCase(); // church → CHURCH
-            console.log(`[Reputation Event] ${factionName}: ${event.delta > 0 ? '+' : ''}${event.delta} - ${event.reason}`);
-            updateReputation(factionName, event.delta, event.reason);
+            // Map State Agent's snake_case faction names to reputation system's format
+            const factionMap = {
+              'church': 'church',
+              'elite': 'elite',
+              'common_folk': 'commonFolk',
+              'indigenous': 'indigenous',
+              'guild': 'guild',
+              'merchants': 'merchants'
+            };
+
+            const factionKey = factionMap[event.faction];
+            if (factionKey) {
+              console.log(`[Reputation Event] ${event.faction} → ${factionKey}: ${event.delta > 0 ? '+' : ''}${event.delta} - ${event.reason}`);
+              updateReputation(factionKey, event.delta, event.reason);
+              // Accumulate approximate overall change (faction deltas contribute to overall)
+              totalDelta += event.delta;
+            } else {
+              console.warn(`[Reputation Event] Unknown faction: ${event.faction}`);
+            }
           });
+
+          // Show UI feedback for reputation change (approximate)
+          if (totalDelta !== 0 && setReputationChange) {
+            // Rough estimate: faction changes affect overall by ~16% (1/6 factions)
+            const estimatedOverallDelta = Math.round(totalDelta / 6);
+            if (estimatedOverallDelta !== 0) {
+              setReputationChange({ delta: estimatedOverallDelta, timestamp: Date.now() });
+              console.log(`[Reputation] Overall reputation changed by approximately ${estimatedOverallDelta > 0 ? '+' : ''}${estimatedOverallDelta}`);
+            }
+          }
         }
 
         // Handle location changes with coordinate matching
@@ -1141,6 +1346,65 @@ export function useGameHandlers({
 
           if (change.action === 'bought' || change.action === 'foraged' || change.action === 'received') {
             await generateNewItemDetails(change.item);
+
+            // PHASE 1: Document detection and auto-open
+            // Check if item is a readable document (letter, codex, map, etc.)
+            const isReadable = change.isReadable || isDocumentItem(change.item);
+
+            if (isReadable && change.action === 'received') {
+              console.log('[DocumentSystem] Readable document received:', change.item);
+
+              // Extract document metadata (author, giver, purpose)
+              const metadata = extractDocumentMetadata(
+                change.item,
+                result.narrative || historyOutput,
+                change
+              );
+
+              // Determine document type (letter, codex, map, etc.)
+              const documentType = change.documentType || getDocumentType(change.item);
+
+              // Create document data object
+              const documentData = {
+                name: change.item,
+                type: documentType,
+                description: `A ${documentType} that was just received`,
+                metadata: {
+                  ...metadata,
+                  turnReceived: turnNumber,
+                  dateReceived: gameState.date,
+                  location: gameState.location
+                },
+                // Pass narrative context for better LLM generation
+                narrativeContext: result.narrative || historyOutput
+              };
+
+              console.log('[DocumentSystem] Document data:', documentData);
+
+              // Add document to permanent library
+              addDocument(documentData);
+
+              // Set pending document for modal display
+              setPendingDocument(documentData);
+
+              // Auto-open if appropriate (direct handoff, story-critical)
+              const autoOpen = shouldAutoOpenDocument(documentData, result.narrative || historyOutput);
+
+              if (autoOpen) {
+                console.log('[DocumentSystem] Auto-opening document modal');
+                // Delay slightly so narrative renders first
+                setTimeout(() => {
+                  setIsDocumentModalOpen(true);
+                }, 800);
+              } else {
+                console.log('[DocumentSystem] Document queued, showing notification');
+                toast.info(`📜 New document received: ${change.item}`, { duration: 4000 });
+                // Open modal after a longer delay
+                setTimeout(() => {
+                  setIsDocumentModalOpen(true);
+                }, 1500);
+              }
+            }
           }
         }
       }
@@ -1150,9 +1414,17 @@ export function useGameHandlers({
         console.log(`[Relationship] Processing ${result.relationshipChanges.length} relationship changes`);
 
         for (const change of result.relationshipChanges) {
-          // Update relationship graph
+          // Look up NPC by name (more reliable than ID due to kebab-case inconsistencies)
+          const npc = entityManager.getByName(change.npcName);
+
+          if (!npc) {
+            console.warn(`[Reputation] NPC not found for relationship change: ${change.npcName}`);
+            continue;
+          }
+
+          // Update relationship graph using NPC's actual ID
           relationshipGraph.updateRelationship(
-            change.npcId,
+            npc.id,
             'player',
             change.delta,
             change.reason
@@ -1160,25 +1432,38 @@ export function useGameHandlers({
 
           console.log(`[Relationship] ${change.npcName}: ${change.delta > 0 ? '+' : ''}${change.delta} (${change.reason})`);
 
-          // Update faction reputation based on NPC relationship change
-          const npc = entityManager.getById(change.npcId);
-          if (npc) {
-            const newReputation = updateFactionFromNPCInteraction(
-              reputation,
-              npc,
-              change.delta,
-              change.reason
-            );
+          // Calculate overall reputation before update
+          const oldOverall = reputation?.overall || 50;
+          console.log(`[Reputation Debug] OLD overall: ${oldOverall}, OLD state:`, reputation);
 
-            if (newReputation) {
-              setReputation(newReputation);
-              console.log('[Reputation] Updated faction reputation from relationship change');
+          // Update faction reputation based on NPC relationship change
+          const newReputation = updateFactionFromNPCInteraction(
+            reputation,
+            npc,
+            change.delta,
+            change.reason
+          );
+
+          if (newReputation) {
+            setReputation(newReputation);
+            console.log('[Reputation] Updated faction reputation from relationship change');
+
+            // Calculate overall reputation delta and show UI feedback
+            const newOverall = newReputation.overall || 50;
+            console.log(`[Reputation Debug] NEW overall: ${newOverall}, NEW state:`, newReputation);
+            const overallDelta = Math.round(newOverall - oldOverall);
+
+            if (overallDelta !== 0 && setReputationChange) {
+              setReputationChange({ delta: overallDelta, timestamp: Date.now() });
+              console.log(`[Reputation] Overall reputation changed by ${overallDelta > 0 ? '+' : ''}${overallDelta} (${oldOverall} → ${newOverall})`);
             }
-          } else {
-            console.warn(`[Reputation] NPC not found for relationship change: ${change.npcId}`);
           }
         }
       }
+
+      // CARD PRIORITY SYSTEM: Check if simpleInteraction is active
+      // Used to prevent multiple cards appearing on same turn
+      const hasSimpleInteraction = result.simpleInteraction && result.simpleInteraction.type && result.simpleInteraction.type !== 'null';
 
       // Handle contract offers (treatment or sale)
       // Store contract offer but DON'T auto-open modal
@@ -1186,36 +1471,24 @@ export function useGameHandlers({
       // Only show card when StateAgent confirms with system announcement
       // This ensures contracts appear when NPC makes a CLEAR REQUEST (any turn)
       // but not for vague mentions or completed transactions
-      if (result.contractOffer &&
+      // GUARD: Skip if simpleInteraction is already handling this turn (prevent duplicate cards)
+      if (!hasSimpleInteraction &&
+          result.contractOffer &&
           result.contractOffer.type &&
           result.contractOffer.type !== 'null' &&
           result.systemAnnouncements?.some(msg => msg.toLowerCase().includes('contract'))) {
 
-        // Handle sale_inquiry separately from treatment contracts
-        if (result.contractOffer.type === 'sale_inquiry') {
-          console.log('[SaleInquiry] Remedy request detected:', result.contractOffer);
-          // Add portrait from current NPC
-          const enrichedInquiry = {
-            ...result.contractOffer,
-            npcPortrait: primaryPortraitFile ? `/portraits/${primaryPortraitFile}` : null
-          };
-          // Store in conversation history so card stays in place
-          assistantMessage.card = {
-            type: 'sale_inquiry',
-            data: enrichedInquiry
-          };
-          setPendingSaleInquiry(enrichedInquiry);
-        } else {
-          // Treatment or other contract types
-          console.log('[Contract] Offer finalized and ready for player decision:', result.contractOffer.type, result.contractOffer);
-          // Store in conversation history so card stays in place
-          assistantMessage.card = {
-            type: 'contract',
-            data: result.contractOffer
-          };
-          setPendingContract(result.contractOffer);
-        }
+        // Treatment contract detected
+        console.log('[Contract] Offer finalized and ready for player decision:', result.contractOffer.type, result.contractOffer);
+        // Store in conversation history so card stays in place
+        assistantMessage.card = {
+          type: 'contract',
+          data: result.contractOffer
+        };
+        setPendingContract(result.contractOffer);
         // Note: Modal/card is NOT auto-opened, user must click the card
+      } else if (hasSimpleInteraction && result.contractOffer?.type && result.contractOffer.type !== 'null') {
+        console.log('[Contract] Skipped - simpleInteraction already active (prevents duplicate cards)');
       } else if (result.contractOffer && result.contractOffer.type && result.contractOffer.type !== 'null') {
         // Contract detected but StateAgent didn't confirm with announcement
         // This means it's a vague mention or not yet finalized
@@ -1226,8 +1499,62 @@ export function useGameHandlers({
         if (result.contractOffer && result.contractOffer.type === 'null') {
           console.log('[Contract] No active contract, clearing previous offer');
           setPendingContract(null);
-          setPendingSaleInquiry(null);
+
+          // CARD CLEANUP: Remove contract cards from conversation history
+          setConversationHistory(prev => {
+            return prev.map(msg => {
+              // Remove contract cards from assistant messages
+              if (msg.role === 'assistant' && msg.card && msg.card.type === 'contract') {
+                const { card, ...msgWithoutCard } = msg;
+                console.log('[Contract] Removing card from history entry:', msg.card.type);
+                return msgWithoutCard;
+              }
+              return msg;
+            });
+          });
         }
+      }
+
+      // Action Prompt Processing (give/sell/prescribe requests)
+      // GUARD: Skip if simpleInteraction is already handling this turn (prevent duplicate cards)
+      console.log('[ActionPrompt DEBUG] result.actionPrompt:', result.actionPrompt);
+      if (!hasSimpleInteraction &&
+          result.actionPrompt &&
+          result.actionPrompt.type &&
+          result.actionPrompt.type !== 'null') {
+        console.log('[ActionPrompt] Request detected:', result.actionPrompt);
+
+        // Add portrait from current NPC if available
+        const enrichedPrompt = {
+          ...result.actionPrompt,
+          npcPortrait: result.actionPrompt.npcPortrait || (primaryPortraitFile ? `/portraits/${primaryPortraitFile}` : null)
+        };
+
+        // Store in conversation history so card stays in place
+        assistantMessage.card = {
+          type: 'action_prompt',
+          data: enrichedPrompt
+        };
+
+        setPendingActionPrompt(enrichedPrompt);
+      } else if (hasSimpleInteraction && result.actionPrompt?.type && result.actionPrompt.type !== 'null') {
+        console.log('[ActionPrompt] Skipped - simpleInteraction already active (prevents duplicate cards)');
+      } else if (result.actionPrompt && result.actionPrompt.type === 'null') {
+        // Clear action prompt when none is active
+        console.log('[ActionPrompt] No active prompt, clearing');
+        setPendingActionPrompt(null);
+
+        // Remove action_prompt cards from conversation history
+        setConversationHistory(prev => {
+          return prev.map(msg => {
+            if (msg.role === 'assistant' && msg.card && msg.card.type === 'action_prompt') {
+              const { card, ...msgWithoutCard } = msg;
+              console.log('[ActionPrompt] Removing card from history entry');
+              return msgWithoutCard;
+            }
+            return msg;
+          });
+        });
       }
 
       // Trade Opportunity Processing
@@ -1259,6 +1586,32 @@ export function useGameHandlers({
         // Clear any previous simple interaction when none is active
         console.log('[SimpleInteraction] No active interaction, clearing previous');
         setPendingSimpleInteraction(null);
+
+        // CARD CLEANUP: Remove simple_interaction cards from conversation history
+        setConversationHistory(prev => {
+          return prev.map(msg => {
+            // Remove simple_interaction cards from assistant messages
+            if (msg.role === 'assistant' && msg.card && msg.card.type === 'simple_interaction') {
+              const { card, ...msgWithoutCard } = msg;
+              console.log('[SimpleInteraction] Removing card from history entry');
+              return msgWithoutCard;
+            }
+            return msg;
+          });
+        });
+      }
+
+      // Offer Prompt Detection
+      // When narrative prompts player to offer an item from inventory
+      if (result.offerPrompt && result.offerPrompt.triggered) {
+        console.log('[OfferPrompt] Detected offer opportunity:', result.offerPrompt);
+        // Set offer recipient data and open modal
+        setOfferRecipient({
+          name: result.offerPrompt.recipientName,
+          context: result.offerPrompt.context
+        });
+        // Auto-open the offer modal so player can choose what to give
+        openModal('offer');
       }
 
       // Random Event Processing
@@ -1413,9 +1766,7 @@ export function useGameHandlers({
     removeTradeOpportunity,
     setPendingSimpleInteraction,
     setPendingMixingDecision,
-    setPendingSaleInquiry,
-    setPendingSaleProposal,
-    setMixingContextForSale,
+    setPendingActionPrompt,
     setShowMixingPopup,
     setGameState,
     recentPortraitRef, // Portrait ref for clearing on NPC dismissal
@@ -1643,8 +1994,6 @@ export function useGameHandlers({
   // Return all handlers
   return {
     handleWealthChange,
-
-    handleReputationChange,
     handleIncorporate,
     addJournalEntry,
     handleJournalEntrySubmit,

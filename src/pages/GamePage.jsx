@@ -1,7 +1,7 @@
 // GamePage.jsx
 // Main game page component
 
-import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy} from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, lazy} from 'react';
 import { useParams } from 'react-router-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -31,6 +31,7 @@ import SimpleInteractionCard from '../components/SimpleInteractionCard';
 import RandomEventCard from '../components/RandomEventCard';
 import POIModal from '../components/POIModal';
 import { TravelCard } from '../components/TravelCard'; // Phase 3B: House call travel
+import ReadableTextModal from '../components/ReadableTextModal'; // Document modal for letters, codices, etc.
 
 // Feature components
 import { useGameState as useGameStateHook } from '../core/state/gameState'; // Legacy hook (for reference)
@@ -117,6 +118,11 @@ const GameContent = () => {
     addTradeTransaction,
     getTradeHistory,
     cleanupExpiredOpportunities,
+    // Document library system
+    addDocument,
+    markDocumentAsRead,
+    getDocuments,
+    getUnreadDocumentsCount,
   } = useGameState(); // No parameter - comes from context now!
 
   // PHASE 1.4: NPC tracking and entity state now managed by NPCContext
@@ -143,8 +149,8 @@ const GameContent = () => {
     setPrimaryPortraitFile,
     pendingContract,
     setPendingContract,
-    pendingSaleInquiry,
-    setPendingSaleInquiry,
+    pendingActionPrompt,
+    setPendingActionPrompt,
   } = useNPCs();
 
   // Core state
@@ -311,6 +317,10 @@ const GameContent = () => {
     setSelectedCitation,
     detailSkillId,
     setDetailSkillId,
+    offerRecipient,
+    setOfferRecipient,
+    simplePrescribeRecipient,
+    setSimplePrescribeRecipient,
   } = useModals();
 
   // Backward compatibility aliases - use modals object directly
@@ -368,10 +378,6 @@ const GameContent = () => {
   // Mixing decision system state (Phase 2B)
   const [pendingMixingDecision, setPendingMixingDecision] = useState(null);
 
-  // Sale proposal system state (Phase 2C)
-  const [pendingSaleProposal, setPendingSaleProposal] = useState(null);
-  const [mixingContextForSale, setMixingContextForSale] = useState(null);
-
   // House call system state (Phase 3A)
   const [pendingHouseCall, setPendingHouseCall] = useState(null);
 
@@ -404,6 +410,9 @@ const GameContent = () => {
   const showDeterminedPortrait = modals.determinedPortrait;
   const setShowDeterminedPortrait = (value) => value ? openModal('determinedPortrait') : closeModal('determinedPortrait');
   const determinedTimerRef = React.useRef(null);
+
+  // Persistent cache for ReadableTextModal - prevents re-generating same documents
+  const textCacheRef = useRef({});
 
   // Reputation system
   const { reputation, updateReputation, reputationEmoji, setReputation: setReputationDirect } = useReputation();
@@ -614,9 +623,14 @@ const GameContent = () => {
   // NOTE: selectedPatient, selectedNPC now from NPCContext
   const [selectedItem, setSelectedItem] = useState(null);
   const [reputationModalFaction, setReputationModalFaction] = useState(null);
+  const [reputationChange, setReputationChange] = useState(null); // { delta: number, timestamp: number } for UI feedback
   const [selectedPOIEntity, setSelectedPOIEntity] = useState(null);
   const [levelUpData, setLevelUpData] = useState(null);
   const [abilityUnlockData, setAbilityUnlockData] = useState(null);
+
+  // Document modal state (for auto-opening readable documents)
+  const [pendingDocument, setPendingDocument] = useState(null);
+  const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
 
   // Item action popup state (for drag-drop on portraits)
   const [itemActionPopup, setItemActionPopup] = useState({
@@ -664,6 +678,36 @@ const GameContent = () => {
     // Cleanup interval on unmount
     return () => clearInterval(clockInterval);
   }, [advanceTime]);
+
+  // Auto-switch to Reputation tab when reputation changes
+  useEffect(() => {
+    if (reputationChange && reputationChange.delta !== 0) {
+      console.log('[Reputation] Auto-switching to Reputation tab, delta:', reputationChange.delta);
+      setLeftSidebarTab('reputation');
+
+      // Clear the delta after 3 seconds to stop particle effect
+      const timeout = setTimeout(() => {
+        setReputationChange(null);
+      }, 3000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [reputationChange]);
+
+  // Auto-switch to Inventory tab when items are added
+  useEffect(() => {
+    if (lastAddedItem) {
+      console.log('[Inventory] Auto-switching to Inventory tab, added item:', lastAddedItem.name);
+      setLeftSidebarTab('inventory');
+
+      // Clear the lastAddedItem after 2 seconds to stop particle effect
+      const timeout = setTimeout(() => {
+        clearLastAddedItem();
+      }, 2000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [lastAddedItem, clearLastAddedItem]);
 
   // Handle level-ups and profession choice (now using playerSkills.level)
   const prevLevelRef = React.useRef(playerSkills.level);
@@ -803,6 +847,7 @@ const GameContent = () => {
     setWealth,  // Changed from setCurrentWealth - now uses gameState
     setReputation: setReputationDirect,
     updateReputation, // Faction-based reputation updates
+    setReputationChange, // For UI feedback on reputation changes
     setIncorporatedContent,
     setShowIncorporatePopup,
     setIsJournalOpen,
@@ -813,8 +858,11 @@ const GameContent = () => {
     setIsDiagnoseOpen,
     setShowMixingPopup,
     toggleModal, // Modal context toggle function
+    openModal, // Modal context open function
     setSelectedPDF,
     setSelectedCitation,
+    setOfferRecipient, // Offer modal recipient data
+    setSimplePrescribeRecipient, // Simple prescribe modal recipient
     setIsPdfOpen,
     setSelectedPatient,
     setShowPatientModal,
@@ -860,10 +908,8 @@ const GameContent = () => {
     setIsBloodlettingOpen,
     setIsPatientRosterOpen,
     setPendingContract,
-    setPendingSaleInquiry,
+    setPendingActionPrompt,
     setPendingMixingDecision,
-    setPendingSaleProposal,
-    setMixingContextForSale,
     setPendingHouseCall, // House call system (Phase 3A)
     setIsContractModalOpen,
     setPendingExitData, // Exit confirmation system
@@ -877,6 +923,8 @@ const GameContent = () => {
     setGameState, // For updating gameState (e.g., status from StateAgent)
     setShowPOIModal, // POI modal for map furniture clicks
     setSelectedPOIEntity, // Selected entity for POI modal
+    setPendingDocument, // Document modal for letters/codices
+    setIsDocumentModalOpen, // Document modal open state
 
     // State values
     isLoading, // CRITICAL FIX: Pass loading state for double-click guard
@@ -890,6 +938,7 @@ const GameContent = () => {
     scenarioId,
     userInput,
     conversationHistory,
+    historyOutput, // Document context for auto-open
     npcTracker,
     reputation,
     reputationEmoji,
@@ -904,6 +953,7 @@ const GameContent = () => {
     patientDialogue,
     playerSkills,
     journal,
+    pendingExitData, // Exit confirmation system state
 
     // Callbacks from gameState
     updateInventory,
@@ -919,6 +969,12 @@ const GameContent = () => {
     addTradeTransaction, // Trade system
     cleanupExpiredOpportunities, // Trade system
 
+    // Document library system
+    addDocument,
+    markDocumentAsRead,
+    getDocuments,
+    getUnreadDocumentsCount,
+
     // Leveling system
     awardXP,
     awardSkillXP,
@@ -927,8 +983,6 @@ const GameContent = () => {
   // Destructure handlers for easy use
   const {
     handleWealthChange,
-
-    handleReputationChange,
     handleIncorporate,
     toggleJournal,
     toggleInventory,
@@ -970,31 +1024,7 @@ const GameContent = () => {
     handleCompleteHouseCall, // Phase 3D: House call completion
   } = handlers;
 
-  // Wrap addCompoundToInventory to trigger sale proposal after mixing (Phase 2C)
-  const addCompoundToInventoryWithSaleTrigger = useCallback((compound) => {
-    // Call original function from GameStateContext
-    addCompoundToInventory(compound);
-
-    // Check if there's a pending mixing context for sale
-    if (mixingContextForSale) {
-      console.log('[Phase 2C] Mixing complete, triggering sale proposal for:', compound.name);
-
-      // Create sale proposal context
-      const saleContext = {
-        ...mixingContextForSale,
-        craftedItem: {
-          name: compound.name,
-          ingredients: compound.ingredients || []
-        }
-      };
-
-      // Show sale proposal card
-      setPendingSaleProposal(saleContext);
-
-      // Clear mixing context
-      setMixingContextForSale(null);
-    }
-  }, [addCompoundToInventory, mixingContextForSale, setPendingSaleProposal, setMixingContextForSale]);
+  // Note: Old addCompoundToInventoryWithSaleTrigger removed - sale proposal system deprecated
 
   // Keyboard event listener for arrow key movement and A/D rotation
   useEffect(() => {
@@ -1009,15 +1039,15 @@ const GameContent = () => {
         return;
       }
 
-      // A/D keys for rotation (only in interior maps)
-      if ((e.key === 'a' || e.key === 'A') && currentMapId === 'botica-interior') {
+      // A/D keys for rotation (works on all maps)
+      if (e.key === 'a' || e.key === 'A') {
         e.preventDefault();
-        setPlayerFacing(prev => (prev - 90 + 360) % 360); // Rotate left
+        setPlayerFacing(prev => (prev - 90 + 360) % 360); // Rotate left (counter-clockwise)
         return;
       }
-      if ((e.key === 'd' || e.key === 'D') && currentMapId === 'botica-interior') {
+      if (e.key === 'd' || e.key === 'D') {
         e.preventDefault();
-        setPlayerFacing(prev => (prev + 90) % 360); // Rotate right
+        setPlayerFacing(prev => (prev + 90) % 360); // Rotate right (clockwise)
         return;
       }
 
@@ -1038,7 +1068,7 @@ const GameContent = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleMovement, currentMapId]);
+  }, [handleMovement, setPlayerFacing]);
 
   // Study Tab - Detect books when narrative changes
   React.useEffect(() => {
@@ -1168,6 +1198,243 @@ const GameContent = () => {
     handleItemActionFromHook(action, item, npc, closePopup);
   };
 
+  // Handle journey narration when map animation completes
+  const handleAnimationComplete = useCallback(async (journeyData) => {
+    console.log('[Journey] Animation complete, generating narration:', journeyData);
+
+    const { startPosition, endPosition, distance, travelMinutes, mapType, mapId } = journeyData;
+
+    // Get current map data to find landmarks/rooms
+    const scenario = scenarioLoader.getScenario(scenarioId || '1680-mexico-city');
+    const mapData = scenario?.maps?.interior?.[mapId] || scenario?.maps?.exterior?.[mapId];
+
+    if (!mapData) {
+      console.warn('[Journey] No map data found for', mapId);
+      return;
+    }
+
+    // Handle interior movement separately (use pre-written narratives)
+    if (mapType === 'interior') {
+      console.log('[Journey] Interior movement detected');
+
+      // Check for pre-written narratives (same system as arrow key movement)
+      if (mapId === 'botica-interior') {
+        try {
+          const { getInteriorNarrative, hasPreWrittenNarrative } = await import('../features/map/services/interiorNarratives');
+
+          if (hasPreWrittenNarrative(mapId, endPosition.x, endPosition.y)) {
+            console.log('[Journey] Using pre-written interior narrative for position:', endPosition);
+
+            const narrative = getInteriorNarrative(endPosition.x, endPosition.y, gameState.time);
+
+            // Add narrative to conversation history (same as arrow key movement)
+            const newEntry = {
+              role: 'assistant',
+              content: narrative.description,
+              timestamp: new Date().toISOString(),
+              responseType: 'movement',
+              isMovement: true,
+              position: endPosition
+            };
+
+            setConversationHistory(prev => [...prev, newEntry]);
+            setHistoryOutput(narrative.description);
+
+            console.log('[Journey] Pre-written narrative applied - no time/energy cost');
+            return; // Exit early - no time advancement for simple repositioning
+          }
+        } catch (error) {
+          console.warn('[Journey] Could not load pre-written narratives:', error);
+        }
+      }
+
+      // Fallback: Generic interior narration if no pre-written narrative exists
+      const findRoomAtPosition = (position, rooms) => {
+        if (!rooms || rooms.length === 0) return null;
+
+        for (const room of rooms) {
+          if (!room.polygon) continue;
+
+          const polygon = room.polygon;
+          let inside = false;
+          for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const xi = polygon[i][0], yi = polygon[i][1];
+            const xj = polygon[j][0], yj = polygon[j][1];
+            const intersect = ((yi > position.y) !== (yj > position.y))
+              && (position.x < (xj - xi) * (position.y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+          }
+          if (inside) return room;
+        }
+        return null;
+      };
+
+      const destinationRoom = findRoomAtPosition(endPosition, mapData.rooms || []);
+      const roomName = destinationRoom?.name || 'another part of the building';
+
+      const interiorNarration = `Maria crossed the room, her footsteps echoing softly as she moved to ${roomName.toLowerCase()}.`;
+
+      const newEntry = {
+        role: 'assistant',
+        content: interiorNarration,
+        timestamp: new Date().toISOString(),
+        responseType: 'movement',
+        isMovement: true,
+        position: endPosition
+      };
+
+      setConversationHistory(prev => [...prev, newEntry]);
+      setHistoryOutput(interiorNarration);
+
+      // Minimal time advancement for interior movement (1-2 minutes)
+      const interiorTime = Math.max(1, Math.round(distance / 100));
+      advanceTime({ minutes: interiorTime });
+
+      console.log('[Journey] Generic interior narration complete, time advanced by', interiorTime, 'minutes');
+      return;
+    }
+
+    // Find nearest buildings/landmarks at destination
+    const findNearestLandmarks = (position, buildings, maxCount = 3) => {
+      if (!buildings || buildings.length === 0) return [];
+
+      const getDistanceToBuilding = (building) => {
+        // Calculate center of building polygon
+        if (!building.polygon || building.polygon.length === 0) return Infinity;
+
+        const centerX = building.polygon.reduce((sum, p) => sum + p[0], 0) / building.polygon.length;
+        const centerY = building.polygon.reduce((sum, p) => sum + p[1], 0) / building.polygon.length;
+
+        const dx = position.x - centerX;
+        const dy = position.y - centerY;
+        return Math.sqrt(dx * dx + dy * dy);
+      };
+
+      return buildings
+        .map(building => ({
+          ...building,
+          distance: getDistanceToBuilding(building)
+        }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, maxCount);
+    };
+
+    const nearbyLandmarks = findNearestLandmarks(endPosition, mapData.buildings || [], 3);
+
+    // Generate journey narration using LLM
+    try {
+      const landmarkNames = nearbyLandmarks.map(l => l.name || l.fullName).filter(Boolean);
+      const landmarkContext = landmarkNames.length > 0
+        ? `Nearby landmarks: ${landmarkNames.join(', ')}`
+        : 'No major landmarks nearby';
+
+      const prompt = `You are narrating Maria de Lima's movement through 1680 Mexico City.
+
+JOURNEY DETAILS:
+- Distance traveled: ~${Math.round(distance / 1.5)} meters (${travelMinutes} minutes walking)
+- Destination vicinity: ${landmarkContext}
+- Current time: ${gameState.time}, ${gameState.date}
+
+Generate a brief (2-3 sentences) narrative description of Maria's journey through the city streets. Include:
+- Sensory details (sights, sounds, smells of colonial Mexico City)
+- The route taken (which streets, landmarks passed)
+- Maria's thoughts or observations during the walk
+
+End with Maria arriving at her destination near the landmarks mentioned above.
+
+Be historically accurate, immersive, and concise. Write in third person past tense.`;
+
+      const messages = [
+        { role: 'system', content: 'You are a historical fiction narrator specializing in colonial Mexico.' },
+        { role: 'user', content: prompt }
+      ];
+
+      console.log('[Journey] Calling LLM for journey narration...');
+      const response = await createChatCompletion(
+        messages,
+        0.8, // temperature
+        200  // maxTokens
+      );
+
+      console.log('[Journey] LLM response received:', response);
+      console.log('[Journey] Response structure:', {
+        hasContent: !!response.content,
+        content: response.content,
+        hasChoices: !!response.choices,
+        choicesContent: response.choices?.[0]?.message?.content,
+        fullResponse: JSON.stringify(response, null, 2)
+      });
+
+      // Extract content from response - check both standard API format and normalized format
+      const narration = response.choices?.[0]?.message?.content
+        || response.content
+        || `Maria walked ${travelMinutes} minutes through the streets to reach her destination.`;
+
+      console.log('[Journey] Final narration text:', narration);
+      console.log('[Journey] Narration length:', narration.length);
+
+      // Add narration to conversation history
+      const newEntry = {
+        role: 'assistant',
+        content: narration,
+        timestamp: new Date().toISOString(),
+        time: gameState.time,
+        date: gameState.date,
+        responseType: 'movement',
+        isMovement: true,
+        position: endPosition
+      };
+
+      console.log('[Journey] Adding entry to conversation history:', newEntry);
+      setConversationHistory(prev => [...prev, newEntry]);
+
+      console.log('[Journey] Setting history output to:', narration);
+      setHistoryOutput(narration); // Display immediately in UI
+
+      // Advance game time
+      advanceTime({ minutes: travelMinutes });
+
+      // Update location based on nearest landmark
+      if (nearbyLandmarks.length > 0) {
+        const primaryLandmark = nearbyLandmarks[0];
+        const newLocation = primaryLandmark.name
+          ? `Near ${primaryLandmark.name}, Mexico City`
+          : gameState.location; // Keep current if no landmark found
+
+        updateLocation(newLocation);
+        console.log('[Journey] Updated location to:', newLocation);
+      }
+
+      console.log('[Journey] Narration complete, time advanced by', travelMinutes, 'minutes');
+
+    } catch (error) {
+      console.error('[Journey] Error generating narration:', error);
+      console.error('[Journey] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        error: error
+      });
+      // Fallback: Just advance time and add simple message
+      const fallbackMessage = `Maria walked ${travelMinutes} minutes through the streets of Mexico City.`;
+      console.log('[Journey] Using fallback message:', fallbackMessage);
+      const fallbackEntry = {
+        role: 'assistant',
+        content: fallbackMessage,
+        timestamp: new Date().toISOString(),
+        time: gameState.time,
+        date: gameState.date,
+        responseType: 'movement',
+        isMovement: true,
+        position: endPosition
+      };
+      console.log('[Journey] Adding fallback entry to history:', fallbackEntry);
+      setConversationHistory(prev => [...prev, fallbackEntry]);
+      console.log('[Journey] Setting fallback history output');
+      setHistoryOutput(fallbackMessage);
+      advanceTime({ minutes: travelMinutes });
+    }
+  }, [scenarioId, gameState, setConversationHistory, setHistoryOutput, advanceTime, updateLocation]);
+
   // Handle opening full inventory modal in list view
   const handleOpenFullInventory = () => {
     setTradeMode('inventory');
@@ -1190,19 +1457,36 @@ const GameContent = () => {
     // Clear modal state
     setShowExitConfirmation(false);
 
+    // Remove the exit confirmation card from conversation history
+    setConversationHistory(prev => {
+      return prev.filter(entry => entry.card?.type !== 'exit_confirmation');
+    });
+
     // Trigger a full narrative turn to show the exit happening
     // This lets the LLM describe the player leaving and arriving in the new location
     const simulatedAction = `leave ${pendingExitData.locationName || 'the building'} and step outside`;
 
-    // Clear pending data after a brief delay to allow LLM to reference it
-    setTimeout(() => {
-      setPendingExitData(null);
-    }, 100);
+    // Clear pending data immediately to prevent duplicate exit cards
+    setPendingExitData(null);
 
-    // Trigger narrative turn
+    // Trigger narrative turn after a brief delay to allow state updates
     setTimeout(() => {
       handleSubmit(null, simulatedAction);
     }, 100);
+  };
+
+  // Handle exit cancellation
+  const handleCancelExit = () => {
+    console.log('[Exit] Cancelling exit');
+
+    // Clear modal state
+    setShowExitConfirmation(false);
+    setPendingExitData(null);
+
+    // Remove the exit confirmation card from conversation history
+    setConversationHistory(prev => {
+      return prev.filter(entry => entry.card?.type !== 'exit_confirmation');
+    });
   };
 
   // Study Tab - Book Click Handler
@@ -1432,6 +1716,8 @@ const GameContent = () => {
               xpGain={xpGain}
               xpGainKey={xpGainKey}
               onCharacterCardCollapseChange={setIsCharacterCardCollapsed}
+              reputationDelta={reputationChange?.delta || null}
+              newlyAddedItemName={lastAddedItem?.name || null}
             />
 
             {/* Center - Central Panel (Tabbed Interface) */}
@@ -1456,7 +1742,7 @@ const GameContent = () => {
                 // Exit confirmation props
                 pendingExitConfirmation={showExitConfirmation ? pendingExitData : null}
                 onConfirmExit={handleConfirmExit}
-                onCancelExit={() => setShowExitConfirmation(false)}
+                onCancelExit={handleCancelExit}
                 // Trade props
                 tradeOpportunities={gameState.tradeOpportunities || []}
                 onAcceptTrade={handleAcceptTrade}
@@ -1464,18 +1750,14 @@ const GameContent = () => {
                 // Simple interaction props
                 pendingSimpleInteraction={pendingSimpleInteraction}
                 onSimpleInteractionChoice={handleSimpleInteractionChoice}
-                // Sale inquiry props
-                pendingSaleInquiry={pendingSaleInquiry}
-                onPursueSale={handlers.handlePursueSale}
-                onDeclineSale={handlers.handleDeclineSale}
+                // Action prompt props
+                pendingActionPrompt={pendingActionPrompt}
+                onProposeAction={handlers.handleProposeAction}
+                onDeclineAction={handlers.handleDeclineAction}
                 // Mixing decision props
                 pendingMixingDecision={pendingMixingDecision}
                 onOpenMixingWorkshop={handlers.handleOpenMixingWorkshop}
                 onAbandonMixing={handlers.handleAbandonMixing}
-                // Sale proposal props (Phase 2C)
-                pendingSaleProposal={pendingSaleProposal}
-                onCompleteSale={handlers.handleCompleteSale}
-                onAbandonSaleProposal={handlers.handleAbandonSaleProposal}
                 // Random event props
                 pendingRandomEvent={pendingRandomEvent}
                 onRandomEventChoice={handleRandomEventChoice}
@@ -1550,7 +1832,11 @@ const GameContent = () => {
                 recentNarrativeTurn={historyOutput} // Most recent narrative turn for LLM analysis
                 scenario={scenarioLoader.getScenario(scenarioId || '1680-mexico-city')}
                 npcs={filteredNPCPositions} // Only show NPCs mentioned in narrative
-                playerPosition={travelAnimationState?.position || playerPosition} // Phase 4: Use animated position during travel
+                playerPosition={
+                  travelAnimationState?.position
+                    ? { x: travelAnimationState.position[0], y: travelAnimationState.position[1] }
+                    : playerPosition
+                } // Phase 4: Use animated position during travel (convert array to object)
                 playerFacing={travelAnimationState?.direction || playerFacing} // Phase 4: Use animated direction during travel
                 currentMapId={currentMapId} // Pass current map ID to control which map is rendered
                 shopSignHung={gameState.shopSign?.hung || false} // Pass shop sign status
@@ -1560,9 +1846,19 @@ const GameContent = () => {
                 entities={currentEntities} // Entities for Wikipedia context panel
                 discoveredBooks={discoveredBooks} // Books discovered during gameplay
                 onBookClick={handleBookClick} // Handle book clicks in Study tab
+                documents={getDocuments()} // Document library from gameState
+                onDocumentClick={(doc) => {
+                  // Re-open document from library
+                  console.log('[DocumentSystem] Re-opening document from library:', doc.name);
+                  setPendingDocument(doc);
+                  setIsDocumentModalOpen(true);
+                }}
                 pendingHouseCall={pendingHouseCall} // Phase 3B: House call data (triggers map view)
                 travelPath={travelAnimationState?.path || null} // Phase 4: Travel path for map animation
                 isTraveling={!!pendingHouseCall && !!travelAnimationState} // Phase 4: Whether currently traveling
+                activeTab={activeTab} // FIX #4: Tab context for portrait display
+                activePatient={activePatient} // FIX #4: Patient entity for Patient View tab
+                reputationChange={reputationChange} // Reputation change indicator
                 onLocationChange={(newLocation) => {
                   console.log('Location changed to:', newLocation);
                   updateLocation(newLocation);
@@ -1574,6 +1870,8 @@ const GameContent = () => {
                 onExitBuilding={handleExitBuilding} // Handle Exit button click on map
                 onRoomCommand={handleSubmit} // Handle room movement commands from map
                 onFurnitureClick={handleFurnitureClick} // Handle furniture clicks on map
+                onPlayerTeleport={setPlayerPosition} // Handle Ctrl+Click teleport
+                onAnimationComplete={handleAnimationComplete} // Handle journey narration when animation completes
               />
             </div>
 
@@ -1588,6 +1886,7 @@ const GameContent = () => {
           // Modal states
           showMixingPopup={showMixingPopup}
           isPrescribePopupOpen={isPrescribePopupOpen}
+          isSimplePrescribeOpen={modals.simplePrescribe}
           isSleepOpen={isSleepOpen}
           isRestDurationOpen={isRestDurationOpen}
           isMapOpen={isMapOpen}
@@ -1613,12 +1912,15 @@ const GameContent = () => {
           isModernInventoryOpen={isModernInventoryOpen}
           isDiagnoseOpen={isDiagnoseOpen}
           isBuyOpen={isBuyOpen}
+          isOfferOpen={modals.offer}
           isLedgerOpen={isLedgerOpen}
           isFastTravelOpen={isFastTravelOpen}
           isBloodlettingOpen={isBloodlettingOpen}
           isPatientRosterOpen={isPatientRosterOpen}
 
           // Modal data
+          offerRecipient={offerRecipient}
+          simplePrescribeRecipient={simplePrescribeRecipient}
           tradeMode={tradeMode}
           tradingNPC={tradingNPC}
           inventoryViewMode={inventoryViewMode}
@@ -1651,6 +1953,7 @@ const GameContent = () => {
           // Toggle/close handlers
           toggleMixingPopup={toggleMixingPopup}
           setIsPrescribePopupOpen={setIsPrescribePopupOpen}
+          setIsSimplePrescribeOpen={(value) => value ? openModal('simplePrescribe') : closeModal('simplePrescribe')}
           setIsSleepOpen={setIsSleepOpen}
           setIsRestDurationOpen={setIsRestDurationOpen}
           sleepHours={sleepHours}
@@ -1681,6 +1984,7 @@ const GameContent = () => {
           setIsModernInventoryOpen={setIsModernInventoryOpen}
           toggleDiagnose={toggleDiagnose}
           setIsBuyOpen={setIsBuyOpen}
+          setIsOfferOpen={(value) => value ? openModal('offer') : closeModal('offer')}
           setIsLedgerOpen={setIsLedgerOpen}
           setIsFastTravelOpen={setIsFastTravelOpen}
           setIsBloodlettingOpen={setIsBloodlettingOpen}
@@ -1688,7 +1992,7 @@ const GameContent = () => {
 
           // Callbacks and state setters
           addJournalEntry={addJournalEntry}
-          addCompoundToInventory={addCompoundToInventoryWithSaleTrigger}
+          addCompoundToInventory={addCompoundToInventory}
           updateInventory={updateInventory}
           advanceTime={advanceTime}
           handleJournalEntrySubmit={handleJournalEntrySubmit}
@@ -1844,6 +2148,20 @@ const GameContent = () => {
           causeOfDeath={causeOfDeath}
           onRestart={handleRestartGame}
           onMainMenu={handleMainMenu}
+        />
+
+        {/* Document Modal - auto-opens when letters/codices/documents are received */}
+        <ReadableTextModal
+          isOpen={isDocumentModalOpen}
+          onClose={() => {
+            setIsDocumentModalOpen(false);
+            setPendingDocument(null);
+          }}
+          item={pendingDocument}
+          theme={narrationDarkMode ? 'dark' : 'light'}
+          narrativeContext={historyOutput}
+          textCache={textCacheRef.current} // Persistent cache prevents re-generating same documents
+          onMarkAsRead={markDocumentAsRead}
         />
 
       </DndProvider>

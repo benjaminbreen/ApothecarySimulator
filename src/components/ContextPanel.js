@@ -27,7 +27,9 @@ const ContextPanel = ({
   onLocationChange = null, // Callback when location changes
   onPortraitClick = null, // Callback when portrait is clicked
   onMapClick = null, // Callback when map is clicked to open modal
+  onEnterBuilding = null, // Callback when building entry click on map
   onExitBuilding = null, // Callback when Exit button is clicked on map
+  onRoomCommand = null, // Callback for room movement commands
   shopSignHung = false, // Whether the shop sign is currently displayed
   setIsLedgerOpen = null, // Callback to open Ledger Modal
   toggleShopSign = null, // Direct shop sign control
@@ -36,11 +38,18 @@ const ContextPanel = ({
   entities = [], // Entities from LLM (with Wikipedia integration)
   discoveredBooks = [], // Books discovered during gameplay
   onBookClick = null, // Callback when book is clicked
+  documents = [], // Document library (letters, codices, etc.)
+  onDocumentClick = null, // Callback when document is clicked
   onFurnitureClick = null, // Callback when furniture is clicked on map
+  onPlayerTeleport = null, // Callback for Ctrl+Click teleport
+  onAnimationComplete = null, // Callback when map animation completes (for journey narration)
   defaultCollapsed = true, // Default collapsed state (set to false for mobile)
   pendingHouseCall = null, // Phase 3B: House call data (triggers map view)
   travelPath = null, // Phase 4: Travel animation path
-  isTraveling = false // Phase 4: Whether currently traveling
+  isTraveling = false, // Phase 4: Whether currently traveling
+  activeTab = 'chronicle', // FIX #4: Current active tab for tab-aware portrait display
+  activePatient = null, // FIX #4: Active patient entity for Patient View tab
+  reputationChange = null // { delta: number, timestamp: number } - reputation change indicator
 }) => {
   // Collapse entire panel state
   const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
@@ -60,6 +69,9 @@ const ContextPanel = ({
   // State for panel and button hover (for button outline fade-in effect)
   const [isPanelHovered, setIsPanelHovered] = React.useState(false);
   const [hoveredButton, setHoveredButton] = React.useState(null); // 'fact-check' | 'context' | 'counternarrative' | null
+
+  // State for pulsing buttons when new content arrives
+  const [pulseButtons, setPulseButtons] = React.useState(false);
 
   // State for Historical Context Modal
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -205,6 +217,15 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
     }
   }, [entities]);
 
+  // Pulse buttons when new content arrives (Wikipedia or inline content)
+  React.useEffect(() => {
+    if (enrichedEntities.length > 0 || (inlineContent && !isLoadingInline)) {
+      setPulseButtons(true);
+      const timeout = setTimeout(() => setPulseButtons(false), 2500);
+      return () => clearTimeout(timeout);
+    }
+  }, [enrichedEntities, inlineContent, isLoadingInline]);
+
   // Get the most recent NPC from game state
   const latestNPC = recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
 
@@ -227,21 +248,54 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
     return fromList;
   }, [latestNPC]);
 
+  // FIX #4: Choose display entity based on active tab OR active patient portrait match
+  // When Patient View tab is active, OR when portrait matches patient, show patient's data
+  const displayEntity = React.useMemo(() => {
+    // If patient tab is active, always show patient
+    if (activeTab === 'patient' && activePatient) {
+      console.log('[ContextPanel] Patient View active - displaying patient:', activePatient.name);
+      return activePatient;
+    }
+
+    // If activePatient exists and primaryPortraitFile matches patient's portrait, show patient
+    // This handles the case where contract is accepted but tab hasn't switched yet
+    if (activePatient && primaryPortraitFile) {
+      const patientPortraitFile = activePatient.image || activePatient.visual?.image;
+      if (patientPortraitFile === primaryPortraitFile) {
+        console.log('[ContextPanel] Portrait matches patient, displaying patient:', activePatient.name);
+        return activePatient;
+      }
+    }
+
+    // Otherwise, show conversation NPC
+    return npcEntity;
+  }, [activeTab, activePatient, npcEntity, primaryPortraitFile]);
+
   // Adapt entity for modal compatibility
   const npcData = React.useMemo(() => {
-    if (!npcEntity) return null;
+    if (!displayEntity) return null;
 
     // Determine modal type
-    const entityType = npcEntity.entityType || npcEntity.type;
+    const entityType = displayEntity.entityType || displayEntity.type;
     const modalType = entityType === 'patient' ? 'patient' : 'npc';
 
-    return adaptEntity(npcEntity, modalType);
-  }, [npcEntity]);
+    return adaptEntity(displayEntity, modalType);
+  }, [displayEntity]);
 
-  // Get portrait URL (LLM-ONLY, NO FALLBACK)
-  // Only show portrait if LLM explicitly provides primaryPortraitFile
-  // If null, ViewportPanel will default to map tab
+  // FIX #4: Get portrait URL with tab-aware logic
+  // Prioritize patient portrait when on Patient View tab, otherwise use LLM portrait
   const getPortraitUrl = React.useMemo(() => {
+    // If on Patient View tab with active patient, resolve from patient entity
+    if (activeTab === 'patient' && activePatient) {
+      const patientPortrait = resolvePortrait(activePatient);
+      if (patientPortrait) {
+        console.log('[ContextPanel] ✓ Using patient portrait from entity:', patientPortrait);
+        return patientPortrait;
+      }
+      console.log('[ContextPanel] ⚠ Patient has no portrait, falling back to primaryPortraitFile');
+    }
+
+    // Otherwise use LLM-provided portrait
     if (primaryPortraitFile) {
       console.log('[ContextPanel] ✓ Using LLM portrait:', primaryPortraitFile);
 
@@ -256,14 +310,14 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
 
     console.log('[ContextPanel] ∅ No portrait provided - map will be shown');
     return null;
-  }, [primaryPortraitFile]);
+  }, [primaryPortraitFile, activeTab, activePatient]);
 
   // Show portrait if:
-  // 1. There's an NPC with a portrait, OR
+  // 1. There's a display entity with a portrait, OR
   // 2. There's a UI scene image (like boticaentrance.png) even without an NPC
   const isUIImage = getPortraitUrl && getPortraitUrl.startsWith('/ui/');
-  const currentNPC = (latestNPC && getPortraitUrl) || isUIImage ? {
-    name: latestNPC || 'Scene',
+  const currentNPC = (displayEntity?.name && getPortraitUrl) || isUIImage ? {
+    name: displayEntity?.name || latestNPC || 'Scene',
     url: getPortraitUrl
   } : null;
 
@@ -306,8 +360,9 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
     if (actionId === 'hangSign' && toggleShopSign) {
       console.log('[Shop Sign] Hanging sign to attract patients');
       toggleShopSign(true);
-      if (toast) {
-        toast.success('Shop sign hung! Patients are more likely to seek your services.', { duration: 3000 });
+      // Trigger a narrative turn with system message
+      if (onRoomCommand) {
+        onRoomCommand(null, 'You have hung your shop sign. Customers are more likely to come now. The only thing to do is wait.');
       }
       return;
     }
@@ -352,15 +407,22 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
           currentMapId={currentMapId}
           onLocationChange={onLocationChange}
           onMapClick={onMapClick}
+          onEnterBuilding={onEnterBuilding}
           onExitBuilding={onExitBuilding}
+          onRoomCommand={onRoomCommand}
           discoveredBooks={discoveredBooks}
           onBookClick={onBookClick}
+          documents={documents}
+          onDocumentClick={onDocumentClick}
           narrativeTurn={recentNarrativeTurn}
           primaryPortraitFile={primaryPortraitFile}
           onFurnitureClick={onFurnitureClick}
+          onPlayerTeleport={onPlayerTeleport}
+          onAnimationComplete={onAnimationComplete}
           pendingHouseCall={pendingHouseCall}
           travelPath={travelPath}
           isTraveling={isTraveling}
+          reputationChange={reputationChange}
         />
       </div>
 
@@ -499,7 +561,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
                   : isPanelHovered
                     ? 'border-emerald-400/40 dark:border-emerald-600/40'
                     : 'border-parchment-300 dark:border-slate-600'
-              }`}
+              } ${pulseButtons ? 'animate-pulse-glow ring-2 ring-emerald-400 dark:ring-emerald-500' : ''}`}
               style={{
                 boxShadow: hoveredButton === 'fact-check'
                   ? '0 0 16px rgba(16, 185, 129, 0.35)'
@@ -527,7 +589,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
                   : isPanelHovered
                     ? 'border-amber-400/40 dark:border-amber-600/40'
                     : 'border-parchment-300 dark:border-slate-600'
-              }`}
+              } ${pulseButtons ? 'animate-pulse-glow ring-2 ring-amber-400 dark:ring-amber-500' : ''}`}
               style={{
                 boxShadow: hoveredButton === 'context'
                   ? '0 0 16px rgba(251, 191, 36, 0.35)'
@@ -555,7 +617,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
                   : isPanelHovered
                     ? 'border-purple-400/40 dark:border-purple-600/40'
                     : 'border-parchment-300 dark:border-slate-600'
-              }`}
+              } ${pulseButtons ? 'animate-pulse-glow ring-2 ring-purple-400 dark:ring-purple-500' : ''}`}
               style={{
                 boxShadow: hoveredButton === 'counternarrative'
                   ? '0 0 16px rgba(168, 85, 247, 0.35)'

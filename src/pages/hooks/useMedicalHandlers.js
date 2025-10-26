@@ -98,10 +98,17 @@ export function useMedicalHandlers({
         console.log('[handleAskQuestion] Using cached narrative context');
       }
 
+      // Detect if input is an examination action vs conversational question
+      const actionVerbs = ['check', 'examine', 'inspect', 'look at', 'feel', 'listen to', 'palpate', 'observe', 'measure', 'test'];
+      const isExaminationAction = actionVerbs.some(verb => question.trim().toLowerCase().startsWith(verb));
+
+      console.log('[handleAskQuestion] Input type:', isExaminationAction ? 'EXAMINATION ACTION' : 'QUESTION');
+
       // Use PatientDialogueAgent to get response with structured data extraction
       const result = await processPatientDialogue({
         patient: activePatient,
         question,
+        isExaminationAction, // NEW: Tell agent this is a physical examination
         conversationHistory: patientDialogue,
         narrativeContext: activePatient.narrativeContext // Pass extracted context
       });
@@ -116,6 +123,49 @@ export function useMedicalHandlers({
         const enrichmentResult = enrichPatientData(activePatient, patientDataUpdates);
         enrichedPatient = enrichmentResult.patient;
         newSymptoms = enrichmentResult.newSymptoms || [];
+
+        // DIAGNOSIS EXTRACTION: Store diagnosis in patient medical record
+        if (patientDataUpdates.diagnosis) {
+          console.log('[handleAskQuestion] Diagnosis extracted:', {
+            diagnosis: patientDataUpdates.diagnosis,
+            confidence: patientDataUpdates.confidence || 'medium'
+          });
+
+          // Initialize medical record if it doesn't exist
+          if (!enrichedPatient.medicalRecord) {
+            enrichedPatient.medicalRecord = {
+              diagnoses: [],
+              treatments: [],
+              notes: []
+            };
+          }
+
+          // Add diagnosis to medical record
+          const diagnosisEntry = {
+            diagnosis: patientDataUpdates.diagnosis,
+            confidence: patientDataUpdates.confidence || 'medium',
+            timestamp: gameState.time || new Date().toLocaleTimeString(),
+            date: gameState.date || new Date().toLocaleDateString(),
+            evidence: enrichedPatient.symptoms || []
+          };
+
+          enrichedPatient.medicalRecord.diagnoses = enrichedPatient.medicalRecord.diagnoses || [];
+          enrichedPatient.medicalRecord.diagnoses.push(diagnosisEntry);
+
+          console.log('[handleAskQuestion] Diagnosis stored in medical record:', diagnosisEntry);
+
+          // Show toast notification for diagnosis
+          toast.success(`Diagnosis recorded: ${patientDataUpdates.diagnosis} (${patientDataUpdates.confidence || 'medium'} confidence)`, {
+            duration: 5000
+          });
+
+          // Add journal entry for diagnosis
+          addJournalEntry({
+            turnNumber,
+            date: gameState.date,
+            entry: `Diagnosed ${activePatient.name} with: ${patientDataUpdates.diagnosis} (Confidence: ${patientDataUpdates.confidence || 'medium'})`
+          });
+        }
 
         // Update active patient state
         setActivePatient(enrichedPatient);
@@ -157,9 +207,20 @@ export function useMedicalHandlers({
             : `Patient responded: ${dialogue.substring(0, 100)}...`)
       });
 
+      // Format conversation entry based on input type
+      let formattedUserAction;
+      if (isExaminationAction) {
+        // Extract object: "check the patient's pulse" → "the patient's pulse"
+        const actionMatch = question.match(/^(check|examine|inspect|look at|feel|listen to|palpate|observe|measure|test)\s+(.+)$/i);
+        const examinationObject = actionMatch ? actionMatch[2] : question;
+        formattedUserAction = `Maria checked ${examinationObject}`;
+      } else {
+        formattedUserAction = `Maria said to ${activePatient.name}: "${question}"`;
+      }
+
       // Add to main conversation history so LLM has context for future turns
       setConversationHistory(prev => [...prev,
-        { role: 'user', content: `Maria asked ${activePatient.name}: "${question}"` },
+        { role: 'user', content: formattedUserAction },
         { role: 'assistant', content: dialogue },
         { role: 'system', content: `*[PATIENT EXAMINATION] ${newSymptoms.length > 0 ? `Discovered symptoms: ${newSymptoms.map(s => s.name).join(', ')}` : 'Gathering patient information'}*` }
       ]);
@@ -288,7 +349,7 @@ Keep it brief and professional. Maria needs this information before she can begi
       }
     }
 
-    // PHASE 3A: If house call, set pending house call state instead of immediate examination
+    // PHASE 3A: If house call, generate transition narrative and set pending house call state
     if (isHouseCall) {
       console.log('[Phase 3A] Setting pending house call for:', houseLocation);
 
@@ -297,39 +358,127 @@ Keep it brief and professional. Maria needs this information before she can begi
       houseCallData.paymentAmount = paymentAmount;
       console.log('[Phase 3A] House call data:', houseCallData);
 
-      setPendingHouseCall(houseCallData);
-      setPendingContract(null); // Clear contract modal
-
       toast.success(`Contract accepted! Preparing to travel to ${houseLocation}...`, { duration: 3000 });
 
-      // Add to conversation history
-      setConversationHistory(prev => [...prev,
-        { role: 'system', content: `*[HOUSE CALL ACCEPTED] Maria agreed to travel to ${houseLocation} to treat ${patientEntity.name} for ${paymentAmount} reales.*` }
-      ]);
+      // Generate house call transition narrative
+      try {
+        setIsLoading(true);
 
-      setIsLoading(false);
+        // Build conversation context (last 5 messages showing negotiation)
+        const recentHistory = conversationHistory.slice(-5)
+          .filter(msg => !msg.hidden && msg.content)
+          .map(msg => `${msg.role === 'user' ? 'Maria' : msg.role === 'system' ? 'System' : 'Narrator'}: ${msg.content}`)
+          .join('\n');
+
+        // Determine who made the request
+        const representedBy = patientEntity.metadata?.representedBy;
+        const ailmentDescription = patientEntity.description || 'Unknown condition';
+
+        const houseCallPrompt = `You are narrating a brief transition scene in a historical medical RPG.
+
+Maria de Lima, a converso apothecary in 1680 Mexico City, has just accepted a house call to travel to ${houseLocation} to treat ${patientEntity.name} for ${paymentAmount} reales.
+
+**Recent Conversation Context**:
+${recentHistory}
+
+**Details**:
+- Patient: ${patientEntity.name} (at ${houseLocation})
+- Symptoms: ${ailmentDescription}
+- Representative/Messenger: ${representedBy || 'None (direct request)'}
+- Payment: ${paymentAmount} reales
+
+Write a short (2-3 sentences) narrative in present tense showing:
+- Maria preparing her medical bag with appropriate remedies and tools
+${representedBy && representedBy !== patientEntity.name ? `- The messenger ${representedBy} departing or preparing to guide Maria` : '- Maria preparing to depart for the house call'}
+- Maria's thoughts about the journey or the case ahead
+
+Keep it brief and atmospheric. End with Maria ready to depart.`;
+
+        const response = await createChatCompletion(
+          [
+            { role: 'system', content: houseCallPrompt },
+            { role: 'user', content: `Patient: ${patientEntity.name}\nLocation: ${houseLocation}\nSymptoms: ${ailmentDescription}\nPayment: ${paymentAmount} reales\n\nGenerate the house call preparation narrative.` }
+          ],
+          0.7,
+          200
+        );
+
+        const transitionNarrative = response.choices[0].message.content;
+
+        // Add to conversation history
+        setConversationHistory(prev => [...prev,
+          { role: 'system', content: `*[HOUSE CALL ACCEPTED] Maria agreed to travel to ${houseLocation} to treat ${patientEntity.name} for ${paymentAmount} reales.*` },
+          { role: 'assistant', content: transitionNarrative }
+        ]);
+
+        // Display narrative
+        setHistoryOutput(transitionNarrative);
+
+        setPendingHouseCall(houseCallData);
+        setPendingContract(null); // Clear contract modal
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error('[Phase 3A] House call narrative generation failed:', error);
+        // Fallback to simple system message
+        setConversationHistory(prev => [...prev,
+          { role: 'system', content: `*[HOUSE CALL ACCEPTED] Maria agreed to travel to ${houseLocation} to treat ${patientEntity.name} for ${paymentAmount} reales.*` }
+        ]);
+        setHistoryOutput(`You gather your medical supplies and prepare to travel to ${houseLocation} to treat ${patientEntity.name}.`);
+
+        setPendingHouseCall(houseCallData);
+        setPendingContract(null);
+        setIsLoading(false);
+      }
+
       return; // Skip the normal examination flow
     }
 
     toast.success(`Contract accepted! Preparing to examine ${patientEntity.name}...`, { duration: 3000 });
 
-    // Generate transition narrative (Maria preparing/traveling)
+    // Generate transition narrative (Maria preparing for examination)
     try {
       setIsLoading(true);
 
       const scenario = scenarioLoader.loadScenario(scenarioId);
+
+      // Build conversation context (last 5 messages showing negotiation)
+      const recentHistory = conversationHistory.slice(-5)
+        .filter(msg => !msg.hidden && msg.content)
+        .map(msg => `${msg.role === 'user' ? 'Maria' : msg.role === 'system' ? 'System' : 'Narrator'}: ${msg.content}`)
+        .join('\n');
+
+      // Determine who is physically present
+      const representedBy = patientEntity.metadata?.representedBy;
+      const isRepresentative = representedBy && representedBy !== patientEntity.name;
+      const ailmentDescription = patientEntity.description || 'Not yet examined';
+
       const systemPrompt = `You are narrating a brief transition scene in a historical medical RPG.
 
 Maria de Lima, a converso apothecary in 1680 Mexico City, has just accepted a contract to treat ${patientEntity.name} for ${paymentAmount} reales.
 
-Write a short (2-3 sentences) narrative showing:
-- If the patient is present: Maria preparing her workspace and asking the patient to sit
-- If the patient is elsewhere: Maria gathering her medical bag and traveling to the patient's location
-- Maria's thoughts about the case or the payment
+**Recent Conversation Context**:
+${recentHistory}
+
+**Patient Details**:
+- Patient name: ${patientEntity.name}
+- Symptoms/condition: ${ailmentDescription}
+${isRepresentative
+  ? `- Represented by: ${representedBy} (physically present at the shop requesting treatment for ${patientEntity.name})`
+  : `- Patient is physically present at the shop`}
+
+Write a short (2-3 sentences) narrative in present tense showing:
+${isRepresentative
+  ? `- Maria acknowledging ${representedBy}'s request and preparing her workspace to examine ${patientEntity.name} when they arrive
+- Maria's brief thoughts about the symptoms described or the payment`
+  : `- Maria asking ${patientEntity.name} to sit down and preparing her workspace to begin the examination
+- Maria's brief thoughts about the case or the payment`}
 
 Keep it brief and atmospheric. End with Maria ready to begin the examination.`;
 
       const userPrompt = `Patient: ${patientEntity.name}
+Represented by: ${representedBy || 'Self (patient is present)'}
+Ailment: ${ailmentDescription}
 Payment: ${paymentAmount} reales
 Location: ${gameState.location}
 Time: ${gameState.time}
@@ -347,11 +496,25 @@ Generate the transition narrative.`;
 
       const transitionNarrative = response.choices[0].message.content;
 
-      // Add to conversation history
-      setConversationHistory(prev => [...prev,
-        { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales.*` },
-        { role: 'assistant', content: transitionNarrative }
-      ]);
+      // CARD CLEANUP: Remove contract cards from conversation history when accepting
+      setConversationHistory(prev => {
+        const updated = prev.map(msg => {
+          // Remove contract/sale_inquiry cards from assistant messages
+          if (msg.role === 'assistant' && msg.card &&
+              (msg.card.type === 'contract' || msg.card.type === 'sale_inquiry')) {
+            const { card, ...msgWithoutCard } = msg;
+            console.log('[Contract] Removing card from history after accept:', msg.card.type);
+            return msgWithoutCard;
+          }
+          return msg;
+        });
+
+        // Add system message and transition narrative
+        return [...updated,
+          { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales.*` },
+          { role: 'assistant', content: transitionNarrative }
+        ];
+      });
 
       // Display narrative
       setHistoryOutput(transitionNarrative);
@@ -407,10 +570,23 @@ Generate the transition narrative.`;
 
       // Fallback: simple message
       const fallbackNarrative = `Maria accepts the payment and prepares to examine ${patientEntity.name}.`;
-      setConversationHistory(prev => [...prev,
-        { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales.*` },
-        { role: 'assistant', content: fallbackNarrative }
-      ]);
+      // CARD CLEANUP: Remove contract cards from conversation history when accepting (fallback path)
+      setConversationHistory(prev => {
+        const updated = prev.map(msg => {
+          if (msg.role === 'assistant' && msg.card &&
+              (msg.card.type === 'contract' || msg.card.type === 'sale_inquiry')) {
+            const { card, ...msgWithoutCard } = msg;
+            console.log('[Contract] Removing card from history after accept (fallback):', msg.card.type);
+            return msgWithoutCard;
+          }
+          return msg;
+        });
+
+        return [...updated,
+          { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales.*` },
+          { role: 'assistant', content: fallbackNarrative }
+        ];
+      });
       setHistoryOutput(fallbackNarrative);
       setActivePatient(patientEntity);
       setPatientDialogue([]);
@@ -463,10 +639,22 @@ Generate the transition narrative.`;
   const handleDeclineContract = useCallback(() => {
     console.log('[Contract] Declined offer');
 
-    // Log to conversation history
-    setConversationHistory(prev => [...prev,
-      { role: 'system', content: `*[CONTRACT DECLINED] Maria declined the offer.*` }
-    ]);
+    // CARD CLEANUP: Remove contract cards from conversation history
+    setConversationHistory(prev => {
+      const updated = prev.map(msg => {
+        // Remove contract/sale_inquiry cards from assistant messages
+        if (msg.role === 'assistant' && msg.card &&
+            (msg.card.type === 'contract' || msg.card.type === 'sale_inquiry')) {
+          const { card, ...msgWithoutCard } = msg;
+          console.log('[Contract] Removing card from history after decline:', msg.card.type);
+          return msgWithoutCard;
+        }
+        return msg;
+      });
+
+      // Add system message about declining
+      return [...updated, { role: 'system', content: `*[CONTRACT DECLINED] Maria declined the offer.*` }];
+    });
 
     // Add journal entry
     addJournalEntry({

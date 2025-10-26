@@ -47,6 +47,61 @@ export function selectContextAwareEntity(context) {
 
   console.log(`[EntityAgent] Selecting from ${allNPCs.length} total entities (static + dynamic + LLM-generated)`);
 
+  // CONTINUATION DETECTION: Multiple signals to detect if player is continuing with current NPC
+  // If continuation detected, return null to signal continuation (prevents portrait changes)
+  if (recentNPCs.length > 0) {
+    const lastNPC = recentNPCs[recentNPCs.length - 1];
+    const firstName = lastNPC.split(/\s+/)[0].toLowerCase();
+    const actionLower = playerAction.toLowerCase();
+
+    // SIGNAL 1: Pronoun Detection (highest priority)
+    // Pronouns always refer to someone already present
+    const pronouns = /\b(him|her|them|his|hers|their|he|she|they)\b/i;
+    if (pronouns.test(playerAction)) {
+      console.log(`[EntityAgent] Pronoun detected in action "${playerAction}" - signaling continuation with ${lastNPC}`);
+      return null;
+    }
+
+    // SIGNAL 2: Name Mention Detection
+    // Check if action mentions the NPC's name (first name match is sufficient)
+    if (actionLower.includes(firstName)) {
+      console.log(`[EntityAgent] Player action mentions recent NPC "${lastNPC}" - signaling continuation`);
+      return null;
+    }
+
+    // SIGNAL 3: Action Context Keywords
+    // These verbs/phrases imply continuing with someone already present
+    const continuationKeywords = [
+      // Inviting/letting in (response to choice questions)
+      /\b(usher|invite|let\s+(him|her|them)\s+in|bring\s+inside|allow\s+entry)\b/i,
+      // Continuing conversation
+      /\b(continue|keep\s+talking|go\s+on|carry\s+on|proceed)\b/i,
+      // Responding
+      /\b(respond|reply|answer|tell|say\s+to|speak\s+to)\b/i,
+      // Offering/giving (implies current NPC)
+      /\b(offer|give|hand|show|present|provide)\b/i,
+      // Examining/helping (implies patient/NPC present)
+      /\b(examine|help|assist|aid|treat|tend\s+to)\b/i,
+      // Waiting for expected person/event (continuation)
+      /\b(wait|await|expect|anticipate|watch\s+for|look\s+for)\b/i
+    ];
+
+    for (const pattern of continuationKeywords) {
+      if (pattern.test(playerAction)) {
+        console.log(`[EntityAgent] Action keyword matched "${playerAction}" - signaling continuation with ${lastNPC}`);
+        return null;
+      }
+    }
+  }
+
+  // MOVEMENT INTENT DETECTION: Prevent NPC encounters during travel actions
+  // When player clearly wants to travel somewhere, don't inject NPCs along the way
+  const movementKeywords = /\b(go\s+to|travel\s+to|head\s+to|visit\s+the|walk\s+to|journey\s+to|make\s+my\s+way\s+to|head\s+for|go\s*\.\s*to\s*\.\s*the)\b/i;
+  if (movementKeywords.test(playerAction)) {
+    console.log(`[EntityAgent] Movement intent detected in action "${playerAction}" - no NPC selected (player traveling)`);
+    return null;
+  }
+
   // Valid entity types
   const validEntityTypes = ['npc', 'state', 'antagonist', 'patient'];
   let filteredEntities = allNPCs.filter(entity => validEntityTypes.includes(entity.entityType || entity.type));

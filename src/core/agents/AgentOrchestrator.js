@@ -240,6 +240,9 @@ export async function orchestrateTurn({
     if (stateResult.contractOffer) {
       console.log('[AgentOrchestrator] contractOffer from state:', stateResult.contractOffer.type, stateResult.contractOffer);
     }
+    if (stateResult.actionPrompt) {
+      console.log('[AgentOrchestrator] actionPrompt from state:', stateResult.actionPrompt.type, stateResult.actionPrompt);
+    }
 
     return {
       success: true,
@@ -261,6 +264,7 @@ export async function orchestrateTurn({
       inventoryChanges: stateResult.inventoryChanges || [],
       relationshipChanges: stateResult.relationshipChanges || [], // NPC relationship changes
       contractOffer: stateResult.contractOffer || null, // Treatment/sale contract offers
+      actionPrompt: stateResult.actionPrompt || null, // Action prompts (give/sell/prescribe requests)
       journalEntry: stateResult.journalEntry || '',
       systemAnnouncements: stateResult.systemAnnouncements || [],
       selectedEntity,

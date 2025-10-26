@@ -6,13 +6,223 @@ import { entityManager } from '../core/entities/EntityManager';
 import NPCPatientModal from '../features/medical/components/NPCPatientModal';
 import POIModal from './POIModal';
 import { EntityTooltip, EntityPopup } from './EntityTooltipPopup';
-import SaleOpportunityCard from '../features/commerce/components/SaleOpportunityCard';
-import SaleInquiryCard from '../features/commerce/components/SaleInquiryCard';
+import ActionPromptCard from './ActionPromptCard';
 import MixingDecisionCard from '../features/crafting/components/MixingDecisionCard';
-import SaleProposalCard from '../features/commerce/components/SaleProposalCard';
 import SimpleInteractionCard from './SimpleInteractionCard';
 import RandomEventCard from './RandomEventCard';
 import ExitConfirmationCard from './ExitConfirmationCard';
+
+/**
+ * Sound effect definitions - maps trigger keywords to visual effects
+ */
+const SOUND_EFFECTS = {
+  knock: {
+    keywords: ['knock', 'knocking', 'knocked', 'knocks', 'rapping', 'rapped', 'tapping', 'tapped'],
+    text: 'KNOCK, KNOCK, KNOCK...',
+    color: '#a83319',
+    shadow: '0 0 20px rgba(139, 69, 19, 0.1)',
+  },
+  bell: {
+    keywords: ['bell', 'ring', 'ringing', 'rang', 'chime', 'chiming', 'ting', 'ding', 'clang', 'clanging', 'toll', 'tolling'],
+    text: '🔔 DING DING DING!',
+    color: '#fbbf24',
+    gradient: 'linear-gradient(135deg, #fde047 0%, #fbbf24 50%, #f59e0b 100%)',
+    shadow: '0 0 20px rgba(251, 191, 36, 0.6)',
+  },
+  scream: {
+    keywords: ['scream', 'screaming', 'screamed', 'shriek', 'shrieking', 'shrieked', 'yell', 'yelling', 'yelled', 'shout', 'shouting', 'shouted', 'cry', 'cried'],
+    text: '😱 AAAAAHHH!',
+    color: '#ef4444',
+    gradient: 'linear-gradient(135deg, #fca5a5 0%, #ef4444 50%, #dc2626 100%)',
+    shadow: '0 0 20px rgba(239, 68, 68, 0.6)',
+  },
+  crash: {
+    keywords: ['crash', 'crashing', 'crashed', 'shatter', 'shattering', 'shattered', 'smash', 'smashing', 'smashed', 'break', 'breaking', 'broke', 'broken'],
+    text: '💥 CRASH!',
+    color: '#f97316',
+    gradient: 'linear-gradient(135deg, #fb923c 0%, #f97316 50%, #ea580c 100%)',
+    shadow: '0 0 20px rgba(249, 115, 22, 0.6)',
+  },
+  footsteps: {
+    keywords: ['footstep', 'footsteps', 'footfall', 'footfalls', 'step', 'stepping', 'stepped', 'steps', 'walking', 'walked', 'walk', 'tread', 'treading'],
+    text: '👣 tap tap tap...',
+    color: '#64748b',
+    gradient: 'linear-gradient(135deg, #94a3b8 0%, #64748b 50%, #475569 100%)',
+    shadow: '0 0 20px rgba(100, 116, 139, 0.6)',
+  },
+};
+
+/**
+ * SoundEffectDisplay - Animated fighting-game style sound effect
+ */
+function SoundEffectDisplay({ effect, onComplete }) {
+  const [particles, setParticles] = useState([]);
+
+  useEffect(() => {
+    // Generate particles immediately
+    const particleCount = 15;
+    const newParticles = Array.from({ length: particleCount }, (_, i) => ({
+      id: Date.now() + i,
+      x: Math.random() * 200 - 100, // -100 to 100px horizontal spread
+      y: -(Math.random() * 80 + 40), // -40 to -120px vertical movement
+      rotation: Math.random() * 360,
+      delay: 1000 + i * 40, // Start after text appears
+      duration: 2000 + Math.random() * 500,
+     
+    }));
+
+    setParticles(newParticles);
+
+    // Complete animation after 2.5 seconds
+    const timeout = setTimeout(() => {
+      onComplete();
+    }, 3500);
+
+    return () => clearTimeout(timeout);
+  }, [effect, onComplete]);
+
+  // Split text into words for sequential animation
+  const words = effect.text.split(' ');
+
+  return (
+    <div
+      className="fixed z-[100] pointer-events-none"
+      style={{
+        bottom: '30px',
+        left: '70%',
+        transform: 'translateX(-50%)',
+      }}
+    >
+      {/* Animated words */}
+      <div className="flex gap-2 items-center px-5 py-1 rounded" style={{
+        backgroundColor: `${effect.color}0`,
+        animation: 'containerFadeOut 4.5s ease-in-out forwards',
+      }}>
+        {words.map((word, index) => {
+          // Alternate rotation: 10deg, -10deg, 10deg, -10deg...
+          const rotation = index % 2 === 0 ? 10 : -10;
+          const delay = index * 500; // 500ms between each word
+
+          return (
+            <span
+              key={index}
+              className="font text-xs tracking-widest inline-block"
+              style={{
+                color: effect.color,
+                textShadow: `0 0 2px ${effect.color}60`,
+                animation: `wordFadeIn-${index} 3.5s ease-out forwards`,
+                animationDelay: `${delay}ms`,
+                opacity: 0,
+              }}
+            >
+              {word}
+              <style>{`
+                @keyframes wordFadeIn-${index} {
+                  0% {
+                    opacity: 0;
+                    transform: rotate(${rotation}deg) translateY(5px);
+                  }
+                  100% {
+                    opacity: 1;
+                    transform: rotate(${rotation}deg) translateY(0);
+                  }
+                }
+              `}</style>
+            </span>
+          );
+        })}
+      </div>
+
+      {/* Particle effects */}
+      {particles.map((particle) => (
+        <div
+          key={particle.id}
+          className="absolute"
+          style={{
+            left: '50%',
+            top: '50%',
+            animation: `particle-float-${particle.id} ${particle.duration}ms ease-out forwards`,
+            animationDelay: `${particle.delay}ms`,
+          }}
+        >
+          <div
+            className="text-xs"
+            style={{
+              transform: `rotate(${particle.rotation}deg)`,
+              filter: 'drop-shadow(0 0 2px rgba(255, 255, 255, 0.8))',
+            }}
+          >
+            {particle.char}
+          </div>
+          <style>{`
+            @keyframes particle-float-${particle.id} {
+              0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+              }
+              100% {
+                transform: translate(calc(-50% + ${particle.x}px), calc(-50% + ${particle.y}px)) scale(0.3);
+                opacity: 0;
+              }
+            }
+          `}</style>
+        </div>
+      ))}
+
+      {/* Global fade out animation for entire container */}
+      <style>{`
+        @keyframes containerFadeOut {
+          0% {
+            opacity: 1;
+          }
+          70% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/**
+ * Detects sound effects from narrative text
+ * Prioritizes the effect whose keyword appears FIRST in the text
+ * Uses word boundary matching to avoid false positives (e.g., "rang" in "warning")
+ */
+function detectSoundEffects(text) {
+  if (typeof text !== 'string') return null;
+
+  const lowerText = text.toLowerCase();
+  let earliestMatch = null;
+  let earliestPosition = Infinity;
+
+  // Check each sound effect definition
+  for (const [key, effect] of Object.entries(SOUND_EFFECTS)) {
+    // Find the earliest position of any keyword for this effect
+    for (const keyword of effect.keywords) {
+      // Use regex with word boundaries to match whole words only
+      const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`);
+      const match = lowerText.match(regex);
+
+      if (match && match.index < earliestPosition) {
+        earliestPosition = match.index;
+        earliestMatch = effect;
+        console.log(`[SoundEffect] Found whole word "${keyword}" at position ${match.index}`);
+      }
+    }
+  }
+
+  if (earliestMatch) {
+    console.log(`[SoundEffect] ✅ Triggered effect at position ${earliestPosition}:`, earliestMatch.text);
+    return earliestMatch;
+  }
+
+  console.log('[SoundEffect] No keywords matched in text');
+  return null;
+}
 
 /**
  * Preprocesses content to wrap quoted dialogue in markdown bold syntax
@@ -36,6 +246,9 @@ function highlightEntitiesInText(text, sortedNPCs) {
   if (typeof text !== 'string') return text;
 
   let parts = [text];
+
+  // Running counter to ensure unique keys across all entity spans
+  let entityCounter = 0;
 
   // Split text by each entity name, replacing matches with clickable spans
   sortedNPCs.forEach((npcName) => {
@@ -72,9 +285,10 @@ function highlightEntitiesInText(text, sortedNPCs) {
 
           const description = npcData?.description || 'No additional information available.';
 
+          // Use running counter for truly unique keys
           newParts.push(
             <span
-              key={`entity-${npcName}-${i}`}
+              key={`entity-${npcName}-${entityCounter++}`}
               className={className}
               data-npc-name={segment}
               data-description={description}
@@ -109,8 +323,13 @@ function createEntityHighlightingComponents(recentNPCs = []) {
   // Combine recentNPCs with highlightable entities, remove duplicates
   const allNames = [...new Set([...recentNPCs, ...highlightableNames])];
 
+  // EXCLUDE player name "Doña Maria" from highlighting (prevents nonsensical backstory generation)
+  const filteredNames = allNames.filter(name =>
+    name !== 'Doña Maria' && name !== 'Dona Maria' && name !== 'Maria de Lima'
+  );
+
   // Sort by name length (longest first) to avoid partial matches
-  const sortedNPCs = [...allNames].sort((a, b) => b.length - a.length);
+  const sortedNPCs = [...filteredNames].sort((a, b) => b.length - a.length);
 
   // Log once when components are created
   if (sortedNPCs.length > 0 && !window.__entityComponentsLogged) {
@@ -218,6 +437,8 @@ const NarrativeEntry = React.memo(({
   onOpenContractModal,
   onSimpleInteractionChoice,
   onRandomEventChoice,
+  onConfirmExit,
+  onCancelExit,
   gameState,
   isDarkMode
 }) => {
@@ -327,8 +548,8 @@ const NarrativeEntry = React.memo(({
           className="w-full h-full object-cover"
           onError={(e) => {
             console.warn('[NarrativePanel] Failed to load NPC portrait:', entry.primaryPortrait);
-            // Fallback to book icon if portrait fails
-            e.target.outerHTML = '<svg class="w-6 h-6 text-ink-600 dark:text-parchment-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" /></svg>';
+            // Fallback to botica entrance if portrait fails
+            e.target.src = '/maps/boticaentrance.png';
           }}
         />
       );
@@ -399,9 +620,48 @@ const NarrativeEntry = React.memo(({
     );
   }
 
+  // Action result styling (for give/sell/prescribe completions)
+  const actionResultStyles = {
+    give: {
+      borderColor: 'border-emerald-400/40 dark:border-emerald-600/40',
+      bgColor: 'bg-emerald-50/50 dark:bg-emerald-900/20',
+      icon: '🎁',
+      iconBg: 'bg-emerald-500',
+      label: 'Given'
+    },
+    sell: {
+      borderColor: 'border-amber-400/40 dark:border-amber-600/40',
+      bgColor: 'bg-amber-50/50 dark:bg-amber-900/20',
+      icon: '💰',
+      iconBg: 'bg-amber-500',
+      label: 'Sold'
+    },
+    prescribe: {
+      borderColor: 'border-purple-400/40 dark:border-purple-600/40',
+      bgColor: 'bg-purple-50/50 dark:bg-purple-900/20',
+      icon: '⚕️',
+      iconBg: 'bg-purple-500',
+      label: 'Prescribed'
+    }
+  };
+
+  const actionStyle = entry.actionResultType ? actionResultStyles[entry.actionResultType] : null;
+
   return (
     <div className="narrative-entry-animated space-y-2" data-entry-index={index} data-primary-portrait={entry.primaryPortrait || ''} data-primary-npc-name={entry.primaryNPCName || ''}>
-      <div className={`flex items-start gap-3 relative group ${isUser ? 'flex-row-reverse' : ''}`}>
+      {/* Action Result Header - Special styling for give/sell/prescribe completions */}
+      {actionStyle && (
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 ${actionStyle.borderColor} ${actionStyle.bgColor} animate-fade-in`}>
+          <div className={`w-6 h-6 ${actionStyle.iconBg} rounded-full flex items-center justify-center text-white text-sm`}>
+            {actionStyle.icon}
+          </div>
+          <span className="text-sm font-semibold text-ink-700 dark:text-parchment-200">
+            {actionStyle.label}
+          </span>
+        </div>
+      )}
+
+      <div className={`flex items-start gap-3 relative group ${isUser ? 'flex-row-reverse' : ''} ${actionStyle ? actionStyle.borderColor + ' border-l-4 pl-2' : ''}`}>
         {/* NPC Mini Portrait - show for dialogue, positioned inside container */}
       
       
@@ -696,15 +956,12 @@ const NarrativePanel = ({
   onDeclineTrade = null, // Handler to decline trade opportunity
   pendingSimpleInteraction = null, // Simple interaction (service offers, donations, etc.)
   onSimpleInteractionChoice = null, // Handler for simple interaction choices
-  pendingSaleInquiry = null, // Sale inquiry (remedy crafting request)
-  onPursueSale = null, // Handler to pursue sale opportunity
-  onDeclineSale = null, // Handler to decline sale inquiry
+  pendingActionPrompt = null, // Action prompt (give/sell/prescribe)
+  onProposeAction = null, // Handler to propose action
+  onDeclineAction = null, // Handler to decline action
   pendingMixingDecision = null, // Mixing decision (craft remedy prompt)
   onOpenMixingWorkshop = null, // Handler to open mixing workshop
   onAbandonMixing = null, // Handler to abandon mixing opportunity
-  pendingSaleProposal = null, // Sale proposal (complete crafted remedy sale)
-  onCompleteSale = null, // Handler to complete sale
-  onAbandonSaleProposal = null, // Handler to abandon sale proposal
   pendingRandomEvent = null, // Random event (variety gameplay moments)
   onRandomEventChoice = null, // Handler for random event choices
   gameState = {}, // Game state for wealth/inventory
@@ -724,13 +981,22 @@ const NarrativePanel = ({
   const [showEntityPopup, setShowEntityPopup] = useState(false);
   const [popupEntity, setPopupEntity] = useState(null);
 
+  // Sound effect state
+  const [activeSoundEffect, setActiveSoundEffect] = useState(null);
+
   // Debounce timer for hover state
   const hoverTimeoutRef = useRef(null);
 
-  // Memoize entity highlighting components - only recreate when recentNPCs changes
+  // Stabilize recentNPCs reference - only update when actual content changes (not just array reference)
+  // This prevents entityComponents from being recreated on every parent render
+  const stableRecentNPCs = useMemo(() => {
+    return recentNPCs || [];
+  }, [JSON.stringify(recentNPCs)]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Memoize entity highlighting components - only recreate when recentNPCs content actually changes
   const entityComponents = useMemo(() => {
-    return createEntityHighlightingComponents(recentNPCs);
-  }, [recentNPCs]);
+    return createEntityHighlightingComponents(stableRecentNPCs);
+  }, [stableRecentNPCs]);
 
   // Toggle bookmark for a message
   const handleToggleBookmark = (index) => {
@@ -749,6 +1015,30 @@ const NarrativePanel = ({
   useEffect(() => {
     if (narrativeRef.current) {
       narrativeRef.current.scrollTop = narrativeRef.current.scrollHeight;
+    }
+  }, [conversationHistory]);
+
+  // Detect sound effects from latest narrative message
+  useEffect(() => {
+    if (conversationHistory.length === 0) return;
+
+    const latestMessage = conversationHistory[conversationHistory.length - 1];
+
+    console.log('[SoundEffect] Checking message:', {
+      role: latestMessage.role,
+      contentPreview: latestMessage.content?.substring(0, 100)
+    });
+
+    // Only check AI responses (not user messages)
+    if (latestMessage.role === 'assistant' && latestMessage.content) {
+      const detectedEffect = detectSoundEffects(latestMessage.content);
+
+      if (detectedEffect) {
+        console.log('[SoundEffect] ✅ Detected:', detectedEffect.text);
+        setActiveSoundEffect(detectedEffect);
+      } else {
+        console.log('[SoundEffect] ❌ No effect detected in:', latestMessage.content.substring(0, 200));
+      }
     }
   }, [conversationHistory]);
 
@@ -850,10 +1140,17 @@ const NarrativePanel = ({
   };
 
   // Add click and hover listeners to NPC names after render
-  // CRITICAL: No dependencies to prevent listener thrashing on every message
+  // Re-attach when entityComponents changes to ensure listeners work with new DOM nodes
   useEffect(() => {
     const narrativePanel = narrativeRef.current;
     if (!narrativePanel) return;
+
+    // Clear any lingering hover state when re-attaching listeners (prevents stale tooltips)
+    setHoveredEntity(null);
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
 
     const handleClick = (e) => {
       // Don't open modal if user is selecting text
@@ -929,12 +1226,14 @@ const NarrativePanel = ({
       narrativePanel.removeEventListener('click', handleClick);
       narrativePanel.removeEventListener('mouseenter', handleMouseEnter, true);
       narrativePanel.removeEventListener('mouseleave', handleMouseLeave, true);
-      // Clean up any pending timeouts
+      // Clean up any pending timeouts and hover state
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
       }
+      setHoveredEntity(null);
     };
-  }, []); // Empty deps - listeners set up once and never removed
+  }, [entityComponents]); // Re-attach when entityComponents changes (new DOM nodes created)
 
   return (
     <>
@@ -971,6 +1270,8 @@ const NarrativePanel = ({
                   onOpenContractModal={onOpenContractModal}
                   onSimpleInteractionChoice={onSimpleInteractionChoice}
                   onRandomEventChoice={onRandomEventChoice}
+                  onConfirmExit={onConfirmExit}
+                  onCancelExit={onCancelExit}
                   gameState={gameState}
                   isDarkMode={isDarkMode}
                 />
@@ -1025,19 +1326,7 @@ const NarrativePanel = ({
                 </div>
               )}
 
-              {/* Trade Opportunity Cards */}
-              {tradeOpportunities && tradeOpportunities.length > 0 && onAcceptTrade && onDeclineTrade && (
-                tradeOpportunities.map((opportunity) => (
-                  <div key={opportunity.id} className="mb-4">
-                    <SaleOpportunityCard
-                      opportunity={opportunity}
-                      onAccept={() => onAcceptTrade(opportunity)}
-                      onDecline={() => onDeclineTrade(opportunity.id)}
-                      isDark={isDarkMode}
-                    />
-                  </div>
-                ))
-              )}
+              {/* Trade Opportunity Cards - DEPRECATED: Replaced by actionPrompt system */}
 
               {/* Simple Interaction Card - Fast Gameplay Loops
                   LEGACY: Only show if not already embedded in conversation history
@@ -1054,13 +1343,16 @@ const NarrativePanel = ({
                 </div>
               )}
 
-              {/* Sale Inquiry Card - Remedy Crafting Requests */}
-              {pendingSaleInquiry && onPursueSale && onDeclineSale && (
+              {/* Sale Inquiry Card - DEPRECATED: Replaced by actionPrompt system */}
+
+              {/* Action Prompt Card - Give/Sell/Prescribe Requests */}
+              {pendingActionPrompt && onProposeAction && onDeclineAction && (
                 <div className="mb-4 animate-fade-in">
-                  <SaleInquiryCard
-                    inquiry={pendingSaleInquiry}
-                    onPursue={() => onPursueSale(pendingSaleInquiry)}
-                    onDecline={() => onDeclineSale(pendingSaleInquiry)}
+                  <ActionPromptCard
+                    actionPrompt={pendingActionPrompt}
+                    inventory={gameState.inventory || []}
+                    onPropose={onProposeAction}
+                    onDecline={onDeclineAction}
                     isDark={isDarkMode}
                   />
                 </div>
@@ -1078,17 +1370,7 @@ const NarrativePanel = ({
                 </div>
               )}
 
-              {/* Sale Proposal Card - Complete Crafted Remedy Sale */}
-              {pendingSaleProposal && onCompleteSale && onAbandonSaleProposal && (
-                <div className="mb-4 animate-fade-in">
-                  <SaleProposalCard
-                    saleContext={pendingSaleProposal}
-                    onCompleteSale={() => onCompleteSale(pendingSaleProposal)}
-                    onAbandonSale={() => onAbandonSaleProposal(pendingSaleProposal)}
-                    isDark={isDarkMode}
-                  />
-                </div>
-              )}
+              {/* Sale Proposal Card - DEPRECATED: Replaced by actionPrompt system */}
 
               {/* Random Event Card - Variety Gameplay Moments
                   LEGACY: Only show if not already embedded in conversation history
@@ -1373,6 +1655,14 @@ const NarrativePanel = ({
         onLookCloser={handleLookCloser}
         onAddNote={handleAddNote}
       />
+
+      {/* Sound Effect Display - fighting game style animated sound effects */}
+      {activeSoundEffect && (
+        <SoundEffectDisplay
+          effect={activeSoundEffect}
+          onComplete={() => setActiveSoundEffect(null)}
+        />
+      )}
     </>
   );
 };

@@ -66,16 +66,29 @@ export default function ExitConfirmationCard({
           borderColor: 'rgba(251, 191, 36, 0.4)'
         }}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🚪</span>
-          <h3 className="text-sm font-bold uppercase tracking-wider font-sans text-amber-100">
-            Leaving the {locationName || 'Building'}
-          </h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🚪</span>
+            <h3 className="text-sm font-bold uppercase tracking-wider font-sans text-amber-100">
+              Leaving the {locationName || 'Building'}
+            </h3>
+          </div>
+          {/* Close button */}
+          <button
+            onClick={onCancel}
+            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md transition-all duration-200 hover:bg-white/20"
+            title="Cancel"
+            aria-label="Close"
+          >
+            <svg className="w-4 h-4 text-amber-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="p-6 space-y-4">
+      <div className="p-6 space-y-3">
         {/* Main Question */}
         <div className="text-center">
           <p className="text-2xl font-serif font-bold text-white mb-3 drop-shadow-lg">

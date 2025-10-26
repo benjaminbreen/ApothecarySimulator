@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import ExteriorMap from './ExteriorMap';
 import InteriorMap from './InteriorMap';
 import { LocationDropdown } from '../../../components/LocationDropdown';
+import { GridMovementSystem } from '../services/gridMovementSystem';
 
 /**
  * MapRenderer - Main map controller component
@@ -17,11 +18,12 @@ import { LocationDropdown } from '../../../components/LocationDropdown';
  * @param {number} props.playerFacing - Player facing direction in degrees (0=N, 90=E, 180=S, 270=W)
  * @param {Function} props.onLocationChange - Callback when user clicks to change location
  * @param {Function} props.onFurnitureClick - Callback when furniture is clicked
+ * @param {Function} props.onPlayerTeleport - Callback for Ctrl+Click teleport {x, y, gridX, gridY}
  * @param {string} props.theme - Theme mode: 'light' or 'dark' (defaults to 'light')
  * @param {Array<[number, number]>} props.travelPath - Phase 3B: Animated travel path for house calls
  * @param {boolean} props.isTraveling - Phase 3B: Whether travel animation is active
  */
-export default function MapRenderer({ scenario, currentLocation, currentMapId, npcs = [], playerPosition = null, playerFacing = 180, onLocationChange, onMapClick = null, onEnterBuilding = null, onExitBuilding = null, onRoomCommand = null, onFurnitureClick = null, theme = 'light', travelPath = null, isTraveling = false }) {
+export default function MapRenderer({ scenario, currentLocation, currentMapId, npcs = [], playerPosition = null, playerFacing = 180, onLocationChange, onMapClick = null, onEnterBuilding = null, onExitBuilding = null, onRoomCommand = null, onFurnitureClick = null, onPlayerTeleport = null, onAnimationComplete = null, theme = 'light', travelPath = null, isTraveling = false }) {
   const [activeMapId, setActiveMapId] = useState(null);
   const [mapType, setMapType] = useState('exterior'); // 'exterior' or 'interior'
   const [showModal, setShowModal] = useState(false);
@@ -33,6 +35,21 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, width: 1800, height: 1350 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, viewX: 0, viewY: 0 });
+
+  // Ctrl+Click teleport feedback
+  const [invalidClickPos, setInvalidClickPos] = useState(null); // { x, y } in SVG coords
+
+  // Map transition state
+  const [transitionState, setTransitionState] = useState('idle'); // 'idle' | 'fadeOut' | 'fadeIn'
+  const [pendingMapChange, setPendingMapChange] = useState(null); // { mapId, mapType }
+  const [mapOpacity, setMapOpacity] = useState(1);
+  const transitionFrameRef = useRef(null);
+
+  // Animation state for smooth movement (using refs to avoid re-render issues)
+  const isAnimatingRef = useRef(false);
+  const animationTargetRef = useRef(null); // { x, y, gridX, gridY }
+  const animationStartPosRef = useRef(null); // Starting position
+  const animationFrameRef = useRef(null);
 
   // Ref for map container
   const mapContainerRef = useRef(null);
@@ -48,26 +65,35 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
 
     console.log('[MapRenderer] Rendering map:', currentMapId);
 
-    // Determine map type by checking which collection contains this ID
+    // Determine target map type
+    let targetMapType = null;
     if (maps.interior && maps.interior[currentMapId]) {
-      console.log('[MapRenderer] Interior map detected');
-      setActiveMapId(currentMapId);
-      setMapType('interior');
+      targetMapType = 'interior';
     } else if (maps.exterior && maps.exterior[currentMapId]) {
-      console.log('[MapRenderer] Exterior map detected');
-      setActiveMapId(currentMapId);
-      setMapType('exterior');
+      targetMapType = 'exterior';
     } else {
       console.warn('[MapRenderer] Map ID not found:', currentMapId);
       // Fallback to first available map
       const fallbackId = Object.keys(maps.interior || {})[0] || Object.keys(maps.exterior || {})[0];
       if (fallbackId) {
         console.log('[MapRenderer] Falling back to:', fallbackId);
-        setActiveMapId(fallbackId);
-        setMapType(maps.interior?.[fallbackId] ? 'interior' : 'exterior');
+        targetMapType = maps.interior?.[fallbackId] ? 'interior' : 'exterior';
       }
     }
-  }, [currentMapId, maps]);
+
+    // Check if this is a map change (not initial load)
+    if (activeMapId && activeMapId !== currentMapId) {
+      console.log('[MapRenderer] Map change detected:', activeMapId, '→', currentMapId);
+      // Start transition
+      setPendingMapChange({ mapId: currentMapId, mapType: targetMapType });
+      setTransitionState('fadeOut');
+    } else if (!activeMapId && targetMapType) {
+      // Initial load - no transition
+      console.log('[MapRenderer] Initial map load:', currentMapId, '(', targetMapType, ')');
+      setActiveMapId(currentMapId);
+      setMapType(targetMapType);
+    }
+  }, [currentMapId, maps, activeMapId]);
 
   // Get the current map data (MUST be defined before viewBox useEffect)
   const currentMapData = useMemo(() => {
@@ -79,6 +105,12 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
       return maps.exterior[activeMapId];
     }
   }, [maps, activeMapId, mapType]);
+
+  // Create GridMovementSystem instance for collision detection
+  const gridSystem = useMemo(() => {
+    if (!currentMapData) return null;
+    return new GridMovementSystem(currentMapData, 20);
+  }, [currentMapData]);
 
   // Calculate initial viewBox based on map type and player position
   const getInitialViewBox = useCallback((mapData, mapType, playerPosition) => {
@@ -159,11 +191,83 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
   }, [mapType, currentMapData, getInitialViewBox]);
   // Note: playerPosition NOT in deps - only center once on transition
 
+  // Map transition orchestration
+  useEffect(() => {
+    if (transitionState === 'fadeOut') {
+      console.log('[MapRenderer] Transition Phase 1: Fade out');
+      setMapOpacity(0);
+
+      // After fade-out completes, swap the map
+      setTimeout(() => {
+        if (!pendingMapChange) return;
+
+        console.log('[MapRenderer] Transition Phase 2: Swap map to', pendingMapChange.mapId);
+        setActiveMapId(pendingMapChange.mapId);
+        setMapType(pendingMapChange.mapType);
+        setTransitionState('fadeIn');
+      }, 350); // 300ms fade + 50ms buffer
+    }
+
+    if (transitionState === 'fadeIn' && currentMapData) {
+      console.log('[MapRenderer] Transition Phase 3: Zoom + Fade in');
+
+      // Start zoom animation
+      const targetViewBox = getInitialViewBox(currentMapData, mapType, playerPosition);
+
+      // Start zoomed OUT (2x normal dimensions)
+      const startViewBox = {
+        x: targetViewBox.x - targetViewBox.width * 0.5,
+        y: targetViewBox.y - targetViewBox.height * 0.5,
+        width: targetViewBox.width * 2,
+        height: targetViewBox.height * 2
+      };
+
+      const startTime = Date.now();
+      const duration = 600; // 600ms for zoom + fade
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Ease-out cubic function (fast start, slow end)
+        const eased = 1 - Math.pow(1 - progress, 3);
+
+        // Interpolate viewBox
+        setViewBox({
+          x: startViewBox.x + (targetViewBox.x - startViewBox.x) * eased,
+          y: startViewBox.y + (targetViewBox.y - startViewBox.y) * eased,
+          width: startViewBox.width + (targetViewBox.width - startViewBox.width) * eased,
+          height: startViewBox.height + (targetViewBox.height - startViewBox.height) * eased
+        });
+
+        // Fade in opacity simultaneously
+        setMapOpacity(eased);
+
+        if (progress < 1) {
+          transitionFrameRef.current = requestAnimationFrame(animate);
+        } else {
+          console.log('[MapRenderer] Transition complete');
+          setTransitionState('idle');
+          setPendingMapChange(null);
+        }
+      };
+
+      transitionFrameRef.current = requestAnimationFrame(animate);
+
+      // Cleanup on unmount or state change
+      return () => {
+        if (transitionFrameRef.current) {
+          cancelAnimationFrame(transitionFrameRef.current);
+        }
+      };
+    }
+  }, [transitionState, pendingMapChange, currentMapData, mapType, playerPosition, getInitialViewBox]);
+
   // Camera following for interior maps (HUD mode)
   // Update viewBox to follow player when they move in interior spaces
   useEffect(() => {
-    // Only follow in interior maps, and only when not showing modal
-    if (mapType !== 'interior' || !playerPosition || !currentMapData?.bounds || showModal) {
+    // Only follow in interior maps, and only when not showing modal or transitioning
+    if (mapType !== 'interior' || !playerPosition || !currentMapData?.bounds || showModal || transitionState !== 'idle') {
       return;
     }
 
@@ -197,7 +301,7 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
         height
       };
     });
-  }, [playerPosition, mapType, currentMapData, showModal]);
+  }, [playerPosition, mapType, currentMapData, showModal, transitionState]);
 
   // PHASE 2: Zoom handlers
   const handleZoomIn = useCallback(() => {
@@ -335,8 +439,8 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
     const svgMouseX = viewBox.x + (mouseScreenX / containerRect.width) * viewBox.width;
     const svgMouseY = viewBox.y + (mouseScreenY / containerRect.height) * viewBox.height;
 
-    // Zoom factor
-    const zoomFactor = e.deltaY < 0 ? 0.87 : 1.15; // Zoom in/out
+    // Zoom factor (made less aggressive for smoother zooming)
+    const zoomFactor = e.deltaY < 0 ? 0.95 : 1.05; // Zoom in/out
 
     setViewBox(prev => {
       const newWidth = prev.width * zoomFactor;
@@ -377,6 +481,219 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
   }, [handleWheel]);
+
+  // ANIMATION LOOP: Smoothly move player to target position
+  const startAnimation = useCallback((startPos, targetPos) => {
+    if (!onPlayerTeleport || !gridSystem) return;
+
+    console.log('[MapRenderer] Starting animation from', startPos, 'to', targetPos);
+
+    const startX = startPos.x;
+    const startY = startPos.y;
+    const targetX = targetPos.x;
+    const targetY = targetPos.y;
+
+    const deltaX = targetX - startX;
+    const deltaY = targetY - startY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // Movement speed: Adjust based on map type
+    // Interior: Fast (300px/s) - small rooms
+    // Exterior: Slower (150px/s) - represents longer city distances
+    const speed = mapType === 'exterior' ? 150 : 300;
+    const duration = (distance / speed) * 1000; // milliseconds
+
+    // Calculate travel time in game minutes
+    // For exterior maps: ~1 minute per 10 pixels (represents ~7m at 1.5px/m scale)
+    // For interior maps: Negligible time (instant within building)
+    const travelMinutes = mapType === 'exterior'
+      ? Math.round(distance / 10) // 1 game minute per ~70 meters
+      : 0;
+
+    const startTime = Date.now();
+    let lastUpdateTime = startTime;
+    const updateInterval = 50; // Update position state every 50ms (20fps for state updates)
+
+    const animate = () => {
+      if (!isAnimatingRef.current) {
+        console.log('[MapRenderer] Animation cancelled');
+        return; // Animation was cancelled
+      }
+
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1); // 0 to 1
+
+      // Ease-in-out interpolation
+      const easeProgress = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      const currentX = startX + deltaX * easeProgress;
+      const currentY = startY + deltaY * easeProgress;
+
+      // Convert to grid coordinates
+      const gridPos = gridSystem.pixelToGrid(currentX, currentY);
+
+      // Throttle state updates to prevent React overload
+      // Only update every 50ms instead of every frame (60fps)
+      const now = Date.now();
+      const shouldUpdate = now - lastUpdateTime >= updateInterval || progress === 1;
+
+      if (shouldUpdate && onPlayerTeleport) {
+        lastUpdateTime = now;
+        onPlayerTeleport({
+          x: currentX,
+          y: currentY,
+          gridX: gridPos.gridX,
+          gridY: gridPos.gridY
+        });
+      }
+
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        // Animation complete - trigger callback with journey data
+        console.log('[MapRenderer] Animation complete');
+        isAnimatingRef.current = false;
+        animationTargetRef.current = null;
+        animationStartPosRef.current = null;
+
+        // Call completion handler with journey details
+        if (onAnimationComplete) {
+          onAnimationComplete({
+            startPosition: { x: startX, y: startY },
+            endPosition: { x: targetX, y: targetY },
+            distance: distance, // pixels
+            travelMinutes: travelMinutes, // game time
+            mapType: mapType, // 'interior' or 'exterior'
+            mapId: activeMapId
+          });
+        }
+      }
+    };
+
+    animate();
+  }, [onPlayerTeleport, gridSystem, mapType, activeMapId, onAnimationComplete]);
+
+  // Cleanup animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        isAnimatingRef.current = false;
+      }
+    };
+  }, []);
+
+  // Simple pathfinding: Check if straight line is clear
+  const canMoveInStraightLine = useCallback((fromPos, toPos) => {
+    if (!gridSystem) return false;
+
+    const fromGrid = gridSystem.pixelToGrid(fromPos.x, fromPos.y);
+    const toGrid = gridSystem.pixelToGrid(toPos.x, toPos.y);
+
+    // Use Bresenham's line algorithm to check all cells along the path
+    const dx = Math.abs(toGrid.gridX - fromGrid.gridX);
+    const dy = Math.abs(toGrid.gridY - fromGrid.gridY);
+    const sx = fromGrid.gridX < toGrid.gridX ? 1 : -1;
+    const sy = fromGrid.gridY < toGrid.gridY ? 1 : -1;
+    let err = dx - dy;
+
+    let x = fromGrid.gridX;
+    let y = fromGrid.gridY;
+
+    while (true) {
+      // Check if current cell is walkable
+      if (!gridSystem.isWalkable(x, y)) {
+        return false; // Path blocked
+      }
+
+      // Reached destination
+      if (x === toGrid.gridX && y === toGrid.gridY) {
+        return true; // Path clear!
+      }
+
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+  }, [gridSystem]);
+
+  // CTRL+CLICK ANIMATED MOVEMENT: Convert click to grid position and animate if walkable
+  const handleMapClick = useCallback((e) => {
+    // Only handle Ctrl+Click (or Cmd+Click on Mac)
+    if (!e.ctrlKey && !e.metaKey) return;
+    if (!onPlayerTeleport || !gridSystem || !currentMapData || !mapContainerRef.current || !playerPosition) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const containerRect = mapContainerRef.current.getBoundingClientRect();
+
+    // Get mouse position in screen coordinates
+    const mouseScreenX = e.clientX - containerRect.left;
+    const mouseScreenY = e.clientY - containerRect.top;
+
+    // Convert screen coordinates to SVG coordinates
+    const svgX = viewBox.x + (mouseScreenX / containerRect.width) * viewBox.width;
+    const svgY = viewBox.y + (mouseScreenY / containerRect.height) * viewBox.height;
+
+    console.log('[MapRenderer] Ctrl+Click movement attempt:', { svgX, svgY });
+
+    // Convert SVG coordinates to grid coordinates
+    const gridPos = gridSystem.pixelToGrid(svgX, svgY);
+
+    console.log('[MapRenderer] Grid position:', gridPos);
+
+    // Check if the destination is walkable
+    if (!gridSystem.isWalkable(gridPos.gridX, gridPos.gridY)) {
+      console.log('[MapRenderer] ❌ Invalid destination - showing feedback');
+      setInvalidClickPos({ x: svgX, y: svgY });
+      setTimeout(() => setInvalidClickPos(null), 1000);
+      return;
+    }
+
+    // Check if path is clear
+    if (!canMoveInStraightLine(playerPosition, gridPos)) {
+      console.log('[MapRenderer] ❌ Path blocked - showing feedback');
+      setInvalidClickPos({ x: svgX, y: svgY });
+      setTimeout(() => setInvalidClickPos(null), 1000);
+      return;
+    }
+
+    console.log('[MapRenderer] ✅ Valid path - starting animation');
+
+    // Clear any previous animation
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      isAnimatingRef.current = false;
+    }
+
+    // Store animation target and start position
+    animationTargetRef.current = {
+      x: gridPos.x,
+      y: gridPos.y,
+      gridX: gridPos.gridX,
+      gridY: gridPos.gridY
+    };
+    animationStartPosRef.current = {
+      x: playerPosition.x,
+      y: playerPosition.y
+    };
+    isAnimatingRef.current = true;
+
+    // Start animation
+    startAnimation(animationStartPosRef.current, animationTargetRef.current);
+
+    // Clear any invalid click feedback
+    setInvalidClickPos(null);
+  }, [onPlayerTeleport, gridSystem, currentMapData, viewBox, playerPosition, canMoveInStraightLine, startAnimation]);
 
   // Listen for ESC key to close modal
   useEffect(() => {
@@ -537,18 +854,16 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
         <div
           ref={mapContainerRef}
           className={`flex-1 relative overflow-hidden ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-          onClick={() => {
-            if (onMapClick) {
-              onMapClick();
-            } else {
-              setShowModal(true);
-            }
+          style={{
+            opacity: mapOpacity,
+            transition: transitionState === 'fadeOut' ? 'opacity 300ms ease-out' : 'none'
           }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          title="Drag to pan, scroll to zoom, click to enlarge"
+          onClick={handleMapClick}
+          title="Drag to pan, scroll to zoom, Ctrl+Click to move (animated)"
         >
           {/* Zoom controls - Compact and glassy */}
           <div className="absolute bottom-2 right-2 z-10 flex flex-col gap-1">
@@ -603,6 +918,24 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
               isModal={false}
             />
           )}
+
+          {/* Invalid click feedback - Red X indicator */}
+          {invalidClickPos && (
+            <div
+              className="absolute pointer-events-none animate-ping"
+              style={{
+                left: `${((invalidClickPos.x - viewBox.x) / viewBox.width) * 100}%`,
+                top: `${((invalidClickPos.y - viewBox.y) / viewBox.height) * 100}%`,
+                transform: 'translate(-50%, -50%)'
+              }}
+            >
+              <svg width="40" height="40" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="18" fill="none" stroke="#dc2626" strokeWidth="3" opacity="0.8" />
+                <line x1="12" y1="12" x2="28" y2="28" stroke="#dc2626" strokeWidth="3" strokeLinecap="round" />
+                <line x1="28" y1="12" x2="12" y2="28" stroke="#dc2626" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+            </div>
+          )}
         </div>
 
         {/* Compact info panel */}
@@ -636,20 +969,40 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
               </div>
             </div>
 
-            {/* Exit button - only show for interior maps */}
-            {mapType === 'interior' && (
+            {/* Action buttons */}
+            <div className="flex-shrink-0 flex items-center gap-2">
+              {/* View Full Map button */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleExitButtonClick();
+                  if (onMapClick) {
+                    onMapClick();
+                  } else {
+                    setShowModal(true);
+                  }
                 }}
-                className="flex-shrink-0 flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md border border-emerald-600/40 dark:border-sky-400/40 text-emerald-700 dark:text-sky-400 hover:bg-emerald-50 dark:hover:bg-sky-900/20 transition-colors"
-                title="Exit to city view"
+                className="flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md border border-amber-600/40 dark:border-amber-400/40 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                title="Open full map view"
               >
-                <span className="text-sm">🚪</span>
-                <span>Exit</span>
+                <span className="text-sm">🗺️</span>
+                <span>View Full Map</span>
               </button>
-            )}
+
+              {/* Exit button - only show for interior maps */}
+              {mapType === 'interior' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleExitButtonClick();
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md border border-emerald-600/40 dark:border-sky-400/40 text-emerald-700 dark:text-sky-400 hover:bg-emerald-50 dark:hover:bg-sky-900/20 transition-colors"
+                  title="Exit to city view"
+                >
+                  <span className="text-sm">🚪</span>
+                  <span>Exit</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Compact legend */}

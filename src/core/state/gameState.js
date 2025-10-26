@@ -76,6 +76,8 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       // NPC Commerce system - tracks trade opportunities and history
       tradeOpportunities: [], // Active trade opportunities from narrative
       tradeHistory: {}, // { [npcId]: [transactions...] }
+      // Document library - tracks all received documents (letters, codices, maps, etc.)
+      documents: [], // [{ name, type, metadata, dateReceived, turnReceived, read }]
     };
   } catch (error) {
     console.error('Failed to load scenario, using fallback:', error);
@@ -115,6 +117,8 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       // NPC Commerce system - tracks trade opportunities and history
       tradeOpportunities: [], // Active trade opportunities from narrative
       tradeHistory: {}, // { [npcId]: [transactions...] }
+      // Document library - tracks all received documents (letters, codices, maps, etc.)
+      documents: [], // [{ name, type, metadata, dateReceived, turnReceived, read }]
     };
   }
 };
@@ -212,6 +216,17 @@ export const useGameState = (scenarioId) => {
         if (newItem) {
           console.log('[gameState] Adding new item from potentialInventoryItems');
           updatedInventory = [...updatedInventory, { ...newItem, quantity: quantityChange }];
+
+          // Track this as the last added item (only when adding, not removing)
+          if (quantityChange > 0) {
+            setLastAddedItem({ ...newItem, quantity: quantityChange });
+          }
+        }
+      } else if (quantityChange > 0) {
+        // Item already exists but quantity increased - track it
+        const updatedItem = updatedInventory.find(item => item.name && item.name.toLowerCase() === updateItemName.toLowerCase());
+        if (updatedItem) {
+          setLastAddedItem({ ...updatedItem });
         }
       }
 
@@ -776,6 +791,44 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
     }
   }, []);
 
+  // Document library management functions
+  const addDocument = useCallback((documentData) => {
+    setGameState((prevState) => {
+      // Check if document already exists
+      const existingDoc = prevState.documents.find(doc => doc.name === documentData.name);
+      if (existingDoc) {
+        console.log('[Documents] Document already in library:', documentData.name);
+        return prevState;
+      }
+
+      console.log('[Documents] Adding document to library:', documentData.name);
+      return {
+        ...prevState,
+        documents: [...prevState.documents, {
+          ...documentData,
+          read: false // Initially unread
+        }]
+      };
+    });
+  }, []);
+
+  const markDocumentAsRead = useCallback((documentName) => {
+    setGameState((prevState) => ({
+      ...prevState,
+      documents: prevState.documents.map(doc =>
+        doc.name === documentName ? { ...doc, read: true } : doc
+      )
+    }));
+  }, []);
+
+  const getDocuments = useCallback(() => {
+    return gameState.documents || [];
+  }, [gameState.documents]);
+
+  const getUnreadDocumentsCount = useCallback(() => {
+    return (gameState.documents || []).filter(doc => !doc.read).length;
+  }, [gameState.documents]);
+
   return {
     gameState,
     updateInventory,
@@ -827,5 +880,11 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
     addTradeTransaction,
     getTradeHistory,
     cleanupExpiredOpportunities,
+
+    // Document library system
+    addDocument,
+    markDocumentAsRead,
+    getDocuments,
+    getUnreadDocumentsCount,
   };
 };

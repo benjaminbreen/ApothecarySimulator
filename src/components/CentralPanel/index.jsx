@@ -48,20 +48,15 @@ export function CentralPanel({
   pendingSimpleInteraction,
   onSimpleInteractionChoice,
 
-  // Sale inquiry props
-  pendingSaleInquiry,
-  onPursueSale,
-  onDeclineSale,
+  // Action prompt props
+  pendingActionPrompt,
+  onProposeAction,
+  onDeclineAction,
 
   // Mixing decision props
   pendingMixingDecision,
   onOpenMixingWorkshop,
   onAbandonMixing,
-
-  // Sale proposal props (Phase 2C)
-  pendingSaleProposal,
-  onCompleteSale,
-  onAbandonSaleProposal,
 
   // Random event props
   pendingRandomEvent,
@@ -137,15 +132,12 @@ export function CentralPanel({
               onDeclineTrade={onDeclineTrade}
               pendingSimpleInteraction={pendingSimpleInteraction}
               onSimpleInteractionChoice={onSimpleInteractionChoice}
-              pendingSaleInquiry={pendingSaleInquiry}
-              onPursueSale={onPursueSale}
-              onDeclineSale={onDeclineSale}
+              pendingActionPrompt={pendingActionPrompt}
+              onProposeAction={onProposeAction}
+              onDeclineAction={onDeclineAction}
               pendingMixingDecision={pendingMixingDecision}
               onOpenMixingWorkshop={onOpenMixingWorkshop}
               onAbandonMixing={onAbandonMixing}
-              pendingSaleProposal={pendingSaleProposal}
-              onCompleteSale={onCompleteSale}
-              onAbandonSaleProposal={onAbandonSaleProposal}
               pendingRandomEvent={pendingRandomEvent}
               onRandomEventChoice={onRandomEventChoice}
               gameState={gameState}

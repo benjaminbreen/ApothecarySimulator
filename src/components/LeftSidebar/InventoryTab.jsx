@@ -10,6 +10,76 @@ import {
 import MedicineTypeBadge from '../MedicineTypeBadge';
 
 /**
+ * InventoryItemParticles - Beautiful particle effect for newly-added items
+ */
+function InventoryItemParticles({ itemName }) {
+  const [particles, setParticles] = React.useState([]);
+
+  React.useEffect(() => {
+    if (!itemName) return;
+
+    // Generate 8-10 sparkle particles
+    const particleCount = 10;
+    const newParticles = Array.from({ length: particleCount }, (_, i) => ({
+      id: Date.now() + i,
+      x: Math.random() * 60 - 30, // -30 to 30px horizontal spread
+      y: -(Math.random() * 50 + 30), // -30 to -80px vertical movement
+      rotation: Math.random() * 360,
+      delay: i * 60, // Stagger animation
+      duration: 1200 + Math.random() * 400,
+    }));
+
+    setParticles(newParticles);
+
+    // Clear particles after animation
+    const timeout = setTimeout(() => setParticles([]), 2000);
+    return () => clearTimeout(timeout);
+  }, [itemName]);
+
+  if (particles.length === 0) return null;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-visible" style={{ zIndex: 50 }}>
+      {particles.map((particle) => (
+        <div
+          key={particle.id}
+          className="absolute"
+          style={{
+            left: '50%',
+            top: '50%',
+            animation: `particle-float-${particle.id} ${particle.duration}ms ease-out forwards`,
+            animationDelay: `${particle.delay}ms`,
+          }}
+        >
+          <div
+            className="text-base font-bold"
+            style={{
+              color: '#10b981',
+              textShadow: '0 0 12px rgba(16, 185, 129, 0.8), 0 0 6px rgba(16, 185, 129, 0.6)',
+              transform: `rotate(${particle.rotation}deg)`,
+            }}
+          >
+            ✨
+          </div>
+          <style>{`
+            @keyframes particle-float-${particle.id} {
+              0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+              }
+              100% {
+                transform: translate(calc(-50% + ${particle.x}px), calc(-50% + ${particle.y}px)) scale(0.3);
+                opacity: 0;
+              }
+            }
+          `}</style>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * DraggableInventoryItem - Wrapper for draggable inventory items
  */
 function DraggableInventoryItem({ item, children }) {
@@ -34,7 +104,7 @@ function DraggableInventoryItem({ item, children }) {
  * rarity-based colors, quality badges, and glassomorphic effects
  * Now with Materia Medica / Other Items sections and Grid/List view toggle
  */
-export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [] }) {
+export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [], newlyAddedItemName = null }) {
   const [viewMode, setViewMode] = React.useState('grid'); // 'grid' or 'list'
   const [sortBy, setSortBy] = React.useState('name'); // 'name', 'quantity', 'price', 'type'
   const [isDark, setIsDark] = React.useState(document.documentElement.classList.contains('dark'));
@@ -232,7 +302,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [] 
       {/* Grid View */}
       {viewMode === 'grid' && (
         <div className="grid grid-cols-3 gap-1.5">
-          {medicineItems.slice(0, 20).map((item, idx) => {
+          {medicineItems.slice(0, 18).map((item, idx) => {
         const iconPath = loadedIcons[item.name];
         const hasIcon = iconPath !== null && iconPath !== undefined;
 
@@ -247,6 +317,8 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [] 
         const displayName = qualityPrefix + item.name;
 
         const isDark = document.documentElement.classList.contains('dark');
+
+        const isNewlyAdded = newlyAddedItemName && item.name.toLowerCase() === newlyAddedItemName.toLowerCase();
 
         return (
           <DraggableInventoryItem key={idx} item={item}>
@@ -340,11 +412,14 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [] 
                 border: `2px solid ${colors.light}`,
               }}
             />
+
+            {/* Particle effect for newly-added items */}
+            {isNewlyAdded && <InventoryItemParticles itemName={item.name} />}
           </div>
           </DraggableInventoryItem>
         );
       })}
-      {medicineItems.length > 12 && (
+      {medicineItems.length > 18 && (
         <div
           className="rounded-xl flex items-center justify-center relative overflow-hidden cursor-pointer group"
           onClick={() => onOpenFullInventory?.()}
@@ -357,7 +432,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [] 
           }}
         >
           <span className="text-xs font-bold text-emerald-700 z-10 relative font-sans">
-            +{medicineItems.length - 12} more
+            +{medicineItems.length - 18} more
           </span>
           <div
             className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"

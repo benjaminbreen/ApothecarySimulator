@@ -55,10 +55,39 @@ export function PlayerProvider({ children, characterData = null, onSkillLevelUp 
 
   /**
    * Update player position
-   * @param {Object} position - { x, y, gridX, gridY }
+   * Auto-computes grid coordinates if not provided to prevent NaN errors
+   * @param {Object} position - { x, y, gridX?, gridY? }
    */
   const updatePosition = useCallback((position) => {
-    setPlayerPosition(prev => ({ ...prev, ...position }));
+    const GRID_SIZE = 20; // Standard grid size
+
+    // Auto-compute grid coordinates if missing
+    const normalizedPosition = {
+      x: position.x,
+      y: position.y,
+      gridX: position.gridX ?? Math.floor(position.x / GRID_SIZE),
+      gridY: position.gridY ?? Math.floor(position.y / GRID_SIZE)
+    };
+
+    // Validate coordinates before updating
+    if (isNaN(normalizedPosition.x) || isNaN(normalizedPosition.y) ||
+        isNaN(normalizedPosition.gridX) || isNaN(normalizedPosition.gridY)) {
+      console.error('[PlayerContext] Invalid position coordinates - ignoring update:', {
+        input: position,
+        normalized: normalizedPosition
+      });
+      return; // Don't update with NaN
+    }
+
+    // Debug: Warn if auto-computed (helps find places that should provide grid coords)
+    if (position.gridX === undefined || position.gridY === undefined) {
+      console.log('[PlayerContext] Auto-computed grid coordinates:', {
+        pixels: { x: position.x, y: position.y },
+        grid: { gridX: normalizedPosition.gridX, gridY: normalizedPosition.gridY }
+      });
+    }
+
+    setPlayerPosition(normalizedPosition);
   }, []);
 
   /**
@@ -168,11 +197,45 @@ export function PlayerProvider({ children, characterData = null, onSkillLevelUp 
    * Components should access them separately based on their needs.
    */
 
+  /**
+   * Set player position directly (bypasses merge, replaces entire position)
+   * Auto-computes grid coordinates if not provided to prevent NaN errors
+   * @param {Object} position - { x, y, gridX?, gridY? }
+   */
+  const setPosition = useCallback((position) => {
+    const GRID_SIZE = 20;
+
+    const normalizedPosition = {
+      x: position.x,
+      y: position.y,
+      gridX: position.gridX ?? Math.floor(position.x / GRID_SIZE),
+      gridY: position.gridY ?? Math.floor(position.y / GRID_SIZE)
+    };
+
+    if (isNaN(normalizedPosition.x) || isNaN(normalizedPosition.y) ||
+        isNaN(normalizedPosition.gridX) || isNaN(normalizedPosition.gridY)) {
+      console.error('[PlayerContext] Invalid position coordinates - ignoring setPosition:', {
+        input: position,
+        normalized: normalizedPosition
+      });
+      return;
+    }
+
+    if (position.gridX === undefined || position.gridY === undefined) {
+      console.log('[PlayerContext] Auto-computed grid coordinates in setPosition:', {
+        pixels: { x: position.x, y: position.y },
+        grid: { gridX: normalizedPosition.gridX, gridY: normalizedPosition.gridY }
+      });
+    }
+
+    setPlayerPosition(normalizedPosition);
+  }, []);
+
   // Memoize context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     // Position & Facing
     position: playerPosition,
-    setPosition: setPlayerPosition,
+    setPosition: setPosition,  // Use smart setter instead of raw state setter
     updatePosition,
     facing: playerFacing,
     setFacing: setPlayerFacing,
@@ -214,6 +277,7 @@ export function PlayerProvider({ children, characterData = null, onSkillLevelUp 
     resetSkills,
   }), [
     playerPosition,
+    setPosition,
     updatePosition,
     playerFacing,
     updateFacing,

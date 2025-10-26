@@ -13,6 +13,59 @@ import { scenarioLoader } from '../services/scenarioLoader';
 import { entityManager } from './EntityManager';
 
 /**
+ * Infer faction from NPC occupation and social class
+ * Maps NPCs to reputation system factions for relationship → reputation conversion
+ * @param {string} occupation - NPC occupation
+ * @param {string} socialClass - elite, middling, or common
+ * @param {string} casta - español, criollo, mestizo, indígena, etc.
+ * @returns {string} Faction name (church, elite, commonFolk, indigenous, guild, merchants)
+ */
+function inferFactionFromOccupation(occupation, socialClass, casta) {
+  if (!occupation) return socialClass === 'elite' ? 'elite' : 'commonFolk';
+
+  const occ = occupation.toLowerCase();
+
+  // Church faction
+  if (occ.includes('priest') || occ.includes('padre') || occ.includes('friar') ||
+      occ.includes('monk') || occ.includes('nun') || occ.includes('clergy') ||
+      occ.includes('sacristan') || occ.includes('bishop') || occ.includes('inquisit') ||
+      occ.includes('holy office')) {
+    return 'church';
+  }
+
+  // Elite faction (nobility, high officials)
+  if (occ.includes('noble') || occ.includes('viceroy') || occ.includes('alcalde') ||
+      occ.includes('corregidor') || occ.includes('oidor') || occ.includes('patron') ||
+      occ.includes('hidalgo') || occ.includes('don ') || occ.includes('doña') ||
+      socialClass === 'elite') {
+    return 'elite';
+  }
+
+  // Merchants faction
+  if (occ.includes('merchant') || occ.includes('trader') || occ.includes('comerciante') ||
+      occ.includes('vendor') || occ.includes('seller') || occ.includes('shopkeeper')) {
+    return 'merchants';
+  }
+
+  // Guild faction (artisans, skilled workers)
+  if (occ.includes('apothecary') || occ.includes('physician') || occ.includes('surgeon') ||
+      occ.includes('artisan') || occ.includes('cobbler') || occ.includes('blacksmith') ||
+      occ.includes('tailor') || occ.includes('carpenter') || occ.includes('mason') ||
+      occ.includes('baker') || occ.includes('silversmith') || occ.includes('printer')) {
+    return 'guild';
+  }
+
+  // Indigenous faction
+  if (casta && (casta.toLowerCase().includes('indígena') || casta.toLowerCase().includes('india') ||
+      casta.toLowerCase().includes('nahua') || casta.toLowerCase().includes('aztec'))) {
+    return 'indigenous';
+  }
+
+  // Common folk (default for workers, servants, etc.)
+  return 'commonFolk';
+}
+
+/**
  * Extract NPC names from narrative text (SCENARIO-AWARE)
  * Uses scenario-specific patterns from npcGeneration config
  * @param {string} narrative - Narrative text
@@ -215,7 +268,11 @@ export function generateProceduralNPC(name, narrative = '', scenarioId = '1680-m
                       inferred.socialClass === 'middling' ? 'literate' : 'illiterate',
       languages: ['Spanish'],
       reputation: randomInt(40, 70),
-      faction: null
+      faction: inferFactionFromOccupation(
+        inferred.occupation || random(historicalData.occupations[inferred.socialClass] || historicalData.occupations.common),
+        inferred.socialClass,
+        inferred.casta
+      )
     },
 
     appearance: {},

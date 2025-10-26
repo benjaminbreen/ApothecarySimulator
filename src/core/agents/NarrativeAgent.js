@@ -354,50 +354,55 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 
 **CRITICAL - NEVER USE simpleInteraction FOR MEDICAL SITUATIONS:**
 - ✗ Patients arriving with symptoms
-- ✗ Messengers requesting treatment for sick relatives, etc
+- ✗ Messengers requesting treatment for sick relatives
+- ✗ NPCs saying "I have a matter of the humours", "I need your medical expertise", "I'm feeling unwell"
+- ✗ ANY mention of illness, ailments, symptoms, or requests for Maria's medical skills
 
 **ONLY USE simpleInteraction FOR NON-MEDICAL ENCOUNTERS:**
-- ✓ itinerant merchants (mundane goods)
-- ✓ Beggar asking for bread/coins (charity)
-- ✓ Rival apothecary testing prices (business)
-- ✓ Street urchin selling gossip (information)
+- ✓ itinerant merchants (mundane goods like water, firewood, food - NOT medicine)
+- ✓ Beggar asking for bread/coins (charity, NOT medical charity)
+- ✓ Rival apothecary testing prices (business competition)
+- ✓ Street urchin selling gossip (information exchange)
 - ✓ Friend bringing books/warnings (social)
 
 **CRITICAL MUTUAL EXCLUSIVITY RULES:**
 
-1. **If the interaction involves illness, symptoms, or requests for medical treatment → ALWAYS set type to NULL**
-   - Requests like "my son is sick, can you help?" = NULL (StateAgent will detect as treatment contract)
-   - Requests like "I need medicine for flux" = NULL (StateAgent will detect as sale_inquiry contract)
-   - Even if NPC offers payment ("I have 5 reales for treating my daughter") = NULL (treatment contract)
-   - Even if NPC is poor/desperate = NULL (medical requests go through contract system, not simpleInteraction)
+1. **⚠️ ABSOLUTE RULE: If NPC mentions ANY medical topic → ALWAYS set type to NULL**
+   - Medical keywords: illness, sick, symptoms, humours, fever, pain, ailment, treatment, examination, diagnosis, medicine, remedy, medical expertise, consultation
+   - "I have a small matter of the humours" = NULL (MEDICAL! StateAgent handles this as treatment contract)
+   - "I need your medical expertise" = NULL (MEDICAL! StateAgent handles this as treatment contract)
+   - "My son is sick, can you help?" = NULL (StateAgent will detect as treatment contract)
+   - "I need medicine for flux" = NULL (StateAgent will detect as sale_inquiry contract)
+   - Even if NPC offers payment for medical help = NULL (treatment contract)
+   - Even if NPC is poor/desperate = NULL (medical requests use contract system, not simpleInteraction)
 
 2. **If the NPC is requesting medicine, treatment, or medical examination → ALWAYS set type to NULL**
    - Do NOT use donation_request for medical charity cases
-   - Do NOT use service_offer for medicine sales
+   - Do NOT use service_offer for medical consultation/treatment (these are CONTRACTS handled by StateAgent!)
    - Medical interactions use the contractOffer system (detected by StateAgent), NOT simpleInteraction
 
 3. **DEFAULT RULE: If the user prompt does NOT contain "SIMPLE INTERACTION MODE" instructions, set type to NULL.**
    This field should ONLY be populated when explicitly instructed to do so.
 
 **Only use simpleInteraction for non-medical interactions:**
-- **service_offer**: Water seller, food vendor → Extract item, price, description, stock
+- **service_offer**: NPC is SELLING TO Maria (Maria is BUYER) - Water seller, food vendor offering goods → Extract item, price, description, stock
 - **donation_request**: Beggar asking for charity → Extract item, reason, urgency, reputationImpact (donate: +3 to +10, refuse: -3 to -10)
 - **competitive_check**: Rival testing prices → Extract targetItem, offeredPrice, actualValue, intent
 - **information_exchange**: STREET GOSSIP ONLY (street urchin selling rumors for 1-2 reales). DO NOT use for examining documents, helping with complex requests, or risky involvement. Only for buying simple gossip/rumors.
 - **social_visit**: Acquaintance, friend or enemy visiting → Extract purpose, mood
 
 **CRITICAL - DO NOT use simpleInteraction for:**
-- Helping NPCs with specialized tasks (extraction, translation, etc.) → use null or contractOffer
-- Getting involved in risky/dangerous situations → use null (these are story decisions, not transactions)
-- Complex multi-turn interactions → use null (simple interactions are 1-click resolved)
+- **Commerce/purchases**: NPC wants to buy/sell items → type: "null" (StateAgent handles via actionPrompt)
+- **Medical requests**: Any treatment/diagnosis/remedy → type: "null" (StateAgent handles via contractOffer or actionPrompt)
+- Risky/dangerous involvement → type: "null"
+- Complex multi-turn interactions → type: "null"
 
-**Examples:**
-
-**CORRECT - Water seller (service_offer):**
+**✓ CORRECT - Water seller offers TO SELL TO Maria (service_offer):**
 \`\`\`json
 {
+  "narrative": "A water vendor approaches. 'Fresh water from Chapultepec! Only 3 reales per barrel!'",
   "simpleInteraction": {
-    "type": "service_offer",
+    "type": "service_offer",  // ✓ CORRECT! Vendor is SELLING TO Maria
     "npcName": "Pedro Vázquez",
     "npcId": "pedro-vazquez",
     "npcPortrait": "/portraits/mestizomalevendormiddleaged.jpg",
@@ -442,52 +447,74 @@ Generate compelling, historically accurate narrative text. Create vivid scenes w
 ❌ Player says "examine" → You narrate offering remedy (wrong action)
 ✓ Player says "examine" → You narrate examining (player's exact action)
 
-**PLAYER AGENCY & IMPROVISATION:**
-- **ALWAYS honor the player's stated action, no matter how unusual, unexpected, or improvised**
-- If the player says "eat the frog", Maria eats the frog - show the consequences (taste, texture, reactions, effects)
-- If the player says "throw herbs at the Inquisitor", Maria throws herbs - show what happens next
-- **DO NOT substitute a different action** because you think it's "more appropriate" or "makes more sense"
-- **DO NOT refuse or ignore weird/unusual player choices** - this is a freeform narrative game
-- Unusual actions are historically plausible: eating frogs, insects, strange remedies, eccentric behavior were all normal in 1680
-- Show REAL consequences of unusual actions: NPCs react, physical effects happen, reputation changes, etc.
-- The only exception: physically impossible actions (flying, teleporting) - in those cases, narrate an attempt that fails realistically
+**Player Agency:**
+ALWAYS honor player's exact action. Never substitute "better" alternatives. Show real consequences (NPC reactions, physical effects, reputation). Exception: impossible actions (flying) fail realistically.
 
-End narrative at decision points. Let player choose next action.
+### Primary NPC & Portrait:
+Show who Maria is LOOKING AT and TALKING TO, not who she's HEARING ABOUT.
+- Present: NPC actively conversing with Maria → provide primaryNPC
+- Absent: Person mentioned/discussed but not present → null
+- Consistency: Same NPC still present → reuse exact name + portrait
 
-### Primary NPC & Portrait System (NEW):
-**Show the person who is PHYSICALLY PRESENT in the scene with Maria, NOT people being discussed or mentioned.**
-
-**CRITICAL RULE: Show who Maria is LOOKING AT and TALKING TO, not who she's HEARING ABOUT.**
-
-**Portrait Selection:**
-Provide demographics in primaryNPC (gender, age, casta, class, occupation) and select best-matching portrait filename in primaryPortrait. System will automatically check for exact name matches and override if found (e.g., "Pedro Vázquez" → pedrovásquez.png).
-
-**When to provide primaryNPC:**
-✓ NPC in the same room/location as Maria, actively conversing
-✓ Person Maria is examining, treating, or directly interacting with
-✗ Person being TALKED ABOUT but not present (sick relative, absent friend, etc.)
-✗ Person mentioned in dialogue but not in the scene
-✗ Background entities (soldiers marching past)
-✗ Animals, items, locations
-✗ Maria alone navigating
-
-**EXAMPLES:**
-✓ Priest tells you about merchant → Show priest's portrait (he's present)
-✗ Servant delivers message from Doña Isabel → null (Isabel absent)
-
-**NPC Identity Consistency:**
-Check conversation history. If same NPC still present → reuse EXACT name + portrait from previous turn. Only create NEW identity for NEW arrivals. If NPC leaves, narrate that departure.
-
-**primaryNPC must describe the PHYSICALLY PRESENT person:**
-- name (full formal name of the person AT THE SCENE)
-- age, gender (for portrait matching)
-- occupation (specific job of the person Maria is LOOKING AT, not who they represent)
-- casta, class (colonial social hierarchy)
-- personality (1-2 traits describing their demeanor and character: "Direct and businesslike, seems accustomed to giving orders", "Soft-spoken but determined", "Nervous but respectful, chooses words carefully")
+primaryNPC fields: name, age, gender, occupation, casta, class, personality (1-2 traits)
 - appearance (short description of the person PRESENT: build, clothing, distinguishing features)
 - description (1 sentence summary of THIS person, not who they're talking about)
 
-**IMPORTANT - NPC Emotional Variety:**
+**CRITICAL - NPC Naming Guidelines (Historical Accuracy):**
+
+Mexico City in 1680 was cosmopolitan with German, Flemish, French, Italian, Portuguese, Basque, Galician, Angolan, and diverse Spanish populations.
+
+**AVOID OVERUSED CLICHÉS:** Do NOT default to "Tomás", "Isabel", "Juan", "María",
+
+**Use diverse, historically accurate names:**
+
+**Spanish (Peninsular/Criollo):**
+- First: Alonso, Gonzalo, Rodrigo, Baltasar, Gaspar, Jerónimo, Andrés, Sebastián, Bartolomé
+- First (F): Catalina, Inés, Beatriz, Leonor, Ana, Juana, Luisa, Clara, Mariana, Elvira, Teresa, Francisca
+- Surnames: Velázquez, Montero, Ruiz, Mendoza, Guzmán, Pacheco, Vargas, 
+
+**Basque (common in colonial admin):**
+- First: Iñigo, Martín, Sancho, Lope
+- First (F): Urraca, Sancha
+- Surnames: Echevarría, Gorostiza, Arizpe, Ibarra, Urquiza, 
+
+**Portuguese (merchants, traders):**
+- First: Vasco, Afonso, Duarte, Rui, 
+- First (F): Guiomar, Branca, Violante
+- Surnames: Pereira, Silva, Teixeira, Cardoso, 
+
+**German/Flemish (artisans, merchants):**
+- First: Enrique, Guillermo, Otto, 
+- First (F): Margarita, Gertrudis
+- Surnames: Schäfer, Mueller, Strauss, 
+
+**French (artisans, merchants):**
+- First: Jacques, Pierre, François, 
+- First (F): Marguerite, Jeanne, 
+- Surnames: Dubois, Martin, Bernard, Moreau, 
+
+**Italian (rare but present):**
+- First: Giovanni/Juan, Lorenzo, Alessandro, Paolo
+- Surnames: Fontana, Romano, Conti, Marino
+
+**Angolan/African (enslaved, freedpersons - use Portuguese names or Africanized Portuguese):**
+- First: Antão, Domingos, Simão, Gonçalo, 
+- First (F): Úrsula, Esperança, Felipa, 
+- Surnames: Often named after owners or saints (Bran, Lobo, de la Peña)
+
+**Indigenous (baptized, often Spanish + Nahuatl):**
+- First: Use Spanish baptismal names (Diego, Juan, Mateo, etc)
+- Surnames: López, Hernández, García, or place names
+- Alternative: Single Nahuatl name (Malintzin, Cuauhtémoc, Nezahualcóyotl) for traditional contexts
+
+**Naming Patterns:**
+- Españoles/Criollos: Full formal names (two first names + 1-2 surnames: "Rodrigo Alfonso de Guzmán y Pacheco")
+- Mestizos/Castas: Simplified (one first + one surname: "Sebastián Montero")
+- Indigenous: Spanish first + Spanish or place surname ("Baltasar Texcoco", "Mateo López")
+- Enslaved: First name + owner surname or origin ("Domingos Angola", "Esperança Lobo")
+
+
+**NPC Emotional Variety:**
 NPCs show a wide variety of reactions. This is a gritty, realistic world with no punches pulled. 
 
 Most conversations should be straightforward without constant physical distress signals.
@@ -497,6 +524,32 @@ Most conversations should be straightforward without constant physical distress 
 2. Match occupation second (clergy, merchant, soldier) OF THE PERSON PRESENT
 3. Match casta third (español, criollo, mestizo) OF THE PERSON PRESENT
 4. If no perfect match, choose closest approximate
+
+### Patient Encounter Types (CRITICAL - Balance Required):
+
+**You control whether patients arrive DIRECTLY or send EMISSARIES. Maintain a 50/50 balance.**
+
+**DIRECT PATIENT (50% of encounters):**
+- Patient themselves appears at Maria's door
+- They describe THEIR OWN symptoms: "I have terrible headaches", "I injured my arm"
+- primaryNPC = the patient (show their portrait)
+- More efficient, faster medical resolution
+- **When to use:** Morning hours (8 AM - 2 PM), minor ailments, younger/mobile patients, common folk, straightforward cases
+
+**EMISSARY ENCOUNTER (50% of encounters):**
+- Family member/servant/messenger arrives on behalf of patient
+- They describe SOMEONE ELSE's symptoms: "My wife has fever", "The master is bedridden", "My son needs help"
+- primaryNPC = the messenger (show their portrait, NOT the patient's)
+- Adds narrative complexity, potential for house calls
+- **When to use:** Severe cases (patient can't travel), elite patients (send servants), evening hours, emergencies, dramatic scenarios
+
+**CRITICAL - House Call Indicators for Emissary Encounters:**
+When an emissary arrives, decide patient location in your narrative:
+- **Patient will come to shop** (patientLocation: null): "She will arrive soon", "I brought him along", "He's waiting outside"
+- **House call needed** (patientLocation: "[location]"): "He cannot leave his bed", "She's at our home on Calle de Tacuba", "Too weak to travel", "Confined to chambers"
+
+**Balance Check:**
+Review recent conversation history. If last 2-3 patient encounters were emissaries, create a DIRECT patient this time. If last 2-3 were direct, create an EMISSARY scenario. Variety maintains engagement.
 
 ### Patient Request System (requestNewPatient):
 **YOU control when new patients arrive.** Only request a new patient when it makes narrative sense. It often does in Maria's shop.
@@ -536,17 +589,16 @@ Most conversations should be straightforward without constant physical distress 
 
 **Don't keep NPCs present indefinitely.** People arrive, conduct business, and leave. Natural flow.
 
-### Contract Offers (CRITICAL):
-When NPC requests treatment/purchase, STOP before Maria responds. Let player decide.
+### Commerce Scenarios:
+At shop during business hours: customers arrive every 2-4 turns.
+- Purchase: "I need X remedy, will pay Y reales"
+- Prescription: "My head hurts, do you have something?"
+- Charity: "I have no money, please help..."
 
-**Rules:**
-1. NPC makes request with clear terms ("I'll pay X reales for treatment")
-2. END narrative before Maria accepts/declines - no auto-completion
-3. StateAgent detects and creates contract modal
+END before Maria responds. DO NOT offer examination/diagnosis (triggers contract instead). Set simpleInteraction: null.
 
-**Examples:**
-✓ "Please help my son. I can pay 15 reales." → STOP (player decides)
-✗ "She asks for help and Maria agrees" → WRONG (auto-completed)
+### Contract Offers:
+NPC requests EXAMINATION/DIAGNOSIS ("I'll pay X for treatment") → END narrative before Maria responds. After agreement: narrate acknowledgment/departure only, not preparation/payment.
 
 ### Entity Detection:
 List 2-3 most important interactive elements in "entities" array.
@@ -613,44 +665,14 @@ ${core.tone || 'Clear, concise prose. No purple language. Interesting details, h
 
 ${mechanics.commands ? `\n### Commands Available:\n${mechanics.commands}` : ''}
 
-### Narrative Choice Structure (CRITICAL - JSON FORMAT):
-**IMPORTANT:** The choice question MUST be placed INSIDE the "narrative" field of your JSON response, NOT after the closing brace.
+### Choice Questions:
+End narrative with **bold question** INSIDE JSON "narrative" field: "**Will you X, or Y?**"
 
-**Correct structure:**
-{
-  "narrative": "She shifts her weight nervously. **Will you examine the child, or decline the request?**",
-  "entities": [...]
-}
+**When to skip questions:**
+- There is a truly ambiguous moment in the plot which requires player to come up with original input
 
-**WRONG - DO NOT DO THIS:**
-{
-  "narrative": "She shifts her weight nervously.",
-  "entities": [...]
-}
-**Will you examine the child?**  ← WRONG! This breaks JSON parsing!
-
-**Format Rules:**
-- End the "narrative" field's text content with a bolded choice question
-- Use bold markdown: **Will you [option A], or [option B]?**
-- Support 1-3 choices:
-  - Single choice (yes/no implicit): "**Will you see who is there?**"
-  - Two choices: "**Will you see who is there, or ignore them?**"
-  - Three choices: "**Will you greet them, ask what they need, or turn away?**"
-
-** Example:**
-{
-  "narrative": " **Will you see who is there, or ignore them?**",
-  "entities": [...]
-}
-
-**Guidelines:**
-- Make choices contextual to the narrative (not generic)
-- Use active verbs (see, speak, go, refuse, accept, examine, help, etc.)
-- Keep options brief (3-5 words each)
-- Natural language, not game commands
-- Make the question feel organic to the story, not mechanical
-
-**This ending question structure is recommended for all narrative responses besides those which have a clear implicit choice or next step, like when a patient requests treatment.** The question MUST be inside the JSON "narrative" field.
+**When to ask:**
+- most of the time
 
 ### Historical Context:
 ${historical.accuracy || 'Maintain accuracy. No anachronisms. Use period terminology.'}
@@ -681,82 +703,29 @@ function buildConversationHistory(conversationHistory, journal = [], currentTurn
     journal = [];
   }
 
-  // DEBUG: Log what we received
-  console.log('[buildConversationHistory] Received:', {
-    historyLength: conversationHistory?.length,
-    journalLength: journal?.length,
-    currentTurn,
-    historyType: Array.isArray(conversationHistory) ? 'array' : typeof conversationHistory,
-    journalType: Array.isArray(journal) ? 'array' : typeof journal
-  });
-
-  // Log first few messages to see structure
-  if (conversationHistory && conversationHistory.length > 0) {
-    console.log('[buildConversationHistory] First 2 messages:', {
-      msg0: conversationHistory[0],
-      msg1: conversationHistory[1]
-    });
-    console.log(`[buildConversationHistory] Total messages: ${conversationHistory.length}`);
-
-    // Log last few messages for debugging
-    const lastFew = conversationHistory.slice(-3);
-    console.log('[buildConversationHistory] Last 3 messages:', lastFew.map(msg => ({
-      role: msg?.role,
-      contentPreview: msg?.content ? msg.content.substring(0, 50) : 'NO CONTENT',
-      hasContent: !!msg?.content
-    })));
-  }
+  // Log basic stats
+  console.log(`[buildConversationHistory] Processing ${conversationHistory?.length || 0} total messages, ${journal?.length || 0} journal entries`);
 
   if (!conversationHistory || conversationHistory.length === 0) {
     console.warn('[buildConversationHistory] Empty or missing conversation history!');
     return '';
   }
 
-  // Filter out system messages - they break user/assistant pairing
-  const filteredHistory = conversationHistory.filter(msg => msg.role !== 'system');
-  console.log(`[buildConversationHistory] Filtered ${conversationHistory.length - filteredHistory.length} system messages`);
+  // PHASE 1 FIX: Process messages sequentially instead of enforcing strict pairing
+  // This allows medical events (Q&A, prescriptions, contracts) to be included without breaking
 
-  // Group conversation into user+assistant pairs
-  const pairs = [];
-  for (let i = 0; i < filteredHistory.length; i += 2) {
-    const userMsg = filteredHistory[i];
-    const assistantMsg = filteredHistory[i + 1];
+  // Take last 20 messages for detailed recent context
+  const recentMessages = conversationHistory.slice(-20);
 
-    if (userMsg?.role === 'user' && assistantMsg?.role === 'assistant' &&
-        userMsg?.content && assistantMsg?.content) {
-      pairs.push({
-        user: userMsg.content,
-        assistant: assistantMsg.content,
-        turnIndex: Math.floor(i / 2) + 1
-      });
-    } else {
-      console.warn(`[buildConversationHistory] Skipped malformed pair at index ${i}:`, {
-        userRole: userMsg?.role,
-        assistantRole: assistantMsg?.role,
-        hasUserContent: !!userMsg?.content,
-        hasAssistantContent: !!assistantMsg?.content
-      });
-    }
-  }
-
-  console.log(`[buildConversationHistory] Created ${pairs.length} valid pairs from ${filteredHistory.length} user/assistant messages`);
-
-  // Take last 15 turns (5 full + 10 journal)
-  const recentPairs = pairs.slice(-15);
   const history = [];
 
-  // OLD TURNS (6-15 turns ago): Use journal entries if available
-  const oldTurns = recentPairs.slice(0, -5);
-  if (oldTurns.length > 0 && journal.length > 0) {
-    // Get corresponding journal entries (journal array matches conversation by index)
-    const startIndex = Math.max(0, journal.length - recentPairs.length);
-    const oldJournalEntries = journal.slice(startIndex, startIndex + oldTurns.length);
-
-    if (oldJournalEntries.length > 0) {
-      history.push('### Earlier Events (from Journal):');
-      oldJournalEntries.forEach((entry, index) => {
-        if (entry && entry.content) {
-          // Journal entries already well-formatted: "**Date, Time, Location**: Summary"
+  // Add older journal entries for compressed context (if available)
+  if (journal.length > 5) {
+    const oldJournal = journal.slice(-15, -5); // 6-15 turns ago
+    if (oldJournal.length > 0) {
+      history.push('### Earlier Events (Summary):');
+      oldJournal.forEach(entry => {
+        if (entry?.content) {
           history.push(entry.content);
         }
       });
@@ -764,28 +733,33 @@ function buildConversationHistory(conversationHistory, journal = [], currentTurn
     }
   }
 
-  // RECENT TURNS (last 5): Full conversation detail
-  const recentFive = recentPairs.slice(-5);
-  if (recentFive.length > 0) {
-    history.push('### Recent Conversation:');
-    recentFive.forEach(pair => {
-      if (pair.user && pair.assistant) {
-        history.push(`Player: ${pair.user}`);
-        history.push(`Narrator: ${pair.assistant}`);
+  // Recent events in full detail - ALL message types included
+  if (recentMessages.length > 0) {
+    history.push('### Recent Events:');
+
+    recentMessages.forEach(msg => {
+      // Skip hidden messages (internal system prompts not meant for LLM context)
+      if (msg.hidden) return;
+
+      // Skip messages without content
+      if (!msg.content) return;
+
+      // Format based on role - no pairing enforcement
+      if (msg.role === 'user') {
+        history.push(`**Maria**: ${msg.content}`);
+      } else if (msg.role === 'assistant') {
+        history.push(msg.content);
+      } else if (msg.role === 'system') {
+        // System messages are meta-events like [CONTRACT ACCEPTED], [PRESCRIPTION ADMINISTERED]
+        history.push(`*${msg.content}*`);
       }
     });
   }
 
-  // Log compression stats (with safety checks for undefined/null)
-  const uncompressedTokens = recentPairs.reduce((sum, p) => {
-    const userLen = (p.user && typeof p.user === 'string') ? p.user.length : 0;
-    const assistantLen = (p.assistant && typeof p.assistant === 'string') ? p.assistant.length : 0;
-    return sum + (userLen + assistantLen) / 4;
-  }, 0);
-  const compressedTokens = history.join('\n').length / 4;
-  const savedTokens = uncompressedTokens - compressedTokens;
-  const journalUsed = oldTurns.length > 0 && journal.length > 0 ? Math.min(oldTurns.length, journal.length) : 0;
-  console.log(`[History Compression] ${recentPairs.length} turns (${journalUsed} journal + ${recentFive.length} full): ${Math.ceil(uncompressedTokens)}→${Math.ceil(compressedTokens)} tokens (-${Math.ceil(savedTokens)}, ${Math.round((savedTokens/uncompressedTokens) * 100)}% saved)`);
+  // Update logging for new sequential approach
+  const visibleMessages = recentMessages.filter(m => !m.hidden && m.content);
+  const tokens = history.join('\n').length / 4;
+  console.log(`[History] ${visibleMessages.length} messages (${visibleMessages.filter(m => m.role === 'user').length} user, ${visibleMessages.filter(m => m.role === 'assistant').length} assistant, ${visibleMessages.filter(m => m.role === 'system').length} system) → ${Math.ceil(tokens)} tokens`);
 
   return history.join('\n');
 }
@@ -937,20 +911,13 @@ DO:
     let noEncounterContext = '';
     if (!selectedEntity && !isContinuation) {
       noEncounterContext = `
-**CRITICAL - No NPC Present:**
-No NPC entity was selected for this turn.
+**No NPC Present:**
+Previous NPCs have departed. Do NOT continue their scenes. Set primaryNPC/primaryPortrait to null.
 
-If previous turns mentioned NPCs:
-- They have DEPARTED and are NO LONGER in the scene
-- Do NOT continue their scenes or bring them back
-- Do NOT set primaryNPC or primaryPortrait (use null)
-- Generate a scene showing Maria ALONE or in a new situation
-
-If player action suggests waiting/passive behavior ("wait for a patient", "rest", "sort herbs"):
-- Introduce some new event that is historically and contextually accurate, unexpected, dynamic and interesting
-
-Introduce NPCs if:
-- No NPC is currently present and the narrative seems static or boring
+**Waiting/Passive Actions:**
+- If player waits for SPECIFIC expected thing ("wait for escort", "await patient"): Fulfill that expectation
+- If player observes passively ("not much", "look around", "watch"): Pure description, no new events, no questions
+- If vague waiting ("rest", "wait"): Introduce new event
 `;
     }
 
@@ -1030,7 +997,8 @@ Generate narrative response. Remember: JSON format, concise, historically accura
 
     // PHASE 2 ENFORCEMENT: Override LLM portrait choice during conversation continuation
     // This ensures portrait consistency even if LLM ignores prompt instructions
-    if (isContinuation && recentPortrait) {
+    // ONLY if primaryNPC exists (if null, NPC has departed and we shouldn't restore portrait)
+    if (isContinuation && recentPortrait && narrativeData.primaryNPC) {
       if (narrativeData.primaryPortrait && narrativeData.primaryPortrait !== recentPortrait) {
         console.log(`[NarrativeAgent] ⚠️ PORTRAIT CONSISTENCY ENFORCEMENT: LLM tried to change portrait from ${recentPortrait} to ${narrativeData.primaryPortrait} during conversation continuation. Overriding to maintain consistency.`);
         narrativeData.primaryPortrait = recentPortrait;
@@ -1040,26 +1008,48 @@ Generate narrative response. Remember: JSON format, concise, historically accura
       } else {
         console.log(`[NarrativeAgent] ✓ PORTRAIT CONSISTENCY: LLM correctly maintained portrait: ${recentPortrait}`);
       }
+    } else if (isContinuation && !narrativeData.primaryNPC) {
+      console.log(`[NarrativeAgent] 👋 NPC DEPARTED: primaryNPC is null, conversation ended, clearing portrait`);
     }
 
     // PORTRAIT VALIDATION: Check if LLM-selected portrait file actually exists
     // If not, fall back to demographic-based portrait resolution
-    if (narrativeData.primaryPortrait && narrativeData.primaryNPC) {
+    // FIX: Validate portrait even without primaryNPC (e.g., during continuations)
+    if (narrativeData.primaryPortrait) {
       const llmPortraitExists = portraitExists(narrativeData.primaryPortrait);
 
       if (!llmPortraitExists) {
         console.log(`[NarrativeAgent] ⚠️ PORTRAIT VALIDATION: LLM selected non-existent portrait "${narrativeData.primaryPortrait}"`);
 
-        // Use portraitResolver to find valid portrait based on demographics
-        const validPortraitPath = resolvePortrait(narrativeData.primaryNPC);
+        // Check if NPC identity is uncertain (unnamed/unknown visitor at door)
+        // In these cases, show neutral botica interior instead of guessing a portrait
+        const uncertainIdentityKeywords = ['unnamed', 'unknown', 'visitor', 'someone', 'person at', 'knock', 'door'];
+        const isUncertainIdentity = narrativeData.primaryNPC &&
+          uncertainIdentityKeywords.some(keyword =>
+            narrativeData.primaryNPC.name?.toLowerCase().includes(keyword) ||
+            narrativeData.primaryNPC.description?.toLowerCase().includes(keyword)
+          );
 
-        if (validPortraitPath) {
-          // Extract filename from path (e.g., "/portraits/foo.jpg" → "foo.jpg")
-          const validPortraitFilename = validPortraitPath.replace(/^\/portraits\//, '');
-          console.log(`[NarrativeAgent] ✓ PORTRAIT VALIDATION: Using demographic-matched portrait "${validPortraitFilename}" instead`);
-          narrativeData.primaryPortrait = validPortraitFilename;
+        if (isUncertainIdentity) {
+          console.log(`[NarrativeAgent] 🚪 UNCERTAIN IDENTITY: Using neutral botica interior instead of guessing portrait for "${narrativeData.primaryNPC.name}"`);
+          narrativeData.primaryPortrait = 'ui/boticaentrance.png';
+        }
+        // Try demographic-based resolution if we have NPC data and identity is known
+        else if (narrativeData.primaryNPC) {
+          const validPortraitPath = resolvePortrait(narrativeData.primaryNPC);
+
+          if (validPortraitPath) {
+            // Extract filename from path (e.g., "/portraits/foo.jpg" → "foo.jpg")
+            const validPortraitFilename = validPortraitPath.replace(/^\/portraits\//, '');
+            console.log(`[NarrativeAgent] ✓ PORTRAIT VALIDATION: Using demographic-matched portrait "${validPortraitFilename}" instead`);
+            narrativeData.primaryPortrait = validPortraitFilename;
+          } else {
+            console.log(`[NarrativeAgent] ⚠️ PORTRAIT VALIDATION: No demographic match found, using default`);
+            narrativeData.primaryPortrait = 'defaultnpc.jpg';
+          }
         } else {
-          console.log(`[NarrativeAgent] ⚠️ PORTRAIT VALIDATION: No valid portrait found, using default`);
+          // During continuations we don't have primaryNPC, so just use default
+          console.log(`[NarrativeAgent] ⚠️ PORTRAIT VALIDATION: No NPC data for demographic matching (likely continuation), using default`);
           narrativeData.primaryPortrait = 'defaultnpc.jpg';
         }
       } else {

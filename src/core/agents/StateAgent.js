@@ -79,18 +79,17 @@ function buildStatePrompt(scenario, movementData = null) {
     "wealth": number,
     "wealthChange": number,
     "status": "one word",
-    "reputation": "emoji",
     "location": "string",
     "time": "H:MM AM/PM",
     "date": "Month DD, YYYY",
     "timeElapsed": "X hours Y minutes",
     "position": ${movementData ? `{"x": ${movementData.newPosition.x}, "y": ${movementData.newPosition.y}}` : 'null'}
   },
-  "inventoryChanges": [{"item": "string", "quantity": number, "action": "bought|sold|used|foraged|received|lost", "price": number}],
-  "relationshipChanges": [{"npcId": "kebab-case", "npcName": "Full Name", "delta": -20 to +20, "reason": "brief"}],
+  "inventoryChanges": [{"item": "string", "quantity": number, "action": "bought|sold|used|foraged|received|lost", "price": number, "isReadable": "boolean (true if item is a letter/document/codex/manuscript/map/recipe that can be read)", "documentType": "letter|document|codex|note|contract|recipe|map|certificate|null", "metadata": {"author": "string or null", "giver": "string or null", "purpose": "string or null"}}],
+  "relationshipChanges": [{"npcName": "Full Name", "delta": -20 to +20, "reason": "brief"}],
   "reputationEvents": [{"faction": "church|elite|common_folk|indigenous|guild|merchants", "delta": number (-50 to +50), "reason": "brief description of what happened"}],
-  "contractOffer": {"type": "treatment|sale_inquiry|null", "offeredBy": "string", "offeredByDescription": "string", "patientName": "string", "patientDescription": "string", "patientLocation": "string or null", "paymentOffered": number, "ailmentDescription": "string"},
-  "tradeOpportunity": {"npcId": "kebab-case", "npcName": "Full Name", "npcPortrait": "/portraits/filename.jpg", "type": "buy|sell|null", "interest": {"items": ["item1", "item2"], "reason": "brief explanation", "urgency": "low|moderate|high", "priceMultiplier": 1.0}, "offering": {"items": [{"name": "item", "quantity": 1, "price": 10}]}, "context": "brief context"},
+  "contractOffer": {"type": "treatment|null", "offeredBy": "string (person making request)", "offeredByDescription": "string", "patientName": "string (person who is sick - MAY BE DIFFERENT from offeredBy)", "patientDescription": "string", "patientLocation": "string or null", "paymentOffered": number, "ailmentDescription": "string", "isEmissary": "boolean (true if offeredBy !== patientName)"},
+  "actionPrompt": {"type": "give|sell|prescribe|null", "recipientName": "Full Name", "npcId": "kebab-case", "npcPortrait": "/portraits/filename.jpg", "context": "brief explanation why prompted", "suggestedItems": ["item1", "item2"], "priceOffered": number, "ailmentDescription": "string or null"},
   "journalEntry": "**Date, Time, Location**: One sentence with **NPC names bolded**",
   "systemAnnouncements": []
 }
@@ -98,44 +97,65 @@ function buildStatePrompt(scenario, movementData = null) {
 
 **Status words**: tired, exhilarated, frightened, anxious, worried, determined, calm, rested, weary, content, frustrated, angry, curious, hopeful, desperate, relieved, proud, ashamed, uncertain, confident, melancholy, joyful
 
-**Reputation**: 😡 (1), 😠 (2), 😐 (3), 😶 (4), 🙂 (5), 😌 (6), 😏 (7), 😃 (8), 😇 (9), 👑 (10)
-
 **Time**: Conversation 0.5-1h, treatment 1-2h, shopping 1-2h, travel 2-3h, sleep 6-8h. Use exact times ("8:35 AM"), increment date past midnight.
+
+**NOTE**: Reputation is calculated from reputationEvents (faction-based system), not returned directly in gameState.
+
+**Readable Documents Detection** (for inventoryChanges):
+When an item is added to inventory (action: "received" or "foraged"), detect if it's a readable document:
+
+**Set isReadable: true when item is:**
+- **Letters/Correspondence**: "Letter from X", "Carta de X", "missive", "correspondence"
+- **Documents**: "Document", "parchment", "scroll", "deed", "certificate", "proclamation"
+- **Books/Codices**: "Codex", "manuscript", "tome", "treatise", "grimoire"
+- **Notes**: "Note from X", "message", "memorandum"
+- **Contracts**: "Contract", "agreement", "accord"
+- **Recipes**: "Recipe for X", "formula", "preparation instructions"
+- **Maps**: "Map of X", "chart", "plano"
+
+**Set isReadable: false for:**
+- Regular items: "Cannabis", "Cinnamon", "Gold Coin"
+- Tools: "Mortar and Pestle", "Distillation Flask"
+- Medicines: "Tonic", "Poultice", "Salve"
+
+**Document metadata extraction:**
+- **author**: Who wrote it (extract from item name or narrative: "Letter from Don Miguel" → "Don Miguel")
+- **giver**: Who physically handed it to Maria (extract from narrative: "He gives you a letter" → use NPC name)
+- **purpose**: Why it was given (extract from narrative context: "warns you about", "requests help with", etc.)
+
+**Examples:**
+- "Letter from the Viceroy" → isReadable: true, documentType: "letter", metadata: {author: "Viceroy", giver: (from narrative), purpose: (from context)}
+- "Ancient Codex of Remedies" → isReadable: true, documentType: "codex", metadata: {author: null, giver: (from narrative), purpose: "medical knowledge"}
+- "Cinnamon" → isReadable: false, documentType: null, metadata: null
+- "Map to the Silver Mines" → isReadable: true, documentType: "map", metadata: {author: null, giver: (from narrative), purpose: "navigation"}
 
 **Relationships**: Most interactions are neutral (delta: 0). Only track meaningful changes. Major positive +10 to +20, moderate +5 to +9, minor +1 to +4, minor negative -1 to -4, moderate -5 to -9, major -10 to -20.
 
 **Contract Detection** (BE CONSERVATIVE):
 
-**CRITICAL: Never detect contracts for actions that already happened or are narrated as complete!**
+** Never detect contracts for actions that already happened or are narrated as complete!**
 
-**⚠️ PRIORITY RULE: Treatment contracts take absolute priority. If a treatment contract is detected, DO NOT also detect a sale_inquiry contract, even if the NPC mentions wanting medicine. One NPC can only have ONE contract type at a time.**
+⚠️ **CRITICAL - When NOT to use contractOffer (use actionPrompt instead):**
+- NPC wants to BUY/PURCHASE a remedy or item → use actionPrompt type "sell"
+- NPC wants a simple remedy for minor ailment WITHOUT examination → use actionPrompt type "prescribe"
+- NPC asks for help/charity/item as gift → use actionPrompt type "give"
+- **ONLY use contractOffer type "treatment" when NPC explicitly requests EXAMINATION, DIAGNOSIS, or CONSULTATION**
 
-**Treatment vs Sale**: treatment = "I'm sick, help me" (needs exam), sale_inquiry = "I need headache medicine" (knows remedy)
+**Treatment contracts take priority.** If a treatment contract is detected, DO NOT also detect an actionPrompt, even if the NPC mentions wanting medicine. One NPC can only have ONE contract or action at a time.
 
-**Type "treatment"** - Patient examination/treatment request:
-- **Detect when**:
-  - NPC makes a CLEAR REQUEST for Maria to EXAMINE, DIAGNOSE, or SEE a patient
-  - Language implies consultation: "can you help", "look at", "examine", "what's wrong with me"
-  - Patient is PRESENT at shop OR house call to patient's location
-  - Patient has symptoms needing professional medical assessment
-  - **Payment amount is explicitly mentioned** (e.g., "I can pay 5 reales", "offers 20 reales")
-  - Player has NOT yet examined the patient (examination happens in Patient View)
-- **DO NOT detect**:
-  - NPC just wants to BUY a specific remedy without examination (use "sale_inquiry")
-  - Vague mentions of illness without an explicit request ("my son has been sick lately")
-  - Treatment already completed in narrative
-  - Player explicitly declined the request already
-  - **SCHOLARLY/PROFESSIONAL requests**: translation, preservation, copying, teaching, research about texts/codices/manuscripts
-  - **NON-MEDICAL help**: NPC wants intellectual/professional assistance (translation, literacy, teaching), not medical treatment
+**Type "treatment"** - ONLY when explicit diagnostic language:
+- **Detect ONLY when:**
+  - "Examine", "diagnose", "look at the patient", "see the patient", "assess", "what's wrong with", "visit and check"
+  - Narrative offers to "ask for more details about the wound/condition"
+
+- **DO NOT detect (use actionPrompt instead):**
+  - "I need/want/require [item/remedy]" → actionPrompt (sell or prescribe)
+  - Vague request without diagnostic words → actionPrompt
+  - Initial contact → type: "null"
 - **Extract**:
   - offeredBy: Person making request (might be family member, not patient)
   - offeredByDescription: Brief description of requester
-  - patientName: EXACT NAME of the person who is actually sick
-    * If Primary NPC (from context) is the patient themselves → use their exact name
-    * If Primary NPC is a messenger/intermediary → extract actual patient name from narrative
-    * Use specific names like "Tomas", "the laborers at Alameda construction site"
-    * **If only relationship given** ("my son", "a colleague", "the servant") → format as "[NPC name]'s [relationship]" (e.g., "Fernando de Toledo's colleague")
-    * **If completely vague** ("a friend", "someone") → use "unknown patient (details pending)"
+  - patientName: Name of sick person. If "I am sick" → use offeredBy name. If "My [relation] is sick" → use "[offeredBy]'s [relation]". If named → use name (e.g., "Lucia")
   - patientDescription: Brief description of patient (age, relation, condition)
   - patientLocation:
     - **null** if patient physically PRESENT at Maria's shop (visible in narrative)
@@ -146,86 +166,67 @@ function buildStatePrompt(scenario, movementData = null) {
   - paymentOffered: Amount in reales (number) or 0 if not specified yet
   - ailmentDescription: What symptoms/problem are described (e.g., "fever and chills", "persistent cough")
 
-**Type "sale_inquiry"** - Request for remedy to purchase:
-- **⚠️ REMEMBER: If a treatment contract was already detected above, DO NOT detect sale_inquiry. Only ONE contract type per NPC.**
-- **Detect when**:
-  - NPC makes a CLEAR REQUEST for a specific remedy/medicine for a symptom or condition
-  - Transactional language: "Do you have", "Can you make", "I need [remedy for X]", "I'll pay"
-  - NO examination or diagnosis requested (just wants medicine)
-  - Focus is on OBTAINING a remedy, not being examined
-  - Remedy needs to be crafted/prepared (implied by request)
-- **DO NOT detect**:
-  - Patient requests examination ("can you look at", "examine me", "what's wrong with me")
-  - Patient wants diagnosis or consultation (use "treatment" instead)
-  - Transaction already completed in narrative
-  - Just browsing/asking vague questions ("Do you sell remedies?")
-  - Player explicitly declined the request already
-  - **SCHOLARLY/PROFESSIONAL requests**: translation, preservation, copying, teaching, research, knowledge exchange about texts/codices/manuscripts
-  - **NON-MEDICAL services**: NPC wants Maria's skills for translation, writing, reading, teaching, or other intellectual work (NOT medicine)
-- **Extract**:
-  - offeredBy: Buyer's name (use Primary NPC name if they are the buyer)
-  - offeredByDescription: Brief description
-  - patientName: Person remedy is for
-    * If Primary NPC is buying for themselves → use their exact name
-    * If buying for someone else → use specific name or relation from narrative
-  - patientDescription: Brief description if given
-  - patientLocation: null (sale inquiries don't involve house calls)
-  - paymentOffered: Amount offered or 0 if not specified
-  - ailmentDescription: What the remedy is for (e.g., "headache", "digestive troubles", "skin rash")
-
 **Type null** - Default (no contract):
 - Normal conversation
 - Completed transactions
 - Vague mentions of illness without explicit request
 - Player explicitly declined the request
 
-**System announcement**: When type is NOT null, add ONE of these announcements:
+**System announcement**: When type is NOT null, add:
 - If type is "treatment": "A treatment contract is being discussed (payment: [payment] reales)."
-- If type is "sale_inquiry": "A sales contract is being discussed (payment: [payment] reales)."
 - If payment is 0 or unknown: "A contract is being discussed (payment to be determined)."
 
+**CRITICAL - patientName vs offeredBy**:
+When someone requests treatment for a family member or another person:
+- **patientName**: The ACTUAL PATIENT who needs treatment (extract from DIALOGUE)
+- **offeredBy**: The person making the request (may be different from patient)
+- **isEmissary**: true if offeredBy !== patientName (messenger scenario)
+- If patient's actual name is mentioned (e.g., "My wife Isabel has fever"), use: patientName: "Isabel", isEmissary: true
+- If patient's name is NOT mentioned (e.g., "My wife has fever"), use: patientName: "[offeredBy]'s wife", isEmissary: true
+- **NEVER** use the requester's name as patientName unless they are the actual patient!
+
+**CRITICAL EXAMPLES - Patient Name Extraction:**
+- Dialogue: "I have a broken arm" → patientName: (same as offeredBy), isEmissary: false (speaker is patient)
+- Dialogue: "My wife has fever" → patientName: "[offeredBy]'s wife", isEmissary: true (relationship, no name given)
+- Dialogue: "Gaspar's son is ill" → patientName: "Gaspar's son", isEmissary: depends (if Gaspar speaking = false, if someone else = true)
+- Dialogue: "The laborers at the site are injured" → patientName: "laborers at [location]", isEmissary: true
+
 **Examples**:
-- "My daughter has a terrible fever, can you examine her? I can pay 5 reales" → **treatment** (requests examination), patientLocation: null (daughter will come to shop), patientName: "[requester's name]'s daughter", ailmentDescription: "fever"
-- **"I am the maid to Doña Elvira. She suffers from terrible cough and cannot leave her bed"** → **treatment** (MESSENGER PATTERN - maid at shop, mistress at home), offeredBy: "Isabel Ramírez", patientName: "Doña Elvira", patientLocation: "Doña Elvira's residence", ailmentDescription: "cough, bedridden"
-- "Please come to my home on Calle de Tacuba, my husband cannot walk" → **treatment** (house call), patientLocation: "Calle de Tacuba", patientName: (husband's name if given), ailmentDescription: based on context
-- "I traveled from Xochimilco, my grandson Tomas suffers a terrible flux" → **treatment** (HOUSE CALL - grandmother is representative, patient is in Xochimilco), patientLocation: "Xochimilco", patientName: "Tomas", offeredBy: (grandmother's name), ailmentDescription: "flux"
-- **"My husband has been confined to his chambers for three weeks with melancholy"** → **treatment** (HOUSE CALL - "confined to chambers" = at home), patientLocation: "[Husband's name]'s residence" OR "[Family name] household", patientName: (husband's name), ailmentDescription: "melancholy"
-- "I have a broken arm, can you help?" → **treatment** (patient present at shop, needs examination), patientLocation: null
-- "Do you have something for headaches? I'll pay 2 reales" → **sale_inquiry** (wants medicine, not examination), ailmentDescription: "headaches"
-- "Can you make me a tonic for sleeplessness?" → **sale_inquiry** (wants product made), ailmentDescription: "sleeplessness"
-- "My mother needs a poultice for burns, I'll pay 3 reales" → **sale_inquiry** (purchasing for someone), ailmentDescription: "burns", patientName: "mother"
-- "Do you sell remedies for stomach troubles?" → **sale_inquiry** (transactional request), ailmentDescription: "stomach troubles"
-- "I heard you sell good medicines" → **null** (too vague, no specific request)
-- **"I carry a codex regarding ancient pharmacopeia. I need your skill with letters and herbs to translate and protect it"** → **null** (scholarly/professional request for translation, NOT medical treatment or remedy purchase)
-- "Can you teach me to read Latin medical texts?" → **null** (educational request, not medical)
-- "I need help preserving an ancient manuscript" → **null** (scholarly preservation, not medical)
+- "Can you examine my daughter? She has fever" → **treatment** (diagnostic language: "examine")
+- "Please visit my home and see what's wrong with my clerk" → **treatment** (diagnostic: "see what's wrong")
+- "I need a tincture for my clerk who has a chill, I'll pay well" → **actionPrompt sell** (knows what they want, no diagnostic language)
+- "My head hurts, do you have something?" → **actionPrompt prescribe** (has ailment, asks recommendation)
+- "I require cascarilla powder, 15 reales" → **actionPrompt sell** (knows what to buy)
+- "Could you spare some bread?" → **actionPrompt give** (charity, no payment)
+- "I heard you sell good medicines" → **null** (too vague)
 
-**Trade Opportunity Detection** (NEW):
-- **Detect when**: NPC explicitly expresses interest in buying/selling items (e.g., "I need chocolate", "Do you have cinnamon to sell?", "I'm selling silk")
-- **DO NOT detect**: Generic conversation, already at market, completed transactions
-- **Type "buy"**: NPC wants to purchase items from Maria. Extract: items they want, reason, urgency (low/moderate/high), priceMultiplier (1.0-1.5 if willing to pay premium)
-- **Type "sell"**: NPC offers items for sale. Extract: offering items with names, quantities, and prices
-- **Type null**: Default (no trade opportunity)
-- **Portrait**: Use NPC portrait path if available from narrative context
-- **Context**: Brief 1-sentence context about the trade (e.g., "Needs chocolate for daughter's wedding")
+**Action Prompt** (NPC wants Maria to give/sell/prescribe):
+Only detect if NO treatment contract above.
 
-Examples:
-- NPC says "I desperately need chocolate for my daughter's wedding" → type: "buy", items: ["chocolate"], urgency: "high", reason: "Wedding gift", priceMultiplier: 1.2
-- NPC says "I'm selling fine silk from China, 10 reales" → type: "sell", offering: [{"name": "Chinese Silk", "quantity": 1, "price": 10}]
-- Normal conversation → type: null
+**Type "sell"** - NPC buying FROM Maria:
+DETECT: "I need", "I want", "I require", "Can I buy", "I'll take"
+SKIP: "I have", "I offer", "I brought", "for sale"
 
-### Reputation Events (CRITICAL - Detect Extreme Actions):
-**Detect when Maria commits EXTREME actions that should affect faction reputation:**
+**Type "prescribe"** - NPC asks recommendation:
+DETECT: "What helps with", "Do you have something for", "My [body part] hurts"
+
+**Type "give"** - Charity:
+DETECT: "Could you spare", "I have no money", "please help"
+
+**Type null** - Default
+
+### Reputation Events:
+**Detect when Maria commits actions that should affect faction reputation:**
 
 **Church faction** (-50 to +50):
-- Assaulting clergy (-40 to -50): Throwing objects at priests, physical violence, public insults
-- Witchcraft accusations triggered (-30 to -40): Occult behavior, consorting with "devils", suspicious rituals
+- Assaulting clergy (-40 to -50): physical violence, public insults
+- Witchcraft accusations triggered (-30 to -40): Occult behavior, suspicious rituals
 - Sacrilege (-20 to -30): Defiling religious items, mocking sacraments
 - Charitable acts (+10 to +20): Donating to church, helping the poor, pious behavior
 - Miraculous cures (+20 to +30): Healing important clergy or nobles
 
 **Elite faction** (-50 to +50):
-- Public scandal (-30 to -40): Embarrassing nobles, causing scenes in public
+- Public scandal (-30 to -40): causing scenes in public
 - Treating nobles poorly (-10 to -20): Refusing service, insulting, poor treatment outcomes
 - Treating nobles well (+10 to +20): Successful cures, respectful service
 - Gaining noble patronage (+20 to +30): Multiple successful treatments, becoming favored physician
@@ -250,7 +251,6 @@ Examples:
 - Becoming major customer (+20 to +30): Large purchases, repeat business
 
 **EXAMPLES:**
-- "You throw the vial of dead frog at Padre Alonso" → [{"faction": "church", "delta": -45, "reason": "Assaulted priest with occult substance"}]
 - "You successfully cure the Viceroy's daughter" → [{"faction": "elite", "delta": 25, "reason": "Miraculous cure of noble child"}, {"faction": "church", "delta": 15, "reason": "Divine healing"}]
 - "You refuse to treat the beggar child unless paid" → [{"faction": "common_folk", "delta": -25, "reason": "Refused charity to dying child"}]
 - Normal interactions, conversation, walking → []
@@ -259,14 +259,14 @@ Examples:
 - Wealth changes match inventory (${currencyName})
 - Time moves forward only
 - Location: Include building/region/city BUT NEVER include interior room names (shop floor/laboratory/bedroom)
-- **Relationship changes should be FREQUENT and GRANULAR**: Detect small shifts (+2 to -2) in most NPC interactions, larger shifts (+5 to +10 or -5 to -10) for meaningful help/harm, extreme shifts (+15 to +20 or -15 to -20) only for major events
+- **Relationship changes should be FREQUENT and GRANULAR**: Detect small shifts (+2 to -2) in many NPC interactions, larger shifts (+5 to +10 or -5 to -10) for meaningful help/harm, extreme shifts (+15 to +40 or -15 to -40) for major events
 - **Examples of relationship changes**:
   - Pleasant conversation: +1 to +2
   - Helping with small request: +3 to +5
   - Refusing reasonable request: -2 to -4
   - Successful medical treatment: +5 to +10
   - Failed treatment causing harm: -8 to -15
-  - Major betrayal or assault: -15 to -20
+  - Major betrayal or assault: -15 to -40
 - Extreme actions trigger BOTH relationshipChanges AND reputationEvents (faction-wide impact)
 - Contracts: Only when actively negotiating, never on first mention
 - Trade opportunities: Only when NPC explicitly mentions buying/selling, not at markets`;
@@ -318,7 +318,7 @@ export async function extractGameState({
     const userPrompt = `Current Game State:
 - Wealth: ${currentGameState.wealth} ${currencyName}
 - Status: ${currentGameState.status}
-- Reputation: ${currentGameState.reputation}
+- Reputation: ${currentGameState.reputationEmoji || '😌'} (${currentGameState.reputation?.overall || 50}/100)
 - Location: ${currentGameState.location}
 - Time: ${currentGameState.time}
 - Date: ${currentGameState.date}
@@ -338,11 +338,7 @@ Name: ${primaryNPC.name}
 Demographics: ${primaryNPC.age || 'unknown'} ${primaryNPC.gender || 'unknown'} ${primaryNPC.casta || 'unknown'}
 Occupation: ${primaryNPC.occupation || 'unknown'}
 
-**Contract Name Guidance:**
-- If ${primaryNPC.name} is seeking treatment FOR THEMSELVES → use "${primaryNPC.name}" as patientName
-- If ${primaryNPC.name} is a MESSENGER (sent by, on behalf of, asking for others) → extract actual patient name from narrative
-- Use specific names, not generic descriptions like "young man" or "messenger"
-- If multiple patients mentioned, extract specific names or "laborers at [location]" format
+**NOTE:** This person is physically present at the scene. They may or may not be the patient - extract patient identity from the narrative DIALOGUE, not from this context.
 ` : ''}
 
 ${movementData ? `\n### Movement Analysis:
@@ -396,6 +392,51 @@ LOCATION TRACKING:
       .trim();
 
     const stateData = JSON.parse(cleanedResponse);
+
+    // CRITICAL FIX: Prevent contracts when narrative ends with BINARY acceptance/refusal questions
+    // This enforces turn-gating: contracts should only appear after player agrees to discuss
+    // IMPORTANT: Only block if question offers BOTH acceptance AND refusal options (binary choice)
+    const narrativeLower = narrative.trim().toLowerCase();
+
+    // Extract the final question (last sentence ending with ?)
+    const finalQuestion = narrativeLower.match(/[^.!?]*\?[*\s]*$/)?.[0] || '';
+
+    // Split keywords: acceptance vs refusal
+    // Block ONLY if question offers BOTH options (binary choice to help or not)
+    const acceptanceKeywords = /\b(accept|agree|help\s+(him|her|them)|see\s+(him|her|them|the\s+patient)|take\s+the\s+case)\b/i;
+    const refusalKeywords = /\b(refuse|decline|reject|turn\s+away|dismiss|send\s+away)\b/i;
+
+    // Question must offer BOTH acceptance AND refusal to be blocked
+    // This allows negotiation questions like "agree to 10 pesos or ask for more" (no refusal keyword)
+    const isAcceptanceQuestion =
+      /will you\s+.+\?[*\s]*$/.test(finalQuestion) &&
+      acceptanceKeywords.test(finalQuestion) &&
+      refusalKeywords.test(finalQuestion);
+
+    if (isAcceptanceQuestion && stateData.contractOffer && stateData.contractOffer.type !== 'null') {
+      console.log('[StateAgent] ⚠️ CONTRACT BLOCKED: Narrative ends with acceptance/refusal question, forcing contract to null');
+      console.log('[StateAgent] Original contract type:', stateData.contractOffer.type);
+      console.log('[StateAgent] Question detected:', finalQuestion.trim());
+
+      // Force contract to null - player hasn't agreed yet
+      stateData.contractOffer = {
+        type: 'null',
+        offeredBy: '',
+        offeredByDescription: '',
+        patientName: '',
+        patientDescription: '',
+        patientLocation: null,
+        paymentOffered: 0,
+        ailmentDescription: ''
+      };
+
+      // Remove contract announcement from system messages
+      if (stateData.systemAnnouncements) {
+        stateData.systemAnnouncements = stateData.systemAnnouncements.filter(
+          announcement => !announcement.includes('contract') && !announcement.includes('CONTRACT')
+        );
+      }
+    }
 
     // Ensure position is updated correctly if movement occurred
     if (movementData && movementData.valid) {
@@ -452,12 +493,8 @@ export function validateGameState(newState, oldState) {
     validated.date = oldState.date;
   }
 
-  // Ensure reputation is valid emoji
-  const validEmojis = ['😡', '😠', '😐', '😶', '🙂', '😌', '😏', '😃', '😇', '👑'];
-  if (!validEmojis.includes(validated.reputation)) {
-    console.warn(`Invalid reputation emoji: ${validated.reputation}, keeping old`);
-    validated.reputation = oldState.reputation;
-  }
+  // NOTE: Reputation is now faction-based (handled by reputationEvents), not a simple emoji
+  // No validation needed here - reputation is calculated from faction scores in useReputation hook
 
   // Ensure location isn't empty
   if (!validated.location || validated.location.trim() === '') {

@@ -83,6 +83,7 @@ export function useCommerceHandlers({
   setPendingSimpleInteraction,
   setPendingMixingDecision,
   setPendingSaleInquiry,
+  setPendingActionPrompt,
   setPendingSaleProposal,
   setMixingContextForSale,
   setShowMixingPopup,
@@ -429,6 +430,18 @@ export function useCommerceHandlers({
       role: 'system',
       content: `*[SIMPLE INTERACTION] ${journalText}*`
     }]);
+
+    // CARD CLEANUP: Remove simple_interaction cards from conversation history
+    setConversationHistory(prev => {
+      return prev.map(msg => {
+        if (msg.role === 'assistant' && msg.card && msg.card.type === 'simple_interaction') {
+          const { card, ...msgWithoutCard } = msg;
+          console.log('[SimpleInteraction] Removing card from history after completion');
+          return msgWithoutCard;
+        }
+        return msg;
+      });
+    });
 
     // Clear the pending interaction
     setPendingSimpleInteraction(null);
@@ -824,6 +837,105 @@ export function useCommerceHandlers({
     toast
   ]);
 
+  /**
+   * Handle proposing action from action prompt card
+   * Processes give/sell/prescribe actions with drag-dropped items
+   */
+  const handleProposeAction = useCallback(async (proposalData) => {
+    const { type, recipientName, item, amount, price, ailmentDescription } = proposalData;
+
+    console.log('[ActionPrompt] Proposing action:', { type, recipientName, item: item.name, amount, price });
+
+    // Remove item from inventory
+    updateInventory(item.name, -amount);
+
+    // For sell type, add money to wealth
+    if (type === 'sell' && price > 0) {
+      updateWealth(price);
+    }
+
+    // Log to conversation history based on type
+    const actions = {
+      give: `*[ITEM GIVEN] Maria gives ${amount}× ${item.name} to ${recipientName} as a gift.*`,
+      sell: `*[ITEM SOLD] Maria sells ${amount}× ${item.name} to ${recipientName} for ${price} reales.*`,
+      prescribe: `*[PRESCRIPTION GIVEN] Maria prescribes ${amount}× ${item.name} to ${recipientName} for ${ailmentDescription}.*`
+    };
+
+    setConversationHistory(prev => [...prev,
+      { role: 'system', content: actions[type] || actions.give }
+    ]);
+
+    // Add journal entry
+    const journalEntries = {
+      give: `Gave ${amount}× ${item.name} to ${recipientName}.`,
+      sell: `Sold ${amount}× ${item.name} to ${recipientName} for ${price} reales.`,
+      prescribe: `Prescribed ${amount}× ${item.name} to ${recipientName} for ${ailmentDescription}.`
+    };
+
+    addJournalEntry({
+      turnNumber,
+      date: gameState.date,
+      entry: journalEntries[type] || journalEntries.give
+    });
+
+    // Clear the action prompt
+    setPendingActionPrompt(null);
+
+    // Toast notification
+    const toastMessages = {
+      give: `Gave ${item.name} to ${recipientName}`,
+      sell: `Sold ${item.name} for ${price} reales`,
+      prescribe: `Prescribed ${item.name} for ${ailmentDescription}`
+    };
+
+    toast.success(toastMessages[type] || toastMessages.give, { duration: 2000 });
+
+    // Trigger LLM narration describing the result
+    // Pass action type as metadata so NarrativePanel can style it
+    const followUpPrompts = {
+      give: `[You just gave ${amount}× ${item.name} to ${recipientName} as a gift. Describe their reaction and what happens next in 2-3 sentences.]`,
+      sell: `[You just sold ${amount}× ${item.name} to ${recipientName} for ${price} reales. Describe the transaction completion and their reaction in 2-3 sentences.]`,
+      prescribe: `[You just prescribed ${amount}× ${item.name} to ${recipientName} for their ${ailmentDescription}. Describe how they receive the prescription and what happens next in 2-3 sentences.]`
+    };
+
+    // Call handleSubmit with null event, prompt as actionOverride, and options with metadata
+    await handleSubmit(null, followUpPrompts[type] || followUpPrompts.give, {
+      actionResultType: type // Metadata for styling
+    });
+  }, [
+    updateInventory,
+    updateWealth,
+    setConversationHistory,
+    addJournalEntry,
+    setPendingActionPrompt,
+    turnNumber,
+    gameState.date,
+    toast,
+    handleSubmit
+  ]);
+
+  /**
+   * Handle declining action prompt
+   * Just clears the prompt and logs to history
+   */
+  const handleDeclineAction = useCallback(() => {
+    console.log('[ActionPrompt] Action declined');
+
+    // Log to conversation history
+    setConversationHistory(prev => [...prev,
+      { role: 'system', content: `*[ACTION DECLINED] Maria decides not to proceed with the request.*` }
+    ]);
+
+    // Clear the action prompt
+    setPendingActionPrompt(null);
+
+    toast.info('Request declined', { duration: 2000 });
+  }, [
+    setConversationHistory,
+    setPendingActionPrompt,
+    toast
+  ]);
+
   return {
     handleAcceptSale,
     handleAcceptTrade,
@@ -835,5 +947,7 @@ export function useCommerceHandlers({
     handleAbandonMixing,
     handleCompleteSale,
     handleAbandonSaleProposal,
+    handleProposeAction,
+    handleDeclineAction,
   };
 }

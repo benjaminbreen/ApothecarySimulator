@@ -13,12 +13,14 @@ import ReputationModal from '../../components/ReputationModal';
 import SkillsModal from '../../components/SkillsModal';
 import SkillsDetailModal from '../../components/SkillsDetailModal';
 import PrescribePopup from '../../features/medical/components/PrescribePopup.jsx';
+import SimplePrescribeModal from '../../features/medical/components/SimplePrescribeModal';
 import NPCPatientModal from '../../features/medical/components/NPCPatientModal';
 import NPCModal from '../../features/modals/NPCModal';
 import Diagnose from '../../features/medical/components/Diagnose';
 import Buy from '../../features/commerce/components/Buy';
 import TradeModal from '../../features/commerce/components/TradeModal';
 import LedgerModal from '../../features/commerce/components/LedgerModal';
+import OfferItemModal from '../../features/commerce/components/OfferItemModal';
 import FastTravelModal from '../../features/travel/components/FastTravelModal';
 import BloodlettingModal from '../../features/medical/components/BloodlettingModal';
 import { EndGamePopup } from '../../shared/components/EndGameAssessment';
@@ -43,6 +45,7 @@ export function GameModals({
   // Modal states
   showMixingPopup,
   isPrescribePopupOpen,
+  isSimplePrescribeOpen,
   isSleepOpen,
   isRestDurationOpen,
   isMapOpen,
@@ -68,12 +71,15 @@ export function GameModals({
   isModernInventoryOpen,
   isDiagnoseOpen,
   isBuyOpen,
+  isOfferOpen,
   isLedgerOpen,
   isFastTravelOpen,
   isBloodlettingOpen,
   isPatientRosterOpen,
 
   // Modal data
+  offerRecipient,
+  simplePrescribeRecipient,
   tradeMode,
   tradingNPC,
   inventoryViewMode,
@@ -106,6 +112,7 @@ export function GameModals({
   // Toggle/close handlers
   toggleMixingPopup,
   setIsPrescribePopupOpen,
+  setIsSimplePrescribeOpen,
   setIsSleepOpen,
   setIsRestDurationOpen,
   sleepHours,
@@ -136,6 +143,7 @@ export function GameModals({
   setIsModernInventoryOpen,
   toggleDiagnose,
   setIsBuyOpen,
+  setIsOfferOpen,
   setIsLedgerOpen,
   setIsFastTravelOpen,
   setIsBloodlettingOpen,
@@ -276,6 +284,38 @@ export function GameModals({
         }}
       />
 
+      {/* Simple Prescribe Modal - Quick dispensing without full patient examination */}
+      {isSimplePrescribeOpen && simplePrescribeRecipient && (
+        <SimplePrescribeModal
+          isOpen={isSimplePrescribeOpen}
+          onClose={() => {
+            setIsSimplePrescribeOpen(false);
+            toggleInventory(false);
+          }}
+          gameState={gameState}
+          updateInventory={updateInventory}
+          currentWealth={currentWealth}
+          handleWealthChange={handleWealthChange}
+          recipientName={simplePrescribeRecipient}
+          onPrescribeComplete={(prescriptionData) => {
+            console.log('[SimplePrescribeComplete]', prescriptionData);
+            // Trigger a narrative turn with the prescription result
+            const prescribeText = `You dispense ${prescriptionData.amount}× ${prescriptionData.item.name} (${prescriptionData.route}) to ${prescriptionData.recipientName} for ${prescriptionData.price} reales.`;
+
+            // Add to conversation history
+            setConversationHistory(prev => [
+              ...prev,
+              { role: 'user', content: `Prescribe ${prescriptionData.item.name} to ${prescriptionData.recipientName}` },
+              { role: 'assistant', content: prescribeText }
+            ]);
+
+            setHistoryOutput(prescribeText);
+            setTurnNumber(t => t + 1);
+          }}
+          toggleInventory={toggleInventory}
+        />
+      )}
+
       {/* About Modal */}
       {isAboutOpen && <About isOpen={isAboutOpen} toggleAbout={toggleAbout} />}
 
@@ -357,6 +397,39 @@ export function GameModals({
           mode={tradeMode}
           tradingNPC={tradingNPC}
           initialViewMode={inventoryViewMode}
+        />
+      )}
+
+      {/* Offer Item Modal */}
+      {isOfferOpen && offerRecipient && (
+        <OfferItemModal
+          isOpen={isOfferOpen}
+          onClose={() => {
+            setIsOfferOpen(false);
+            toggleInventory(false);
+          }}
+          gameState={gameState}
+          updateInventory={updateInventory}
+          currentWealth={currentWealth}
+          handleWealthChange={handleWealthChange}
+          recipientName={offerRecipient.name}
+          onOfferComplete={(offerData) => {
+            console.log('[OfferComplete]', offerData);
+            // Trigger a narrative turn with the offer result
+            const offerText = offerData.isGift
+              ? `I offer ${offerData.amount}× ${offerData.item.name} as a gift to ${offerData.recipientName}`
+              : `I offer to sell ${offerData.amount}× ${offerData.item.name} to ${offerData.recipientName} for ${offerData.price} reales`;
+
+            // Add to conversation history
+            setConversationHistory(prev => [
+              ...prev,
+              { role: 'user', content: offerText },
+            ]);
+
+            setHistoryOutput(offerText);
+            setTurnNumber(t => t + 1);
+          }}
+          toggleInventory={toggleInventory}
         />
       )}
 

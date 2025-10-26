@@ -17,6 +17,7 @@ export const PORTRAIT_CATEGORIES = {
   'Common Women': [
     'africanwoman.jpg',
     'beggarwoman.jpg',
+    'carmen_fish_seller.jpg',
     'criollafemalematron40s.jpg',
     'indiowoman.jpg',
     'manandwomandinnercandlelight.jpg',
@@ -26,6 +27,7 @@ export const PORTRAIT_CATEGORIES = {
     'peasantwoman.jpg',
     'poorwoman.jpg',
     'unhealthyindiowoman.jpg',
+    'widow.png',
     'womanhand.jpg',
     'womanswork.jpg'
   ],
@@ -61,7 +63,8 @@ export const PORTRAIT_CATEGORIES = {
     'male_elder_indigenous_noble_delegate.jpg',
     'peninsularemaleservantyoung.jpg',
     'peninsulareyoungman.jpg',
-    'spanishnoble.jpg'
+    'spanishnoble.jpg',
+    'viceroy.jpg'
   ],
   'Common Men': [
     'abandonedhouseday.jpg',
@@ -304,6 +307,7 @@ export const PORTRAIT_CATEGORIES = {
     'londonevening.jpg',
     'lookinginshopwindowday.jpg',
     'lookinginshopwindownight.jpg',
+    'malejeweler.jpg',
     'manattablecandle.jpg',
     'mangos.jpg',
     'manhand.jpg',
@@ -387,7 +391,7 @@ export const PORTRAIT_CATEGORIES = {
     'pausingattheshopwindownight.jpg',
     'peasant.jpg',
     'peddler.jpg',
-    'pedrovásquez.png',
+    'pedrovásquez.jpg',
     'pig.jpg',
     'pinenuts.jpg',
     'pisces.jpg',
@@ -555,12 +559,14 @@ export const PORTRAIT_CATEGORIES = {
     'middleagedcriollomalepriest.jpg',
     'monk.jpg',
     'nun.jpg',
+    'padre_alonso.png',
     'peninsularpriestmiddleaged.jpg',
     'priest.jpg'
   ],
   'Merchants': [
     'countrysidemestizomalemerchant.jpg',
     'indianmerchants.jpg',
+    'juana_milk_vendor.jpg',
     'male_middleaged_criollo_merchant_importer.jpg',
     'marketplacevendorindiowoman.jpg',
     'marketvendors.jpg',
@@ -582,6 +588,7 @@ export const PORTRAIT_CATEGORIES = {
     'frontiersoldier.jpg',
     'mulattosoldier.jpg',
     'soldier.jpg',
+    'soldier_guard_middleaged_espanol.jpg',
     'soldiers.jpg',
     'spanishnoblesoldier.jpg'
   ],
@@ -602,18 +609,21 @@ export const PORTRAIT_CATEGORIES = {
     'sickboy.jpg'
   ],
   'Scholars/Healers': [
+    '1680stheologianorscholar.jpg',
     'curandera.jpg',
     'elderlyfemaleindiohealer.jpg',
     'femalescholar.jpg',
     'middleagedfemaleapothecary.jpg',
     'middleagedmaleapothecary.jpg',
     'middleagedmulattomidwife.jpg',
+    'middleagedtheologianorscholar.jpg',
     'oldapothecary.jpg',
     'physician.jpg',
     'scholar.jpg'
   ],
   'Workers/Artisans': [
     'africanomalelaborer.jpg',
+    'artisaninworkshop.jpg',
     'criollofarmer.jpg',
     'criollofemaleseamstressmiddleaged.jpg',
     'criollomaleinnkeeperelderly.jpg',
@@ -623,11 +633,15 @@ export const PORTRAIT_CATEGORIES = {
     'laborer.jpg',
     'male_middleaged_mestizo_artisan_cobbler.jpg',
     'mestizoartisan.jpg',
+    'mestizomaleartisan.jpg',
     'middleagedfarmer.jpg',
     'middleagedmalemuleteer.jpg',
+    'middleagedmaleportuguesesailor.jpg',
     'middleagedmalesailor.jpg',
     'middleagedmestizofarmer.jpg',
     'oldsailornight.jpg',
+    'pedrovásquez.jpg',
+    'pedrovásquez.png',
     'poorfarmerwoman.jpg',
     'sailor.jpg',
     'youngafricanartisan.jpg'

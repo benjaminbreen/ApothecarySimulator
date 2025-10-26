@@ -229,6 +229,59 @@ class EntityManager {
   }
 
   /**
+   * Infer faction from NPC occupation, social class, and casta
+   * Maps NPCs to reputation system factions for relationship → reputation conversion
+   * @param {Object} entity - NPC entity
+   * @returns {string} Faction name (church, elite, commonFolk, indigenous, guild, merchants)
+   */
+  inferFaction(entity) {
+    const occupation = (entity.social?.occupation || entity.occupation || '').toLowerCase();
+    const socialClass = entity.social?.class || entity.social?.socialClass || 'common';
+    const casta = entity.social?.casta || '';
+
+    if (!occupation) return socialClass === 'elite' ? 'elite' : 'commonFolk';
+
+    // Church faction
+    if (occupation.includes('priest') || occupation.includes('padre') || occupation.includes('friar') ||
+        occupation.includes('monk') || occupation.includes('nun') || occupation.includes('clergy') ||
+        occupation.includes('sacristan') || occupation.includes('bishop') || occupation.includes('inquisit') ||
+        occupation.includes('holy office')) {
+      return 'church';
+    }
+
+    // Elite faction (nobility, high officials)
+    if (occupation.includes('noble') || occupation.includes('viceroy') || occupation.includes('alcalde') ||
+        occupation.includes('corregidor') || occupation.includes('oidor') || occupation.includes('patron') ||
+        occupation.includes('hidalgo') || occupation.includes('don ') || occupation.includes('doña') ||
+        socialClass === 'elite') {
+      return 'elite';
+    }
+
+    // Merchants faction
+    if (occupation.includes('merchant') || occupation.includes('trader') || occupation.includes('comerciante') ||
+        occupation.includes('vendor') || occupation.includes('seller') || occupation.includes('shopkeeper')) {
+      return 'merchants';
+    }
+
+    // Guild faction (artisans, skilled workers)
+    if (occupation.includes('apothecary') || occupation.includes('physician') || occupation.includes('surgeon') ||
+        occupation.includes('artisan') || occupation.includes('cobbler') || occupation.includes('blacksmith') ||
+        occupation.includes('tailor') || occupation.includes('carpenter') || occupation.includes('mason') ||
+        occupation.includes('baker') || occupation.includes('silversmith') || occupation.includes('printer')) {
+      return 'guild';
+    }
+
+    // Indigenous faction
+    if (casta && (casta.toLowerCase().includes('indígena') || casta.toLowerCase().includes('india') ||
+        casta.toLowerCase().includes('nahua') || casta.toLowerCase().includes('aztec'))) {
+      return 'indigenous';
+    }
+
+    // Common folk (default for workers, servants, etc.)
+    return 'commonFolk';
+  }
+
+  /**
    * Enrich NPC with procedural data
    * @param {Object} npc - NPC entity
    * @returns {Object} Enriched NPC
@@ -279,6 +332,18 @@ class EntityManager {
           console.log(`[EntityManager] Inferred gender for ${enriched.name}: ${inferredGender}`);
           this.loggedMessages.add(logKey);
         }
+      }
+    }
+
+    // Step 3: Infer faction if missing (for reputation system)
+    if (!enriched.social) enriched.social = {};
+    if (!enriched.social.faction) {
+      const inferredFaction = this.inferFaction(enriched);
+      enriched.social.faction = inferredFaction;
+      const logKey = `faction:${enriched.id || enriched.name}`;
+      if (!this.loggedMessages.has(logKey)) {
+        console.log(`[EntityManager] Inferred faction for ${enriched.name}: ${inferredFaction} (from ${enriched.social.occupation || 'no occupation'})`);
+        this.loggedMessages.add(logKey);
       }
     }
 

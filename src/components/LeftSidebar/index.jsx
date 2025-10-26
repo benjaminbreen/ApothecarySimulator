@@ -39,7 +39,9 @@ export function LeftSidebar({
   inventory = [], // Inventory array from gameState
   xpGain = null, // XP gain notification data
   xpGainKey = 0, // Key to force re-render of XP animation
-  onCharacterCardCollapseChange = null // Callback when CharacterCard collapse state changes
+  onCharacterCardCollapseChange = null, // Callback when CharacterCard collapse state changes
+  reputationDelta = null, // Reputation change delta for particle effect
+  newlyAddedItemName = null // Name of newly-added item for particle effect
 }) {
   const [showCharacterModal, setShowCharacterModal] = useState(false);
 
@@ -77,6 +79,8 @@ export function LeftSidebar({
         inventory={inventory}
         xpGain={xpGain}
         xpGainKey={xpGainKey}
+        reputationDelta={reputationDelta}
+        newlyAddedItemName={newlyAddedItemName}
       />
 
       {/* Player Character Modal */}

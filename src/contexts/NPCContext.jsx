@@ -42,7 +42,7 @@ export function NPCProvider({ children }) {
 
   // Contract System
   const [pendingContract, setPendingContract] = useState(null); // Pending treatment/sale contract
-  const [pendingSaleInquiry, setPendingSaleInquiry] = useState(null); // Pending sale_inquiry (remedy request)
+  const [pendingActionPrompt, setPendingActionPrompt] = useState(null); // Pending action prompt (give/sell/prescribe)
 
   /**
    * Get recent NPCs from tracker
@@ -107,10 +107,10 @@ export function NPCProvider({ children }) {
   };
 
   /**
-   * Clear sale inquiry state
+   * Clear action prompt state
    */
-  const clearSaleInquiry = () => {
-    setPendingSaleInquiry(null);
+  const clearActionPrompt = () => {
+    setPendingActionPrompt(null);
   };
 
   /**
@@ -121,7 +121,7 @@ export function NPCProvider({ children }) {
     clearSelections();
     clearTrading();
     clearContract();
-    clearSaleInquiry();
+    clearActionPrompt();
     setCurrentEntities([]);
     setPrimaryPortraitFile(null);
     // Note: npcTracker and npcPositions are not reset (managed separately)
@@ -170,10 +170,10 @@ export function NPCProvider({ children }) {
     setPendingContract,
     clearContract,
 
-    // Sale Inquiries
-    pendingSaleInquiry,
-    setPendingSaleInquiry,
-    clearSaleInquiry,
+    // Action Prompts
+    pendingActionPrompt,
+    setPendingActionPrompt,
+    clearActionPrompt,
 
     // Utilities
     resetNPCState,
@@ -188,7 +188,7 @@ export function NPCProvider({ children }) {
     tradingNPC,
     primaryPortraitFile,
     pendingContract,
-    pendingSaleInquiry,
+    pendingActionPrompt,
   ]);
 
   return (

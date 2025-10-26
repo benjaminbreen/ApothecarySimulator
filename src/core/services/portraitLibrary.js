@@ -1012,7 +1012,7 @@ export const PORTRAIT_LIBRARY = {
   },
 
   // Elderly Women
-  'elderlyafricanofeemalepeasant.jpg': {
+  'elderlyafricanofemalepeasant.jpg': {
     gender: 'female',
     age: 'elderly',
     casta: 'africana',

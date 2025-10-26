@@ -158,8 +158,10 @@ export function getFactionStanding(score) {
  * @returns {Object} Updated reputation state
  */
 export function updateFactionReputation(reputation, faction, delta, reason = '') {
-  if (!FACTIONS[faction.toUpperCase()]) {
-    console.warn(`[Reputation] Unknown faction: ${faction}`);
+  // Validate faction by checking if it's one of the valid faction VALUES (camelCase)
+  const validFactions = Object.values(FACTIONS);
+  if (!validFactions.includes(faction)) {
+    console.warn(`[Reputation] Unknown faction: ${faction}. Valid factions are: ${validFactions.join(', ')}`);
     return reputation;
   }
 
@@ -273,8 +275,8 @@ export function mapNPCFactionToSystemFaction(npcFaction) {
  * @returns {Object} Updated reputation
  */
 export function updateFactionFromNPCInteraction(reputation, npc, relationshipDelta, reason = '') {
-  // Get NPC's faction
-  const npcFaction = npc?.social?.faction;
+  // Get NPC's faction (check nested first, then flat for backward compatibility)
+  const npcFaction = npc?.social?.faction || npc?.faction;
   if (!npcFaction) {
     console.log('[Reputation] NPC has no faction, skipping faction update');
     return reputation;
@@ -288,9 +290,10 @@ export function updateFactionFromNPCInteraction(reputation, npc, relationshipDel
   }
 
   // Scale relationship delta to faction reputation change
-  // Individual relationships are -100 to +100, but we want smaller faction changes
-  // A +10 relationship change should result in ~+2 faction change
-  const factionDelta = Math.round(relationshipDelta * 0.2);
+  // Individual relationships are -100 to +100, and we want SIGNIFICANT faction changes
+  // Extreme actions (like defecating on someone) should cause massive reputation loss
+  // A -20 relationship change should result in ~-60 faction change (→ -10 overall across 6 factions)
+  const factionDelta = Math.round(relationshipDelta * 3.0);
 
   console.log(`[Reputation] ${reason}: ${npc.name} (${FACTION_INFO[systemFaction].name}) ${factionDelta > 0 ? '+' : ''}${factionDelta}`);
 
@@ -372,7 +375,7 @@ export function handleNPCInteraction({
     const systemFaction = mapNPCFactionToSystemFaction(npcFaction);
 
     if (systemFaction) {
-      const factionDelta = Math.round(relationshipDelta * 0.2);
+      const factionDelta = Math.round(relationshipDelta * 3.0);
       const spillovers = getSpilloverEffects(systemFaction, factionDelta);
 
       spillovers.forEach(({ faction, delta }) => {

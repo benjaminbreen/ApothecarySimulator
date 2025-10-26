@@ -7,6 +7,22 @@
 
 ---
 
+## 🚀 Quick Reference
+
+**Common Development Tasks:**
+
+- **Adding new portraits**: Drop `.jpg`/`.png` files in `/public/portraits/`, then run:
+  ```bash
+  node scripts/syncPortraits.js
+  ```
+  The script auto-categorizes portraits by filename patterns and updates `src/core/config/portraits.config.js`. [Full docs →](#adding-new-portraits)
+
+- **Build for production**: `npm run build`
+- **Start dev server**: `npm start`
+- **View console logs**: Open browser DevTools → Console tab (logs prefixed with component names like `[EntityAgent]`)
+
+---
+
 ## Architecture Overview
 
 ### Core Systems
@@ -217,6 +233,8 @@ scenarios/1680-mexico-city/
 - **Phase 2**: LLM-primary path with fallback warnings if old system used
 
 #### Adding New Portraits
+
+> **⚡ QUICK START**: Just added new portrait images? Run `node scripts/syncPortraits.js` to auto-add them!
 
 **Automated sync system** - portraits are auto-added to the config when you run the sync script.
 

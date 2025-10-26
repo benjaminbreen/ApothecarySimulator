@@ -560,18 +560,16 @@ export function useNavigationHandlers({
   /**
    * Handle exiting a building to exterior map
    * Triggered by "Exit" button on interior map
+   * NOW: Shows exit confirmation card instead of executing immediately
    */
   const handleExitBuilding = useCallback(() => {
-    console.log('[Exit Button] Player exiting to exterior');
+    console.log('[Exit Button] Showing exit confirmation');
 
     // FIX #7: Clear pending house call if navigating away
     if (setPendingHouseCall) {
       setPendingHouseCall(null);
       console.log('[Exit Building] Cleared pending house call');
     }
-
-    // Temporarily disable input during transition
-    setIsLoading(true);
 
     // Get building data from ref (stored when entering)
     const building = currentBuildingRef.current;
@@ -596,52 +594,38 @@ export function useNavigationHandlers({
       };
     }
 
-    // Update all states for exterior map
-    updateLocation('Mexico City');
-    setCurrentMapId('mexico-city-center');
-    setPlayerPosition(exitPosition);
-
-    // Generate dynamic exit message based on building type
+    // Create exit data
     const buildingName = building ? (building.name || 'the building') : 'the building';
-    let exitMessage = `You step outside into the bustling streets of Mexico City.`;
+    const exitData = {
+      location: 'Mexico City',
+      mapId: 'mexico-city-center',
+      position: exitPosition,
+      exitMessage: "You step outside into the bustling streets of Mexico City.",
+      locationName: buildingName,
+      gameTime: gameState.time
+    };
 
-    if (building) {
-      if (building.type === 'church') {
-        exitMessage = `You exit the ${buildingName} and step into the sunlight. The sounds of the city replace the sacred silence.`;
-      } else if (building.type === 'government') {
-        exitMessage = `You leave the ${buildingName} and return to the streets. The weight of colonial authority fades behind you.`;
-      } else if (building.type === 'market') {
-        exitMessage = `You exit the ${buildingName} into the open air. The market bustle continues around you.`;
-      } else if (building.type === 'residence') {
-        exitMessage = `You step out of the ${buildingName} back into the street.`;
-      } else {
-        exitMessage = `You exit the ${buildingName} into the streets of Mexico City.`;
+    // Store exit data for later execution
+    setPendingExitData(exitData);
+
+    // Show confirmation card
+    setShowExitConfirmation(true);
+
+    // Embed exit card in conversation history so it stays in timeline position
+    setConversationHistory(prev => [...prev, {
+      role: 'assistant',
+      content: `You approach the exit.`,
+      card: {
+        type: 'exit_confirmation',
+        data: exitData
       }
-    }
-
-    setHistoryOutput(exitMessage);
-    setConversationHistory(prev => [
-      ...prev,
-      { role: 'system', content: `*[LOCATION CHANGE] Maria exits ${buildingName} and is now standing outside in Mexico City. Position: (${exitPosition.x}, ${exitPosition.y})*` },
-      { role: 'assistant', content: exitMessage }
-    ]);
-
-    // Add to user actions for context
-    setUserActions(prev => [...prev, 'exit building']);
-
-    // Small delay to ensure all states sync, then re-enable input
-    setTimeout(() => {
-      setIsLoading(false);
-      console.log('[Exit Button] Transition complete');
-    }, 100);
+    }]);
   }, [
-    updateLocation,
-    setCurrentMapId,
-    setPlayerPosition,
-    setHistoryOutput,
+    setPendingExitData,
+    setShowExitConfirmation,
     setConversationHistory,
-    setUserActions,
-    setIsLoading
+    gameState.time,
+    setPendingHouseCall
   ]);
 
   /**
@@ -811,6 +795,11 @@ export function useNavigationHandlers({
       setCurrentMapId(houseCallData.houseMapId);
       console.log('[Phase 3B] Transitioned to map:', houseCallData.houseMapId);
 
+      // 1.5. Update game location to match the map and narrative destination
+      // This syncs the location pill with the actual location being visited
+      updateLocation(`${destination} (Inside ${houseName})`);
+      console.log('[Phase 3B] Updated location to:', `${destination} (Inside ${houseName})`);
+
       // 2. PHASE 3C: Determine patient position based on condition severity
       const positionData = determinePatientPosition(patientEntity, houseMapId);
       console.log('[Phase 3C] Patient positioning:', positionData);
@@ -901,7 +890,8 @@ export function useNavigationHandlers({
     setPendingHouseCall,
     toast,
     turnNumber,
-    gameState.date
+    gameState.date,
+    updateLocation
   ]);
 
   /**
@@ -951,8 +941,9 @@ export function useNavigationHandlers({
       console.log('[Phase 3D] Cleared active patient state');
 
       // 7. Transition back to botica interior map
+      updateLocation('Botica de la Amargura, Mexico City');
       setCurrentMapId('botica-interior');
-      console.log('[Phase 3D] Transitioned to botica-interior');
+      console.log('[Phase 3D] Transitioned to botica-interior and updated location');
 
       // 8. Set player position to botica starting position (workshop area)
       // CRITICAL: Include grid coordinates to prevent NaN errors during movement
@@ -992,7 +983,8 @@ export function useNavigationHandlers({
     setCurrentMapId,
     setPlayerPosition,
     setPlayerFacing,
-    toast
+    toast,
+    updateLocation
   ]);
 
   return {

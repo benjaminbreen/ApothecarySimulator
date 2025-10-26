@@ -30,18 +30,27 @@ const ViewportPanel = ({
   onRoomCommand = null, // Callback for room movement commands
   discoveredBooks = [], // Books discovered during gameplay
   onBookClick = null, // Callback when book is clicked
+  documents = [], // Document library (letters, codices, etc.)
+  onDocumentClick = null, // Callback when document is clicked
   narrativeTurn = '', // Most recent narrative turn for Study tab
   primaryPortraitFile = null, // Primary portrait filename for status detection
   onFurnitureClick = null, // Callback when furniture is clicked on map
+  onPlayerTeleport = null, // Callback for Ctrl+Click teleport
+  onAnimationComplete = null, // Callback when map animation completes (for journey narration)
   pendingHouseCall = null, // Phase 3B: House call data (triggers map view)
   travelPath = null, // Phase 4: Travel animation path
-  isTraveling = false // Phase 4: Whether currently traveling
+  isTraveling = false, // Phase 4: Whether currently traveling
+  reputationChange = null // { delta: number, timestamp: number } - shows reputation change indicator
 }) => {
   const defaultTab = npcPresent ? 'portrait' : 'map';
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [hoveredTab, setHoveredTab] = useState(null);
   const [previousTab, setPreviousTab] = useState(defaultTab);
   const [pulsePortraitTab, setPulsePortraitTab] = useState(false);
+
+  // Track reputation change with auto-clear after 10 seconds
+  const [visibleReputationChange, setVisibleReputationChange] = useState(null);
+  const [reputationOpacity, setReputationOpacity] = useState(1);
 
   // Auto-detect dark mode from document
   const [currentTheme, setCurrentTheme] = useState(
@@ -126,6 +135,31 @@ const ViewportPanel = ({
 
     return () => observer.disconnect();
   }, []);
+
+  // Handle reputation change display and fade-out
+  useEffect(() => {
+    if (reputationChange && reputationChange.delta !== 0) {
+      console.log('[ViewportPanel] Reputation change detected:', reputationChange);
+      setVisibleReputationChange(reputationChange);
+      setReputationOpacity(1);
+
+      // Start fade-out after 8 seconds (leaving 2 seconds for fade animation)
+      const fadeTimeout = setTimeout(() => {
+        setReputationOpacity(0);
+      }, 8000);
+
+      // Clear completely after 10 seconds
+      const removeTimeout = setTimeout(() => {
+        setVisibleReputationChange(null);
+        setReputationOpacity(1);
+      }, 10000);
+
+      return () => {
+        clearTimeout(fadeTimeout);
+        clearTimeout(removeTimeout);
+      };
+    }
+  }, [reputationChange]);
 
   const tabs = [
     { id: 'map', label: 'MAP' },
@@ -246,6 +280,8 @@ const ViewportPanel = ({
                   onExitBuilding={onExitBuilding}
                   onRoomCommand={onRoomCommand}
                   onFurnitureClick={onFurnitureClick}
+                  onPlayerTeleport={onPlayerTeleport}
+                  onAnimationComplete={onAnimationComplete}
                   theme={currentTheme}
                   travelPath={travelPath}
                   isTraveling={isTraveling}
@@ -340,6 +376,17 @@ const ViewportPanel = ({
                     ).join(' · ')}
                   </p>
                 )}
+                {visibleReputationChange && (
+                  <div
+                    className="mt-2 font-sans font-bold text-sm tracking-wide transition-opacity duration-2000"
+                    style={{
+                      opacity: reputationOpacity,
+                      color: visibleReputationChange.delta < 0 ? '#dc2626' : '#16a34a'
+                    }}
+                  >
+                    {visibleReputationChange.delta > 0 ? '+' : ''}{visibleReputationChange.delta} reputation!
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center">
@@ -361,6 +408,8 @@ const ViewportPanel = ({
             <StudyTab
               discoveredBooks={discoveredBooks}
               onBookClick={onBookClick}
+              documents={documents}
+              onDocumentClick={onDocumentClick}
               theme={currentTheme}
               narrativeTurn={narrativeTurn}
               location={locationDetails}

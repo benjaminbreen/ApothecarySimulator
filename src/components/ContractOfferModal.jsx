@@ -100,7 +100,7 @@ function ContractOfferModal({
           },
           demographics: potentialPatient.demographics, // LLM demographics
           metadata: {
-            representedBy: offer.offeredBy,
+            representedBy: offer.isEmissary ? offer.offeredBy : null, // Only set if emissary
             paymentAgreed: offer.paymentOffered,
             patientLocation: offer.patientLocation || null // House call location (Phase 3A)
           }
@@ -126,7 +126,7 @@ function ContractOfferModal({
             age: extractedDemographics.age
           },
           metadata: {
-            representedBy: offer.offeredBy,
+            representedBy: offer.isEmissary ? offer.offeredBy : null, // Only set if emissary
             paymentAgreed: offer.paymentOffered,
             patientLocation: offer.patientLocation || null // House call location (Phase 3A)
           }

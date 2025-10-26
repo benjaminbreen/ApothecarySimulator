@@ -4,7 +4,7 @@ import { createChatCompletion } from '../core/services/llmService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const ReadableTextModal = ({ isOpen, onClose, item, theme = 'light', textCache = {} }) => {
+const ReadableTextModal = ({ isOpen, onClose, item, theme = 'light', textCache = {}, narrativeContext = '', onMarkAsRead = null }) => {
   const [fullText, setFullText] = useState('');
   const [originalText, setOriginalText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -21,6 +21,11 @@ const ReadableTextModal = ({ isOpen, onClose, item, theme = 'light', textCache =
       setShowOriginal(false);
       setOriginalText('');
       return;
+    }
+
+    // Mark document as read when opened
+    if (onMarkAsRead && item.name) {
+      onMarkAsRead(item.name);
     }
 
     // Create cache key from item type and name
@@ -50,6 +55,30 @@ const ReadableTextModal = ({ isOpen, onClose, item, theme = 'light', textCache =
     }
 
     // For books, signs, etc., generate detailed text with markdown formatting
+
+    // PHASE 2: Extract metadata from item if available
+    const author = item.metadata?.author || null;
+    const giver = item.metadata?.giver || null;
+    const purpose = item.metadata?.purpose || null;
+    const recipient = 'Maria de Lima';
+
+    // Build context string for LLM
+    let contextString = '';
+    if (narrativeContext || item.narrativeContext) {
+      contextString = `\n\nNarrative Context:\n${narrativeContext || item.narrativeContext}\n\nUse this context to make the document feel authentic and connected to the story.`;
+    }
+
+    let metadataString = '';
+    if (author || giver || purpose) {
+      metadataString = `\n\nDocument Metadata:
+${author ? `- Author: ${author}` : ''}
+${giver ? `- Given by: ${giver}` : ''}
+${recipient ? `- Recipient: ${recipient}` : ''}
+${purpose ? `- Purpose: ${purpose}` : ''}
+
+Use this metadata to inform the document's content, tone, and style.`;
+    }
+
     const messages = [
       {
         role: 'system',
@@ -62,19 +91,20 @@ Guidelines:
 - For signs: Write the full sign text with hierarchical headings (business name, tagline, details, prices, hours). Use # for main heading, ## for sections, ### for subsections. Include 1-2 relevant emoji symbols (like 🍞 for bakery, ⚖️ for scales, 🔨 for blacksmith, etc.)
 - For labels: Write complete label text with contents, provenance, instructions
 - For inscriptions: Full inscription text with any dating or attribution
-- For documents: Full document content (letters, notices, proclamations, etc.)
+- For documents/letters: Full document content with appropriate salutations, body, and closings for the historical period
+- For codices/manuscripts: Scholarly or medical text with period-appropriate terminology
 
 Be historically accurate for 1680s Mexico. Use period-appropriate language and style.
 Keep it concise (150-300 words).
 
 IMPORTANT: Format your response with markdown:
 - For SIGNS/LABELS: Use # for main business name, ## for section headings (like "PRECIOS FIJOS"), ### for subsections. Add emoji symbols relevant to the business (🍞🥖🌾 for food, ⚖️💰 for commerce, 🔨⚒️ for trades, 📜✒️ for writing, 🍷🍺 for taverns, etc.)
-- For BOOKS/DOCUMENTS: DO NOT use headers (# ## ###) - just body text
+- For BOOKS/DOCUMENTS/LETTERS: DO NOT use headers (# ## ###) - just body text
 - Use **bold** for emphasis or decorated text
 - Use *italics* for Latin phrases or foreign words
 - Use line breaks between paragraphs
 
-${item.type === 'sign' || item.type === 'label' ? 'This is a sign, so use markdown headers to create visual hierarchy like a painted wooden sign. Include emoji as decorative elements!' : 'Your response will be displayed as a 17th century document with initial capitals and flourishes.'}`
+${item.type === 'sign' || item.type === 'label' ? 'This is a sign, so use markdown headers to create visual hierarchy like a painted wooden sign. Include emoji as decorative elements!' : 'Your response will be displayed as a 17th century document with initial capitals and flourishes.'}${contextString}${metadataString}`
       },
       {
         role: 'user',
@@ -99,7 +129,7 @@ ${item.type === 'sign' || item.type === 'label' ? 'This is a sign, so use markdo
       .finally(() => {
         setIsLoading(false);
       });
-  }, [isOpen, item, textCache]);
+  }, [isOpen, item, narrativeContext]); // Removed textCache from deps - cache mutations shouldn't trigger re-fetch
 
   // Handle listen button for ambient entries
   const handleListen = () => {
