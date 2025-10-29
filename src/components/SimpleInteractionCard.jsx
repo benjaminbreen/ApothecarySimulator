@@ -21,7 +21,7 @@ export default function SimpleInteractionCard({
   // Helper: Check if player has item
   const hasItem = (itemName) => {
     return inventory.some(item =>
-      item.name.toLowerCase() === itemName.toLowerCase() && item.quantity > 0
+      item?.name?.toLowerCase() === itemName?.toLowerCase() && item.quantity > 0
     );
   };
 
@@ -64,6 +64,17 @@ export default function SimpleInteractionCard({
       buttonPrimary: 'bg-white hover:bg-blue-50 text-blue-600',
       buttonSecondary: 'bg-white/20 hover:bg-white/30 text-white',
       icon: '🚰'
+    },
+    vendor_offer: {
+      gradient: 'from-amber-500/90 to-amber-600',
+      darkGradient: 'dark:from-amber-700 dark:to-amber-800',
+      border: 'border-amber-400/20',
+      darkBorder: 'dark:border-amber-600/30',
+      textSecondary: 'text-amber-100',
+      darkTextSecondary: 'dark:text-amber-200',
+      buttonPrimary: 'bg-white hover:bg-amber-50 text-amber-600',
+      buttonSecondary: 'bg-white/20 hover:bg-white/30 text-white',
+      icon: '🛒'
     },
     donation_request: {
       gradient: 'from-amber-500/90 to-amber-600',
@@ -114,6 +125,67 @@ export default function SimpleInteractionCard({
   const colors = colorSchemes[type] || colorSchemes.service_offer;
 
   // Render based on interaction type
+
+  // Vendor offer (merchant/peddler selling goods to Maria)
+  if (type === 'vendor_offer' && interaction.offer) {
+    const { context, npcRole } = interaction;
+
+    return (
+      <div className="animate-fade-in mb-4">
+        <div className={`w-full p-4 bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder}`}>
+          <div className="flex items-center gap-3">
+            {/* NPC Portrait */}
+            <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
+              {npcPortrait ? (
+                <img
+                  src={npcPortrait}
+                  alt={npcName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.outerHTML = '<div class="text-2xl">' + colors.icon + '</div>';
+                  }}
+                />
+              ) : (
+                <div className="text-2xl">{colors.icon}</div>
+              )}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 text-left">
+              <div className="text-white font-bold text-lg mb-0.5">
+                Vendor Offer
+              </div>
+              <div className={`${colors.textSecondary} ${colors.darkTextSecondary} text-sm font-medium`}>
+                {npcName} {context || 'has goods for sale'}
+              </div>
+              {npcRole && (
+                <div className="text-white/70 text-xs mt-0.5">
+                  {npcRole}
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex-shrink-0 flex items-center gap-2">
+              <button
+                onClick={() => onChoice('view_items', interaction)}
+                className={`px-4 py-2 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md`}
+              >
+                View Items
+              </button>
+              <button
+                onClick={() => onChoice('refuse', interaction)}
+                className={`px-4 py-2 ${colors.buttonSecondary} font-semibold rounded-lg transition-colors`}
+              >
+                Not Interested
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (type === 'service_offer' && interaction.offer) {
     const { item, price, description, stock } = interaction.offer;
     const affordable = canAfford(price);

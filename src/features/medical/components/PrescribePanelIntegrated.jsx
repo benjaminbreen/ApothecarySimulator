@@ -11,6 +11,7 @@ import ConfirmDialog from '../../../components/ConfirmDialog';
 import PrescriptionOutcomeModal from './PrescriptionOutcomeModal';
 import { useGameState } from '../../../contexts/GameStateContext';
 import { MedicalRecordsManager } from '../../../core/systems/medicalRecordsManager';
+import { entityManager } from '../../../core/entities/EntityManager';
 
 import oralImage from '../../../assets/oral.jpg';
 import inhaledImage from '../../../assets/inhaled.jpg';
@@ -38,7 +39,7 @@ function PrescribePanelIntegrated({
   TRANSACTION_CATEGORIES
 }) {
   const { inventory = [] } = gameState;
-  const { setGameState } = useGameState(); // For updating medical records
+  const { setGameState, setCrisisState } = useGameState(); // For updating medical records and crisis state
   const [selectedItem, setSelectedItem] = useState(null);
   const [amount, setAmount] = useState(1);
   const [price, setPrice] = useState(0);
@@ -54,6 +55,10 @@ function PrescribePanelIntegrated({
   const [showOutcomeModal, setShowOutcomeModal] = useState(false);
   const [prescriptionData, setPrescriptionData] = useState(null);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
+
+  // Bloodletting feature states
+  const [includeBloodletting, setIncludeBloodletting] = useState(false);
+  const [bloodAmount, setBloodAmount] = useState(8); // Default 8 ounces (common historical amount)
 
   const routeImages = {
     Oral: oralImage,
@@ -182,8 +187,13 @@ function PrescribePanelIntegrated({
     }
     // General treatment
     else if (prescriptionType === 'treatment' || currentPatient.type === 'patient') {
+      // Build bloodletting description if included
+      const bloodlettingDescription = includeBloodletting
+        ? `\n\nIMPORTANT: In addition to the medicine, Maria has performed bloodletting (phlebotomy) on the patient, drawing ${bloodAmount} ounces of blood using a lancet. This was a common therapeutic practice in early modern medicine, believed to restore humoral balance. Consider the combined effects of both the medicine AND the bloodletting procedure. Bloodletting could weaken the patient, cause fainting, or (in the medical beliefs of the era) help rebalance the humors. The amount drawn (${bloodAmount} oz) should factor into your assessment - small amounts (4-8 oz) were considered safe, while larger amounts (16+ oz) could be dangerous, especially for weak patients.`
+        : '';
+
       prescriptionPrompt = `
-    Maria has administered ${amount} drachms of ${item.name} via the ${route} route for ${price} silver coins to ${npcName}.
+    Maria has administered ${amount} drachms of ${item.name} via the ${route} route for ${price} silver coins to ${npcName}.${bloodlettingDescription}
     The transaction occurred at ${time} on ${date}, in ${location}. (This is context and should not be restated to the player.)
     Diagnosis: ${diagnosis}
     Social Context: ${socialContext}
@@ -266,7 +276,7 @@ function PrescribePanelIntegrated({
     try {
       setIsLoading(true);
 
-      // Notify parent that prescription is pending (triggers blue card in narration and switches to chronicle tab)
+      // Notify parent immediately to trigger tab switch (without outcome data yet)
       if (onPrescriptionPending) {
         onPrescriptionPending({
           patient: currentPatient,
@@ -312,17 +322,50 @@ function PrescribePanelIntegrated({
       const summaryData = await createChatCompletion(summaryMessages, 0.4);
       const journalSummary = summaryData.choices[0].message.content.trim();
 
+      // Notify parent that prescription is complete (triggers blue card with full outcome data)
+      if (onPrescriptionPending) {
+        onPrescriptionPending({
+          patient: currentPatient,
+          item,
+          amount,
+          price,
+          route,
+          outcome: simulatedOutput,  // Full detailed narrative
+          journalSummary: journalSummary,
+          timestamp: gameState.time
+        });
+      }
+
       // Add comprehensive summary to conversation history so NarrativeAgent knows what happened
       // Include examination, diagnosis, and prescription in one complete narrative
       const symptoms = currentPatient?.symptoms?.map(s => s.name || s).join(', ') || 'various symptoms';
       const diagnosis = currentPatient?.diagnosis || 'undetermined condition';
 
-      const comprehensiveSummary = `After a thorough examination of ${npcName}, during which Maria observed ${symptoms}, she diagnosed the condition as ${diagnosis}. Maria then prescribed ${amount} drachms of ${item.name} administered via the ${route} route for ${price} reales. ${journalSummary}`;
+      const bloodlettingSummary = includeBloodletting
+        ? ` She also performed bloodletting, drawing ${bloodAmount} ounces of blood to restore humoral balance.`
+        : '';
+
+      const comprehensiveSummary = `After a thorough examination of ${npcName}, during which Maria observed ${symptoms}, she diagnosed the condition as ${diagnosis}. Maria then prescribed ${amount} drachms of ${item.name} administered via the ${route} route for ${price} reales.${bloodlettingSummary} ${journalSummary}`;
 
       setConversationHistory(prev => [
         ...prev,
         { role: 'user', content: `Maria examined and treated ${npcName}.`, hidden: true },
-        { role: 'assistant', content: comprehensiveSummary }
+        {
+          role: 'assistant',
+          content: comprehensiveSummary,
+          card: {
+            type: 'prescription',
+            data: {
+              patient: currentPatient,
+              item: selectedItem,
+              amount: amount,
+              route: selectedRoute,
+              outcome: simulatedOutput,
+              journalSummary: journalSummary,
+              timestamp: gameState.time
+            }
+          }
+        }
       ]);
 
       if (typeof addJournalEntry === 'function') {
@@ -343,6 +386,27 @@ function PrescribePanelIntegrated({
       }
 
       // Add patient to medical records (Patient Roster)
+      const prescriptions = [{
+        medicine: item.name,
+        route: route,
+        dosage: `${amount} drachms`,
+        price: price
+      }];
+
+      // Add bloodletting to prescriptions if performed
+      if (includeBloodletting) {
+        prescriptions.push({
+          medicine: 'Bloodletting (Phlebotomy)',
+          route: 'Venous',
+          dosage: `${bloodAmount} ounces`,
+          price: 0 // Bloodletting typically included in consultation fee
+        });
+      }
+
+      // FIX #2: Pass diagnosis from patient entity to medical records
+      const diagnosisText = currentPatient?.diagnosis || '';
+      const symptomsData = currentPatient?.symptoms || [];
+
       setGameState(prev => ({
         ...prev,
         medicalRecords: MedicalRecordsManager.addSession(
@@ -352,19 +416,16 @@ function PrescribePanelIntegrated({
             date: gameState.date,
             turnNumber: gameState.turnNumber || 0,
             sessionType: 'examination',
-            prescriptions: [{
-              medicine: item.name,
-              route: route,
-              dosage: `${amount} drachms`,
-              price: price
-            }],
-            outcome: journalSummary, // Use the clean 1-sentence summary
+            symptoms: symptomsData, // FIX: Include symptoms from patient entity
+            diagnosis: diagnosisText, // FIX: Include diagnosis from patient entity
+            prescriptions: prescriptions,
+            outcome: journalSummary, // Use the clean 1-sentence summary (will be updated with real outcome)
             payment: price
           }
         )
       }));
 
-      console.log(`[MedicalRecords] Added ${npcName} to patient roster with prescription: ${item.name}`);
+      console.log(`[MedicalRecords] Added ${npcName} to patient roster with prescription: ${item.name}, diagnosis: ${diagnosisText || 'none'}`);
 
       // Show outcome modal instead of adding to conversation history
       // Use pendingModalOpen to trigger the modal opening via useEffect
@@ -416,6 +477,94 @@ function PrescribePanelIntegrated({
   };
 
   const handleOutcomeModalContinue = () => {
+    // FIX #3: Detect death/fatal outcomes and update patient entity
+    const outcomeText = simulatedOutput || '';
+    const outcomeTextLower = outcomeText.toLowerCase();
+
+    // Death detection patterns
+    const isFatal =
+      outcomeTextLower.includes('💀 fatal') ||
+      outcomeTextLower.includes('death') ||
+      outcomeTextLower.includes('died') ||
+      outcomeTextLower.includes('fatal') ||
+      outcomeTextLower.includes('collapse') ||
+      outcomeTextLower.includes('passed away') ||
+      outcomeTextLower.includes('succumbed') ||
+      outcomeTextLower.includes('expire') ||
+      /\b(1|2|3)\/10\b/.test(outcomeTextLower); // Rating of 1-3/10 indicates severe/fatal
+
+    if (isFatal) {
+      console.log(`[PrescribePanelIntegrated] FATAL OUTCOME DETECTED for ${currentPatient?.name}`);
+
+      // FIX #4: Update patient entity with death flag
+      if (currentPatient && currentPatient.id) {
+        try {
+          const updatedPatient = {
+            ...currentPatient,
+            isDead: true,
+            deathDate: gameState.date,
+            deathTurnNumber: gameState.turnNumber,
+            causeOfDeath: 'Treatment complications',
+            treatmentOutcome: outcomeText,
+            lastUpdated: new Date().toISOString()
+          };
+
+          entityManager.update(currentPatient.id, updatedPatient);
+          console.log(`[PrescribePanelIntegrated] Marked ${currentPatient.name} as deceased in entity manager`);
+
+          // Update medical records with fatal outcome
+          setGameState(prev => ({
+            ...prev,
+            medicalRecords: MedicalRecordsManager.updateLatestSession(
+              prev.medicalRecords || {},
+              currentPatient.id || currentPatient.name,
+              { outcome: `FATAL: ${outcomeText}` }
+            )
+          }));
+
+          // FIX #5: Add death notification to conversation history (informs LLM)
+          if (setConversationHistory) {
+            setConversationHistory(prev => [
+              ...prev,
+              {
+                role: 'system',
+                content: `⚠️ CRITICAL: ${currentPatient.name} has DIED as a result of Maria's treatment. The patient is DECEASED and cannot respond or interact anymore. This is a serious consequence that should affect the narrative and Maria's reputation.`
+              }
+            ]);
+          }
+
+          // FIX #6: Trigger crisis mode for elite/middling patient deaths
+          const patientClass = currentPatient.class || currentPatient.social?.class || 'common';
+          const shouldTriggerCrisis = (patientClass === 'elite' || patientClass === 'middling');
+
+          if (shouldTriggerCrisis && setCrisisState) {
+            console.log(`[PrescribePanelIntegrated] ⚠️ CRISIS ACTIVATED: High-status patient death (${patientClass})`);
+            setCrisisState({
+              active: true,
+              reason: 'Patient death under suspicious circumstances',
+              context: `${currentPatient.name} (${patientClass}) died from treatment complications. Witnesses may report this to authorities.`
+            });
+          } else {
+            console.log(`[PrescribePanelIntegrated] Patient death (${patientClass}) - no crisis triggered (common class or no setCrisisState)`);
+          }
+        } catch (error) {
+          console.error('[PrescribePanelIntegrated] Failed to update patient entity with death status:', error);
+        }
+      }
+    } else {
+      // Non-fatal outcome: still update medical records with actual outcome
+      if (currentPatient && currentPatient.id) {
+        setGameState(prev => ({
+          ...prev,
+          medicalRecords: MedicalRecordsManager.updateLatestSession(
+            prev.medicalRecords || {},
+            currentPatient.id || currentPatient.name,
+            { outcome: outcomeText }
+          )
+        }));
+      }
+    }
+
     setShowOutcomeModal(false);
     setPendingModalOpen(false);
 
@@ -466,16 +615,7 @@ function PrescribePanelIntegrated({
           </button>
         </div>
 
-        {/* Patient Info */}
-        {currentPatient && (
-          <div className="mb-4 rounded-lg p-3 bg-parchment-50 dark:bg-slate-900/50 border border-ink-100 dark:border-slate-700 transition-colors duration-300">
-            <p className="text-sm text-ink-700 dark:text-slate-300 font-sans transition-colors duration-300">
-              <span className="text-ink-900 dark:text-parchment-100 font-semibold">Patient:</span> {currentPatient.name}
-              {currentPatient.diagnosis && <span className="text-ink-600 dark:text-slate-400"> • {currentPatient.diagnosis}</span>}
-            </p>
-          </div>
-        )}
-
+    
         {/* Scrollable Content Area */}
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2">
           {/* Drop Zone */}
@@ -562,10 +702,10 @@ function PrescribePanelIntegrated({
               ) : (
                 <div className={`transition-all duration-300 ${isOver && canDrop ? 'scale-110' : 'scale-100'}`}>
                   <div className={`text-4xl mb-2 transition-all duration-300 ${isOver && canDrop ? 'opacity-100 animate-bounce' : 'opacity-40'}`}>
-                    {isOver && canDrop ? '⬇️' : '📦'}
+                    {isOver && canDrop ? '⬇️' : ''}
                   </div>
                   <p className={`text-center text-sm font-sans transition-colors duration-300 ${
-                    isOver && canDrop ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-ink-500 dark:text-slate-500'
+                    isOver && canDrop ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-ink-400 dark:text-slate-500'
                   }`}>
                     {isOver && canDrop ? 'Drop here to select' : 'Drag an item from inventory to prescribe'}
                   </p>
@@ -662,6 +802,59 @@ function PrescribePanelIntegrated({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Bloodletting Section */}
+          <div className="mt-4 p-4 rounded-lg border-2 transition-all duration-300" style={{
+            borderColor: includeBloodletting ? '#dc2626' : (document.documentElement.classList.contains('dark') ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.4)'),
+            backgroundColor: includeBloodletting
+              ? (document.documentElement.classList.contains('dark') ? 'rgba(220, 38, 38, 0.1)' : 'rgba(220, 38, 38, 0.05)')
+              : 'transparent'
+          }}>
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-semibold text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans flex items-center gap-2">
+                🩸 Bloodletting (Phlebotomy)
+              </label>
+              <button
+                onClick={() => setIncludeBloodletting(!includeBloodletting)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all font-sans ${
+                  includeBloodletting
+                    ? 'bg-red-600 text-white hover:bg-red-700 shadow-md'
+                    : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-300 dark:hover:bg-slate-600'
+                }`}
+              >
+                {includeBloodletting ? 'Enabled ✓' : 'Disabled'}
+              </button>
+            </div>
+
+            {includeBloodletting && (
+              <div className="space-y-2 animate-fade-in">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-ink-600 dark:text-slate-400 font-sans">Blood Amount:</span>
+                  <span className="font-bold text-red-700 dark:text-red-400 font-sans">{bloodAmount} ounces</span>
+                </div>
+                <input
+                  type="range"
+                  min="4"
+                  max="24"
+                  step="2"
+                  value={bloodAmount}
+                  onChange={(e) => setBloodAmount(Number(e.target.value))}
+                  className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer slider-thumb-red"
+                  style={{
+                    accentColor: '#dc2626'
+                  }}
+                />
+                <div className="flex justify-between text-xs text-ink-500 dark:text-slate-500 font-sans">
+                  <span>4 oz (Safe)</span>
+                  <span>12 oz (Moderate)</span>
+                  <span>24 oz (Risky)</span>
+                </div>
+                <p className="text-xs text-ink-600 dark:text-slate-400 italic font-serif mt-2">
+                  Phlebotomy was believed to restore humoral balance. Small amounts (4-8 oz) were considered therapeutic, while larger amounts could weaken or endanger the patient.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

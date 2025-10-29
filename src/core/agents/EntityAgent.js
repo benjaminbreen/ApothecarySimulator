@@ -35,8 +35,10 @@ export function selectContextAwareEntity(context) {
     time,
     date,
     recentNPCs = [],
+    npcDepartedLastTurn = false,
     reputation,
-    wealth
+    wealth,
+    conversationLock = null
   } = context;
 
   // Query EntityManager for ALL NPCs (static + auto-generated + LLM-created)
@@ -47,14 +49,37 @@ export function selectContextAwareEntity(context) {
 
   console.log(`[EntityAgent] Selecting from ${allNPCs.length} total entities (static + dynamic + LLM-generated)`);
 
+  // CHECK: Conversation Lock System (highest priority)
+  // If a conversation is locked, check for release/travel patterns before allowing continuation
+  if (conversationLock && conversationLock.active !== false) {
+    const actionLower = playerAction.toLowerCase();
+    const releasePattern = /(dismiss|send\s+(him|her|them)\s+away|tell\s+(him|her|them)\s+to\s+leave|close\s+the\s+door|shut\s+the\s+door|go\s+away|leave\s+me\s+alone)/i;
+    const travelPattern = /(go\s+to|travel\s+to|head\s+to|visit\s+the|walk\s+to|journey\s+to|make\s+my\s+way\s+to|head\s+for)/i;
+
+    if (!npcDepartedLastTurn && !releasePattern.test(actionLower)) {
+      if (travelPattern.test(actionLower)) {
+        console.log('[EntityAgent] Conversation lock retained during travel — continuing conversation.');
+        return null;
+      }
+      console.log(`[EntityAgent] Conversation lock active (${conversationLock.name || 'unknown'}) - continuing existing interaction.`);
+      return null;
+    }
+  }
+
   // CONTINUATION DETECTION: Multiple signals to detect if player is continuing with current NPC
   // If continuation detected, return null to signal continuation (prevents portrait changes)
   if (recentNPCs.length > 0) {
     const lastNPC = recentNPCs[recentNPCs.length - 1];
-    const firstName = lastNPC.split(/\s+/)[0].toLowerCase();
-    const actionLower = playerAction.toLowerCase();
 
-    // SIGNAL 1: Pronoun Detection (highest priority)
+    // CHECK: Did the NPC depart last turn? If so, don't continue
+    if (npcDepartedLastTurn) {
+      console.log(`[EntityAgent] ${lastNPC} departed last turn - no continuation`);
+      // Fall through to normal entity selection
+    } else {
+      const firstName = lastNPC.split(/\s+/)[0].toLowerCase();
+      const actionLower = playerAction.toLowerCase();
+
+      // SIGNAL 1: Pronoun Detection (highest priority)
     // Pronouns always refer to someone already present
     const pronouns = /\b(him|her|them|his|hers|their|he|she|they)\b/i;
     if (pronouns.test(playerAction)) {
@@ -69,7 +94,31 @@ export function selectContextAwareEntity(context) {
       return null;
     }
 
-    // SIGNAL 3: Action Context Keywords
+    // SIGNAL 3: Contextual Questions
+    // Questions about objects, people, or situations imply continuation
+    const contextualQuestions = /\b(what|who|why|where|when|how|which)\b.*\b(the|that|this|it|bundle|shirt|package|person|man|woman|master|patient|offer|deal|terms|payment|sickness|illness|ailment|matter|situation|problem|request)\b/i;
+    if (contextualQuestions.test(playerAction)) {
+      console.log(`[EntityAgent] Contextual question detected "${playerAction}" - signaling continuation with ${lastNPC}`);
+      return null;
+    }
+
+    // SIGNAL 4: Demonstrative References
+    // "the X", "that X", "this X" refer to something/someone already present
+    const demonstratives = /\b(the|that|this|these|those)\s+(bundle|shirt|package|person|man|woman|child|request|offer|deal|matter|situation|problem)\b/i;
+    if (demonstratives.test(playerAction)) {
+      console.log(`[EntityAgent] Demonstrative reference detected "${playerAction}" - signaling continuation with ${lastNPC}`);
+      return null;
+    }
+
+    // SIGNAL 5: Short Affirmations
+    // Brief responses that clearly continue the conversation
+    const shortAffirmations = /^(yes|yeah|yep|ok|okay|sure|alright|agreed|fine|go\s+on|continue|proceed|i\s+see|understood)[\s.,!?]*$/i;
+    if (shortAffirmations.test(playerAction.trim())) {
+      console.log(`[EntityAgent] Short affirmation detected "${playerAction}" - signaling continuation with ${lastNPC}`);
+      return null;
+    }
+
+    // SIGNAL 6: Action Context Keywords
     // These verbs/phrases imply continuing with someone already present
     const continuationKeywords = [
       // Inviting/letting in (response to choice questions)
@@ -83,7 +132,10 @@ export function selectContextAwareEntity(context) {
       // Examining/helping (implies patient/NPC present)
       /\b(examine|help|assist|aid|treat|tend\s+to)\b/i,
       // Waiting for expected person/event (continuation)
-      /\b(wait|await|expect|anticipate|watch\s+for|look\s+for)\b/i
+      // Only match "wait for him/her/them", not generic "wait"
+      /\b(wait\s+for\s+(him|her|them)|await|expect|anticipate|watch\s+for|look\s+for)\b/i,
+      // Agreeing to requests
+      /\b(agree|accept|will\s+help|can\s+help|let\s+me\s+help)\b/i
     ];
 
     for (const pattern of continuationKeywords) {
@@ -92,7 +144,8 @@ export function selectContextAwareEntity(context) {
         return null;
       }
     }
-  }
+    } // Close else block (NPC not departed)
+  } // Close recentNPCs.length > 0 block
 
   // MOVEMENT INTENT DETECTION: Prevent NPC encounters during travel actions
   // When player clearly wants to travel somewhere, don't inject NPCs along the way
@@ -126,6 +179,22 @@ export function selectContextAwareEntity(context) {
     }
   }
 
+  if (conversationLock && conversationLock.active !== false) {
+    const actionLower = playerAction.toLowerCase();
+    const releasePattern = /(dismiss|send\s+(him|her|them)\s+away|tell\s+(him|her|them)\s+to\s+leave|close\s+the\s+door|shut\s+the\s+door|go\s+away|leave\s+me\s+alone)/i;
+    const travelPattern = /(go\s+to|travel\s+to|head\s+to|visit\s+the|walk\s+to|journey\s+to|make\s+my\s+way\s+to|head\s+for)/i;
+
+    if (!npcDepartedLastTurn && !releasePattern.test(actionLower)) {
+      if (travelPattern.test(actionLower)) {
+        console.log('[EntityAgent] Conversation lock retained during travel — continuing conversation.');
+        return null;
+      }
+
+      console.log(`[EntityAgent] Conversation lock active (${conversationLock.name || 'unknown'}) - continuing existing interaction.`);
+      return null;
+    }
+  }
+
   // CONTEXTUAL GUARDS: Filter out patients when conditions don't support them
   // This prevents patients from appearing during inappropriate times/locations
   const activePatient = context.activePatient;
@@ -153,6 +222,12 @@ export function selectContextAwareEntity(context) {
     if (entityType !== 'patient') return true;
 
     // For patients, check all conditions
+    // FIX #6: Exclude dead patients from selection
+    if (entity.isDead === true) {
+      console.log(`[EntityAgent] Patient filtered: ${entity.name} is deceased`);
+      return false;
+    }
+
     if (activePatient) {
       console.log('[EntityAgent] Patient filtered: Already treating someone');
       return false;

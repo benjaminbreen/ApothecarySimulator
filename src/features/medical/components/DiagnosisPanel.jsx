@@ -108,30 +108,30 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
 
       {/* Patient Info */}
       {patient && (
-        <div className="mb-3 rounded-lg py-1 p-2.5" style={{
+        <div className="mb-3 shadow-inner rounded-lg py-1 p-2.5" style={{
           background: 'rgba(249, 245, 235, 0.5)',
           border: '1px solid rgba(209, 213, 219, 0.3)'
         }}>
-          <p className="text-xs text-ink-700 font-sans">
+          <p className="text-xs text-ink-700 mt-1 mb-1  font-sans">
             <span className="text-ink-900 font-semibold">Patient:</span> {patient.name}
           </p>
         </div>
       )}
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
 
         {/* Evidence Section */}
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">📋</span>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-base"></span>
             <h3 className="text-base font-bold text-ink-900 uppercase tracking-wide font-sans">
               Clinical Evidence
             </h3>
           </div>
 
           {/* Scrollable Evidence Cards Container */}
-          <div className="max-h-[240px] overflow-y-auto custom-scrollbar space-y-2 pr-1 mb-3">
+          <div className="max-h-[140px]  overflow-y-auto custom-scrollbar space-y-1 pr-1 mb-2">
             {evidenceCards.map((card) => (
               <EvidenceCard
                 key={card.id}
@@ -159,7 +159,7 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
         {/* Diagnosis Section */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">🩺</span>
+            <span className="text-base"></span>
             <h3 className="text-base font-bold text-ink-900 uppercase tracking-wide font-sans">
               Your Diagnosis
             </h3>
@@ -168,14 +168,14 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
           <textarea
             value={diagnosis}
             onChange={(e) => setDiagnosis(e.target.value)}
-            placeholder="Enter your medical diagnosis based on the evidence...&#10;&#10;e.g., 'Considering the patient's persistent headache and melancholic humors, I diagnose an excess of black bile causing humoral imbalance...'"
-            className="w-full px-4 py-3 rounded-lg border resize-none font-serif leading-relaxed"
-            rows={2}
+            placeholder="Enter your medical diagnosis based on the evidence...&#10;e.g., 'Considering the patient's persistent headache and melancholic humors, I diagnose an excess of black bile...'"
+            className="shadow-inner w-full px-4 ml-1 py-3 rounded-lg border resize-none font-serif leading-relaxed"
+            rows={3}
             style={{
               background: 'rgba(255, 255, 255, 0.8)',
               borderColor: 'rgba(209, 213, 219, 0.5)',
               color: '#1f1b14',
-              fontSize: '15px'
+              fontSize: '18px'
             }}
           />
         </div>
@@ -183,7 +183,7 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
         {/* Confidence Meter */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">📊</span>
+            <span className="text-base"></span>
             <h3 className="text-base font-bold text-ink-900 uppercase tracking-wide font-sans">
               Diagnostic Certainty
             </h3>

@@ -82,6 +82,7 @@ export function CentralPanel({
   onPrescriptionPending, // Callback when prescription is being processed
   onPrescriptionComplete, // Callback when prescription outcome is accepted
   pendingPrescription, // Current pending prescription data
+  onOpenPrescriptionDetails, // Callback to open prescription outcome modal
 
   // Narration settings props
   narrationFontSize,
@@ -122,6 +123,7 @@ export function CentralPanel({
               activePatient={activePatient}
               onSwitchToPatientView={() => onTabChange('patient')}
               pendingPrescription={pendingPrescription}
+              onOpenPrescriptionDetails={onOpenPrescriptionDetails}
               pendingContract={pendingContract}
               onOpenContractModal={onOpenContractModal}
               pendingExitConfirmation={pendingExitConfirmation}

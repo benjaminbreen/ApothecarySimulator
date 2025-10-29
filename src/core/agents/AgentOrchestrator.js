@@ -8,6 +8,7 @@ import { autoGenerateNPCsFromNarrative } from '../entities/autoGenerateNPC';
 import { entityManager } from '../entities/EntityManager';
 import { buildLocationRegistry } from '../../features/map/services/locationRegistry';
 import { scenarioLoader } from '../services/scenarioLoader';
+import { isFeatureEnabled } from '../config/featureFlags';
 
 /**
  * @typedef {import('../types/game.types').GameState} GameState
@@ -50,23 +51,27 @@ export async function orchestrateTurn({
   playerSkills = null,
   journal = [],
   activePatient = null,
-  recentPortrait = null
+  recentPortrait = null,
+  npcDepartedLastTurn = false,
+  conversationLock = null
 }) {
   try {
     // Step 1: Context-aware entity selection
-    const selectedEntity = selectContextAwareEntity({
-      scenarioId,
-      playerAction, // NEW: Pass player action for intent detection
-      turnNumber,
-      location: gameState.location,
-      time: gameState.time,
-      date: gameState.date,
-      recentNPCs,
-      reputation,
-      wealth,
-      shopSign: gameState.shopSign || {}, // Pass shop sign status for patient flow
-      activePatient // Pass active patient to prevent duplicate selections
-    });
+  const selectedEntity = selectContextAwareEntity({
+    scenarioId,
+    playerAction, // NEW: Pass player action for intent detection
+    turnNumber,
+    location: gameState.location,
+    time: gameState.time,
+    date: gameState.date,
+    recentNPCs,
+    npcDepartedLastTurn, // NEW: Track if NPC left last turn
+    reputation,
+    wealth,
+    shopSign: gameState.shopSign || {}, // Pass shop sign status for patient flow
+    activePatient, // Pass active patient to prevent duplicate selections
+    conversationLock
+  });
 
     if (selectedEntity) {
       console.log(`[Turn ${turnNumber}] Selected entity: ${selectedEntity.name} (${selectedEntity.entityType || selectedEntity.type})`);
@@ -81,9 +86,12 @@ export async function orchestrateTurn({
 
     // Check if EntityAgent returns null but we have recentNPCs
     // AND player is NOT moving away (which would break the conversation)
-    const isContinuation = !selectedEntity &&
+    const conversationLocked = conversationLock && conversationLock.active !== false;
+
+    const isContinuation = (!selectedEntity &&
                           (recentNPCs.length > 0 || recentPortrait !== null) &&
-                          !isMovingAway;
+                          !isMovingAway) ||
+                          (conversationLocked && !isMovingAway);
 
     const continuationNPC = isContinuation && recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
 
@@ -112,7 +120,7 @@ export async function orchestrateTurn({
       journal,
       recentPortrait: isContinuation ? recentPortrait : null, // PHASE 2: Only maintain portrait during true continuations
       isContinuation, // PHASE 3: Flag if conversation is continuing
-      continuationNPC: isContinuation ? continuationNPC : null // PHASE 3: Only pass NPC name during true continuations
+      continuationNPC: continuationNPC // Always pass if available
     });
 
     if (!narrativeResult.success) {
@@ -207,7 +215,16 @@ export async function orchestrateTurn({
 
     // Step 3: Build location registry for granular location tracking
     const scenario = scenarioLoader.getScenario(scenarioId);
-    const availableLocations = buildLocationRegistry(scenario, currentMapId || gameState.currentMap);
+    const availableLocations = buildLocationRegistry(
+      scenario,
+      currentMapId || gameState.currentMap,
+      {
+        currentLocationText: gameState.location,
+        playerPosition,
+        currentWorldLocationId: gameState.worldLocationId || null,
+        maxWorldLocations: 10
+      }
+    );
 
     if (availableLocations.length > 0) {
       console.log(`[AgentOrchestrator] Built location registry with ${availableLocations.length} locations:`,
@@ -215,6 +232,9 @@ export async function orchestrateTurn({
     }
 
     // Step 4: Extract game state from narrative using StateAgent (with map data and location registry)
+    const detectedIntent = narrativeResult.interactionIntent || 'none';
+    console.log(`[AgentOrchestrator] Interaction intent from NarrativeAgent: ${detectedIntent}`);
+
     const stateResult = await extractGameState({
       narrative: narrativeResult.narrative,
       currentGameState: gameState,
@@ -224,7 +244,9 @@ export async function orchestrateTurn({
       turnNumber,
       mapData,
       availableLocations, // NEW: Pass location registry for granular location tracking
-      primaryNPC: narrativeResult.primaryNPC || null // NEW: Pass primary NPC for contract name resolution
+      primaryNPC: narrativeResult.primaryNPC || null, // NEW: Pass primary NPC for contract name resolution
+      activePatient: activePatient || null, // NEW: Pass active patient for treatment context
+      interactionIntent: detectedIntent
     });
 
     // Step 5: Validate state changes
@@ -243,16 +265,17 @@ export async function orchestrateTurn({
     if (stateResult.actionPrompt) {
       console.log('[AgentOrchestrator] actionPrompt from state:', stateResult.actionPrompt.type, stateResult.actionPrompt);
     }
+    if (isFeatureEnabled('interactionDebugLogging')) {
+      console.log('[AgentOrchestrator] Feature flags:', isFeatureEnabled('revisedInteractionPipeline') ? 'revisedInteractionPipeline=ON' : 'revisedInteractionPipeline=OFF');
+    }
 
     return {
       success: true,
       narrative: narrativeResult.narrative,
-      responseType: narrativeResult.responseType || 'narration', // PHASE 3: Response mode (dialogue/movement/narration)
-      dialogue: narrativeResult.dialogue || null, // PHASE 3: Pure NPC speech for dialogue mode
-      npcSpeaker: narrativeResult.npcSpeaker || null, // PHASE 3: NPC name for dialogue mode
-      npcDialogue: narrativeResult.npcDialogue,
+      responseType: narrativeResult.responseType || 'narration',
       sceneDescription: narrativeResult.sceneDescription,
       suggestedCommands: narrativeResult.suggestedCommands,
+      interactionIntent: narrativeResult.interactionIntent || 'none',
       showPortraitFor: narrativeResult.showPortraitFor || null, // LLM portrait hint (old system)
       primaryPortrait: narrativeResult.primaryPortrait || null, // PHASE 2: Direct portrait filename
       primaryNPC: narrativeResult.primaryNPC || null, // PHASE 2: Complete NPC profile

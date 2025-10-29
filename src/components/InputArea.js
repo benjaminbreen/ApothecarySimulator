@@ -1,13 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useDrop } from 'react-dnd';
-import {
-  FaSearchPlus,
-  FaQuestion,
-  FaWalking,
-  FaBook,
-  FaClock,
-} from 'react-icons/fa';
 import { getDefaultChips } from '../utils/narrativeParser';
 import { LocationDropdown } from './LocationDropdown';
 
@@ -74,6 +67,7 @@ const InputArea = ({
   onItemDrop, // New callback for when an item is dropped
   dynamicChips = null, // Array of dynamic action chips from narrative parser
   nearbyLocations = [], // Array of nearby locations for "Go somewhere" dropdown
+  onRequestLongDistanceTravel = null,
 }) => {
   const inputRef = useRef(null);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
@@ -147,7 +141,7 @@ const InputArea = ({
     console.log('[InputArea] handleQuickAction called:', { action, isGoSomewhere, nearbyLocationsCount: nearbyLocations.length });
 
     // Special handling for "Go somewhere" - show location dropdown
-    if (isGoSomewhere && nearbyLocations.length > 0) {
+    if (isGoSomewhere && (nearbyLocations.length > 0 || typeof onRequestLongDistanceTravel === 'function')) {
       console.log('[InputArea] Opening location dropdown');
       setLocationDropdownTarget(chipRef);
       setShowLocationDropdown(true);
@@ -349,6 +343,7 @@ const InputArea = ({
         onSelectLocation={handleLocationSelect}
         nearbyLocations={nearbyLocations}
         targetRef={locationDropdownTarget}
+        onRequestLongDistanceTravel={onRequestLongDistanceTravel}
       />
     </div>
   );

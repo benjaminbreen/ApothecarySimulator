@@ -63,6 +63,11 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       shopSign: {
         hung: false  // Track whether shop sign is displayed
       },
+      crisis: {
+        active: false,
+        reason: null,
+        context: null
+      },
       // Title and profession (level/XP now managed by playerSkills)
       playerTitle: startingState.character.title,
       chosenProfession: null, // null until Level 5 choice
@@ -103,6 +108,11 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       unlockedMethods: ['Distill', 'Decoct', 'Calcinate', 'Confection'],
       shopSign: {
         hung: false  // Track whether shop sign is displayed
+      },
+      crisis: {
+        active: false,
+        reason: null,
+        context: null
       },
       // Title and profession (fallback values - level/XP now managed by playerSkills)
       playerTitle: 'Independent Apothecary',
@@ -594,6 +604,31 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
     }));
   }, []);
 
+  const setCrisisState = useCallback((updater) => {
+    setGameState((prevState) => {
+      const current = prevState.crisis || { active: false, reason: null, context: null };
+      const next = typeof updater === 'function' ? updater(current, prevState) : updater || {};
+      return {
+        ...prevState,
+        crisis: {
+          ...current,
+          ...next
+        }
+      };
+    });
+  }, []);
+
+  const clearCrisisState = useCallback(() => {
+    setGameState((prevState) => ({
+      ...prevState,
+      crisis: {
+        active: false,
+        reason: null,
+        context: null
+      }
+    }));
+  }, []);
+
   // ============================================
   // CORE PLAYER STATS MANAGEMENT
   // ============================================
@@ -862,6 +897,8 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
 
     // Shop sign
     toggleShopSign,
+    setCrisisState,
+    clearCrisisState,
 
     // Core player stats
     updateWealth,

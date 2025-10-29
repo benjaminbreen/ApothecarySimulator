@@ -196,17 +196,27 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
   const [loadedIcons, setLoadedIcons] = React.useState({});
 
   React.useEffect(() => {
+    let isMounted = true;
+
     inventory.forEach(item => {
       const iconPath = getItemIcon(item.name);
       const img = new Image();
       img.onload = () => {
-        setLoadedIcons(prev => ({ ...prev, [item.name]: iconPath }));
+        if (isMounted) {
+          setLoadedIcons(prev => ({ ...prev, [item.name]: iconPath }));
+        }
       };
       img.onerror = () => {
-        setLoadedIcons(prev => ({ ...prev, [item.name]: null }));
+        if (isMounted) {
+          setLoadedIcons(prev => ({ ...prev, [item.name]: null }));
+        }
       };
       img.src = iconPath;
     });
+
+    return () => {
+      isMounted = false;
+    };
   }, [inventory]);
 
   if (inventory.length === 0) {
@@ -321,7 +331,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
         const isNewlyAdded = newlyAddedItemName && item.name.toLowerCase() === newlyAddedItemName.toLowerCase();
 
         return (
-          <DraggableInventoryItem key={idx} item={item}>
+          <DraggableInventoryItem key={item.name} item={item}>
             <div
               className="relative rounded-xl cursor-pointer group overflow-hidden transition-all duration-300 animate-cascade-in"
               title={`${item.name} (${item.quantity})`}
@@ -471,7 +481,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
             const rgb = hexToRgb(colors.primary);
 
             return (
-              <DraggableInventoryItem key={idx} item={item}>
+              <DraggableInventoryItem key={item.name} item={item}>
                 <div
                   className="rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-[1.01] group relative overflow-hidden"
                   onClick={() => onItemClick?.(item)}
@@ -605,8 +615,8 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
                 Equipped
               </h4>
               <div className="grid grid-cols-4 gap-1.5">
-                {equippedClothing.map((item, idx) => (
-                  <DraggableInventoryItem key={idx} item={item}>
+                {equippedClothing.map((item) => (
+                  <DraggableInventoryItem key={item.name} item={item}>
                     <div
                       className="relative rounded-lg cursor-pointer group overflow-hidden bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-ink-200/50 dark:border-slate-600/50 p-1.5 transition-all duration-200"
                       title={item.name}
@@ -628,10 +638,10 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
           {/* Unequipped Clothing */}
           {unequippedClothing.length > 0 && (
             <div>
-              
+
               <div className="grid grid-cols-4 gap-1.5">
-                {unequippedClothing.map((item, idx) => (
-                  <DraggableInventoryItem key={idx} item={item}>
+                {unequippedClothing.map((item) => (
+                  <DraggableInventoryItem key={item.name} item={item}>
                     <div
                       className="relative rounded-lg cursor-pointer group overflow-hidden bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-ink-200/50 dark:border-slate-600/50 p-1.5 transition-all duration-200"
                       title={item.name}
@@ -657,8 +667,8 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
                 Miscellaneous
               </h4>
               <div className="grid grid-cols-4 gap-1.5">
-                {miscItems.map((item, idx) => (
-                  <DraggableInventoryItem key={idx} item={item}>
+                {miscItems.map((item) => (
+                  <DraggableInventoryItem key={item.name} item={item}>
                     <div
                       className="relative rounded-lg cursor-pointer group overflow-hidden bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-ink-200/50 dark:border-slate-600/50 p-1.5 transition-all duration-200"
                       title={item.name}

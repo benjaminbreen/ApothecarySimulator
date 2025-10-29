@@ -6,7 +6,7 @@
  * Phase 4: Integrated with map animation system
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './TravelCard.css';
 import { getTravelNarrative } from '../features/medical/services/travelNarratives';
 import { calculatePathFromBotica, calculateTravelTime } from '../features/map/services/cityPathfinding';
@@ -26,6 +26,7 @@ export function TravelCard({ houseCallData, gameTime, onArrival, onCancel, onTra
   const [isComplete, setIsComplete] = useState(false);
   const [narrative, setNarrative] = useState('');
   const [pathData, setPathData] = useState(null);
+  const cleanupTimerRef = useRef(null);
 
   const {
     patientEntity,
@@ -35,6 +36,12 @@ export function TravelCard({ houseCallData, gameTime, onArrival, onCancel, onTra
     houseName
   } = houseCallData;
 
+  // Store onTravelUpdate in ref to avoid recreating callbacks
+  const onTravelUpdateRef = useRef(onTravelUpdate);
+  useEffect(() => {
+    onTravelUpdateRef.current = onTravelUpdate;
+  }, [onTravelUpdate]);
+
   // Phase 4: Calculate travel path on mount
   useEffect(() => {
     console.log('[TravelCard] Calculating path to:', destination);
@@ -43,8 +50,34 @@ export function TravelCard({ houseCallData, gameTime, onArrival, onCancel, onTra
     setPathData(result);
   }, [destination]);
 
+  // Report initial travel state once path exists
+  useEffect(() => {
+    if (pathData && pathData.path && pathData.path.length > 0 && onTravelUpdateRef.current) {
+      const start = pathData.path[0];
+      onTravelUpdateRef.current({
+        position: start,
+        direction: 180,
+        path: pathData.path,
+        progress: 0,
+        isAnimating: true
+      });
+    }
+  }, [pathData]);
+
   // Phase 4: Animated travel hook
   const animationDuration = pathData ? calculateTravelTime(pathData.path) : 3000;
+
+  // Stable onComplete callback
+  const handleComplete = useCallback(() => {
+    console.log('[TravelCard] Travel animation complete');
+    setIsComplete(true);
+  }, []);
+
+  // Stable onProgress callback - doesn't reference changing state
+  const handleProgress = useCallback((prog) => {
+    // Note: We can't access currentPosition/direction here without causing loop
+    // Parent will get this data from the animation state returned by hook
+  }, []);
 
   const {
     currentPosition,
@@ -56,23 +89,27 @@ export function TravelCard({ houseCallData, gameTime, onArrival, onCancel, onTra
     path: pathData?.path || null,
     duration: animationDuration,
     isActive: !!pathData,
-    onComplete: () => {
-      console.log('[TravelCard] Travel animation complete');
-      setIsComplete(true);
-    },
-    onProgress: (prog) => {
-      // Update parent with travel state for map rendering
-      if (onTravelUpdate && pathData) {
-        onTravelUpdate({
-          position: currentPosition,
-          direction: currentDirection,
-          path: pathData.path,
-          progress: prog,
-          isAnimating
-        });
-      }
-    }
+    onComplete: handleComplete,
+    onProgress: handleProgress
   });
+
+  // Separate effect to update parent with travel state
+  // This runs AFTER animation state updates, not during animation loop
+  // FIXED: Stop sending updates after completion to prevent infinite loop
+  useEffect(() => {
+    // Don't send updates after travel is complete
+    if (isComplete) return;
+
+    if (onTravelUpdateRef.current && pathData) {
+      onTravelUpdateRef.current({
+        position: currentPosition || pathData.path?.[0] || null,
+        direction: currentDirection,
+        path: pathData.path,
+        progress,
+        isAnimating
+      });
+    }
+  }, [currentPosition, currentDirection, progress, isAnimating, pathData, isComplete]);
 
   // Generate narrative on mount
   useEffect(() => {
@@ -100,14 +137,59 @@ export function TravelCard({ houseCallData, gameTime, onArrival, onCancel, onTra
   }, [patientEntity, destination, distance, travelTime, gameTime]);
 
   // Auto-advance after completion
+  // FIXED: Use single timer to prevent duplicate onArrival calls
   useEffect(() => {
     if (isComplete) {
-      const timeout = setTimeout(() => {
-        onArrival(houseCallData);
-      }, 800); // Brief pause before transition
-      return () => clearTimeout(timeout);
+      console.log('[TravelCard] Animation complete, scheduling arrival in 800ms');
+
+      // Clear any existing timer
+      if (cleanupTimerRef.current) {
+        clearTimeout(cleanupTimerRef.current);
+        cleanupTimerRef.current = null;
+      }
+
+      // Single timer to call onArrival once
+      cleanupTimerRef.current = setTimeout(() => {
+        console.log('[TravelCard] Calling onArrival callback');
+        try {
+          // Send final state update before arrival
+          if (onTravelUpdateRef.current) {
+            onTravelUpdateRef.current({
+              position: pathData?.path?.[pathData.path.length - 1] || null,
+              direction: currentDirection,
+              path: pathData?.path || null,
+              progress: 100,
+              isAnimating: false
+            });
+          }
+
+          // Call arrival handler
+          onArrival(houseCallData);
+        } catch (error) {
+          console.error('[TravelCard] onArrival error:', error);
+        } finally {
+          cleanupTimerRef.current = null;
+        }
+      }, 800);
+
+      return () => {
+        if (cleanupTimerRef.current) {
+          clearTimeout(cleanupTimerRef.current);
+          cleanupTimerRef.current = null;
+        }
+      };
     }
-  }, [isComplete, onArrival, houseCallData]);
+  }, [isComplete, onArrival, houseCallData, pathData, currentDirection]);
+
+  useEffect(() => {
+    if (pathData && !isAnimating && progress === 0 && !isComplete && pathData.path?.length > 1) {
+      const timer = setTimeout(() => {
+        console.warn('[TravelCard] Animation stalled at 0%, triggering skip');
+        skip();
+      }, Math.max(animationDuration, 3000));
+      return () => clearTimeout(timer);
+    }
+  }, [pathData, isAnimating, progress, isComplete, skip, animationDuration]);
 
   const handleSkip = () => {
     console.log('[TravelCard] Skipping travel animation');

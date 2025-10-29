@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import ExteriorMap from './ExteriorMap';
 import InteriorMap from './InteriorMap';
+import WorldMap from './WorldMap';
 import { LocationDropdown } from '../../../components/LocationDropdown';
 import { GridMovementSystem } from '../services/gridMovementSystem';
+import { WORLD_LOCATIONS } from '../data/worldLocations';
 
 /**
  * MapRenderer - Main map controller component
@@ -23,6 +25,8 @@ import { GridMovementSystem } from '../services/gridMovementSystem';
  * @param {Array<[number, number]>} props.travelPath - Phase 3B: Animated travel path for house calls
  * @param {boolean} props.isTraveling - Phase 3B: Whether travel animation is active
  */
+const WORLD_DESTINATION_COUNT = WORLD_LOCATIONS.filter(loc => !loc.suppressRegistry).length;
+
 export default function MapRenderer({ scenario, currentLocation, currentMapId, npcs = [], playerPosition = null, playerFacing = 180, onLocationChange, onMapClick = null, onEnterBuilding = null, onExitBuilding = null, onRoomCommand = null, onFurnitureClick = null, onPlayerTeleport = null, onAnimationComplete = null, theme = 'light', travelPath = null, isTraveling = false }) {
   const [activeMapId, setActiveMapId] = useState(null);
   const [mapType, setMapType] = useState('exterior'); // 'exterior' or 'interior'
@@ -66,18 +70,31 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
     console.log('[MapRenderer] Rendering map:', currentMapId);
 
     // Determine target map type
-    let targetMapType = null;
-    if (maps.interior && maps.interior[currentMapId]) {
-      targetMapType = 'interior';
-    } else if (maps.exterior && maps.exterior[currentMapId]) {
-      targetMapType = 'exterior';
-    } else {
+    const resolveMapType = (mapId) => {
+      if (maps.interior && maps.interior[mapId]) {
+        return 'interior';
+      }
+
+      if (maps.exterior && maps.exterior[mapId]) {
+        const exteriorMapConfig = maps.exterior[mapId];
+        return exteriorMapConfig?.type === 'world' ? 'world' : 'exterior';
+      }
+
+      return null;
+    };
+
+    let targetMapType = resolveMapType(currentMapId);
+
+    if (!targetMapType) {
       console.warn('[MapRenderer] Map ID not found:', currentMapId);
       // Fallback to first available map
-      const fallbackId = Object.keys(maps.interior || {})[0] || Object.keys(maps.exterior || {})[0];
+      const fallbackInteriorId = Object.keys(maps.interior || {})[0];
+      const fallbackExteriorId = Object.keys(maps.exterior || {})[0];
+      const fallbackId = fallbackInteriorId || fallbackExteriorId;
+
       if (fallbackId) {
         console.log('[MapRenderer] Falling back to:', fallbackId);
-        targetMapType = maps.interior?.[fallbackId] ? 'interior' : 'exterior';
+        targetMapType = resolveMapType(fallbackId);
       }
     }
 
@@ -101,14 +118,14 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
 
     if (mapType === 'interior') {
       return maps.interior[activeMapId];
-    } else {
-      return maps.exterior[activeMapId];
     }
+
+    return maps.exterior[activeMapId];
   }, [maps, activeMapId, mapType]);
 
   // Create GridMovementSystem instance for collision detection
   const gridSystem = useMemo(() => {
-    if (!currentMapData) return null;
+    if (!currentMapData || currentMapData.type === 'world') return null;
     return new GridMovementSystem(currentMapData, 20);
   }, [currentMapData]);
 
@@ -142,6 +159,34 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
 
       // Fallback: center on map
       console.log('[MapRenderer] Interior map - centering on map center (no player position)');
+      return {
+        x: (mapData.bounds.width - width) / 2,
+        y: (mapData.bounds.height - height) / 2,
+        width,
+        height
+      };
+    }
+
+    if (mapType === 'world') {
+      const zoom = playerPosition ? 1.8 : 1;
+      const width = mapData.bounds.width / zoom;
+      const height = mapData.bounds.height / zoom;
+
+      if (playerPosition) {
+        const x = Math.max(0, Math.min(
+          playerPosition.x - (width / 2),
+          mapData.bounds.width - width
+        ));
+        const y = Math.max(0, Math.min(
+          playerPosition.y - (height / 2),
+          mapData.bounds.height - height
+        ));
+
+        console.log('[MapRenderer] World map - centering on player:', playerPosition, '→ viewBox:', { x, y, width, height });
+        return { x, y, width, height };
+      }
+
+      console.log('[MapRenderer] World map - showing full extent');
       return {
         x: (mapData.bounds.width - width) / 2,
         y: (mapData.bounds.height - height) / 2,
@@ -627,6 +672,7 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
 
   // CTRL+CLICK ANIMATED MOVEMENT: Convert click to grid position and animate if walkable
   const handleMapClick = useCallback((e) => {
+    if (mapType === 'world') return;
     // Only handle Ctrl+Click (or Cmd+Click on Mac)
     if (!e.ctrlKey && !e.metaKey) return;
     if (!onPlayerTeleport || !gridSystem || !currentMapData || !mapContainerRef.current || !playerPosition) return;
@@ -693,7 +739,7 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
 
     // Clear any invalid click feedback
     setInvalidClickPos(null);
-  }, [onPlayerTeleport, gridSystem, currentMapData, viewBox, playerPosition, canMoveInStraightLine, startAnimation]);
+  }, [mapType, onPlayerTeleport, gridSystem, currentMapData, viewBox, playerPosition, canMoveInStraightLine, startAnimation]);
 
   // Listen for ESC key to close modal
   useEffect(() => {
@@ -863,7 +909,10 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onClick={handleMapClick}
-          title="Drag to pan, scroll to zoom, Ctrl+Click to move (animated)"
+          title={mapType === 'world'
+            ? 'Drag to pan, scroll to zoom'
+            : 'Drag to pan, scroll to zoom, Ctrl+Click to move (animated)'
+          }
         >
           {/* Zoom controls - Compact and glassy */}
           <div className="absolute bottom-2 right-2 z-10 flex flex-col gap-1">
@@ -891,7 +940,7 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
           </div>
 
           {/* Maps rendered with viewBox (no CSS transforms) */}
-          {mapType === 'exterior' ? (
+          {mapType === 'exterior' && (
             <ExteriorMap
               mapData={currentMapData}
               npcs={npcMarkers}
@@ -904,7 +953,19 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
               travelPath={travelPath}
               isTraveling={isTraveling}
             />
-          ) : (
+          )}
+
+          {mapType === 'world' && (
+            <WorldMap
+              mapData={currentMapData}
+              playerPosition={playerPosition}
+              travelPath={travelPath}
+              isTraveling={isTraveling}
+              viewBox={viewBox}
+            />
+          )}
+
+          {mapType === 'interior' && (
             <InteriorMap
               mapData={currentMapData}
               npcs={npcMarkers}
@@ -946,9 +1007,9 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
               <div className="font-['Cinzel'] text-sm font-bold text-[#3d2817] dark:text-sky-400 truncate">
                 {currentMapData?.name}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400 font-sans">
-                {mapType === 'interior' ? (
-                  <button
+                <div className="text-sm text-gray-600 dark:text-gray-400 font-sans">
+                  {mapType === 'interior' ? (
+                    <button
                     ref={roomInfoRef}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -961,10 +1022,12 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
                       currentMapData?.rooms?.find(r => r.id === currentRoom)?.name || 'Unknown'
                     }
                   </button>
-                ) : (
-                  <>
-                    {currentMapData?.buildings?.length} buildings
-                  </>
+                  ) : mapType === 'world' ? (
+                    <>Known destinations: {WORLD_DESTINATION_COUNT}</>
+                  ) : (
+                    <>
+                      {currentMapData?.buildings?.length} buildings
+                    </>
                 )}
               </div>
             </div>
@@ -1024,6 +1087,20 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
               </div>
             </div>
           )}
+          {mapType === 'world' && (
+            <div className="flex items-center gap-3 text-[0.65rem] text-gray-600 dark:text-gray-400 font-sans">
+              <div className="flex items-center gap-1">
+                <span className="text-base">℞</span>
+                <span>Maria’s current position</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <svg width="12" height="12" viewBox="0 0 12 12">
+                  <line x1="1" y1="11" x2="11" y2="1" stroke="#facc15" strokeWidth="2" strokeDasharray="3 2" />
+                </svg>
+                <span>Recent travel route</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1074,6 +1151,13 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
                   onLandmarkClick={handleLandmarkClick}
                   viewBox={undefined}
                   theme={theme}
+                  travelPath={travelPath}
+                  isTraveling={isTraveling}
+                />
+              ) : mapType === 'world' ? (
+                <WorldMap
+                  mapData={currentMapData}
+                  playerPosition={playerPosition}
                   travelPath={travelPath}
                   isTraveling={isTraveling}
                 />

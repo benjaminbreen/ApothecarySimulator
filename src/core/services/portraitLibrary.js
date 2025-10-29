@@ -468,6 +468,24 @@ export const PORTRAIT_LIBRARY = {
     tags: ['young', 'energetic', 'working']
   },
 
+'blacksmith.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: ['español', 'criollo', 'mestizo'],
+    class: ['middling', 'common'],
+    occupation: ['blacksmith', 'ironworker', 'smith'],
+    tags: ['blacksmith', 'smith', 'working']
+  },
+
+    'criollomaleinnkeeperelderly.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+     casta: ['español', 'criollo'],
+    class: 'common',
+    occupation: 'innkeeper',
+    tags: ['innkeeper', 'tavern', 'working', 'urban', 'jovial']
+  },
+
   // Generic Male Portraits - African/Mulato
   'youngafricanman.png': {
     gender: 'male',
@@ -503,6 +521,8 @@ export const PORTRAIT_LIBRARY = {
     occupation: ['beggar', 'orphan', 'destitute', 'laborer'],
     tags: ['poor', 'young', 'struggling', 'poverty']
   },
+
+
 
   // Religious/Military - Male
   'mulattosoldier.jpg': {
@@ -683,7 +703,24 @@ export const PORTRAIT_LIBRARY = {
     occupation: ['servant', 'maid', 'domestic worker', 'cook'],
     tags: ['criolla', 'working', 'servant', 'domestic', 'modest']
   },
-  'elderlycriollomalservant.jpg': {
+
+   'criollofemaleservantyoung.jpg': {
+    gender: 'female',
+    age: 'young',
+    casta: ['criollo'],
+    class: 'common',
+    occupation: ['servant', 'maid', 'domestic worker', 'young'],
+    tags: ['criolla', 'young', 'servant', 'domestic', 'modest']
+  },
+    'criollofemalematron40s.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: ['criollo'],
+    class: 'common',
+    occupation: ['matron', 'mother'],
+    tags: ['criolla', 'mother', 'matron', 'parent', 'family']
+  },
+  'elderlycriollomaleservant.jpg': {
     gender: 'male',
     age: 'elderly',
     casta: ['criollo'],
@@ -1092,7 +1129,7 @@ export const PORTRAIT_LIBRARY = {
   // === HOUSEHOLD STAFF & SERVANTS (New Batch) ===
 
   // Young Servants - Criolla/Criollo
-  'criollafemaleservantyoung.jpg': {
+  'criollofemaleservantyoung.jpg': {
     gender: 'female',
     age: 'young',
     casta: ['criolla', 'española'],

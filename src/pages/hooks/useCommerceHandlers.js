@@ -363,6 +363,33 @@ export function useCommerceHandlers({
         break;
       }
 
+      case 'vendor_offer': {
+        if (action === 'view_items') {
+          // Open TradeModal with vendor's inventory
+          console.log('[VendorOffer] Opening TradeModal for:', npcName);
+
+          setTradingNPC({
+            npcName: npcName,
+            npcId: npcName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            npcPortrait: interaction.npcPortrait || null
+          });
+          setTradeMode('market');
+          openModal('trade');
+
+          // Clear simple interaction after opening modal
+          setPendingSimpleInteraction(null);
+
+          // No journal entry or time increment for just viewing items
+          // Time will increment when player actually purchases
+          return; // Early return - don't process further
+        } else {
+          // Refused to view items
+          journalText = `Declined ${npcName}'s offer to view their goods.`;
+          toast.info('Offer declined', { duration: 1500 });
+        }
+        break;
+      }
+
       default:
         console.warn('[SimpleInteraction] Unknown interaction type:', type);
         journalText = `Interaction with ${npcName} complete.`;
@@ -485,6 +512,10 @@ export function useCommerceHandlers({
         break;
       case 'social_visit':
         simulatedAction = `spend time with ${npcName}`;
+        break;
+      case 'vendor_offer':
+        // Note: 'view_items' returns early, so this only handles refusal
+        simulatedAction = `politely decline ${npcName}'s offer to view their goods`;
         break;
       default:
         simulatedAction = `interact with ${npcName}`;
@@ -842,7 +873,7 @@ export function useCommerceHandlers({
    * Processes give/sell/prescribe actions with drag-dropped items
    */
   const handleProposeAction = useCallback(async (proposalData) => {
-    const { type, recipientName, item, amount, price, ailmentDescription } = proposalData;
+    const { type, recipientName, item, amount, price, ailmentDescription, npcId } = proposalData;
 
     console.log('[ActionPrompt] Proposing action:', { type, recipientName, item: item.name, amount, price });
 
@@ -852,6 +883,74 @@ export function useCommerceHandlers({
     // For sell type, add money to wealth
     if (type === 'sell' && price > 0) {
       updateWealth(price);
+    }
+
+    // Log transaction to ledger (Libro de Cuentas)
+    if (type === 'sell' && price > 0) {
+      const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+      const currentWealth = (gameState.wealth || 0) + price; // Wealth AFTER transaction
+      transactionManager.logTransaction(
+        'income',
+        TRANSACTION_CATEGORIES.MEDICINE_SALES,
+        `Sold ${amount}× ${item.name} to ${recipientName}`,
+        price,
+        currentWealth,
+        gameState.date,
+        gameState.time
+      );
+      console.log('[ActionPrompt] Transaction logged to ledger');
+    }
+
+    // Add to medical records (Patient Roster) for sell/prescribe types
+    if ((type === 'sell' || type === 'prescribe') && recipientName) {
+      // Get NPC entity from entityManager
+      let npcEntity = npcId ? entityManager.getById(npcId) : entityManager.getByName(recipientName);
+
+      // If not found, search recent NPCs
+      if (!npcEntity) {
+        const recentNPCs = npcTracker.getRecentNPCs();
+        const matchedName = recentNPCs.find(name => name.toLowerCase() === recipientName.toLowerCase());
+        if (matchedName) {
+          npcEntity = entityManager.getByName(matchedName);
+        }
+      }
+
+      // If still not found, create minimal patient record
+      if (!npcEntity) {
+        console.warn(`[ActionPrompt] NPC entity not found for ${recipientName}, creating minimal record`);
+        npcEntity = {
+          id: `npc_${recipientName.replace(/\s+/g, '_').toLowerCase()}`,
+          name: recipientName,
+          entityType: 'npc'
+        };
+      }
+
+      // Add session to medical records
+      const sessionData = {
+        date: gameState.date,
+        turnNumber: turnNumber,
+        sessionType: 'purchase', // Purchase type (not examination)
+        prescriptions: [{
+          medicine: item.name,
+          route: type === 'prescribe' ? 'Oral' : 'N/A', // Default route for prescriptions
+          dosage: `${amount} ${amount === 1 ? 'drachm' : 'drachms'}`,
+          price: type === 'sell' ? price : 0
+        }],
+        outcome: 'Completed', // Mark as completed immediately
+        payment: type === 'sell' ? price : 0,
+        ailment: ailmentDescription || 'Medicine purchase'
+      };
+
+      setGameState(prev => ({
+        ...prev,
+        medicalRecords: MedicalRecordsManager.addSession(
+          prev.medicalRecords || {},
+          npcEntity,
+          sessionData
+        )
+      }));
+
+      console.log(`[ActionPrompt] Added ${recipientName} to patient roster (purchase session)`);
     }
 
     // Log to conversation history based on type
@@ -909,7 +1008,9 @@ export function useCommerceHandlers({
     addJournalEntry,
     setPendingActionPrompt,
     turnNumber,
-    gameState.date,
+    gameState,
+    npcTracker,
+    setGameState,
     toast,
     handleSubmit
   ]);

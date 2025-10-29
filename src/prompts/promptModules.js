@@ -1,5 +1,5 @@
-// Modular Prompt System for HistoryLens
-// This breaks the monolithic prompt into composable, maintainable modules
+// Modular Prompt System for HistoryLens DEPRECATED
+// DEPRECATED - preserved for reference, do not edit or use. This breaks the monolithic prompt into composable, maintainable modules
 
 import { scenarioLoader } from '../core/services/scenarioLoader';
 import { SKILLS, SKILL_CATEGORIES, CATEGORY_LABELS } from '../core/systems/skillsSystem';
@@ -218,8 +218,12 @@ export function getPromptModules(scenarioId) {
 
 // Function to build context summary
 export function buildContextSummary(gameState, turnNumber, incorporatedContent, additionalQuestions) {
+  const crisisLine = gameState?.crisis?.active
+    ? `\nCRISIS: ${gameState.crisis.reason || 'Active confrontation requiring resolution.'}`
+    : '';
+
   return `Location: ${gameState.location}
-Date: ${gameState.date} | Time: ${gameState.time} | Turn: ${turnNumber}
+Date: ${gameState.date} | Time: ${gameState.time} | Turn: ${turnNumber}${crisisLine}
 ${incorporatedContent ? `\nCritique: ${incorporatedContent}` : ''}
 ${additionalQuestions ? `\nQuestions: ${additionalQuestions}` : ''}`;
 }

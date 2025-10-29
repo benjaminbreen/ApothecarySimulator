@@ -32,6 +32,12 @@ export function useAnimatedTravel({
   onComplete = null,
   onProgress = null
 }) {
+  useEffect(() => {
+    if (!isActive && onProgress) {
+      onProgress(0);
+    }
+  }, [isActive, onProgress]);
+
   const [currentPosition, setCurrentPosition] = useState(null);
   const [currentDirection, setCurrentDirection] = useState(180); // Default south
   const [progress, setProgress] = useState(0);
@@ -139,6 +145,9 @@ export function useAnimatedTravel({
           animationFrameRef.current = null;
         }
       }
+      if (!isActive && onProgress) {
+        onProgress(0);
+      }
       return;
     }
 
@@ -188,6 +197,10 @@ export function useAnimatedTravel({
     startTimeRef.current = null;
 
     // Trigger completion callback
+    if (onProgress) {
+      onProgress(100);
+    }
+
     if (onComplete) {
       onComplete();
     }

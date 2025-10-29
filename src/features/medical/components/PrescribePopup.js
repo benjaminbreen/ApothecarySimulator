@@ -31,6 +31,7 @@ function PrescribePopup({
   prescriptionType,
   handlePrescriptionOutcome,
   onPrescriptionComplete,
+  onPrescriptionPending, // NEW: Callback with full outcome data for "More Info" button
   advanceTime,
   setNpcInfo,
   setNpcImage,
@@ -398,6 +399,20 @@ if (currentPatient) {
     const journalSummary = summaryData.choices[0].message.content.trim();
 
     console.log("Current Patient Details:", currentPatient);
+
+    // Call onPrescriptionPending with full data including outcome for "More Info" button
+    if (onPrescriptionPending) {
+      onPrescriptionPending({
+        patient: currentPatient,
+        item,
+        amount,
+        price: adjustedPrice,
+        route,
+        outcome: simulatedOutput,  // Full detailed narrative
+        journalSummary: journalSummary,  // Short summary
+        timestamp: gameState.time
+      });
+    }
 
     // Award XP for prescription (+1 XP per prescription)
     if (typeof awardXP === 'function') {

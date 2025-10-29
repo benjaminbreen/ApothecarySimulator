@@ -4,6 +4,7 @@
  */
 
 import mexicoCityCenter from './mexicoCityCenter';
+import worldMap from './worldMap';
 import boticaInterior from './boticaInterior';
 import cathedralInterior from './cathedralInterior';
 import palacioInterior from './palacioInterior';
@@ -13,7 +14,8 @@ import middlingHouseInterior from './middlingHouseInterior';
 
 export default {
   exterior: {
-    'mexico-city-center': mexicoCityCenter
+    'mexico-city-center': mexicoCityCenter,
+    'world-map': worldMap
   },
   interior: {
     'botica-interior': boticaInterior,

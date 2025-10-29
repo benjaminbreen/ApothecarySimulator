@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { resolvePortrait } from '../../../core/services/portraitResolver';
+import PatientDialogueHistory from '../../../components/CentralPanel/PatientDialogueHistory';
 
 function PrescribeOverviewPanel({
   patient,
@@ -18,7 +19,7 @@ function PrescribeOverviewPanel({
   if (!patient) return null;
 
   // Get top 3 symptoms by severity
-  const topSymptoms = (patient.symptoms || [])
+  const topSymptoms = [...(patient.symptoms || [])]
     .sort((a, b) => {
       const severityOrder = { critical: 4, severe: 3, moderate: 2, mild: 1 };
       return (severityOrder[b.severity] || 0) - (severityOrder[a.severity] || 0);
@@ -123,23 +124,11 @@ function PrescribeOverviewPanel({
           </button>
 
           {isQAExpanded && (
-            <div className="max-h-48 overflow-y-auto custom-scrollbar p-4 space-y-3 bg-white dark:bg-slate-900/30">
-              {patientDialogue.length === 0 ? (
-                <p className="text-xs text-ink-500 dark:text-slate-500 italic text-center py-2">
-                  No questions asked yet
-                </p>
-              ) : (
-                patientDialogue.map((qa, idx) => (
-                  <div key={idx} className="border-l-2 border-emerald-500 dark:border-emerald-600 pl-3 py-1">
-                    <div className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">
-                      Q: {qa.question}
-                    </div>
-                    <div className="text-xs text-ink-700 dark:text-slate-300 leading-relaxed">
-                      {qa.answer}
-                    </div>
-                  </div>
-                ))
-              )}
+            <div className="max-h-56 overflow-y-auto custom-scrollbar p-4 bg-white dark:bg-slate-900/30 rounded-b-lg">
+              <PatientDialogueHistory
+                entries={[...patientDialogue].reverse()}
+                emptyLabel="No questions asked yet"
+              />
             </div>
           )}
         </div>

@@ -6,6 +6,7 @@
 
 import {
   FaEye,
+  FaBook,
   FaComments,
   FaWalking,
   FaClock,
@@ -21,9 +22,9 @@ import {
   FaCheck,
   FaTimes,
   FaQuestion,
-  FaBook,
   FaGift,
   FaMoneyBillWave,
+  FaMortarPestle,
 } from 'react-icons/fa';
 
 /**
@@ -276,10 +277,10 @@ export function getDefaultChips() {
       tooltip: 'Travel to a different location in the city',
     },
     {
-      label: 'Study',
-      icon: FaBook,
-      action: 'consult my books',
-      tooltip: 'Consult medical texts and references',
+      label: 'Prescribe',
+      icon: FaMortarPestle,
+      action: '#prescribe',
+      tooltip: 'Open the prescribing panel',
     },
     {
       label: 'Wait',

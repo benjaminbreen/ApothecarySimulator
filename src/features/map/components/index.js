@@ -2,3 +2,4 @@
 export { default as MapRenderer } from './MapRenderer';
 export { default as ExteriorMap } from './ExteriorMap';
 export { default as InteriorMap } from './InteriorMap';
+export { default as WorldMap } from './WorldMap';

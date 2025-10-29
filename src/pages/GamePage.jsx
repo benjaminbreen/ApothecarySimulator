@@ -28,10 +28,15 @@ import ContractOfferModal from '../components/ContractOfferModal';
 import ItemConsumptionModal from '../components/ItemConsumptionModal';
 import GameOverModal from '../components/GameOverModal';
 import SimpleInteractionCard from '../components/SimpleInteractionCard';
+
+const ACTION_PROMPT_SUPPRESSION_WINDOW = 60 * 1000; // 1 minute cooldown for repeated prescribe prompts
 import RandomEventCard from '../components/RandomEventCard';
 import POIModal from '../components/POIModal';
 import { TravelCard } from '../components/TravelCard'; // Phase 3B: House call travel
+import { PurchaseOfferCard } from '../components/PurchaseOfferCard'; // Purchase offers from vendors
+import LongDistanceTravelModal from '../components/LongDistanceTravelModal';
 import ReadableTextModal from '../components/ReadableTextModal'; // Document modal for letters, codices, etc.
+import PrescriptionOutcomeModal from '../features/medical/components/PrescriptionOutcomeModal'; // Detailed prescription outcome modal
 
 // Feature components
 import { useGameState as useGameStateHook } from '../core/state/gameState'; // Legacy hook (for reference)
@@ -74,6 +79,7 @@ import { useNPCPositions } from '../features/map/hooks/useNPCPositions';
 import EntityList from '../EntityList';
 import { parseNarrativeChoices } from '../utils/narrativeParser';
 import { getGridSystem } from '../features/map/services/gridMovementSystem';
+import { getWorldTravelOptions } from '../features/map/services/locationRegistry';
 import { getMariaPortrait, getDeterminedPortrait, getPortraitFromStatus } from '../utils/portraitSelector';
 
 const PDFPopup = lazy(() => import('../shared/components/PDFPopup'));
@@ -123,6 +129,8 @@ const GameContent = () => {
     markDocumentAsRead,
     getDocuments,
     getUnreadDocumentsCount,
+    triggerGameOver,
+    setCrisisState,
   } = useGameState(); // No parameter - comes from context now!
 
   // PHASE 1.4: NPC tracking and entity state now managed by NPCContext
@@ -152,6 +160,8 @@ const GameContent = () => {
     pendingActionPrompt,
     setPendingActionPrompt,
   } = useNPCs();
+
+  const [recentlyCompletedActionPrompt, setRecentlyCompletedActionPrompt] = useState(null);
 
   // Core state
   const [userInput, setUserInput] = useState('');
@@ -205,39 +215,6 @@ const GameContent = () => {
     initializeEventSystem();
     console.log('[GamePage] Random event system initialized');
   }, []); // Run once on mount
-
-  // DISABLED: Auto-reset position on location change
-  // This was causing conflicts with manual position management from exit/enter commands
-  // Position is now managed exclusively by exit/enter handlers in useGameHandlers.js
-  /*
-  const [previousLocation, setPreviousLocation] = React.useState(gameState.location);
-
-  useEffect(() => {
-    const location = gameState.location;
-
-    // Only reset position if location actually changed (not just re-rendering)
-    if (location !== previousLocation) {
-      console.log('[GamePage] Location changed from', previousLocation, 'to', location);
-
-      // If location is "Botica de la Amargura, Mexico City" (exterior map view)
-      if (location && location.includes('Botica') && location.includes('Mexico City')) {
-        // Set position to botica building center on exterior map
-        console.log('[GamePage] Switching to exterior map position');
-        setPlayerPosition({ x: 1350, y: 917, gridX: 0, gridY: 0 });
-        setCurrentMapId('mexico-city-center');
-      }
-      // For interior locations, use interior starting position
-      else if (location && location.includes('Botica') && !location.includes('Mexico City')) {
-        console.log('[GamePage] Switching to interior map position');
-        // Grid (25, 24) = pixel center (510, 480) - behind counter (north side)
-        setPlayerPosition({ x: 510, y: 480, gridX: 25, gridY: 24 });
-        setCurrentMapId('botica-interior');
-      }
-
-      setPreviousLocation(location);
-    }
-  }, [gameState.location, previousLocation]);
-  */
 
   // NPC position tracking (real-time updates every 100ms)
   const {
@@ -356,6 +333,7 @@ const GameContent = () => {
   const [gameLog, setGameLog] = useState([]);
   // NOTE: activePatient, patientDialogue, pendingContract now from NPCContext
   const [pendingPrescription, setPendingPrescription] = useState(null);
+  const [showPrescriptionOutcomeModal, setShowPrescriptionOutcomeModal] = useState(false);
   const isContractModalOpen = modals.contract;
   const setIsContractModalOpen = (value) => value ? openModal('contract') : closeModal('contract');
 
@@ -384,6 +362,12 @@ const GameContent = () => {
   // Phase 3B/4: Travel animation state
   const [travelAnimationState, setTravelAnimationState] = useState(null);
 
+  // Long-distance travel card state
+  const [longDistanceCard, setLongDistanceCard] = useState(null);
+
+  // Purchase offer state (vendor selling to Maria)
+  const [pendingPurchaseOffer, setPendingPurchaseOffer] = useState(null);
+
   // Item consumption modal state
   const isConsumptionModalOpen = modals.consumption;
   const setIsConsumptionModalOpen = (value) => value ? openModal('consumption') : closeModal('consumption');
@@ -397,6 +381,43 @@ const GameContent = () => {
 
   // Dynamic action chips from narrative parser
   const [dynamicChips, setDynamicChips] = useState(null);
+
+  const closeLongDistanceCard = useCallback(() => {
+    setLongDistanceCard(null);
+  }, []);
+
+  const openLongDistanceTravelCard = useCallback((trigger = 'manual') => {
+    const travelOptions = getWorldTravelOptions({
+      scenario,
+      currentMapId,
+      currentLocationText: gameState.location,
+      playerPosition,
+      maxResults: 10,
+      currentWorldLocationId: gameState.worldLocationId || null
+    });
+
+    if (!travelOptions.destinations || travelOptions.destinations.length === 0) {
+      if (toast?.info) {
+        toast.info('No long-distance destinations are available yet.', { duration: 4000 });
+      }
+      return;
+    }
+
+    if (longDistanceCard && longDistanceCard.trigger === trigger) {
+      setLongDistanceCard({
+        trigger,
+        origin: travelOptions.origin,
+        options: travelOptions.destinations
+      });
+      return;
+    }
+
+    setLongDistanceCard({
+      trigger,
+      origin: travelOptions.origin,
+      options: travelOptions.destinations
+    });
+  }, [scenario, currentMapId, gameState.location, gameState.worldLocationId, playerPosition, toast, longDistanceCard]);
 
   // Narration settings state
   const [narrationFontSize, setNarrationFontSize] = useState('text-base');
@@ -911,6 +932,7 @@ const GameContent = () => {
     setPendingActionPrompt,
     setPendingMixingDecision,
     setPendingHouseCall, // House call system (Phase 3A)
+    setPendingPurchaseOffer, // Purchase offer system (vendor selling to Maria)
     setIsContractModalOpen,
     setPendingExitData, // Exit confirmation system
     setShowExitConfirmation, // Exit confirmation system
@@ -920,11 +942,16 @@ const GameContent = () => {
     setPendingRandomEvent, // Random event system
     setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
     setDynamicChips, // Dynamic action chips from narrative parsing
+    setPendingPrescription, // Clear prescription card on next action
     setGameState, // For updating gameState (e.g., status from StateAgent)
     setShowPOIModal, // POI modal for map furniture clicks
     setSelectedPOIEntity, // Selected entity for POI modal
     setPendingDocument, // Document modal for letters/codices
     setIsDocumentModalOpen, // Document modal open state
+    setTravelAnimationState,
+    openLongDistanceTravelCard,
+    triggerGameOver,
+    setCrisisState,
 
     // State values
     isLoading, // CRITICAL FIX: Pass loading state for double-click guard
@@ -950,6 +977,7 @@ const GameContent = () => {
     activeTab,
     gameLog,
     activePatient,
+    currentPatient,
     patientDialogue,
     playerSkills,
     journal,
@@ -979,6 +1007,44 @@ const GameContent = () => {
     awardXP,
     awardSkillXP,
   });
+
+  const baseHandleProposeAction = handlers.handleProposeAction;
+  const handleProposeAction = useCallback(async (proposalData) => {
+    if (proposalData?.type === 'prescribe') {
+      setRecentlyCompletedActionPrompt({
+        type: proposalData.type,
+        npcId: proposalData.npcId || null,
+        recipientName: proposalData.recipientName || null,
+        timestamp: Date.now()
+      });
+    }
+    return baseHandleProposeAction(proposalData);
+  }, [baseHandleProposeAction]);
+
+  const visibleActionPrompt = useMemo(() => {
+    if (!pendingActionPrompt) return null;
+
+    if (pendingActionPrompt.type === 'prescribe') {
+      if (pendingPrescription) return null;
+
+      if (recentlyCompletedActionPrompt?.type === 'prescribe') {
+        const sameNpc = recentlyCompletedActionPrompt.npcId && pendingActionPrompt.npcId
+          ? recentlyCompletedActionPrompt.npcId === pendingActionPrompt.npcId
+          : recentlyCompletedActionPrompt.recipientName && pendingActionPrompt.recipientName
+            ? recentlyCompletedActionPrompt.recipientName === pendingActionPrompt.recipientName
+            : false;
+
+        if (sameNpc) {
+          const elapsed = Date.now() - (recentlyCompletedActionPrompt.timestamp || 0);
+          if (elapsed < ACTION_PROMPT_SUPPRESSION_WINDOW) {
+            return null;
+          }
+        }
+      }
+    }
+
+    return pendingActionPrompt;
+  }, [pendingActionPrompt, pendingPrescription, recentlyCompletedActionPrompt]);
 
   // Destructure handlers for easy use
   const {
@@ -1023,6 +1089,17 @@ const GameContent = () => {
     handleHouseCallArrival, // Phase 3B/3C: House call arrival
     handleCompleteHouseCall, // Phase 3D: House call completion
   } = handlers;
+
+  const handleLongDistanceTravelSubmit = useCallback((plan) => {
+    if (!plan?.command) return;
+    setLongDistanceCard(null);
+    setUserInput(plan.command);
+
+    setTimeout(() => {
+      const fakeEvent = { preventDefault: () => {} };
+      handleSubmit(fakeEvent, plan.command);
+    }, 50);
+  }, [handleSubmit, setUserInput, setLongDistanceCard]);
 
   // Note: Old addCompoundToInventoryWithSaleTrigger removed - sale proposal system deprecated
 
@@ -1603,6 +1680,100 @@ Be historically accurate, immersive, and concise. Write in third person past ten
     setIsDiagnoseOpen(true);
   }, []);
 
+  // Prescription outcome handlers
+  const handlePrescriptionPending = useCallback((prescriptionData) => {
+    console.log('[PrescriptionOutcome] Received full prescription data:', prescriptionData);
+    setPendingPrescription(prescriptionData);
+    setActiveTab('chronicle'); // Switch to chronicle tab to show prescription card
+  }, []);
+
+  const handleOpenPrescriptionDetails = useCallback((prescriptionData) => {
+    console.log('[PrescriptionOutcome] Opening outcome modal:', prescriptionData);
+    setShowPrescriptionOutcomeModal(true);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingHouseCall) {
+      setTravelAnimationState(prev => (prev ? null : prev));
+    }
+  }, [pendingHouseCall]);
+
+  // House call travel callbacks
+  const handleTravelUpdate = useCallback((travelState) => {
+    console.log('[GamePage] Travel state update:', travelState);
+    if (!travelState || travelState.progress >= 100 || travelState.isAnimating === false) {
+      setTravelAnimationState(null);
+    } else {
+      setTravelAnimationState(travelState);
+    }
+  }, []);
+
+  const handleCancelTravel = useCallback(() => {
+    console.log('[House Call] User cancelled travel');
+    setPendingHouseCall(null);
+    setTravelAnimationState(null);
+    // Refund payment
+    const refundAmount = pendingHouseCall?.paymentAmount || 0;
+    if (refundAmount > 0) {
+      setWealth(prev => prev + refundAmount);
+      toast.info(`House call cancelled. ${refundAmount} reales refunded.`, { duration: 3000 });
+    } else {
+      toast.info('House call cancelled.', { duration: 2000 });
+    }
+  }, [pendingHouseCall]);
+
+  // Purchase offer callbacks
+  const handleViewPurchaseItems = useCallback(() => {
+    console.log('[PurchaseOffer] Opening TradeModal for:', pendingPurchaseOffer?.npcName);
+
+    if (!pendingPurchaseOffer) return;
+
+    // Set up TradeModal with the NPC who's offering goods
+    setTradingNPC({
+      npcName: pendingPurchaseOffer.npcName,
+      npcId: pendingPurchaseOffer.npcId,
+      npcPortrait: pendingPurchaseOffer.npcPortrait
+    });
+    setTradeMode('market'); // Open market tab
+    openModal('trade');
+
+    // Keep the offer active until they close the modal or decline
+  }, [pendingPurchaseOffer, openModal]);
+
+  const handleDeclinePurchaseOffer = useCallback(async () => {
+    console.log('[PurchaseOffer] Declined offer from:', pendingPurchaseOffer?.npcName);
+
+    const journalText = `Declined purchase offer from ${pendingPurchaseOffer.npcName}.`;
+
+    // Clear purchase offer
+    setPendingPurchaseOffer(null);
+
+    // Generate brief continuation
+    try {
+      const { generateContinuationNarrative } = await import('../core/agents/NarrativeAgent');
+      const continuation = await generateContinuationNarrative({
+        scenarioId: gameState.scenarioId,
+        conversationHistory,
+        journal,
+        journalText,
+        isDismissal: true,
+        gameState,
+        turnNumber
+      });
+
+      setConversationHistory(prev => [
+        ...prev,
+        {
+          sender: 'assistant',
+          narrative: continuation,
+          responseType: 'narration'
+        }
+      ]);
+    } catch (error) {
+      console.error('[PurchaseOffer] Failed to generate continuation:', error);
+    }
+  }, [pendingPurchaseOffer, conversationHistory, journal, gameState, turnNumber]);
+
   return (
       <DndProvider backend={HTML5Backend}>
         {/* Conditional rendering: Mobile layout for phones/tablets, Desktop layout for larger screens */}
@@ -1751,8 +1922,8 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 pendingSimpleInteraction={pendingSimpleInteraction}
                 onSimpleInteractionChoice={handleSimpleInteractionChoice}
                 // Action prompt props
-                pendingActionPrompt={pendingActionPrompt}
-                onProposeAction={handlers.handleProposeAction}
+                pendingActionPrompt={visibleActionPrompt}
+                onProposeAction={handleProposeAction}
                 onDeclineAction={handlers.handleDeclineAction}
                 // Mixing decision props
                 pendingMixingDecision={pendingMixingDecision}
@@ -1786,6 +1957,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 }}
                 onPrescriptionComplete={() => setPendingPrescription(null)}
                 pendingPrescription={pendingPrescription}
+                onOpenPrescriptionDetails={handleOpenPrescriptionDetails}
                 // Narration settings props
                 narrationFontSize={narrationFontSize}
                 narrationDarkMode={narrationDarkMode}
@@ -1811,6 +1983,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                     onItemDrop={handleItemDrop}
                     dynamicChips={dynamicChips}
                     nearbyLocations={nearbyLocations}
+                    onRequestLongDistanceTravel={() => openLongDistanceTravelCard('chip')}
                   />
                 </div>
               )}
@@ -2033,6 +2206,9 @@ Be historically accurate, immersive, and concise. Write in third person past ten
 
           // Furniture click handler for map POI
           handleFurnitureClick={handleFurnitureClick}
+
+          // Prescription outcome handlers
+          onPrescriptionPending={handlePrescriptionPending}
         />
 
         {/* Level Up Notification */}
@@ -2108,29 +2284,38 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           conversationHistory={conversationHistory}
         />
 
+        {/* Long-distance travel modal */}
+        {longDistanceCard && (
+          <LongDistanceTravelModal
+            isOpen={!!longDistanceCard}
+            origin={longDistanceCard.origin}
+            options={longDistanceCard.options}
+            onSubmit={handleLongDistanceTravelSubmit}
+            onClose={closeLongDistanceCard}
+            trigger={longDistanceCard.trigger}
+            currentDate={gameState.date}
+            currentTime={gameState.time}
+            worldMapData={scenario?.maps?.exterior?.['world-map'] || null}
+          />
+        )}
+
         {/* Phase 3B: Travel Card - displayed when traveling to house call */}
         {pendingHouseCall && (
           <TravelCard
             houseCallData={pendingHouseCall}
             gameTime={gameState.time}
             onArrival={handleHouseCallArrival}
-            onTravelUpdate={(travelState) => {
-              console.log('[GamePage] Travel state update:', travelState);
-              setTravelAnimationState(travelState);
-            }}
-            onCancel={() => {
-              console.log('[House Call] User cancelled travel');
-              setPendingHouseCall(null);
-              setTravelAnimationState(null); // Clear travel animation
-              // Refund payment
-              const refundAmount = pendingHouseCall.paymentAmount || 0;
-              if (refundAmount > 0) {
-                setWealth(prev => prev + refundAmount);
-                toast.info(`House call cancelled. ${refundAmount} reales refunded.`, { duration: 3000 });
-              } else {
-                toast.info('House call cancelled.', { duration: 2000 });
-              }
-            }}
+            onTravelUpdate={handleTravelUpdate}
+            onCancel={handleCancelTravel}
+          />
+        )}
+
+        {/* Purchase Offer Card - displayed when vendor offers goods for sale */}
+        {pendingPurchaseOffer && pendingPurchaseOffer.type === 'buy' && (
+          <PurchaseOfferCard
+            offer={pendingPurchaseOffer}
+            onViewItems={handleViewPurchaseItems}
+            onDecline={handleDeclinePurchaseOffer}
           />
         )}
 
@@ -2162,6 +2347,23 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           narrativeContext={historyOutput}
           textCache={textCacheRef.current} // Persistent cache prevents re-generating same documents
           onMarkAsRead={markDocumentAsRead}
+        />
+
+        {/* Prescription Outcome Modal - shows detailed prescription results with LLM narrative */}
+        <PrescriptionOutcomeModal
+          isOpen={showPrescriptionOutcomeModal}
+          patient={pendingPrescription?.patient}
+          prescriptionData={pendingPrescription ? {
+            remedy: pendingPrescription.item?.name,
+            drachms: pendingPrescription.amount,
+            route: pendingPrescription.route,
+            payment: pendingPrescription.price
+          } : null}
+          outcome={pendingPrescription?.outcome}
+          onContinue={() => {
+            setShowPrescriptionOutcomeModal(false);
+            setPendingPrescription(null); // Clear the prescription card
+          }}
         />
 
       </DndProvider>

@@ -6,13 +6,15 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FaMapMarkerAlt, FaTimes } from 'react-icons/fa';
+import { FiNavigation } from 'react-icons/fi';
 
 export function LocationDropdown({
   show,
   onClose,
   onSelectLocation,
   nearbyLocations = [],
-  targetRef
+  targetRef,
+  onRequestLongDistanceTravel = null
 }) {
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const dropdownRef = useRef(null);
@@ -120,6 +122,24 @@ export function LocationDropdown({
             </div>
           )}
         </div>
+
+        {typeof onRequestLongDistanceTravel === 'function' && (
+          <div className="border-t border-parchment-300/60 dark:border-slate-700/60 bg-emerald-50/40 dark:bg-slate-800/40 px-4 py-3">
+            <button
+              onClick={() => {
+                onClose();
+                onRequestLongDistanceTravel();
+              }}
+              className="w-full text-sm font-semibold text-emerald-700 dark:text-amber-400 hover:text-emerald-800 dark:hover:text-amber-300 flex items-center justify-center gap-2"
+            >
+              <FiNavigation className="w-4 h-4" />
+              Attempt long-distance travel
+            </button>
+            <p className="mt-2 text-xs text-ink-500 dark:text-slate-400 text-center">
+              Select a far-off destination beyond the Mexico City map.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Arrow pointing down */}

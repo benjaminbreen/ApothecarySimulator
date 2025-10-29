@@ -528,13 +528,9 @@ const NarrativeEntry = React.memo(({
       );
     }
 
-    // System messages: gear icon
+    // System messages: no icon (removed to save space)
     if (isSystem) {
-      return (
-        <svg className="w-5 h-5 text-potion-600 dark:text-amber-500 transition-colors duration-300" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-        </svg>
-      );
+      return null; // System messages don't show an icon badge
     }
 
     // PHASE 3B: Three response modes for assistant messages
@@ -549,7 +545,7 @@ const NarrativeEntry = React.memo(({
           onError={(e) => {
             console.warn('[NarrativePanel] Failed to load NPC portrait:', entry.primaryPortrait);
             // Fallback to botica entrance if portrait fails
-            e.target.src = '/maps/boticaentrance.png';
+            e.target.src = '/ui/boticaentrance.png';
           }}
         />
       );
@@ -661,22 +657,24 @@ const NarrativeEntry = React.memo(({
         </div>
       )}
 
-      <div className={`flex items-start gap-3 relative group ${isUser ? 'flex-row-reverse' : ''} ${actionStyle ? actionStyle.borderColor + ' border-l-4 pl-2' : ''}`}>
+      <div className={`${isSystem ? '' : 'flex items-start gap-3'} relative group ${isUser ? 'flex-row-reverse' : ''} ${actionStyle ? actionStyle.borderColor + ' border-l-4 pl-2' : ''}`}>
         {/* NPC Mini Portrait - show for dialogue, positioned inside container */}
-      
-      
 
-        {/* Circular icon */}
-        <div
-          className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-parchment-100 to-white dark:from-slate-700 dark:to-slate-800 border-2 border-ink-200 dark:border-slate-600 flex items-center justify-center shadow-elevation-1 dark:shadow-dark-elevation-1 mt-1 overflow-hidden transition-colors duration-300 cursor-help"
-          title={getTooltipText()}
-        >
-          {getEntryIcon()}
-        </div>
-        <div className="flex-1 min-w-0 relative">
+
+
+        {/* Circular icon - hidden for system messages */}
+        {!isSystem && (
+          <div
+            className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-parchment-100 to-white dark:from-slate-700 dark:to-slate-800 border-2 border-ink-200 dark:border-slate-600 flex items-center justify-center shadow-elevation-1 dark:shadow-dark-elevation-1 mt-1 overflow-hidden transition-colors duration-300 cursor-help"
+            title={getTooltipText()}
+          >
+            {getEntryIcon()}
+          </div>
+        )}
+        <div className={`${isSystem ? 'w-full' : 'flex-1 min-w-0'} relative`}>
 
         {/* Bookmark button - positioned inside, top-right corner of content */}
-        {!isUser && (
+        {!isUser && !isSystem && (
           <button
             onClick={() => onToggleBookmark?.(index)}
             className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1.5 hover:bg-parchment-100 rounded-lg hover:scale-110"
@@ -711,13 +709,13 @@ const NarrativeEntry = React.memo(({
               </div>
             </div>
           ) : isSystem ? (
-            // System announcements - sans serif, no bubble, italic
-            <div className="prose prose-lg max-w-none">
+            // System announcements - purple, sans serif, smaller font, italic
+            <div className="prose prose-sm max-w-none">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw]}
                 components={entityComponents}
-                className="text-base text-ink-700 dark:text-parchment-300 font-sans leading-relaxed italic transition-colors duration-300"
+                className="text-sm text-purple-600 dark:text-purple-400 font-sans leading-relaxed italic transition-colors duration-300"
               >
                 {content}
               </ReactMarkdown>
@@ -921,6 +919,68 @@ const NarrativeEntry = React.memo(({
               isDark={isDarkMode}
             />
           )}
+
+          {/* Prescription Administered Card */}
+          {entry.card.type === 'prescription' && (
+            <div className="w-full p-4 bg-gradient-to-br from-purple-600/25 via-purple-500/15 to-purple-500/10 dark:from-purple-700/25 dark:via-purple-600/15 dark:to-purple-600/10 rounded-xl shadow-lg border border-purple-400/35 dark:border-purple-500/35 backdrop-blur-sm">
+              <div className="flex items-start gap-3">
+                {/* Patient Portrait */}
+                <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
+                  {entry.card.data.patient?.visual?.image || entry.card.data.patient?.image ? (
+                    <img
+                      src={`/portraits/${entry.card.data.patient.visual?.image || entry.card.data.patient.image}`}
+                      alt={entry.card.data.patient.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.outerHTML = '<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>';
+                      }}
+                    />
+                  ) : (
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1 text-left">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-bold text-lg dark:bg-white/15 dark:text-purple-100">℞</span>
+                    <span className="text-purple-800 font-semibold text-lg dark:text-purple-100">Prescription Administered</span>
+                  </div>
+                  <div className="text-purple-800/90 text-sm font-medium dark:text-purple-100/85">
+                    You have prescribed <strong className="text-purple-900 dark:text-white">{entry.card.data.item?.name}</strong> to {entry.card.data.patient?.name}.
+                  </div>
+
+                  {(entry.card.data.item || entry.card.data.route) && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {entry.card.data.item && (
+                        <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-semibold dark:bg-white/15 dark:text-purple-100">
+                          {entry.card.data.amount || 1}× {entry.card.data.item.name}
+                        </span>
+                      )}
+                      {entry.card.data.route && (
+                        <span className="px-3 py-1 rounded-full bg-purple-200 text-purple-800 text-xs font-semibold capitalize dark:bg-purple-500/25 dark:text-purple-50">
+                          {entry.card.data.route} route
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* More Info Button - Only show if outcome data is available */}
+                  {entry.card.data.outcome && onOpenPrescriptionDetails && (
+                    <button
+                      onClick={() => onOpenPrescriptionDetails(entry.card.data)}
+                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 border border-purple-300 text-purple-700 text-sm font-semibold rounded-lg transition-all duration-200 hover:bg-purple-100/70 dark:border-purple-200/40 dark:text-purple-50 dark:hover:bg-purple-500/20"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      View Detailed Outcome
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -946,6 +1006,7 @@ const NarrativePanel = ({
   activePatient,
   onSwitchToPatientView,
   pendingPrescription,
+  onOpenPrescriptionDetails = null, // Handler to open prescription outcome modal
   pendingContract = null, // Contract offer pending negotiation
   onOpenContractModal = null, // Handler to open contract modal
   pendingExitConfirmation = null, // Exit confirmation data
@@ -1255,7 +1316,7 @@ const NarrativePanel = ({
           ) : (
             <>
               {conversationHistory
-                .filter(entry => !entry.hidden && entry.role !== 'system') // Skip hidden entries and system messages (system messages only appear in Log tab)
+                .filter(entry => !entry.hidden) // Skip hidden entries only (system messages now appear in narrative)
                 .map((entry, index) => (
                 <NarrativeEntry
                   key={index}
@@ -1437,9 +1498,9 @@ const NarrativePanel = ({
 
               {/* Prescription Pending Status Card - Blue */}
               {pendingPrescription && (
-                <div className="animate-fade-in">
-                  <div className="w-full p-4 bg-gradient-to-r from-blue-500 to-indigo-600 dark:from-blue-700 dark:to-indigo-800 rounded-xl shadow-lg border-2 border-blue-400/30 dark:border-blue-600/30">
-                    <div className="flex items-center gap-3">
+                <div className="animate-fade-in mb-4">
+                  <div className="w-full p-4 bg-gradient-to-br from-purple-600/25 via-purple-500/15 to-purple-500/10 dark:from-purple-700/25 dark:via-purple-600/15 dark:to-purple-600/10 rounded-xl shadow-lg border border-purple-400/35 dark:border-purple-500/35 backdrop-blur-sm">
+                    <div className="flex items-start gap-3">
                       {/* Patient Portrait */}
                       <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
                         {pendingPrescription.patient?.visual?.image || pendingPrescription.patient?.image ? (
@@ -1458,13 +1519,41 @@ const NarrativePanel = ({
                         )}
                       </div>
                       <div className="flex-1 text-left">
-                        <div className="text-white font-bold text-lg mb-0.5 flex items-center gap-2">
-                          <span className="text-xl">℞</span>
-                          Prescription Administered
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-bold text-lg dark:bg-white/15 dark:text-purple-100">℞</span>
+                          <span className="text-purple-800 font-semibold text-lg dark:text-purple-100">Prescription Administered</span>
                         </div>
-                        <div className="text-blue-100 dark:text-blue-200 text-sm font-medium">
-                          You have prescribed <strong className="text-white">{pendingPrescription.item?.name}</strong> to {pendingPrescription.patient?.name}.
+                        <div className="text-purple-800/90 text-sm font-medium dark:text-purple-100/85">
+                          You have prescribed <strong className="text-purple-900 dark:text-white">{pendingPrescription.item?.name}</strong> to {pendingPrescription.patient?.name}.
                         </div>
+
+                        {(pendingPrescription.item || pendingPrescription.route) && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {pendingPrescription.item && (
+                              <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-semibold dark:bg-white/15 dark:text-purple-100">
+                                {pendingPrescription.amount || 1}× {pendingPrescription.item.name}
+                              </span>
+                            )}
+                            {pendingPrescription.route && (
+                              <span className="px-3 py-1 rounded-full bg-purple-200 text-purple-800 text-xs font-semibold capitalize dark:bg-purple-500/25 dark:text-purple-50">
+                                {pendingPrescription.route} route
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* More Info Button - Only show if outcome data is available */}
+                        {pendingPrescription.outcome && onOpenPrescriptionDetails && (
+                          <button
+                            onClick={() => onOpenPrescriptionDetails(pendingPrescription)}
+                            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 border border-purple-300 text-purple-700 text-sm font-semibold rounded-lg transition-all duration-200 hover:bg-purple-100/70 dark:border-purple-200/40 dark:text-purple-50 dark:hover:bg-purple-500/20"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            View Detailed Outcome
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

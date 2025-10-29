@@ -41,6 +41,7 @@ import { mapNPCFactionToSystemFaction, updateFactionFromNPCInteraction } from '.
 import { checkForRandomEvent, processEventChoice, initializeEventSystem } from '../../core/events/randomEventService';
 import { getDetailImagePathSync } from '../../utils/detailImageResolver';
 import { isDocumentItem, getDocumentType, extractDocumentMetadata, shouldAutoOpenDocument } from '../../utils/documentDetector';
+import { getHouseCallData } from '../../features/medical/services/houseSelector';
 
 // PHASE 2.1: Specialized navigation handlers hook
 import { useNavigationHandlers } from './useNavigationHandlers';
@@ -59,6 +60,19 @@ import { useUIHandlers } from './useUIHandlers';
 
 // PHASE 2.6: Specialized item handlers hook
 import { useItemHandlers } from './useItemHandlers';
+
+const sanitizePortraitFilename = (filename) => {
+  if (!filename) return null;
+  const trimmed = filename.trim();
+
+  if (trimmed.startsWith('ui/')) {
+    return trimmed.replace(/^\/+/, 'ui/');
+  }
+
+  return trimmed
+    .replace(/^\/?portraits\//i, '')
+    .replace(/^\/+/, '');
+};
 
 export function useGameHandlers({
   // State setters
@@ -130,6 +144,7 @@ export function useGameHandlers({
   setPendingActionPrompt,
   setPendingMixingDecision,
   setPendingHouseCall, // House call system (Phase 3A)
+  setPendingPurchaseOffer, // Purchase offer system (vendor selling to Maria)
   setIsContractModalOpen,
   setPendingExitData, // Exit confirmation system
   setShowExitConfirmation, // Exit confirmation system
@@ -139,10 +154,15 @@ export function useGameHandlers({
   setPendingRandomEvent, // Random event system
   setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
   setDynamicChips, // Dynamic action chips from narrative parsing
+  setPendingPrescription, // Clear prescription card on next action
   setShowPOIModal, // POI modal for map furniture clicks
   setSelectedPOIEntity, // Selected entity for POI modal
   setPendingDocument, // Document modal for letters/codices
   setIsDocumentModalOpen, // Document modal open state
+  setTravelAnimationState,
+  openLongDistanceTravelCard,
+  triggerGameOver,
+  setCrisisState,
 
   // State values
   isLoading, // CRITICAL FIX: Loading state for double-click guard
@@ -168,6 +188,7 @@ export function useGameHandlers({
   activeTab,
   gameLog,
   activePatient,
+  currentPatient,
   patientDialogue,
   playerSkills,
   journal,
@@ -219,9 +240,21 @@ export function useGameHandlers({
 
   // Track previous portrait entity for smooth transitions (persists across renders)
   const previousPortraitEntityRef = useRef(null);
+  const lastHouseCallKeyRef = useRef(null);
 
   // PHASE 2: Track recent portrait filename for consistency across turns
   const recentPortraitRef = useRef(null);
+
+  // Track if NPC departed last turn (for continuation detection)
+  const npcDepartedLastTurnRef = useRef(false);
+  const conversationLockRef = useRef(null);
+
+  const clearConversationLock = useCallback(() => {
+    if (conversationLockRef.current) {
+      console.log('[ConversationLock] Clearing conversation lock for', conversationLockRef.current.name || 'unknown');
+    }
+    conversationLockRef.current = null;
+  }, []);
 
   // ============================================================================
   // SECTION 2: SIMPLE STATE SETTERS
@@ -345,6 +378,8 @@ export function useGameHandlers({
     // Phase 3D: House call completion
     awardXP,
     updateReputation,
+    setTravelAnimationState,
+    openLongDistanceTravelCard,
   });
 
   // PHASE 2.2: Initialize medical handlers hook
@@ -466,11 +501,23 @@ export function useGameHandlers({
       return;
     }
 
+    // Clear pending prescription card when player submits new action
+    if (setPendingPrescription) {
+      setPendingPrescription(null);
+    }
+
     setIsLoading(true);
 
     // Use override if provided (from chip clicks), otherwise fall back to userInput state
     const originalInput = (actionOverride || userInput).trim();
     let narrativeText = originalInput.toLowerCase();
+
+    if (conversationLockRef.current) {
+      const breakLockPattern = /(dismiss|send\s+(him|her|them)\s+away|tell\s+(him|her|them)\s+to\s+leave|close\s+the\s+door|shut\s+the\s+door|go\s+away|leave\s+me\s+alone|see\s+who\s+is\s+there|open\s+the\s+door|answer\s+the\s+door|check\s+the\s+door)\b/i;
+      if (breakLockPattern.test(narrativeText)) {
+        clearConversationLock();
+      }
+    }
 
     // Extract metadata options
     const { actionResultType } = options;
@@ -588,7 +635,42 @@ export function useGameHandlers({
     }
 
     if (narrativeText === '#prescribe') {
-      setIsPrescribePopupOpen(true);
+      const recentNPCs = typeof npcTracker?.getRecentNPCs === 'function' ? npcTracker.getRecentNPCs() : [];
+      let targetEntity = activePatient || currentPatient || null;
+      let targetName = targetEntity?.name || null;
+
+      if (!targetEntity && recentNPCs.length > 0) {
+        const fallbackName = recentNPCs[recentNPCs.length - 1];
+        targetEntity = entityManager.getByName(fallbackName) || null;
+        targetName = fallbackName;
+      }
+
+      const portraitFile = targetEntity?.visual?.image || targetEntity?.image || null;
+      const portraitPath = portraitFile ? `/portraits/${portraitFile.replace(/^\/portraits\//, '')}` : null;
+      const symptoms = Array.isArray(targetEntity?.symptoms) ? targetEntity.symptoms : [];
+      const primarySymptom = symptoms.length > 0 ? symptoms[0] : null;
+      const ailmentDescription = typeof primarySymptom === 'string'
+        ? primarySymptom
+        : primarySymptom?.name || targetEntity?.ailmentDescription || 'Unspecified ailment';
+      const suggestedItems = Array.isArray(targetEntity?.suggestedItems)
+        ? targetEntity.suggestedItems
+        : Array.isArray(targetEntity?.recommendedItems)
+          ? targetEntity.recommendedItems
+          : Array.isArray(targetEntity?.prescriptionSuggestions)
+            ? targetEntity.prescriptionSuggestions
+            : [];
+
+      setPendingActionPrompt({
+        type: 'prescribe',
+        recipientName: targetName || 'Patient',
+        npcId: targetEntity?.id || null,
+        npcPortrait: portraitPath,
+        context: targetName ? `Provide treatment for ${targetName}` : 'Select a remedy to prescribe',
+        ailmentDescription,
+        suggestedItems
+      });
+
+      setActiveTab('chronicle');
       setUserInput('');
       setIsLoading(false);
       return;
@@ -901,7 +983,9 @@ export function useGameHandlers({
         playerSkills: playerSkills,
         journal: journal,
         activePatient: activePatient, // Pass current active patient for contextual guards
-        recentPortrait: recentPortraitRef.current // PHASE 2: Pass last portrait for consistency
+        recentPortrait: recentPortraitRef.current, // PHASE 2: Pass last portrait for consistency
+        npcDepartedLastTurn: npcDepartedLastTurnRef.current, // Pass departure status from last turn
+        conversationLock: conversationLockRef.current
       });
 
       if (!result.success) {
@@ -952,10 +1036,10 @@ export function useGameHandlers({
 
       // Priority: LLM portrait > Turn 1 entrance fallback > Map
       if (result.primaryPortrait) {
-        // LLM selected a portrait - use it
-        console.log('[Portrait] LLM selected portrait:', result.primaryPortrait);
-        primaryPortraitFile = result.primaryPortrait;
-        portraitForHistory = result.primaryPortrait;
+        const normalizedPortrait = sanitizePortraitFilename(result.primaryPortrait);
+        console.log('[Portrait] LLM selected portrait:', result.primaryPortrait, '→ normalized to:', normalizedPortrait);
+        primaryPortraitFile = normalizedPortrait;
+        portraitForHistory = normalizedPortrait;
       } else if (turnNumber === 1) {
         // Turn 1 fallback: Show entrance image only if LLM didn't provide a portrait
         // This allows map to show if player uses Exit button on turn 1
@@ -971,8 +1055,8 @@ export function useGameHandlers({
 
       // Store LLM's portrait selection for conversation history context (what LLM learns from)
       if (portraitForHistory) {
-        recentPortraitRef.current = portraitForHistory;
-        console.log('[Portrait] Storing portrait for next turn context:', portraitForHistory);
+        recentPortraitRef.current = sanitizePortraitFilename(portraitForHistory);
+        console.log('[Portrait] Storing portrait for next turn context:', recentPortraitRef.current);
       }
 
       // PATIENT HANDLING: If entity is a patient, validate LLM used them correctly
@@ -1078,6 +1162,24 @@ export function useGameHandlers({
         // No portrait provided by LLM - this is intentional, show map instead
         console.log('[Portrait] ∅ No portrait this turn - map will be shown');
         previousPortraitEntityRef.current = null;
+
+        if (result.primaryNPC?.name) {
+          npcTracker.addNPC(result.primaryNPC.name);
+        }
+      }
+
+      if (!result.npcDeparted) {
+        const lockedEntity = portraitEntity || (result.primaryNPC?.name ? entityManager.getByName(result.primaryNPC.name) : null);
+        const lockName = lockedEntity?.name || result.primaryNPC?.name || conversationLockRef.current?.name || null;
+        if (lockName) {
+          conversationLockRef.current = {
+            id: lockedEntity?.id || conversationLockRef.current?.id || null,
+            name: lockName,
+            portrait: primaryPortraitFile || conversationLockRef.current?.portrait || null,
+            active: true,
+            lastTurn: turnNumber
+          };
+        }
       }
 
       // NPC DEPARTURE HANDLING: Remove NPC from tracker when they leave
@@ -1096,6 +1198,13 @@ export function useGameHandlers({
         } else {
           console.warn('[NPC Departure] npcDeparted=true but no NPC in tracker to remove');
         }
+
+        // Track that NPC departed for next turn (prevents continuation detection)
+        npcDepartedLastTurnRef.current = true;
+        clearConversationLock();
+      } else {
+        // Reset departure flag if no departure this turn
+        npcDepartedLastTurnRef.current = false;
       }
 
       // Log all entities for debugging
@@ -1151,14 +1260,11 @@ export function useGameHandlers({
       // Note: Removed "Someone approaches" system message - causes confusion when LLM diverges
       // The narrative itself already mentions who appears
 
-      // PHASE 3: Add response type and dialogue fields for UI display
       // CARD EMBEDDING: Store card data in conversation history so cards stay in place
       const assistantMessage = {
         role: 'assistant',
-        content: result.responseType === 'dialogue' ? result.dialogue : result.narrative,
+        content: result.narrative, // All dialogue is now embedded in narrative
         responseType: result.responseType || 'narration',
-        dialogue: result.dialogue || null,
-        npcSpeaker: result.npcSpeaker || null,
         primaryPortrait: result.primaryPortrait || null,
         primaryNPCName: result.primaryNPC?.name || null, // Store primary NPC name for portrait matching
         actionResultType: actionResultType || null, // Action result metadata (give/sell/prescribe)
@@ -1166,10 +1272,17 @@ export function useGameHandlers({
         card: null
       };
       newHistory.push(assistantMessage);
+      const crisisSystemMessages = [];
 
       if (result.systemAnnouncements && result.systemAnnouncements.length > 0) {
         result.systemAnnouncements.forEach(announcement => {
           newHistory.push({ role: 'system', content: announcement });
+        });
+      }
+
+      if (crisisSystemMessages.length > 0) {
+        crisisSystemMessages.forEach(msg => {
+          newHistory.push({ role: 'system', content: msg });
         });
       }
 
@@ -1201,6 +1314,7 @@ export function useGameHandlers({
           // Calculate total overall reputation change from all events
           const oldOverall = reputation?.overall || 50;
           let totalDelta = 0;
+          let mostSevereEvent = null; // Track most severe event for crisis context
 
           result.reputationEvents.forEach(event => {
             // Map State Agent's snake_case faction names to reputation system's format
@@ -1219,6 +1333,12 @@ export function useGameHandlers({
               updateReputation(factionKey, event.delta, event.reason);
               // Accumulate approximate overall change (faction deltas contribute to overall)
               totalDelta += event.delta;
+
+              // FIX #1: Magnitude-based crisis detection
+              // Track most severe negative event for crisis activation
+              if (event.delta < 0 && (!mostSevereEvent || event.delta < mostSevereEvent.delta)) {
+                mostSevereEvent = event;
+              }
             } else {
               console.warn(`[Reputation Event] Unknown faction: ${event.faction}`);
             }
@@ -1233,6 +1353,71 @@ export function useGameHandlers({
               console.log(`[Reputation] Overall reputation changed by approximately ${estimatedOverallDelta > 0 ? '+' : ''}${estimatedOverallDelta}`);
             }
           }
+
+          // FIX #2 & #3: Crisis activation logic
+          // Only trigger if crisis is not already active
+          if (!gameState.crisis?.active) {
+            const newOverall = reputation?.overall || 50; // Get updated reputation after changes
+            let crisisTriggered = false;
+            let crisisReason = '';
+            let crisisContext = '';
+
+            // TRIGGER 1: Severe single event (magnitude < -40)
+            if (mostSevereEvent && mostSevereEvent.delta <= -40) {
+              crisisTriggered = true;
+              crisisReason = `Severe reputation loss with ${mostSevereEvent.faction}`;
+              crisisContext = `Maria's actions have caused outrage among ${mostSevereEvent.faction}. Reason: ${mostSevereEvent.reason}. Authorities may investigate or attempt arrest.`;
+              console.log(`[Crisis] 🚨 MAGNITUDE TRIGGER: Single event delta ${mostSevereEvent.delta} (threshold: -40)`);
+            }
+
+            // TRIGGER 2: Critical overall reputation threshold (< 25)
+            if (!crisisTriggered && newOverall < 25) {
+              crisisTriggered = true;
+              crisisReason = 'Overall reputation critically low';
+              crisisContext = `Maria's reputation has plummeted to ${newOverall}/100. She is now infamous in Mexico City. Authorities or vigilantes may seek her out.`;
+              console.log(`[Crisis] 🚨 THRESHOLD TRIGGER: Overall reputation ${newOverall} (threshold: <25)`);
+            }
+
+            // TRIGGER 3: Catastrophic faction-specific threshold
+            // Check if any single faction dropped below 10 (hostile)
+            if (!crisisTriggered && reputation?.factions) {
+              Object.entries(reputation.factions).forEach(([factionId, score]) => {
+                if (score < 10 && !crisisTriggered) {
+                  crisisTriggered = true;
+                  const factionName = {
+                    'church': 'the Church',
+                    'elite': 'elite society',
+                    'commonFolk': 'common folk',
+                    'indigenous': 'indigenous communities',
+                    'guild': 'the Medical Guild',
+                    'merchants': 'merchant class'
+                  }[factionId] || factionId;
+                  crisisReason = `Hostile standing with ${factionName}`;
+                  crisisContext = `Maria is now considered an enemy by ${factionName} (${score}/100). They may actively work against her or seek retribution.`;
+                  console.log(`[Crisis] 🚨 FACTION TRIGGER: ${factionName} at ${score} (threshold: <10)`);
+                }
+              });
+            }
+
+            // Activate crisis if any trigger fired
+            if (crisisTriggered) {
+              setCrisisState({
+                active: true,
+                reason: crisisReason,
+                context: crisisContext
+              });
+              console.log(`[Crisis] ⚠️ CRISIS ACTIVATED: ${crisisReason}`);
+              console.log(`[Crisis] Context: ${crisisContext}`);
+
+              // Add system message to warn player
+              newHistory.push({
+                role: 'system',
+                content: `⚠️ CRISIS: ${crisisReason} - Expect consequences.`
+              });
+            }
+          } else {
+            console.log('[Crisis] Crisis already active, skipping new triggers');
+          }
         }
 
         // Handle location changes with coordinate matching
@@ -1242,7 +1427,16 @@ export function useGameHandlers({
 
           // Build registry and try to match
           const scenario = scenarioLoader.getScenario(gameState.scenarioId || '1680-mexico-city');
-          const registry = buildLocationRegistry(scenario, currentMapId);
+          const registry = buildLocationRegistry(
+            scenario,
+            currentMapId,
+            {
+              currentLocationText: result.gameState.location,
+              playerPosition,
+              currentWorldLocationId: gameState.worldLocationId || null,
+              maxWorldLocations: 10
+            }
+          );
           const locationMatch = matchLocation(result.gameState.location, registry);
 
           if (locationMatch) {
@@ -1269,8 +1463,12 @@ export function useGameHandlers({
             }
 
             // Calculate grid position from spawn point
-            const gridX = Math.floor(spawnX / 20);
-            const gridY = Math.floor(spawnY / 20);
+            const gridX = Number.isFinite(locationMatch.gridX)
+              ? locationMatch.gridX
+              : Math.floor(spawnX / 20);
+            const gridY = Number.isFinite(locationMatch.gridY)
+              ? locationMatch.gridY
+              : Math.floor(spawnY / 20);
 
             setPlayerPosition({
               x: spawnX,
@@ -1295,16 +1493,16 @@ export function useGameHandlers({
         } else if (result.gameState.location) {
           // Location same as before, no change needed
           console.log('[Location Change] Location unchanged:', result.gameState.location);
-        }
+      }
 
-        if (result.gameState.time && result.gameState.date) {
-          advanceTime({
-            time: result.gameState.time,
-            date: result.gameState.date,
-            location: result.gameState.location || gameState.location
-          });
-        }
-        // Update player position if movement occurred (with validation)
+      if (result.gameState.time && result.gameState.date) {
+        advanceTime({
+          time: result.gameState.time,
+          date: result.gameState.date,
+          location: result.gameState.location || gameState.location
+        });
+      }
+      // Update player position if movement occurred (with validation)
         // Only accept position updates with valid pixel coordinates (x, y)
         // Ignore grid-only coordinates from StateAgent - we manage position ourselves
         // CRITICAL: Don't update position from StateAgent during movement turns
@@ -1324,6 +1522,51 @@ export function useGameHandlers({
         } else if (result.gameState.position) {
           console.log('[Position] Ignoring incomplete position data from StateAgent:', result.gameState.position);
           // Keep current position - StateAgent doesn't have enough info to update it
+        }
+      }
+
+      if (result.crisisResolution && result.crisisResolution.status && result.crisisResolution.status !== 'ongoing' && (gameState.crisis?.active || result.crisisResolution.gameOver)) {
+        const resolution = result.crisisResolution;
+        const outcome = resolution.status;
+
+        setCrisisState(prev => ({
+          ...prev,
+          active: false,
+          lastOutcome: outcome,
+          resolvedTurn: turnNumber
+        }));
+
+        if (resolution.gameOver && !gameState.isGameOver) {
+          triggerGameOver({
+            type: outcome,
+            reason: resolution.gameOverReason || 'Crisis concluded',
+            narrative: result.narrative
+          });
+        }
+
+        let message = '';
+        switch (outcome) {
+          case 'escaped':
+            message = '⚠️ You slipped away from the authorities. Expect consequences.';
+            break;
+          case 'bribed':
+            message = `💰 Crisis resolved through bribery${resolution.wealthChange ? ` (${resolution.wealthChange > 0 ? '+' : ''}${resolution.wealthChange} reales)` : ''}.`;
+            break;
+          case 'surrendered':
+            message = '⚖️ Maria surrendered and is taken into custody.';
+            break;
+          case 'captured':
+            message = '⚖️ Maria was captured while attempting to flee.';
+            break;
+          case 'killed':
+            message = '☠️ Maria perished during the confrontation.';
+            break;
+          default:
+            message = `⚠️ Crisis resolved (${outcome}).`;
+        }
+
+        if (message) {
+          crisisSystemMessages.push(message);
         }
       }
 
@@ -1459,11 +1702,91 @@ export function useGameHandlers({
             }
           }
         }
+
+        // CRISIS DETECTION FOR RELATIONSHIP-BASED REPUTATION CHANGES
+        // Check after all relationship changes are processed
+        if (!gameState.crisis?.active && result.relationshipChanges.length > 0) {
+          // Find most severe relationship change
+          let mostSevere = null;
+          for (const change of result.relationshipChanges) {
+            if (change.delta < 0 && (!mostSevere || change.delta < mostSevere.delta)) {
+              const npc = entityManager.getByName(change.npcName);
+              mostSevere = { ...change, npc };
+            }
+          }
+
+          if (mostSevere) {
+            const currentOverall = reputation?.overall || 50;
+            let crisisTriggered = false;
+            let crisisReason = '';
+            let crisisContext = '';
+
+            // TRIGGER 1: Severe relationship change (delta <= -15)
+            if (mostSevere.delta <= -15) {
+              crisisTriggered = true;
+              const factionName = mostSevere.npc?.social?.faction || 'unknown faction';
+              crisisReason = `Violent action against ${mostSevere.npcName}`;
+              crisisContext = `Maria committed a serious offense: ${mostSevere.reason}. ${mostSevere.npcName} is a member of ${factionName}. Witnesses may report this to authorities, leading to arrest or confrontation.`;
+              console.log(`[Crisis] 🚨 RELATIONSHIP TRIGGER: Severe action against ${mostSevere.npcName} (delta: ${mostSevere.delta})`);
+            }
+
+            // TRIGGER 2: Critical overall reputation (< 25)
+            if (!crisisTriggered && currentOverall < 25) {
+              crisisTriggered = true;
+              crisisReason = 'Overall reputation critically low';
+              crisisContext = `Maria's reputation has plummeted to ${currentOverall}/100. She is now infamous in Mexico City. Authorities or vigilantes may seek her out.`;
+              console.log(`[Crisis] 🚨 THRESHOLD TRIGGER: Overall reputation ${currentOverall} (threshold: <25)`);
+            }
+
+            // TRIGGER 3: Hostile faction (< 10)
+            if (!crisisTriggered && reputation?.factions) {
+              Object.entries(reputation.factions).forEach(([factionId, score]) => {
+                if (score < 10 && !crisisTriggered) {
+                  crisisTriggered = true;
+                  const factionNames = {
+                    'church': 'the Church', 'elite': 'elite society', 'commonFolk': 'common folk',
+                    'indigenous': 'indigenous communities', 'guild': 'the Medical Guild', 'merchants': 'merchant class'
+                  };
+                  crisisReason = `Hostile standing with ${factionNames[factionId] || factionId}`;
+                  crisisContext = `Maria is now considered an enemy by ${factionNames[factionId] || factionId} (${score}/100). They may actively work against her or seek retribution.`;
+                  console.log(`[Crisis] 🚨 FACTION TRIGGER: ${factionNames[factionId]} at ${score} (threshold: <10)`);
+                }
+              });
+            }
+
+            // Activate crisis
+            if (crisisTriggered) {
+              setCrisisState({ active: true, reason: crisisReason, context: crisisContext });
+              console.log(`[Crisis] ⚠️ CRISIS ACTIVATED (from relationship): ${crisisReason}`);
+              newHistory.push({ role: 'system', content: `⚠️ CRISIS: ${crisisReason} - Expect consequences.` });
+            }
+          }
+        }
       }
 
       // CARD PRIORITY SYSTEM: Check if simpleInteraction is active
       // Used to prevent multiple cards appearing on same turn
-      const hasSimpleInteraction = result.simpleInteraction && result.simpleInteraction.type && result.simpleInteraction.type !== 'null';
+      const rawSimpleInteraction = result.simpleInteraction;
+      const simpleInteractionType = rawSimpleInteraction?.type || 'null';
+      const isMedicalSimpleInteraction = ['house_call', 'house_call_request', 'medical_diagnosis'].includes(simpleInteractionType);
+      let effectiveSimpleInteraction = isMedicalSimpleInteraction ? null : rawSimpleInteraction;
+      let hasSimpleInteraction = effectiveSimpleInteraction && effectiveSimpleInteraction.type && effectiveSimpleInteraction.type !== 'null';
+
+      const medicalIntents = new Set(['medical_diagnosis', 'medical_purchase', 'medical_followup', 'house_call']);
+      const currentIntent = result.interactionIntent || 'none';
+
+      if (medicalIntents.has(currentIntent)) {
+        if (hasSimpleInteraction) {
+          console.log('[SimpleInteraction] Overriding simple interaction due to medical intent:', currentIntent, simpleInteractionType);
+        }
+        effectiveSimpleInteraction = null;
+        hasSimpleInteraction = false;
+      }
+
+      if (isMedicalSimpleInteraction ||
+          (medicalIntents.has(currentIntent) && rawSimpleInteraction && rawSimpleInteraction.type && rawSimpleInteraction.type !== 'null')) {
+        setPendingSimpleInteraction(null);
+      }
 
       // Handle contract offers (treatment or sale)
       // Store contract offer but DON'T auto-open modal
@@ -1515,6 +1838,62 @@ export function useGameHandlers({
         }
       }
 
+      if (result.houseCallTravel && setPendingHouseCall) {
+        try {
+          const travel = result.houseCallTravel;
+          const patientName = travel.patientName || 'Unnamed Patient';
+          const locationName = travel.patientLocation || 'Unknown residence';
+
+          const travelKey = `${patientName}|${locationName}|${travel.paymentOffered || 0}`;
+          if (lastHouseCallKeyRef.current !== travelKey) {
+            lastHouseCallKeyRef.current = travelKey;
+
+            let patientEntity = entityManager.getByName(patientName);
+
+            if (!patientEntity) {
+              patientEntity = entityManager.register({
+                id: `housecall-${Date.now()}`,
+                name: patientName,
+                entityType: 'patient',
+                type: 'patient',
+                clickable: false,
+                description: travel.patientDescription || 'Patient awaiting Maria\'s treatment.',
+                appearance: travel.patientDescription || 'Unspecified appearance',
+                social: {
+                  class: 'unknown'
+                },
+                metadata: {
+                  representedBy: travel.emissaryName || null
+                }
+              });
+            }
+
+            const houseCallData = getHouseCallData(patientEntity, locationName);
+            houseCallData.paymentAmount = travel.paymentOffered || 0;
+            houseCallData.ailmentDescription = travel.ailmentDescription || patientEntity.description;
+
+            // CRITICAL: Switch to exterior map BEFORE travel animation starts
+            // This ensures the travel path is shown on the city map, not interior
+            if (setCurrentMapId) {
+              console.log('[HouseCall] Switching to exterior map for travel animation');
+              setCurrentMapId('mexico-city-center');
+            }
+
+            if (setTravelAnimationState) {
+              setTravelAnimationState(null);
+            }
+            setPendingHouseCall(houseCallData);
+            setPendingContract(null);
+
+            if (toast) {
+              toast.success(`Traveling to ${locationName} to treat ${patientEntity.name}.`, { duration: 3000 });
+            }
+          }
+        } catch (error) {
+          console.error('[HouseCall] Failed to initialize house call travel:', error);
+        }
+      }
+
       // Action Prompt Processing (give/sell/prescribe requests)
       // GUARD: Skip if simpleInteraction is already handling this turn (prevent duplicate cards)
       console.log('[ActionPrompt DEBUG] result.actionPrompt:', result.actionPrompt);
@@ -1557,6 +1936,55 @@ export function useGameHandlers({
         });
       }
 
+      // Purchase Offer Processing (vendor selling TO Maria)
+      // GUARD: Skip if simpleInteraction is already handling this turn (prevent duplicate cards)
+      console.log('[PurchaseOffer DEBUG] result.purchaseOffer:', result.purchaseOffer);
+      if (!hasSimpleInteraction &&
+          result.purchaseOffer &&
+          result.purchaseOffer.type &&
+          result.purchaseOffer.type !== 'null') {
+        console.log('[PurchaseOffer] Vendor offer detected:', result.purchaseOffer);
+
+        // Add portrait from current NPC if available
+        const enrichedOffer = {
+          ...result.purchaseOffer,
+          npcPortrait: result.purchaseOffer.npcPortrait || (primaryPortraitFile ? primaryPortraitFile : null)
+        };
+
+        // Store in conversation history so card stays in place
+        assistantMessage.card = {
+          type: 'purchase_offer',
+          data: enrichedOffer
+        };
+
+        setPendingPurchaseOffer(enrichedOffer);
+      } else if (hasSimpleInteraction && result.purchaseOffer?.type && result.purchaseOffer.type !== 'null') {
+        console.log('[PurchaseOffer] Skipped - simpleInteraction already active (prevents duplicate cards)');
+      } else if (result.purchaseOffer && result.purchaseOffer.type === 'null') {
+        // Clear purchase offer when none is active
+        console.log('[PurchaseOffer] No active offer, clearing');
+        setPendingPurchaseOffer(null);
+
+        // Remove purchase_offer cards from conversation history
+        setConversationHistory(prev => {
+          return prev.map(msg => {
+            if (msg.role === 'assistant' && msg.card && msg.card.type === 'purchase_offer') {
+              const { card, ...msgWithoutCard } = msg;
+              console.log('[PurchaseOffer] Removing card from history entry');
+              return msgWithoutCard;
+            }
+            return msg;
+        });
+      });
+    }
+
+    if (!result.houseCallTravel) {
+      lastHouseCallKeyRef.current = null;
+      if (setTravelAnimationState) {
+        setTravelAnimationState(null);
+      }
+    }
+
       // Trade Opportunity Processing
       // Add trade opportunities from narrative when NPC expresses buy/sell interest
       if (result.tradeOpportunity &&
@@ -1572,17 +2000,19 @@ export function useGameHandlers({
 
       // Simple Interaction Processing
       // Detect fast gameplay loops (service offers, donations, competitive checks, etc.)
-      if (result.simpleInteraction &&
-          result.simpleInteraction.type &&
-          result.simpleInteraction.type !== 'null') {
-        console.log('[SimpleInteraction] Detected:', result.simpleInteraction.type, result.simpleInteraction);
-        // Store in conversation history so card stays in place
-        assistantMessage.card = {
-          type: 'simple_interaction',
-          data: result.simpleInteraction
-        };
-        setPendingSimpleInteraction(result.simpleInteraction);
-      } else if (result.simpleInteraction && result.simpleInteraction.type === 'null') {
+      if (effectiveSimpleInteraction &&
+          effectiveSimpleInteraction.type &&
+          effectiveSimpleInteraction.type !== 'null') {
+        // Keep all simpleInteractions as simpleInteraction cards (no conversion to purchaseOffer)
+        {
+          console.log('[SimpleInteraction] Detected:', simpleInteractionType, rawSimpleInteraction);
+          assistantMessage.card = {
+            type: 'simple_interaction',
+            data: effectiveSimpleInteraction
+          };
+          setPendingSimpleInteraction(effectiveSimpleInteraction);
+        }
+      } else if (rawSimpleInteraction && rawSimpleInteraction.type === 'null') {
         // Clear any previous simple interaction when none is active
         console.log('[SimpleInteraction] No active interaction, clearing previous');
         setPendingSimpleInteraction(null);
@@ -1617,7 +2047,7 @@ export function useGameHandlers({
       // Random Event Processing
       // Check for random events after narrative (adds variety and fast gameplay)
       // Only trigger if no simple interaction is active (avoid stacking interactions)
-      if (!result.simpleInteraction || result.simpleInteraction.type === 'null') {
+      if (!effectiveSimpleInteraction) {
         const eventCard = checkForRandomEvent(
           gameState,
           reputation,
@@ -1748,7 +2178,10 @@ export function useGameHandlers({
     setShowExitConfirmation, // Used for exit confirmation
     setPendingExitData, // Used for exit data
     addJournalEntry, // Used for journal entries
-    addToHistory // Used for conversation history
+    addToHistory, // Used for conversation history
+    clearConversationLock,
+    setCrisisState,
+    triggerGameOver
   ]);
 
   // PHASE 2.3: Initialize commerce handlers hook

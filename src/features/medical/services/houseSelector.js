@@ -7,11 +7,21 @@
 
 /**
  * Determine which house template to use based on patient characteristics
+ * FIXED: Added null/undefined validation for patient parameter
  *
  * @param {Object} patient - Patient entity
  * @returns {Object} - { mapId, houseName }
  */
 export function selectHouseTemplate(patient) {
+  // FIXED: Validate patient exists before accessing properties
+  if (!patient) {
+    console.warn('[houseSelector] No patient provided, defaulting to middling house');
+    return {
+      mapId: 'middling-house-interior',
+      houseName: 'Middling House (default)'
+    };
+  }
+
   const socialClass = patient.class?.toLowerCase() || '';
   const casta = patient.casta?.toLowerCase() || '';
   const occupation = patient.occupation?.toLowerCase() || '';
@@ -59,8 +69,19 @@ export function selectHouseTemplate(patient) {
 }
 
 /**
+ * Seeded random number generator for deterministic variance
+ * @param {number} seed - Seed value
+ * @returns {number} Pseudo-random number between 0 and 1
+ */
+function seededRandom(seed) {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+/**
  * Calculate distance to location based on location name
  * Uses consistent hash function for deterministic distances
+ * FIXED: Now uses seeded random for consistent variance per location
  *
  * @param {string} locationName - Location name (e.g., "Calle de Tacuba")
  * @returns {number} - Distance in meters (500-2000)
@@ -78,8 +99,8 @@ export function calculateDistanceToLocation(locationName) {
   // Map hash to 500-2000 meters range
   const baseDistance = 500 + (Math.abs(hash) % 1500);
 
-  // Add slight variance (±10% for realism)
-  const variance = (Math.random() - 0.5) * 0.2; // ±10%
+  // FIXED: Deterministic variance based on hash (same location always has same distance)
+  const variance = (seededRandom(hash) - 0.5) * 0.2; // ±10%
   const actualDistance = Math.round(baseDistance * (1 + variance));
 
   return actualDistance;

@@ -15,6 +15,7 @@ export function NarrativeTab({
   activePatient,
   onSwitchToPatientView,
   pendingPrescription,
+  onOpenPrescriptionDetails = null, // Handler to open prescription outcome modal
   pendingContract = null, // Contract offer
   onOpenContractModal = null, // Handler to open contract modal
   pendingExitConfirmation = null, // Exit confirmation data
@@ -51,6 +52,7 @@ export function NarrativeTab({
         activePatient={activePatient}
         onSwitchToPatientView={onSwitchToPatientView}
         pendingPrescription={pendingPrescription}
+        onOpenPrescriptionDetails={onOpenPrescriptionDetails}
         pendingContract={pendingContract}
         onOpenContractModal={onOpenContractModal}
         pendingExitConfirmation={pendingExitConfirmation}

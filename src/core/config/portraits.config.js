@@ -681,9 +681,114 @@ export function isValidPortrait(filename) {
   return getAllPortraitFilenames().includes(filename);
 }
 
+/**
+ * Get filtered portrait list for LLM prompt (smart filtering to reduce tokens)
+ * @param {Object} filters - Optional filters
+ * @param {string} filters.gender - 'male' or 'female' to filter by gender
+ * @param {string} filters.occupation - Occupation keyword to prioritize
+ * @param {number} filters.limit - Max portraits to return (default 50)
+ * @returns {string} Formatted portrait list for LLM prompt
+ */
+export function getFilteredPortraitList(filters = {}) {
+  const { gender, occupation, limit = 50 } = filters;
+
+  // Map category names to whether they're gendered
+  const genderCategories = {
+    'Elite Women': 'female',
+    'Common Women': 'female',
+    'Young Women': 'female',
+    'Elderly Women': 'female',
+    'Elite Men': 'male',
+    'Common Men': 'male',
+    'Young Men': 'male',
+    'Elderly Men': 'male',
+    'Children': 'mixed',
+    'Clergy': 'mixed',
+    'Merchants': 'mixed',
+    'Soldiers': 'mixed',
+    'Scholars/Healers': 'mixed',
+    'Workers/Artisans': 'mixed'
+  };
+
+  let relevantPortraits = [];
+
+  // If gender filter provided, only include matching categories
+  if (gender) {
+    const genderLower = gender.toLowerCase();
+    Object.entries(PORTRAIT_CATEGORIES).forEach(([category, portraits]) => {
+      const categoryGender = genderCategories[category] || 'mixed';
+
+      if (categoryGender === genderLower || categoryGender === 'mixed') {
+        // For mixed categories, try to filter by filename patterns
+        if (categoryGender === 'mixed') {
+          const filtered = portraits.filter(p => {
+            const lower = p.toLowerCase();
+            if (genderLower === 'male') {
+              return lower.includes('male') || lower.includes('man') || lower.includes('priest') ||
+                     lower.includes('friar') || lower.includes('monk') || !lower.includes('female');
+            } else if (genderLower === 'female') {
+              return lower.includes('female') || lower.includes('woman') || lower.includes('nun') ||
+                     lower.includes('midwife');
+            }
+            return true;
+          });
+          relevantPortraits.push({ category, portraits: filtered });
+        } else {
+          relevantPortraits.push({ category, portraits });
+        }
+      }
+    });
+  } else {
+    // No gender filter - include all
+    relevantPortraits = Object.entries(PORTRAIT_CATEGORIES).map(([category, portraits]) => ({
+      category,
+      portraits
+    }));
+  }
+
+  // Prioritize occupation-specific categories if occupation provided
+  if (occupation) {
+    const occLower = occupation.toLowerCase();
+    relevantPortraits.sort((a, b) => {
+      const aMatch = a.category.toLowerCase().includes(occLower);
+      const bMatch = b.category.toLowerCase().includes(occLower);
+      if (aMatch && !bMatch) return -1;
+      if (!aMatch && bMatch) return 1;
+      return 0;
+    });
+  }
+
+  // Flatten and limit
+  let flatPortraits = [];
+  for (const { category, portraits } of relevantPortraits) {
+    for (const portrait of portraits) {
+      flatPortraits.push({ category, filename: portrait });
+      if (flatPortraits.length >= limit) break;
+    }
+    if (flatPortraits.length >= limit) break;
+  }
+
+  // Format for LLM prompt (compact format to save tokens)
+  const lines = ['**Available Portraits** (choose exact filename):'];
+
+  // Group by category for readability
+  const grouped = {};
+  flatPortraits.forEach(({ category, filename }) => {
+    if (!grouped[category]) grouped[category] = [];
+    grouped[category].push(filename);
+  });
+
+  Object.entries(grouped).forEach(([category, filenames]) => {
+    lines.push(`- **${category}:** ${filenames.join(', ')}`);
+  });
+
+  return lines.join('\n');
+}
+
 export default {
   PORTRAIT_CATEGORIES,
   formatPortraitListForPrompt,
   getAllPortraitFilenames,
-  isValidPortrait
+  isValidPortrait,
+  getFilteredPortraitList
 };

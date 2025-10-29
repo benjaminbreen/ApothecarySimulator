@@ -49,6 +49,7 @@ import { determinePatientPosition, getPlacementNarrative } from '../../features/
  * @param {Function} params.setNPCPosition - Set NPC position (Phase 3C)
  * @param {Function} params.awardXP - Award XP function (Phase 3D)
  * @param {Function} params.updateReputation - Update reputation function (Phase 3D)
+ * @param {Function} params.setTravelAnimationState - Set travel animation state for map overlay
  *
  * @returns {Object} Navigation handlers
  */
@@ -90,6 +91,8 @@ export function useNavigationHandlers({
   // Phase 3D: House call completion
   awardXP,
   updateReputation,
+  setTravelAnimationState,
+  openLongDistanceTravelCard,
 }) {
   // Context hooks
   const { updateLocation, advanceTime, updateInventory, setGameState, setEnergy } = useGameState();
@@ -112,6 +115,11 @@ export function useNavigationHandlers({
 
     if (!freshMapData) {
       console.error('[Movement] No map data found for:', currentMapId);
+      return;
+    }
+
+    if (freshMapData.type === 'world') {
+      console.log('[Movement] World map active - arrow movement disabled');
       return;
     }
 
@@ -190,6 +198,14 @@ export function useNavigationHandlers({
       if (!validation.valid) {
         // Movement blocked - show system message instead of calling LLM
         console.log('[Movement] Blocked by:', validation.reason);
+
+        if (
+          validation.reason === 'the map boundary' &&
+          typeof openLongDistanceTravelCard === 'function' &&
+          freshMapData.type === 'exterior'
+        ) {
+          openLongDistanceTravelCard('map-boundary');
+        }
 
         const blockedMessage = `*That way is not accessible.*`;
 
@@ -456,7 +472,8 @@ export function useNavigationHandlers({
     setShowExitConfirmation,
     setConversationHistory,
     setDynamicChips,
-    advanceTime
+    advanceTime,
+    openLongDistanceTravelCard
   ]);
 
   /**
@@ -770,19 +787,23 @@ export function useNavigationHandlers({
   const handleHouseCallArrival = useCallback(async (houseCallData) => {
     console.log('[Phase 3B] House call arrival:', houseCallData);
 
-    const { patientEntity, houseMapId, houseName, destination, travelTime } = houseCallData;
-
     try {
       // FIX #5: Validate map exists before transitioning
       const scenario = scenarioLoader.getScenario(gameState.scenarioId || '1680-mexico-city');
+      let finalHouseCallData = houseCallData;
+      const { houseMapId } = houseCallData;
       const mapData = scenario?.maps?.interior?.[houseMapId];
 
       if (!mapData) {
         console.error('[Phase 3B] House map not found:', houseMapId);
         console.error('[Phase 3B] Falling back to middling house');
-        // Fallback to middling house if map doesn't exist
-        houseCallData.houseMapId = 'middling-house-interior';
-        houseCallData.houseName = 'Middling House (default)';
+
+        // FIXED: Create new object instead of mutating parameter (React best practice)
+        finalHouseCallData = {
+          ...houseCallData,
+          houseMapId: 'middling-house-interior',
+          houseName: 'Middling House (default)'
+        };
 
         // Validate fallback exists
         const fallbackMap = scenario?.maps?.interior?.['middling-house-interior'];
@@ -791,17 +812,24 @@ export function useNavigationHandlers({
         }
       }
 
+      // Re-destructure from finalHouseCallData to get correct values
+      const { patientEntity, houseMapId: finalHouseMapId, houseName, destination, travelTime } = finalHouseCallData;
+
       // 1. Transition to house interior map
-      setCurrentMapId(houseCallData.houseMapId);
-      console.log('[Phase 3B] Transitioned to map:', houseCallData.houseMapId);
+      setCurrentMapId(finalHouseMapId);
+      console.log('[Phase 3B] Transitioned to map:', finalHouseMapId);
 
       // 1.5. Update game location to match the map and narrative destination
       // This syncs the location pill with the actual location being visited
       updateLocation(`${destination} (Inside ${houseName})`);
       console.log('[Phase 3B] Updated location to:', `${destination} (Inside ${houseName})`);
 
+      if (setTravelAnimationState) {
+        setTravelAnimationState(null);
+      }
+
       // 2. PHASE 3C: Determine patient position based on condition severity
-      const positionData = determinePatientPosition(patientEntity, houseMapId);
+      const positionData = determinePatientPosition(patientEntity, finalHouseMapId);
       console.log('[Phase 3C] Patient positioning:', positionData);
 
       // 3. Set player position to entry point
@@ -809,14 +837,14 @@ export function useNavigationHandlers({
       // For middling house: in sala near entrance (650, 560)
       // CRITICAL: Include grid coordinates to prevent NaN errors during movement
       const gridSize = 20; // Standard grid size
-      if (houseMapId === 'humble-house-interior') {
+      if (finalHouseMapId === 'humble-house-interior') {
         setPlayerPosition({ x: 250, y: 420, gridX: Math.floor(250 / gridSize), gridY: Math.floor(420 / gridSize) });
-      } else if (houseMapId === 'middling-house-interior') {
+      } else if (finalHouseMapId === 'middling-house-interior') {
         setPlayerPosition({ x: 650, y: 560, gridX: Math.floor(650 / gridSize), gridY: Math.floor(560 / gridSize) });
       } else {
         setPlayerPosition({ x: 250, y: 420, gridX: Math.floor(250 / gridSize), gridY: Math.floor(420 / gridSize) }); // Default
       }
-      setPlayerFacing('up'); // Facing into room
+      setPlayerFacing(0); // Facing into room (north)
 
       // 4. PHASE 3C: Position patient at determined furniture location
       setNPCPosition(
@@ -875,6 +903,9 @@ export function useNavigationHandlers({
       }
       // Clear pending house call on error
       setPendingHouseCall(null);
+      if (setTravelAnimationState) {
+        setTravelAnimationState(null);
+      }
     }
   }, [
     setCurrentMapId,
@@ -891,7 +922,8 @@ export function useNavigationHandlers({
     toast,
     turnNumber,
     gameState.date,
-    updateLocation
+    updateLocation,
+    setTravelAnimationState
   ]);
 
   /**
@@ -903,6 +935,9 @@ export function useNavigationHandlers({
     console.log('[Phase 3D] Completing house call');
 
     try {
+      if (setTravelAnimationState) {
+        setTravelAnimationState(null);
+      }
       // 1. Generate wrap-up narrative
       const wrapUpNarrative = `Maria gathers her medical bag and bids farewell to the household. The consultation is complete. She makes her way back through the streets of Mexico City to her botica, reflecting on the case as she walks.`;
 
@@ -954,7 +989,7 @@ export function useNavigationHandlers({
         gridX: Math.floor(400 / gridSize),
         gridY: Math.floor(300 / gridSize)
       }); // Botica interior starting position
-      setPlayerFacing('down');
+      setPlayerFacing(180);
 
       // 9. Show success toast
       if (toast) {
@@ -984,7 +1019,8 @@ export function useNavigationHandlers({
     setPlayerPosition,
     setPlayerFacing,
     toast,
-    updateLocation
+    updateLocation,
+    setTravelAnimationState
   ]);
 
   return {

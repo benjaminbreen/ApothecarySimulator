@@ -192,6 +192,9 @@ export function GameModals({
 
   // Furniture click handler from map
   handleFurnitureClick,
+
+  // Prescription outcome handlers
+  onPrescriptionPending, // NEW: Handler for prescription outcome data (for "More Info" button)
 }) {
   return (
     <>
@@ -252,6 +255,7 @@ export function GameModals({
         TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
         awardXP={awardXP}
         awardSkillXP={awardSkillXP}
+        onPrescriptionPending={onPrescriptionPending}
         onPrescriptionComplete={(prescriptionData) => {
           // Add medical record when prescription is completed
           if (currentPatient && gameState) {
