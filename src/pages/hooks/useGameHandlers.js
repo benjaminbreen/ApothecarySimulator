@@ -38,10 +38,13 @@ import { resolvePortrait } from '../../core/services/portraitResolver';
 import { parseNarrativeChoices } from '../../utils/narrativeParser';
 import { generateNextSteps } from '../../core/services/nextStepsGenerator';
 import { mapNPCFactionToSystemFaction, updateFactionFromNPCInteraction } from '../../core/systems/reputationSystem';
+import { simulateLongDistanceTravel } from '../../core/agents/LongDistanceTravelAgent';
 import { checkForRandomEvent, processEventChoice, initializeEventSystem } from '../../core/events/randomEventService';
 import { getDetailImagePathSync } from '../../utils/detailImageResolver';
 import { isDocumentItem, getDocumentType, extractDocumentMetadata, shouldAutoOpenDocument } from '../../utils/documentDetector';
 import { getHouseCallData } from '../../features/medical/services/houseSelector';
+import { getTransactionManager, TRANSACTION_CATEGORIES } from '../../core/systems/transactionManager';
+import { MedicalRecordsManager } from '../../core/systems/medicalRecordsManager';
 
 // PHASE 2.1: Specialized navigation handlers hook
 import { useNavigationHandlers } from './useNavigationHandlers';
@@ -250,20 +253,129 @@ export function useGameHandlers({
   const conversationLockRef = useRef(null);
 
   const clearConversationLock = useCallback(() => {
-    if (conversationLockRef.current) {
-      console.log('[ConversationLock] Clearing conversation lock for', conversationLockRef.current.name || 'unknown');
+   if (conversationLockRef.current) {
+     console.log('[ConversationLock] Clearing conversation lock for', conversationLockRef.current.name || 'unknown');
+   }
+   conversationLockRef.current = null;
+ }, []);
+
+  const handleWealthChange = useCallback((newWealth) => {
+    setWealth(newWealth);
+  }, [setWealth]);
+
+  const addJournalEntry = useCallback((entry) => {
+    setJournal(prevJournal => [...prevJournal, entry]);
+  }, [setJournal]);
+
+  const handleLongDistanceTravelCommand = useCallback(async (travelPayload, originalCommand) => {
+    try {
+      const recentHistory = conversationHistory.slice(-6);
+      const result = await simulateLongDistanceTravel({
+        travelPlan: travelPayload,
+        gameState,
+        playerSkills,
+        reputation,
+        journal,
+        recentHistory
+      });
+
+      const wealthDeltaRaw = Number.isFinite(result?.wealthDelta)
+        ? result.wealthDelta
+        : -(travelPayload.costReales || 0);
+      const wealthDelta = Number.isFinite(wealthDeltaRaw) ? wealthDeltaRaw : 0;
+      if (wealthDelta !== 0) {
+        handleWealthChange(Math.max(0, gameState.wealth + wealthDelta));
+      }
+
+      const minutesAdvance = Number.isFinite(result?.timeAdvanceMinutes)
+        ? Math.max(0, Math.round(result.timeAdvanceMinutes))
+        : Math.max(0, Math.round((travelPayload.durationDays || 0) * 24 * 60));
+
+      if (minutesAdvance > 0) {
+        advanceTime({ time: gameState.time, date: gameState.date, location: gameState.location }, minutesAdvance);
+      }
+
+      if (Number.isFinite(result?.energyDelta) && result.energyDelta !== 0) {
+        const newEnergy = Math.max(0, Math.min(100, (gameState.energy || 0) + result.energyDelta));
+        setEnergy(newEnergy);
+      }
+
+
+      const outcome = result?.outcome || 'success';
+      const arrivalLocation = result?.arrival?.location || travelPayload.destinationName || gameState.location;
+      const arrivalWorldId = result?.arrival?.worldLocationId || travelPayload.destinationId || gameState.worldLocationId;
+
+      if (arrivalLocation) {
+        updateLocation(arrivalLocation);
+      }
+
+      setGameState(prev => ({
+        ...prev,
+        worldLocationId: arrivalWorldId || prev.worldLocationId
+      }));
+
+      if (outcome === 'success' || outcome === 'delayed') {
+        setCurrentMapId('world-map');
+      }
+
+      const narrative = result?.narrative || '*The journey proceeds, but no chronicler records its details.*';
+
+      addToHistory(
+        {
+          role: 'user',
+          content: originalCommand,
+          hidden: true,
+          isMovement: true
+        },
+        {
+          role: 'assistant',
+          content: narrative,
+          responseType: 'travel',
+          travelOutcome: outcome
+        }
+      );
+
+      setHistoryOutput(narrative);
+      setDynamicChips(null);
+
+      const journalEntry = outcome === 'failure'
+        ? `Attempted to travel toward ${travelPayload.destinationName}, but the journey failed: ${result?.arrival?.notes || 'obstacles arose.'}`
+        : `Traveled by ${travelPayload.mode?.label?.toLowerCase() || 'unknown means'} to ${arrivalLocation}.`;
+      addJournalEntry({
+        turnNumber,
+        date: gameState.date,
+        entry: journalEntry
+      });
+    } catch (error) {
+      console.error('[LongTravel] Error handling long-distance travel:', error);
+      const failureMessage = `*The travel plan collapses: ${error.message || 'an unexpected complication occurs'}.*`;
+      addToHistory({ role: 'assistant', content: failureMessage });
+      setHistoryOutput(failureMessage);
     }
-    conversationLockRef.current = null;
-  }, []);
+  }, [
+    conversationHistory,
+    gameState,
+    playerSkills,
+    reputation,
+    journal,
+    simulateLongDistanceTravel,
+    handleWealthChange,
+    advanceTime,
+    updateLocation,
+    setGameState,
+    setCurrentMapId,
+    setEnergy,
+    addToHistory,
+    setHistoryOutput,
+    setDynamicChips,
+    addJournalEntry,
+    turnNumber
+  ]);
 
   // ============================================================================
   // SECTION 2: SIMPLE STATE SETTERS
   // Basic handlers for state updates (wealth, reputation, etc.)
   // ============================================================================
-
-  const handleWealthChange = (newWealth) => {
-    setWealth(newWealth);
-  };
 
   /**
    * Check if an entity is an animal or object (not portrait-worthy)
@@ -309,9 +421,6 @@ export function useGameHandlers({
   // PHASE 2.5: handlePortraitClick moved to useUIHandlers.js
 
   // JOURNAL HANDLERS
-  const addJournalEntry = (entry) => {
-    setJournal(prevJournal => [...prevJournal, entry]);
-  };
 
   const handleJournalEntrySubmit = async (e) => {
     e.preventDefault();
@@ -510,6 +619,24 @@ export function useGameHandlers({
 
     // Use override if provided (from chip clicks), otherwise fall back to userInput state
     const originalInput = (actionOverride || userInput).trim();
+
+    if (originalInput.startsWith('#long_travel ')) {
+      try {
+        const payloadString = originalInput.slice('#long_travel '.length).trim();
+        const travelPayload = JSON.parse(payloadString);
+        await handleLongDistanceTravelCommand(travelPayload, originalInput);
+      } catch (error) {
+        console.error('[handleSubmit] Invalid long travel payload:', error);
+        const message = '*The travel request could not be understood. Please try again.*';
+        addToHistory({ role: 'assistant', content: message });
+        setHistoryOutput(message);
+      } finally {
+        setUserInput('');
+        setIsLoading(false);
+      }
+      return;
+    }
+
     let narrativeText = originalInput.toLowerCase();
 
     if (conversationLockRef.current) {
@@ -1894,6 +2021,126 @@ export function useGameHandlers({
         }
       }
 
+      // Prescription Offer Outcome Processing
+      // Handles results when NPC accepts/declines/bargains on prescription offers
+      if (result.prescriptionOfferOutcome && result.prescriptionOfferOutcome.occurred) {
+        const outcome = result.prescriptionOfferOutcome;
+        console.log('[PrescriptionOutcome] Detected:', outcome);
+
+        if (outcome.outcome === 'accepted') {
+          // Apply inventory and wealth changes
+          updateInventory(outcome.item, -outcome.amount);
+          updateWealth(outcome.finalPrice);
+
+          // Log transaction to ledger
+          const transactionManager = getTransactionManager(scenarioId);
+          const currentWealth = (gameState.wealth || 0) + outcome.finalPrice;
+          transactionManager.logTransaction(
+            'income',
+            TRANSACTION_CATEGORIES.MEDICINE_SALES,
+            `Prescribed ${outcome.amount}× ${outcome.item} to ${outcome.recipientName} (${outcome.route} route)`,
+            outcome.finalPrice,
+            currentWealth,
+            gameState.date,
+            gameState.time
+          );
+
+          // Add to medical records (Patient Roster)
+          let npcEntity = entityManager.getByName(outcome.recipientName);
+
+          if (!npcEntity) {
+            const recentNPCs = npcTracker.getRecentNPCs();
+            const matchedName = recentNPCs.find(name => name.toLowerCase() === outcome.recipientName.toLowerCase());
+            if (matchedName) {
+              npcEntity = entityManager.getByName(matchedName);
+            }
+          }
+
+          if (!npcEntity) {
+            console.warn(`[PrescriptionOutcome] NPC entity not found for ${outcome.recipientName}, creating minimal record`);
+            npcEntity = {
+              id: `npc_${outcome.recipientName.replace(/\s+/g, '_').toLowerCase()}`,
+              name: outcome.recipientName,
+              entityType: 'npc'
+            };
+          }
+
+          const sessionData = {
+            date: gameState.date,
+            turnNumber: turnNumber,
+            sessionType: 'purchase',
+            prescriptions: [{
+              medicine: outcome.item,
+              route: outcome.route,
+              dosage: `${outcome.amount} ${outcome.amount === 1 ? 'drachm' : 'drachms'}`,
+              price: outcome.finalPrice,
+              bloodletting: outcome.includeBloodletting ? `${outcome.bloodAmount} ounces` : 'None'
+            }],
+            outcome: 'Completed',
+            payment: outcome.finalPrice,
+            ailment: 'Prescription purchase'
+          };
+
+          setGameState(prev => ({
+            ...prev,
+            medicalRecords: MedicalRecordsManager.addSession(
+              prev.medicalRecords || {},
+              npcEntity,
+              sessionData
+            )
+          }));
+
+          // Success toast
+          if (toast) {
+            const bloodlettingNote = outcome.includeBloodletting ? ` (with ${outcome.bloodAmount}oz bloodletting)` : '';
+            toast.success(`${outcome.recipientName} purchased prescription for ${outcome.finalPrice} reales${bloodlettingNote}`, { duration: 3000 });
+          }
+
+          console.log('[PrescriptionOutcome] Transaction completed:', {
+            item: outcome.item,
+            amount: outcome.amount,
+            price: outcome.finalPrice,
+            recipient: outcome.recipientName
+          });
+
+        } else if (outcome.outcome === 'declined') {
+          // NPC declined - no inventory/wealth changes
+          if (toast) {
+            toast.info(`${outcome.recipientName} declined the prescription`, { duration: 2500 });
+          }
+          console.log('[PrescriptionOutcome] Offer declined by:', outcome.recipientName);
+
+        } else if (outcome.outcome === 'bargained') {
+          // NPC wants to negotiate - could show follow-up or just narrate
+          if (toast) {
+            toast.info(`${outcome.recipientName} wants to negotiate the price`, { duration: 2500 });
+          }
+          console.log('[PrescriptionOutcome] Price negotiation:', outcome.recipientName, 'offered:', outcome.finalPrice);
+
+          // If they bargained AND accepted at lower price, apply the transaction
+          if (outcome.finalPrice > 0) {
+            updateInventory(outcome.item, -outcome.amount);
+            updateWealth(outcome.finalPrice);
+
+            const transactionManager = getTransactionManager(scenarioId);
+            const currentWealth = (gameState.wealth || 0) + outcome.finalPrice;
+            transactionManager.logTransaction(
+              'income',
+              TRANSACTION_CATEGORIES.MEDICINE_SALES,
+              `Prescribed ${outcome.amount}× ${outcome.item} to ${outcome.recipientName} (negotiated price)`,
+              outcome.finalPrice,
+              currentWealth,
+              gameState.date,
+              gameState.time
+            );
+
+            if (toast) {
+              toast.success(`Negotiated: Sold for ${outcome.finalPrice} reales`, { duration: 2500 });
+            }
+          }
+        }
+      }
+
       // Action Prompt Processing (give/sell/prescribe requests)
       // GUARD: Skip if simpleInteraction is already handling this turn (prevent duplicate cards)
       console.log('[ActionPrompt DEBUG] result.actionPrompt:', result.actionPrompt);
@@ -2363,7 +2610,6 @@ export function useGameHandlers({
 
   }, [
     gameState,
-    updateReputation,
     updateInventory,
     setWealth,
     setEnergy,

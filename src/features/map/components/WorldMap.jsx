@@ -101,49 +101,55 @@ export default function WorldMap({
           </g>
         )}
 
-        {destinationMarkers.map(destination => (
-          <g
-            key={destination.id}
-            className="destination-marker cursor-pointer"
-            transform={`translate(${destination.position.x}, ${destination.position.y})`}
-            onClick={(event) => handleDestinationClick(event, destination)}
-          >
-            <circle
-              r={selectedDestinationId === destination.id ? 24 : 20}
-              fill={selectedDestinationId === destination.id ? 'rgba(59, 130, 246, 0.85)' : 'rgba(59, 130, 246, 0.55)'}
-              stroke="#1d4ed8"
-              strokeWidth={selectedDestinationId === destination.id ? 5 : 4}
-            />
-            <rect
-              x={-140}
-              y={selectedDestinationId === destination.id ? -74 : -68}
-              width={280}
-              height={selectedDestinationId === destination.id ? 38 : 34}
-              rx={10}
-              fill={selectedDestinationId === destination.id ? 'rgba(30, 64, 175, 0.9)' : 'rgba(37, 99, 235, 0.85)'}
-              stroke="#1d4ed8"
-              strokeWidth={2}
-            />
-            <circle
-              r={selectedDestinationId === destination.id ? 10 : 8}
-              fill="#bfdbfe"
-              stroke="#1d4ed8"
-              strokeWidth={2}
-            />
-            <text
-              x={0}
-              y={selectedDestinationId === destination.id ? -50 : -47}
-              textAnchor="middle"
-              fontSize={selectedDestinationId === destination.id ? 22 : 18}
-              fontWeight="700"
-              fill="#eff6ff"
-              stroke="#1e3a8a"
-              strokeWidth={1.2}
+        {destinationMarkers.map(destination => {
+          const index = destination.labelIndex ?? 0;
+          const ring = Math.floor(index / 5);
+          const slot = index % 5;
+          const offsetY = -60 - ring * 34;
+          const offsetX = (slot - 2) * 62;
+          const isSelected = selectedDestinationId === destination.id;
+
+          return (
+            <g
+              key={destination.id}
+              className="destination-marker cursor-pointer"
+              transform={`translate(${destination.position.x}, ${destination.position.y})`}
+              onClick={(event) => handleDestinationClick(event, destination)}
             >
-              {destination.name.split(',')[0]}
-            </text>
-          </g>
-        ))}
+              <circle
+                r={isSelected ? 22 : 18}
+                fill={isSelected ? 'rgba(16, 185, 129, 0.85)' : 'rgba(45, 212, 191, 0.65)'}
+                stroke="#115e59"
+                strokeWidth={isSelected ? 5 : 3}
+              />
+              <g transform={`translate(${offsetX}, ${offsetY})`}>
+                <rect
+                  x={-110}
+                  y={-20}
+                  width={220}
+                  height={isSelected ? 40 : 34}
+                  rx={14}
+                  fill={isSelected ? 'rgba(15, 118, 110, 0.92)' : 'rgba(13, 148, 136, 0.88)'}
+                  stroke="#0f766e"
+                  strokeWidth={isSelected ? 2.4 : 2}
+                  opacity={0.95}
+                />
+                <text
+                  x={0}
+                  y={isSelected ? 5 : 3}
+                  textAnchor="middle"
+                  fontSize={isSelected ? 18 : 16}
+                  fontWeight="700"
+                  fill="#fef3c7"
+                  stroke="#0f172a"
+                  strokeWidth={0.9}
+                >
+                  {destination.name.split(',')[0]}
+                </text>
+              </g>
+            </g>
+          );
+        })}
 
         {playerPosition && (
           <g className="player-marker" transform={`translate(${playerPosition.x}, ${playerPosition.y})`}>

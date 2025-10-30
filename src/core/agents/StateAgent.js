@@ -97,6 +97,7 @@ Current interaction intent: ${interactionIntent}.
   "simpleInteraction": {"type": "vendor_offer|service_offer|donation_request|competitive_check|information_exchange|social_visit|null", "npcName": "string", "npcPortrait": "/portraits/filename.jpg|null", "npcRole": "string|null", "context": "string", "offer": {"item": "string|null", "price": number, "description": "string|null", "quality": "string|null", "quantity": number}},
   "journalEntry": "string",
   "crisisResolution": {"status": "ongoing|escaped|surrendered|captured|bribed|killed", "gameOver": boolean, "gameOverReason": "string|null", "wealthChange": number, "reputationDelta": number},
+  "prescriptionOfferOutcome": {"occurred": boolean, "recipientName": "string", "outcome": "accepted|bargained|declined", "item": "string", "amount": number, "route": "Oral|Inhaled|Topical|Enema", "finalPrice": number, "includeBloodletting": boolean, "bloodAmount": number},
   "systemAnnouncements": ["string"]
 }
 
@@ -227,6 +228,17 @@ Use actionPrompt ONLY for immediate, clear requests to transfer items:
 ### System Messaging
 - systemAnnouncements highlight actionable beats (e.g., "A treatment contract is being discussed (payment: X reales)."), never restate the entire narrative.
 - journalEntry should summarize the turn in a single sentence: "**Date, Time, Location**: summary..."
+
+### Prescription Offer Outcomes
+- Populate prescriptionOfferOutcome when narrative describes Maria offering a prescription to an NPC (via action prompt, NOT patient tab treatment) and shows the NPC's decision.
+- Set occurred = true only if the narrative clearly shows the NPC's response to Maria's specific offer (medicine, route, price).
+- outcome = "accepted" if NPC pays and takes the medicine. Keywords: "pays", "takes the medicine", "accepts", "buys", "agrees to the price", "hands over [amount] reales", "thanks Maria", "leaves with the remedy"
+- outcome = "declined" if NPC refuses the offer. Keywords: "refuses", "declines", "scoffs at the price", "too expensive", "cannot afford", "storms off", "walks away without buying", "shakes head"
+- outcome = "bargained" if NPC negotiates the price. Keywords: "counter-offer", "haggles", "offers less", "can only pay [lower amount]", "too steep", "argues about price"
+- Extract finalPrice from narrative (use original price if accepted immediately, lower price if bargained and accepted, 0 if declined)
+- Set includeBloodletting = true only if narrative mentions phlebotomy/bloodletting was part of the offer
+- Do NOT populate this field for regular patient tab prescriptions administered via PrescribePanel - only for action prompt prescription offers where NPC must decide whether to buy
+- If outcome is unclear or NPC's decision is deferred ("I'll think about it"), set occurred = false
 
 If data is missing or ambiguous, preserve the previous state rather than guessing.` + (crisisState?.active ? `
 

@@ -5,7 +5,7 @@
  * Blue gradient for service offers, other colors for other interaction types
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function SimpleInteractionCard({
   interaction,
@@ -14,6 +14,8 @@ export default function SimpleInteractionCard({
   inventory = [],
   isDark = false
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   if (!interaction || interaction.type === 'null' || !interaction.type) return null;
 
   const { type, npcName, npcPortrait } = interaction;
@@ -128,59 +130,104 @@ export default function SimpleInteractionCard({
 
   // Vendor offer (merchant/peddler selling goods to Maria)
   if (type === 'vendor_offer' && interaction.offer) {
-    const { context, npcRole } = interaction;
+    const { context, npcRole, offer } = interaction;
+    const { item, price, description, quality, quantity } = offer;
+    const canAfford = currentWealth >= price;
 
     return (
       <div className="animate-fade-in mb-4">
-        <div className={`w-full p-4 bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder}`}>
-          <div className="flex items-center gap-3">
-            {/* NPC Portrait */}
-            <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
-              {npcPortrait ? (
-                <img
-                  src={npcPortrait}
-                  alt={npcName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.outerHTML = '<div class="text-2xl">' + colors.icon + '</div>';
-                  }}
-                />
-              ) : (
-                <div className="text-2xl">{colors.icon}</div>
-              )}
-            </div>
+        <div className={`w-full bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder} overflow-hidden transition-all duration-300`}>
+          {/* Main Card Content */}
+          <div className="p-4">
+            <div className="flex items-center gap-3">
+              {/* NPC Portrait */}
+              <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/20 flex items-center justify-center">
+                {npcPortrait ? (
+                  <img
+                    src={npcPortrait}
+                    alt={npcName}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.outerHTML = '<div class="text-2xl">' + colors.icon + '</div>';
+                    }}
+                  />
+                ) : (
+                  <div className="text-2xl">{colors.icon}</div>
+                )}
+              </div>
 
-            {/* Content */}
-            <div className="flex-1 text-left">
-              <div className="text-white font-bold text-lg mb-0.5">
-                Vendor Offer
-              </div>
-              <div className={`${colors.textSecondary} ${colors.darkTextSecondary} text-sm font-medium`}>
-                {npcName} {context || 'has goods for sale'}
-              </div>
-              {npcRole && (
-                <div className="text-white/70 text-xs mt-0.5">
-                  {npcRole}
+              {/* Content */}
+              <div className="flex-1 text-left">
+                <div className="text-white font-bold text-lg">
+                  Vendor Offer
                 </div>
-              )}
-            </div>
+                <div className={`${colors.textSecondary} ${colors.darkTextSecondary} text-sm font-semibold`}>
+                  {npcName} {context || 'has goods for sale'}
+                </div>
+                {npcRole && (
+                  <div className="text-white/70 text-xs mt-0.5">
+                    {npcRole}
+                  </div>
+                )}
+              </div>
 
-            {/* Action Buttons */}
-            <div className="flex-shrink-0 flex items-center gap-2">
-              <button
-                onClick={() => onChoice('view_items', interaction)}
-                className={`px-4 py-2 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md`}
-              >
-                View Items
-              </button>
-              <button
-                onClick={() => onChoice('refuse', interaction)}
-                className={`px-4 py-2 ${colors.buttonSecondary} font-semibold rounded-lg transition-colors`}
-              >
-                Not Interested
-              </button>
+              {/* Action Buttons */}
+              <div className="flex-shrink-0 flex items-center gap-2">
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className={`px-4 py-2 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md`}
+                >
+                  {isExpanded ? 'Hide Details' : 'View Items'}
+                </button>
+                <button
+                  onClick={() => onChoice('refuse', interaction)}
+                  className={`px-4 py-2 ${colors.buttonSecondary} font-semibold rounded-lg transition-colors`}
+                >
+                  Not Interested
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* Expandable Item Details */}
+          {isExpanded && (
+            <div className="border-t border-white/50 p-3 animate-fade-in">
+              <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <h3 className="text-white font-bold text-lg mb-1">
+                      {item}
+                      {quality && <span className="ml-2 text-sm text-white/60">({quality})</span>}
+                    </h3>
+                    {description && (
+                      <p className={`${colors.textSecondary} ${colors.darkTextSecondary} text-sm mb-3`}>
+                        {description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="text-white/100">
+                        <span className="font-semibold">Price:</span> {price} reales
+                      </div>
+                      {quantity > 1 && (
+                        <div className="text-white/100">
+                          <span className="font-semibold">Quantity:</span> {quantity}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <button
+                      onClick={() => onChoice('buy', interaction)}
+                      disabled={!canAfford}
+                      className={`px-6 py-3 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {canAfford ? `Buy (${price} reales)` : 'Cannot Afford'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

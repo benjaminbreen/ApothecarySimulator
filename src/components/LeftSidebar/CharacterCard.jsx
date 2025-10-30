@@ -485,25 +485,25 @@ export function CharacterCard({
           animation: ringPulseCritical 1s ease-in-out;
         }
       `}</style>
-    <div className="group rounded-2xl p-4 shadow-lg dark:shadow-dark-elevation-2 mb-4 flex-shrink-0 transition-all duration-500 hover:shadow-2xl dark:hover:shadow-dark-elevation-3 relative overflow-hidden bg-gradient-to-br from-parchment-50/50 via-white/90 to-parchment-50/70 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 backdrop-blur-lg border border-parchment-300/30 hover:border-parchment-400/50 dark:border-slate-600/30 dark:hover:border-amber-500/40"
+    <div className="group rounded-2xl p-4 shadow-lg dark:shadow-dark-elevation-2 mb-4 flex-shrink-0 transition-all duration-300 hover:shadow-2xl dark:hover:shadow-dark-elevation-3 relative overflow-hidden bg-gradient-to-br from-parchment-50/50 via-white/90 to-parchment-50/70 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 backdrop-blur-lg border border-parchment-300/30 hover:border-parchment-400/50 dark:border-slate-600/30 dark:hover:border-amber-500/40"
     >
       {/* Beautiful glassmorphic overlay - subtle by default, brighter on hover */}
       <div
-        className="absolute inset-0 opacity-0 dark:opacity-0 group-hover:opacity-40 dark:group-hover:opacity-0 transition-all duration-700 pointer-events-none"
+        className="absolute inset-0 opacity-50 dark:opacity-0 group-hover:opacity-40 dark:group-hover:opacity-0 transition-all duration-300 pointer-events-none"
         style={{
-          background: 'radial-gradient(circle at 50% 80%, rgba(240, 253, 244, 0.15) 0%, rgba(255, 255, 255, 0.35) 30%, rgba(252, 250, 247, 0.18) 60%, transparent 100%)',
+          background: 'radial-gradient(circle at 50% 80%, rgba(240, 253, 244, 0.5) 0%, rgba(255, 255, 255, 0.35) 30%, rgba(252, 250, 247, 0.98) 60%, transparent 100%)',
           backdropFilter: 'blur(20px) saturate(100%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(100%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(200%)',
         }}
       />
       {/* Collapse/Expand Button */}
       <RippleIconButton
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/80 dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 border border-ink-200 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-amber-500 transition-all duration-200 shadow-sm hover:shadow z-10 group"
+        className="absolute -top-2 right-2 p-1 rounded-lg bg-white/40 dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 border border-ink-200/60 dark:border-slate-600 hover:border-emerald-400 dark:hover:border-amber-500 transition-all duration-200 shadow-sm hover:shadow z-10 group"
         title={isCollapsed ? "Expand stats" : "Collapse stats"}
       >
         <svg
-          className={`w-3.5 h-3.5 text-ink-500 dark:text-slate-400 group-hover:text-emerald-700 dark:group-hover:text-amber-400 transition-all duration-200 ${isCollapsed ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-ink-400 dark:text-slate-400 group-hover:text-emerald-700 dark:group-hover:text-amber-400 transition-all duration-200 ${isCollapsed ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -523,16 +523,16 @@ export function CharacterCard({
             onClick={onOpenCharacterModal}
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
-            className={`mb-3 transition-all duration-500 hover:scale-105 cursor-pointer group relative portrait-ring-shimmer ${ringPulse ? `ring-pulse-${ringPulse}` : ''} ${isOverPlayer ? 'ring-4 ring-amber-400 scale-105' : ''}`}
+            className={`mb-2 -mt-4 transition-all duration-500 hover:scale-105 cursor-pointer group relative portrait-ring-shimmer ${ringPulse ? `ring-pulse-${ringPulse}` : ''} ${isOverPlayer ? 'ring-4 ring-amber-400 scale-105' : ''}`}
             style={{
-              width: '140px',
-              height: '140px',
+              width: '144px',
+              height: '144px',
               borderRadius: '50%',
               padding: '5px',
               background: getPortraitRingStyle().gradient,
               boxShadow: isOverPlayer
                 ? `0 0 0 4px rgba(251, 191, 36, 0.5), 0 4px 12px rgba(0, 0, 0, 0.15), 0 8px 24px rgba(0, 0, 0, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.3), inset 0 -2px 4px rgba(0, 0, 0, 0.2)`
-                : `0 4px 12px rgba(0, 0, 0, 0.15), 0 8px 24px rgba(0, 0, 0, 0.1), inset 0 2px 4px rgba(255, 255, 255, 0.3), inset 0 -2px 4px rgba(0, 0, 0, 0.2)`,
+                : `0 4px 12px rgba(0, 0, 0, 0.15), 0 8px 24px rgba(0, 0, 0, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.3), inset 0 -2px 4px rgba(0, 0, 0, 0.2)`,
               '--shimmer-color': getPortraitRingStyle().overlayColor
             }}
           >
@@ -548,7 +548,7 @@ export function CharacterCard({
                   boxShadow: `
                     inset 0 3px 8px rgba(0, 0, 0, 0.3),
                     inset 0 1px 3px rgba(0, 0, 0, 0.4),
-                    inset 0 -2px 4px rgba(255, 255, 255, 0.1)
+                    inset 0 -2px 4px rgba(255, 255, 255, 0.4)
                   `
                 }}
               >
@@ -660,7 +660,7 @@ export function CharacterCard({
 
       {/* Primary Stats - collapsible */}
       {!isCollapsed && (
-      <div className="space-y-2 animate-fade-in-up">
+      <div className="space-y-1.5 -mt-1 nimate-fade-in-up">
         {/* Health */}
         <div className="relative group/stat">
           <div className="flex justify-between items-center mb-0.5">

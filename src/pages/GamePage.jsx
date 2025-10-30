@@ -1412,7 +1412,7 @@ JOURNEY DETAILS:
 - Destination vicinity: ${landmarkContext}
 - Current time: ${gameState.time}, ${gameState.date}
 
-Generate a brief (2-3 sentences) narrative description of Maria's journey through the city streets. Include:
+Generate a descriptive (3-4 sentences) narrative description of Maria's journey through the city streets. Include:
 - Sensory details (sights, sounds, smells of colonial Mexico City)
 - The route taken (which streets, landmarks passed)
 - Maria's thoughts or observations during the walk
@@ -1848,7 +1848,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-hidden">
-          <div className={`h-full max-w-screen-2xl mx-auto px-4 py-1 flex gap-6 transition-all duration-500 ease-in-out ${
+          <div className={`h-full max-w-screen-2xl mx-auto px-4 py-1.5 flex gap-6 transition-all duration-500 ease-in-out ${
             activeTab === 'patient' ? 'gap-6' : 'gap-6'
           }`}>
 

@@ -243,6 +243,7 @@ export function useCommerceHandlers({
     // Determine time increment based on interaction type
     const timeIncrements = {
       service_offer: 5,
+      vendor_offer: 5,
       donation_request: 5,
       competitive_check: 10,
       information_exchange: 5,
@@ -364,27 +365,17 @@ export function useCommerceHandlers({
       }
 
       case 'vendor_offer': {
-        if (action === 'view_items') {
-          // Open TradeModal with vendor's inventory
-          console.log('[VendorOffer] Opening TradeModal for:', npcName);
-
-          setTradingNPC({
-            npcName: npcName,
-            npcId: npcName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-            npcPortrait: interaction.npcPortrait || null
-          });
-          setTradeMode('market');
-          openModal('trade');
-
-          // Clear simple interaction after opening modal
-          setPendingSimpleInteraction(null);
-
-          // No journal entry or time increment for just viewing items
-          // Time will increment when player actually purchases
-          return; // Early return - don't process further
+        const { item, price, quantity = 1 } = interaction.offer;
+        if (action === 'buy') {
+          // Deduct wealth
+          updateWealth(-price);
+          // Add item to inventory
+          updateInventory(item, quantity, `purchased from ${npcName}`);
+          journalText = `Purchased ${item} from ${npcName} for ${price} reales.`;
+          toast.success(`Bought ${item} for ${price} reales`, { duration: 2000 });
         } else {
-          // Refused to view items
-          journalText = `Declined ${npcName}'s offer to view their goods.`;
+          // Refused to buy
+          journalText = `Declined ${npcName}'s offer to purchase ${item}.`;
           toast.info('Offer declined', { duration: 1500 });
         }
         break;
@@ -615,7 +606,9 @@ export function useCommerceHandlers({
     setPendingMixingDecision(mixingContext);
 
     // Clear sale inquiry card
-    setPendingSaleInquiry(null);
+    if (setPendingSaleInquiry) {
+      setPendingSaleInquiry(null);
+    }
 
     toast.info(`Ready to craft remedy for ${inquiry.offeredBy}...`, { duration: 2000 });
   }, [
@@ -674,7 +667,9 @@ export function useCommerceHandlers({
     ]);
 
     // Store context for sale proposal after mixing completes (Phase 2C)
-    setMixingContextForSale(mixingContext);
+    if (setMixingContextForSale) {
+      setMixingContextForSale(mixingContext);
+    }
     console.log('[Phase 2C] Stored mixing context for sale proposal:', mixingContext);
 
     // Clear mixing decision card
@@ -801,7 +796,9 @@ export function useCommerceHandlers({
     }
 
     // Clear the sale proposal
-    setPendingSaleProposal(null);
+    if (setPendingSaleProposal) {
+      setPendingSaleProposal(null);
+    }
 
     // Simulate player action for full narrative turn showing the handoff
     // Include price negotiation context if player changed the price
@@ -858,7 +855,9 @@ export function useCommerceHandlers({
     toast.info('Sale abandoned. Item remains in inventory.', { duration: 2500 });
 
     // Clear the sale proposal
-    setPendingSaleProposal(null);
+    if (setPendingSaleProposal) {
+      setPendingSaleProposal(null);
+    }
   }, [
     setConversationHistory,
     addJournalEntry,
@@ -873,10 +872,57 @@ export function useCommerceHandlers({
    * Processes give/sell/prescribe actions with drag-dropped items
    */
   const handleProposeAction = useCallback(async (proposalData) => {
-    const { type, recipientName, item, amount, price, ailmentDescription, npcId } = proposalData;
+    const { type, recipientName, item, amount, price, ailmentDescription, npcId, route, includeBloodletting, bloodAmount } = proposalData;
 
-    console.log('[ActionPrompt] Proposing action:', { type, recipientName, item: item.name, amount, price });
+    console.log('[ActionPrompt] Proposing action:', { type, recipientName, item: item.name, amount, price, route, includeBloodletting, bloodAmount });
 
+    // For prescribe type, DON'T auto-complete - trigger narrative turn instead
+    if (type === 'prescribe') {
+      // Build prescription offer description
+      const bloodlettingText = includeBloodletting
+        ? ` Maria also proposes bloodletting (phlebotomy), drawing ${bloodAmount} ounces of blood to restore humoral balance.`
+        : '';
+
+      const offerPrompt = `[PRESCRIPTION OFFER]
+
+Maria de Lima offers a prescription to ${recipientName} for their ${ailmentDescription}:
+- Medicine: ${amount} ${amount === 1 ? 'drachm' : 'drachms'} of ${item.name}
+- Route: ${route}
+- Price: ${price} reales${bloodlettingText}
+
+Describe Maria presenting the physical medicine (NOT just a written prescription, but the actual substance) to ${recipientName}. Show their reaction and final decision in 2-3 sentences.
+
+They must:
+- ACCEPT: Pay ${price} reales, take the medicine, and leave satisfied/hopeful
+- BARGAIN: Argue the price is too high, offer less, cause tension
+- DECLINE: Refuse outright, express doubt/anger, and leave without buying
+
+Make the outcome CLEAR - state explicitly whether they bought it, negotiated, or declined. End with something that propels the plot forward (they leave with medicine, storm off insulted, promise to return with money, etc.).`;
+
+      // Clear the action prompt
+      setPendingActionPrompt(null);
+
+      // Call handleSubmit to trigger full narrative turn
+      // Pass prescription data as metadata for StateAgent
+      await handleSubmit(null, offerPrompt, {
+        actionResultType: 'prescription_offer',
+        pendingPrescription: {
+          recipientName,
+          npcId,
+          item,
+          amount,
+          price,
+          route,
+          includeBloodletting,
+          bloodAmount,
+          ailmentDescription
+        }
+      });
+
+      return; // Exit early - LLM will handle the outcome
+    }
+
+    // For sell/give types, continue with auto-complete flow
     // Remove item from inventory
     updateInventory(item.name, -amount);
 
@@ -889,10 +935,11 @@ export function useCommerceHandlers({
     if (type === 'sell' && price > 0) {
       const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
       const currentWealth = (gameState.wealth || 0) + price; // Wealth AFTER transaction
+      const description = `Sold ${amount}× ${item.name} to ${recipientName}`;
       transactionManager.logTransaction(
         'income',
         TRANSACTION_CATEGORIES.MEDICINE_SALES,
-        `Sold ${amount}× ${item.name} to ${recipientName}`,
+        description,
         price,
         currentWealth,
         gameState.date,
@@ -901,8 +948,8 @@ export function useCommerceHandlers({
       console.log('[ActionPrompt] Transaction logged to ledger');
     }
 
-    // Add to medical records (Patient Roster) for sell/prescribe types
-    if ((type === 'sell' || type === 'prescribe') && recipientName) {
+    // Add to medical records (Patient Roster) for sell type
+    if (type === 'sell' && recipientName) {
       // Get NPC entity from entityManager
       let npcEntity = npcId ? entityManager.getById(npcId) : entityManager.getByName(recipientName);
 

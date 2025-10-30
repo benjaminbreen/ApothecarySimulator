@@ -128,7 +128,7 @@ export function PlayerStatusPanel({
 
       {/* Tab Content - Embossed inset with realistic warm parchment lighting */}
       <div
-        className="flex-1 overflow-y-auto custom-scrollbar px-3 py-4 transition-all duration-300 relative"
+        className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 transition-all duration-300 relative"
         style={{
           background: isDark
             ? `
@@ -139,10 +139,10 @@ export function PlayerStatusPanel({
                 linear-gradient(135deg, rgba(15, 23, 42, 0.4) 0%, rgba(30, 41, 59, 0.25) 100%)
               `
             : `
-                radial-gradient(ellipse at 0% 0%, rgba(180, 150, 110, 0.18) 0%, transparent 45%),
+                radial-gradient(ellipse at 10% 10%, rgba(180, 150, 110, 0.05) 20%, transparent 35%),
                 radial-gradient(ellipse at 100% 100%, rgba(255, 250, 240, 0.3) 0%, transparent 45%),
                 repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(139, 125, 107, 0.02) 2px, rgba(139, 125, 107, 0.02) 4px),
-                repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(139, 125, 107, 0.012) 3px, rgba(139, 125, 107, 0.012) 6px),
+                repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(139, 125, 107, 0.022) 3px, rgba(139, 125, 107, 0.02) 6px),
                 linear-gradient(135deg, rgba(245, 240, 232, 1) 0%, rgba(248, 244, 238, 0.98) 100%)
               `,
           backgroundSize: '100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%',
@@ -154,10 +154,10 @@ export function PlayerStatusPanel({
                 inset 0 0 0 1px rgba(71, 85, 105, 0.2)
               `
             : `
-                inset 3px 3px 10px rgba(140, 100, 60, 0.14),
-                inset 2px 2px 5px rgba(120, 85, 50, 0.10),
+                inset 1px 3px 8px rgba(140, 100, 60, 0.2),
+                inset 2px 2px 10px rgba(120, 85, 50, 0.05),
                 inset -2px -2px 4px rgba(255, 252, 245, 0.8),
-                inset 0 0 0 1px rgba(200, 180, 150, 0.2)
+                inset 0 0 0 1px rgba(200, 180, 150, 0.05)
               `,
         }}
       >

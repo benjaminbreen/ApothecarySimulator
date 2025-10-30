@@ -749,7 +749,35 @@ export function getFilteredPortraitList(filters = {}) {
   // Prioritize occupation-specific categories if occupation provided
   if (occupation) {
     const occLower = occupation.toLowerCase();
+
+    // Occupation keyword -> category mapping
+    const occupationKeywords = {
+      'Soldiers': ['soldier', 'militia', 'sergeant', 'guard', 'conquistador', 'captain', 'lieutenant'],
+      'Clergy': ['priest', 'friar', 'monk', 'nun', 'abbot', 'father', 'padre', 'sister', 'bishop'],
+      'Merchants': ['merchant', 'vendor', 'seller', 'trader', 'shopkeeper', 'importer', 'dealer'],
+      'Scholars/Healers': ['scholar', 'physician', 'apothecary', 'healer', 'midwife', 'curandera', 'surgeon', 'doctor'],
+      'Workers/Artisans': ['artisan', 'cobbler', 'sailor', 'farmer', 'laborer', 'printer', 'innkeeper', 'muleteer', 'seamstress', 'fisherman']
+    };
+
+    // Find matching category based on keywords
+    let priorityCategory = null;
+    for (const [category, keywords] of Object.entries(occupationKeywords)) {
+      if (keywords.some(keyword => occLower.includes(keyword))) {
+        priorityCategory = category;
+        break;
+      }
+    }
+
     relevantPortraits.sort((a, b) => {
+      // If we found a priority category, put it first
+      if (priorityCategory) {
+        const aIsPriority = a.category === priorityCategory;
+        const bIsPriority = b.category === priorityCategory;
+        if (aIsPriority && !bIsPriority) return -1;
+        if (!aIsPriority && bIsPriority) return 1;
+      }
+
+      // Fallback: check if category name includes occupation
       const aMatch = a.category.toLowerCase().includes(occLower);
       const bMatch = b.category.toLowerCase().includes(occLower);
       if (aMatch && !bMatch) return -1;

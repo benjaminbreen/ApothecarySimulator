@@ -8,6 +8,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
+import oralImage from '../assets/oral.jpg';
+import inhaledImage from '../assets/inhaled.jpg';
+import topicalImage from '../assets/topical.jpg';
+import enemaImage from '../assets/enema.jpg';
 
 export default function ActionPromptCard({
   actionPrompt,
@@ -24,17 +28,32 @@ export default function ActionPromptCard({
   const [selectedItem, setSelectedItem] = useState(null);
   const [amount, setAmount] = useState(1);
   const [price, setPrice] = useState(actionPrompt.priceOffered || 0);
+  const [selectedRoute, setSelectedRoute] = useState('');
+  const [includeBloodletting, setIncludeBloodletting] = useState(false);
+  const [bloodAmount, setBloodAmount] = useState(8); // Default 8 ounces
+  const [bloodlettingExpanded, setBloodlettingExpanded] = useState(false);
+
+  const routeImages = {
+    Oral: oralImage,
+    Inhaled: inhaledImage,
+    Topical: topicalImage,
+    Enema: enemaImage
+  };
 
   // Reset when actionPrompt changes
   useEffect(() => {
     setSelectedItem(null);
     setAmount(1);
     setPrice(actionPrompt.priceOffered || 0);
+    setSelectedRoute('');
+    setIncludeBloodletting(false);
+    setBloodAmount(8);
+    setBloodlettingExpanded(false);
   }, [actionPrompt]);
 
-  // Update price when amount changes (for sell type)
+  // Update price when amount changes (for sell/prescribe types)
   useEffect(() => {
-    if (selectedItem && actionPrompt.type === 'sell' && selectedItem.price && !actionPrompt.priceOffered) {
+    if (selectedItem && (actionPrompt.type === 'sell' || actionPrompt.type === 'prescribe') && selectedItem.price && !actionPrompt.priceOffered) {
       setPrice(Math.round(selectedItem.price * amount));
     }
   }, [amount, selectedItem, actionPrompt.type, actionPrompt.priceOffered]);
@@ -45,8 +64,8 @@ export default function ActionPromptCard({
     drop: (item) => {
       setSelectedItem(item);
       setAmount(1);
-      // For sell type, use item price if not specified by NPC
-      if (actionPrompt.type === 'sell' && !actionPrompt.priceOffered && item.price) {
+      // For sell/prescribe types, use item price if not specified by NPC
+      if ((actionPrompt.type === 'sell' || actionPrompt.type === 'prescribe') && !actionPrompt.priceOffered && item.price) {
         setPrice(item.price);
       }
     },
@@ -98,9 +117,9 @@ export default function ActionPromptCard({
   const colors = colorSchemes[actionPrompt.type] || colorSchemes.give;
   const isPrescribe = actionPrompt.type === 'prescribe';
   const containerClasses = isPrescribe
-    ? `w-full p-4 rounded-xl shadow-lg border ${colors.border} ${colors.darkBorder} bg-gradient-to-br ${colors.gradient} ${colors.darkGradient} backdrop-blur-sm`
-    : `w-full p-4 bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder}`;
-  const headerClasses = `flex items-center gap-3 ${isPrescribe ? 'mb-2 px-3 py-2 rounded-lg bg-purple-100/60 dark:bg-purple-500/20 border border-purple-200/60 dark:border-purple-400/40' : 'mb-3'}`;
+    ? `w-full p-3 rounded-xl shadow-lg border ${colors.border} ${colors.darkBorder} bg-gradient-to-br ${colors.gradient} ${colors.darkGradient} backdrop-blur-sm`
+    : `w-full p-3 bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder}`;
+  const headerClasses = `flex items-center gap-3 ${isPrescribe ? 'mb-2 px-3 py-1 rounded-lg bg-purple-100/60 dark:bg-purple-500/20 border border-purple-200/60 dark:border-purple-400/40' : 'mb-3'}`;
   const titleClass = isPrescribe ? 'text-purple-900 dark:text-purple-100 font-semibold text-base mb-0.5' : 'text-white font-bold text-lg mb-0.5';
   const subtitleClass = isPrescribe
     ? `${colors.textSecondary} ${colors.darkTextSecondary} text-xs sm:text-sm font-medium`
@@ -130,6 +149,12 @@ export default function ActionPromptCard({
   const handlePropose = () => {
     if (!selectedItem) return;
 
+    // For prescribe type, require route selection
+    if (actionPrompt.type === 'prescribe' && !selectedRoute) {
+      alert('Please select a route of administration.');
+      return;
+    }
+
     const itemInInventory = inventory.find(
       i => i.name.toLowerCase() === selectedItem.name.toLowerCase()
     );
@@ -145,18 +170,21 @@ export default function ActionPromptCard({
       npcId: actionPrompt.npcId,
       item: selectedItem,
       amount,
-      price: actionPrompt.type === 'sell' ? price : 0,
-      ailmentDescription: actionPrompt.ailmentDescription
+      price: (actionPrompt.type === 'sell' || actionPrompt.type === 'prescribe') ? price : 0,
+      ailmentDescription: actionPrompt.ailmentDescription,
+      route: actionPrompt.type === 'prescribe' ? selectedRoute : undefined,
+      includeBloodletting: actionPrompt.type === 'prescribe' ? includeBloodletting : false,
+      bloodAmount: actionPrompt.type === 'prescribe' && includeBloodletting ? bloodAmount : 0
     });
   };
 
   return (
-    <div className="animate-fade-in mb-4">
+    <div className="animate-fade-in mb-3">
       <div className={containerClasses}>
         {/* Top Row: NPC Info */}
         <div className={headerClasses}>
           {/* NPC Portrait */}
-          <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
+          <div className="flex-shrink-0 w-14 h-14 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
             {actionPrompt.npcPortrait ? (
               <img
                 src={actionPrompt.npcPortrait}
@@ -197,7 +225,7 @@ export default function ActionPromptCard({
           ref={drop}
           className={dropZoneClasses}
           style={{
-            minHeight: '72px',
+            minHeight: '60px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -220,7 +248,7 @@ export default function ActionPromptCard({
 
         {/* Amount and Price Controls */}
         {selectedItem && (
-          <div className={`grid gap-2 mb-2 ${actionPrompt.type === 'sell' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <div className={`grid gap-2 mb-2 ${(actionPrompt.type === 'sell' || actionPrompt.type === 'prescribe') ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {/* Amount */}
             <div>
               <label className={amountLabelClass}>
@@ -236,8 +264,8 @@ export default function ActionPromptCard({
               />
             </div>
 
-            {/* Price (only for sell type) */}
-            {actionPrompt.type === 'sell' && (
+            {/* Price (for sell and prescribe types) */}
+            {(actionPrompt.type === 'sell' || actionPrompt.type === 'prescribe') && (
               <div>
                 <label className={amountLabelClass}>
                   Price (reales):
@@ -257,8 +285,117 @@ export default function ActionPromptCard({
 
         {/* Suggested Items Hint */}
         {!selectedItem && actionPrompt.suggestedItems && actionPrompt.suggestedItems.length > 0 && (
-          <div className={`mb-3 ${isPrescribe ? 'text-purple-700 dark:text-purple-100/70' : 'text-white/70'} text-xs italic`}>
+          <div className={`mb-2 ${isPrescribe ? 'text-purple-700 dark:text-purple-100/70' : 'text-white/70'} text-xs italic`}>
             Suggested: {actionPrompt.suggestedItems.join(', ')}
+          </div>
+        )}
+
+        {/* Route Selection (prescribe only) */}
+        {actionPrompt.type === 'prescribe' && selectedItem && (
+          <div className="mb-3">
+            <label className="block text-purple-700 dark:text-purple-200 text-xs font-semibold mb-1.5 uppercase tracking-wide">
+              Route of Administration *
+            </label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {Object.entries(routeImages).map(([route, image]) => (
+                <button
+                  key={route}
+                  type="button"
+                  onClick={() => setSelectedRoute(route)}
+                  className="relative overflow-hidden rounded-md transition-all h-16 border-2"
+                  style={{
+                    borderColor: selectedRoute === route ? '#9333ea' : 'rgba(147, 51, 234, 0.3)',
+                    boxShadow: selectedRoute === route ? '0 0 0 2px rgba(147, 51, 234, 0.2)' : 'none',
+                    transform: selectedRoute === route ? 'scale(1.02)' : 'scale(1)',
+                    opacity: selectedRoute === route ? 1 : 0.7
+                  }}
+                >
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: `url(${image})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      filter: 'brightness(0.75) sepia(0.2)'
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-end justify-center pb-1 bg-gradient-to-t from-black/70 via-black/20 to-transparent">
+                    <span
+                      className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded"
+                      style={{
+                        background: selectedRoute === route ? 'rgba(147, 51, 234, 0.9)' : 'rgba(0, 0, 0, 0.5)',
+                        backdropFilter: 'blur(4px)'
+                      }}
+                    >
+                      {route}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bloodletting Section (prescribe only, collapsible) */}
+        {actionPrompt.type === 'prescribe' && selectedItem && (
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={() => setBloodlettingExpanded(!bloodlettingExpanded)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-purple-300/60 dark:border-purple-500/40 bg-purple-50/50 dark:bg-purple-500/10 hover:bg-purple-100/50 dark:hover:bg-purple-500/15 transition-colors"
+            >
+              <span className="text-purple-700 dark:text-purple-200 text-xs font-semibold uppercase tracking-wide flex items-center gap-2">
+                🩸 Bloodletting (Optional)
+              </span>
+              <span className="text-purple-600 dark:text-purple-300 text-sm">
+                {bloodlettingExpanded ? '▼' : '▶'}
+              </span>
+            </button>
+
+            {bloodlettingExpanded && (
+              <div className="mt-2 p-3 rounded-lg border border-red-300/50 dark:border-red-500/30 bg-red-50/30 dark:bg-red-900/10 animate-fade-in">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-red-700 dark:text-red-300 text-xs font-semibold uppercase tracking-wide">
+                    Include Phlebotomy
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIncludeBloodletting(!includeBloodletting)}
+                    className={`px-2 py-1 rounded text-xs font-bold transition-all ${
+                      includeBloodletting
+                        ? 'bg-red-600 text-white hover:bg-red-700 shadow-sm'
+                        : 'bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-300 dark:hover:bg-slate-500'
+                    }`}
+                  >
+                    {includeBloodletting ? 'Enabled ✓' : 'Disabled'}
+                  </button>
+                </div>
+
+                {includeBloodletting && (
+                  <div className="space-y-1.5 animate-fade-in">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-red-700 dark:text-red-300">Blood Amount:</span>
+                      <span className="font-bold text-red-700 dark:text-red-300">{bloodAmount} ounces</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="4"
+                      max="24"
+                      step="2"
+                      value={bloodAmount}
+                      onChange={(e) => setBloodAmount(Number(e.target.value))}
+                      className="w-full h-1.5 bg-gray-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                      style={{ accentColor: '#dc2626' }}
+                    />
+                    <div className="flex justify-between text-[10px] text-red-600 dark:text-red-400">
+                      <span>4 oz (Safe)</span>
+                      <span>12 oz (Moderate)</span>
+                      <span>24 oz (Risky)</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -266,12 +403,12 @@ export default function ActionPromptCard({
         <div className="flex flex-wrap gap-2 justify-end">
           <button
             onClick={handlePropose}
-            disabled={!selectedItem}
+            disabled={!selectedItem || (actionPrompt.type === 'prescribe' && !selectedRoute)}
             className={`${primaryButtonClass} ${
-              !selectedItem ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer shadow-md hover:shadow-lg'
+              (!selectedItem || (actionPrompt.type === 'prescribe' && !selectedRoute)) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer shadow-md hover:shadow-lg'
             }`}
           >
-            {actionPrompt.type === 'sell' ? 'Complete Sale' : actionPrompt.type === 'give' ? 'Give Item' : 'Propose Prescription'}
+            {actionPrompt.type === 'sell' ? 'Complete Sale' : actionPrompt.type === 'give' ? 'Give Item' : 'Offer Prescription'}
           </button>
           <button
             onClick={onDecline}

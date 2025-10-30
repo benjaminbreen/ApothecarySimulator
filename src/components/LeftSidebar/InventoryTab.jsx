@@ -222,7 +222,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
   if (inventory.length === 0) {
     return (
       <div className="text-center py-16">
-        <div className="text-6xl mb-4 opacity-20">🏺</div>
+        <div className="text-6xl mb-3 opacity-20">🏺</div>
         <p className="text-base text-ink-500 dark:text-parchment-400 font-sans font-medium transition-colors duration-300">No items in inventory</p>
         <p className="text-sm text-ink-400 dark:text-parchment-500 font-sans mt-1 transition-colors duration-300">Purchase supplies to begin</p>
       </div>
@@ -230,13 +230,13 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {/* Header with View Toggle and Sort Options */}
       <div className="flex items-center justify-between mb-1 px-1">
         <h3 className="text-[0.7rem] font-bold text-ink-600 dark:text-parchment-400 uppercase tracking-widest transition-colors duration-300 font-sans">
           Materia Medica
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {/* Sort dropdown (only in list view) */}
           {viewMode === 'list' && (
             <select
@@ -340,22 +340,22 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
                 aspectRatio: '1 / 1',
                 background: isDark
                   ? 'linear-gradient(135deg, rgba(51, 65, 85, 0.95) 0%, rgba(30, 41, 59, 0.9) 50%, rgba(15, 23, 42, 0.85) 100%)'
-                  : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(252, 250, 247, 0.9) 50%, rgba(249, 245, 235, 0.85) 100%)',
-                backdropFilter: 'blur(12px) saturate(120%)',
+                  : 'linear-gradient(135deg, rgba(255, 255, 255, 0.99) 0%, rgba(252, 250, 247, 0.99) 50%, rgba(249, 245, 235, 0.95) 100%)',
+                backdropFilter: 'blur(12px) saturate(110%)',
                 WebkitBackdropFilter: 'blur(12px) saturate(120%)',
                 border: isDark ? '1.5px solid rgba(71, 85, 105, 0.5)' : '1.5px solid rgba(180, 175, 165, 0.5)',
                 boxShadow: isDark
                   ? '0 3px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.3)'
                   : '0 3px 12px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(209, 213, 219, 0.15)',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                animationDelay: `${idx * 40}ms`
+                animationDelay: `${idx * 50}ms`
               }}
             >
             {/* Rarity-colored hover glow - strong and beautiful */}
             <div
               className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
               style={{
-                background: `radial-gradient(circle at 50% 30%, ${colors.glow} 0%, ${colors.bg} 40%, transparent 70%)`,
+                background: `radial-gradient(circle at 50% 30%, ${colors.glow} 0%, ${colors.bg} 30%, transparent 70%)`,
                 backdropFilter: 'blur(16px) saturate(150%)',
                 WebkitBackdropFilter: 'blur(16px) saturate(150%)',
               }}
@@ -363,7 +363,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
 
             {/* Quantity Badge - Upper Right - Solid 3D effect */}
             <div
-              className="absolute top-1 right-1 z-20 min-w-[1.25rem] h-[1.125rem] px-1 flex items-center justify-center rounded-xl text-[0.6rem] font-mono font-bold shadow-lg"
+              className="absolute top-1 right-1 z-20 min-w-[1.15rem] h-[1.1rem] opacity-80 px-1 flex items-center justify-center rounded-xl text-[0.7rem] font-mono font-semibold shadow-lg"
               style={{
                 background: `linear-gradient(135deg, ${colors.light} 0%, ${colors.primary} 100%)`,
                 color: '#fff',
@@ -383,7 +383,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
                   <img
                     src={iconPath}
                     alt={item.name}
-                    className="max-w-[2.75rem] max-h-[2.75rem] object-contain group-hover:scale-125 transition-transform duration-300 drop-shadow-lg"
+                    className="max-w-[3rem] max-h-[3rem] object-contain group-hover:scale-125 transition-transform duration-300 drop-shadow-lg"
                   />
                 ) : (
                   <span className="text-2xl group-hover:scale-125 transition-transform duration-300 drop-shadow-md">
@@ -402,8 +402,8 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    lineHeight: '1.05',
-                    minHeight: '1.43rem',
+                    lineHeight: '1',
+                    minHeight: '1.33rem',
                   }}
                 >
                   {showQuality && (
@@ -418,7 +418,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
             <div
               className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
               style={{
-                boxShadow: `0 0 24px ${colors.glow}, inset 0 0 20px rgba(255, 255, 255, 0.5)`,
+                boxShadow: `0 0 24px ${colors.glow}, inset 0 0 20px rgba(255, 255, 255, 0.4)`,
                 border: `2px solid ${colors.light}`,
               }}
             />
@@ -602,7 +602,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
 
       {/* Other Items - Compact 4-column layout */}
       {(equippedClothing.length > 0 || unequippedClothing.length > 0 || miscItems.length > 0) && (
-        <div className="space-y-3 pt-3 border-t border-ink-200/40 dark:border-slate-700/40 transition-colors duration-300">
+        <div className="space-y-1 pt-3 border-t border-ink-200/40 dark:border-slate-700/40 transition-colors duration-300">
           {/* Other Items Section Header */}
           <h3 className="text-[0.7rem] font-bold text-ink-600 dark:text-parchment-400 uppercase tracking-widest px-1 transition-colors duration-300 font-sans">
             Other Items

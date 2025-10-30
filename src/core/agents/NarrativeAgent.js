@@ -8,7 +8,7 @@ import { getGridSystem } from '../../features/map/services/gridMovementSystem';
 import { getReputationTier, getFactionStanding, FACTION_INFO } from '../systems/reputationSystem';
 import { findPortraitByName } from '../services/portraitMatcher';
 import { resolvePortrait } from '../services/portraitResolver';
-import { isValidPortrait } from '../config/portraits.config';
+import { isValidPortrait, getFilteredPortraitList } from '../config/portraits.config';
 
 /**
  * Normalize portrait filenames so downstream UI always receives a consistent shape.
@@ -255,6 +255,7 @@ Return strict JSON (no markdown fencing, no prose outside the object).
   "suggestedCommands": ["#command"],
   "showPortraitFor": "string or null",
   "primaryPortrait": "null (engine assigns portrait automatically)",
+  "experimentalPortraitChoice": "exact filename from portrait list OR null (EXPERIMENTAL: for A/B testing)",
   "primaryNPC": { "name": "...", "age": "...", "gender": "...", "occupation": "...", "casta": "...", "class": "...", "personality": "two traits", "appearance": "one sentence", "description": "one sentence" } or null,
   "simpleInteraction": { "type": "vendor_offer|service_offer|donation_request|competitive_check|information_exchange|social_visit|extortion_demand|protection_racket|entertainment_tip|food_purchase|gamble_opportunity|labor_offer|neighbor_complaint|church_donation|null", ... } or {"type": "null"} or null,
   "requestNewPatient": true|false,
@@ -641,6 +642,61 @@ Previous NPCs have departed. Do NOT continue their scenes. Set primaryNPC/primar
 `;
     }
 
+    // EXPERIMENTAL: Portrait list for LLM to choose from (A/B testing vs demographic matching)
+    let experimentalPortraitSection = '';
+    try {
+      if (selectedEntity && !isContinuation) {
+        // Filter portraits based on selected entity
+        const portraitList = getFilteredPortraitList({
+          gender: selectedEntity.gender,
+          occupation: selectedEntity.occupation || selectedEntity.archetype,
+          limit: 35  // Token-efficient: ~280 tokens for 35 portraits
+        });
+
+        experimentalPortraitSection = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧪 EXPERIMENTAL PORTRAIT SELECTION (A/B Testing)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${portraitList}
+
+**EXPERIMENTAL INSTRUCTION:**
+Pick the EXACT filename from the list above that best matches this NPC.
+Put it in "experimentalPortraitChoice" field.
+This will NOT affect the game - it's for testing portrait variety.
+
+If no good match, set experimentalPortraitChoice to null.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+
+        console.log('[NarrativeAgent] 🧪 Experimental portrait list generated:', portraitList.split('\n').length, 'lines');
+      } else if (!selectedEntity && !isContinuation) {
+        // No NPC - offer scenes/animals
+        experimentalPortraitSection = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧪 EXPERIMENTAL PORTRAIT SELECTION (Scenes/Animals)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Available Scene Portraits** (for atmosphere without NPCs):
+coffeehouseday.jpg, coffeehouseevening.jpg, tavernaday.jpg, marketplaceday.jpg,
+churchcourtyard.jpg, backalleynight.jpg, villagelaneday.jpg, citybackstreet.jpg,
+palaceentryway.jpg, conventoinside.jpg, streetscene.jpg
+
+**Available Animal Portraits** (if an animal is present):
+catday.jpg, dog.jpg, pig.jpg, pablothegoat.jpg, horse.jpg, donkey.jpg,
+cow.jpg, sheep.jpg, owl.jpg, rabbit.jpg, rooster.jpg, duck.jpg
+
+**EXPERIMENTAL INSTRUCTION:**
+If appropriate, pick a scene or animal portrait from above.
+Put it in "experimentalPortraitChoice" field.
+This will NOT affect the game - it's for testing.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+      }
+    } catch (error) {
+      console.warn('[NarrativeAgent] ⚠️ Failed to generate experimental portrait list:', error);
+    }
+
     // Build conversation history (5 full turns + 10 journal entries)
     const recentHistory = buildConversationHistory(conversationHistory, journal, turnNumber);
 
@@ -657,6 +713,8 @@ ${noEncounterContext}
 ${reputationContext}
 
 ${skillsContext ? `\n${skillsContext}\n` : ''}
+
+${experimentalPortraitSection ? `\n${experimentalPortraitSection}\n` : ''}
 
 Player Action: ${playerAction}
 
@@ -772,6 +830,19 @@ Generate narrative response. Remember: JSON format, concise, historically accura
         }
 
         narrativeData.primaryPortrait = selectedPortrait;
+
+        // A/B TESTING: Log current system vs experimental LLM choice
+        if (narrativeData.experimentalPortraitChoice) {
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log('🧪 PORTRAIT A/B TEST COMPARISON');
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+          console.log(`NPC: ${primaryNPC.name || 'Unknown'}`);
+          console.log(`  Demographics: ${primaryNPC.gender} / ${primaryNPC.age} / ${primaryNPC.casta} / ${primaryNPC.class} / ${primaryNPC.occupation}`);
+          console.log(`  Current System (Demographic Matching): ${selectedPortrait}`);
+          console.log(`  🧪 Experimental (LLM Direct Choice):   ${narrativeData.experimentalPortraitChoice}`);
+          console.log(`  Match: ${selectedPortrait === normalizePortraitFilename(narrativeData.experimentalPortraitChoice) ? '✅ SAME' : '❌ DIFFERENT'}`);
+          console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        }
       }
     } else if (isContinuation && recentPortrait) {
       const normalizedRecentPortrait = normalizePortraitFilename(recentPortrait);

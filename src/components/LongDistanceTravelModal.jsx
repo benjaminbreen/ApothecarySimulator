@@ -164,6 +164,7 @@ const calculateTravelPlan = ({
     costReales: cost,
     departureDate,
     arrivalDate,
+    distanceLeagues: Math.round(distanceKm / 4.2),
     departureDateLabel: departureDate ? `${formatDate(departureDate)} (${formatTime(departureDate)})` : 'immediately',
     arrivalDateLabel: arrivalDate ? `${formatDate(arrivalDate)} (${formatTime(arrivalDate)})` : 'after several days'
   };
@@ -286,12 +287,13 @@ export function LongDistanceTravelModal({
     });
   }, [selectedDestination, selectedMode, currentDate, currentTime]);
 
-  const destinationMarkers = useMemo(() => options.map(opt => ({
+  const destinationMarkers = useMemo(() => options.map((opt, idx) => ({
     id: opt.id,
     name: opt.fullName,
     position: opt.position,
     distanceKm: opt.distanceKm,
-    isSelected: opt.id === selectedDestinationId
+    isSelected: opt.id === selectedDestinationId,
+    labelIndex: idx
   })), [options, selectedDestinationId]);
 
   useEffect(() => {
@@ -351,21 +353,33 @@ export function LongDistanceTravelModal({
   const handleConfirm = () => {
     if (!selectedDestination || !selectedMode || !travelPlan) return;
 
-    const command = buildTravelCommand({
-      destination: selectedDestination,
-      mode: selectedMode,
-      plan: travelPlan,
-      customNote,
-      origin
-    });
+    const payload = {
+      originId: origin?.id || null,
+      originName: origin?.fullName || 'Mexico City, New Spain',
+      destinationId: selectedDestination.id,
+      destinationName: selectedDestination.fullName,
+      destinationRegion: selectedDestination.region,
+      distanceKm: travelPlan.distanceKm,
+      durationDays: travelPlan.durationDays,
+      costReales: travelPlan.costReales,
+      mode: {
+        id: selectedMode.id,
+        label: selectedMode.label,
+        description: selectedMode.description || '',
+        speedKmPerDay: selectedMode.speedKmPerDay
+      },
+      departureIso: travelPlan.departureDate ? travelPlan.departureDate.toISOString() : null,
+      arrivalIso: travelPlan.arrivalDate ? travelPlan.arrivalDate.toISOString() : null,
+      notes: customNote?.trim() || null,
+      distanceLeagues: travelPlan.distanceLeagues || Math.round((travelPlan.distanceKm || 0) / 4.2),
+      createdAt: new Date().toISOString()
+    };
+
+    const command = `#long_travel ${JSON.stringify(payload)}`;
 
     onSubmit({
       command,
-      destination: selectedDestination,
-      mode: selectedMode,
-      cost: travelPlan.costReales,
-      durationDays: travelPlan.durationDays,
-      arrivalDate: travelPlan.arrivalDate
+      payload
     });
   };
 

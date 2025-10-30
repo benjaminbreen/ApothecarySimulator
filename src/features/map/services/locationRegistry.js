@@ -13,7 +13,8 @@ import {
   findWorldLocation,
   projectPixelsToLatLon,
   getClosestWorldLocations,
-  getNearestWorldLocation
+  getNearestWorldLocation,
+  calculateDistanceKm
 } from '../data/worldLocations';
 
 /**
@@ -341,11 +342,11 @@ export function getWorldTravelOptions({
     explicitWorldLocationId: currentWorldLocationId
   });
 
-  const destinations = getClosestWorldLocations({
+  const baseDestinations = getClosestWorldLocations({
     originId,
     originLat,
     originLon,
-    maxResults,
+    maxResults: Math.max(maxResults, 14),
     excludeIds: [originId]
   }).map(loc => ({
     ...loc,
@@ -353,8 +354,46 @@ export function getWorldTravelOptions({
     distanceLeagues: loc.distanceKm ? Math.round(loc.distanceKm / 4.2) : null
   }));
 
+  const mustIncludeIds = ['texas-frontier', 'cartagena'];
+  mustIncludeIds.forEach(id => {
+    const loc = WORLD_LOCATION_LOOKUP[id];
+    if (loc && !loc.suppressRegistry && !baseDestinations.find(d => d.id === id)) {
+      const distanceKm = calculateDistanceKm(originLat, originLon, loc.lat, loc.lon);
+      baseDestinations.push({
+        ...loc,
+        distanceKm,
+        distanceLeagues: Math.round(distanceKm / 4.2)
+      });
+    }
+  });
+
+  const importantExtras = WORLD_LOCATIONS
+    .filter(loc => !loc.suppressRegistry && !baseDestinations.find(d => d.id === loc.id))
+    .filter(loc => ['capital', 'port', 'regional-center'].includes(loc.importance))
+    .map(loc => {
+      const distanceKm = calculateDistanceKm(originLat, originLon, loc.lat, loc.lon);
+      return {
+        ...loc,
+        distanceKm,
+        distanceLeagues: Math.round(distanceKm / 4.2)
+      };
+    })
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+
+  importantExtras.slice(0, 6).forEach(extra => baseDestinations.push(extra));
+
+  const uniqueDestinations = [];
+  const seenIds = new Set();
+  baseDestinations.forEach(dest => {
+    if (!seenIds.has(dest.id)) {
+      uniqueDestinations.push(dest);
+      seenIds.add(dest.id);
+    }
+  });
+
+  const limit = Math.max(maxResults, 14);
   return {
     origin: originLocation,
-    destinations
+    destinations: uniqueDestinations.slice(0, limit)
   };
 }
