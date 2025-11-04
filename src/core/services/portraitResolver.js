@@ -126,6 +126,45 @@ function normalizeCasta(casta) {
 }
 
 /**
+ * Occupation clustering for broader portrait matching
+ * Groups semantically similar occupations together
+ */
+const OCCUPATION_CLUSTERS = {
+  'commerce': ['merchant', 'vendor', 'trader', 'shopkeeper', 'importer', 'seller', 'dealer', 'merchantman', 'peddler'],
+  'labor': ['farmer', 'laborer', 'worker', 'peasant', 'porter', 'field worker', 'agricultural worker', 'messenger'],
+  'military': ['soldier', 'guard', 'militiaman', 'officer', 'sergeant', 'conquistador', 'knight', 'veteran'],
+  'religious_male': ['priest', 'friar', 'monk', 'brother', 'abbot', 'prior', 'bishop', 'cleric'],
+  'religious_female': ['nun', 'sister', 'abbess', 'novice'],
+  'medical': ['physician', 'doctor', 'surgeon', 'apothecary', 'healer', 'midwife', 'curandera', 'herbalist'],
+  'scholarly': ['scholar', 'scribe', 'notary', 'clerk', 'writer', 'teacher', 'tutor', 'student'],
+  'artisan': ['artisan', 'craftsman', 'weaver', 'cobbler', 'blacksmith', 'carpenter', 'seamstress', 'goldsmith', 'toymaker'],
+  'service': ['servant', 'maid', 'domestic', 'attendant', 'butler', 'cook', 'page'],
+  'maritime': ['sailor', 'seaman', 'mariner', 'navigator', 'ship captain', 'dockworker'],
+  'legal': ['lawyer', 'attorney', 'judge', 'official', 'magistrate'],
+  'nobility': ['nobleman', 'noblewoman', 'lord', 'lady', 'patrician', 'don', 'doña', 'elite'],
+  'entertainment': ['musician', 'performer', 'artist', 'juggler'],
+  'transport': ['muleteer', 'driver', 'transporter', 'teamster'],
+  'innkeeper': ['innkeeper', 'tavern keeper', 'host']
+};
+
+/**
+ * Get occupation cluster for a given occupation
+ * @param {string} occupation - Occupation to cluster
+ * @returns {string|null} Cluster name or null
+ */
+function getOccupationCluster(occupation) {
+  if (!occupation) return null;
+  const occLower = occupation.toLowerCase().trim();
+
+  for (const [cluster, occupations] of Object.entries(OCCUPATION_CLUSTERS)) {
+    if (occupations.some(occ => occLower.includes(occ) || occ.includes(occLower))) {
+      return cluster;
+    }
+  }
+  return null;
+}
+
+/**
  * Find exact named portrait match
  * @param {string} entityName - Entity name to match
  * @returns {string|null} - Portrait filename or null
@@ -169,8 +208,9 @@ function matchGenericPortrait(entity) {
   const casta = normalizeCasta(demographics.casta);
   const socialClass = normalizeClass(demographics.class);
   const occupation = demographics.occupation.toLowerCase();
+  const occupationCluster = getOccupationCluster(occupation);
 
-  console.log(`[Portrait Resolver] Matching demographics: ${gender}, ${age}, ${casta}, ${socialClass}, ${occupation}`);
+  console.log(`[Portrait Resolver] Matching demographics: ${gender}, ${age}, ${casta}, ${socialClass}, ${occupation}${occupationCluster ? ` (cluster: ${occupationCluster})` : ''}`);
 
   // Filter to ONLY generic portraits (exclude named portraits)
   const genericPortraits = Object.entries(PORTRAIT_LIBRARY)
@@ -180,27 +220,49 @@ function matchGenericPortrait(entity) {
   const scores = genericPortraits.map(([filename, portrait]) => {
     let score = 0;
 
-    // Gender match (critical, +50 for exact match)
+    // PHASE 1: REBALANCED SCORING WEIGHTS
+    // Priority: Visual authenticity (gender, age, casta) > Occupation specificity > Context (class)
+    // Occupation is now heavily weighted to ensure sailors get sailor portraits, etc.
+
+    // Gender match (critical, +60 for exact match)
     if (portrait.gender === gender && gender !== 'unknown') {
-      score += 50;
+      score += 60;
     } else if (portrait.gender === 'unknown' || portrait.gender === 'group') {
       score += 10;
     } else if (gender === 'unknown') {
-      score += 5; // Unknown gender gets slight preference for unknown portraits
+      score += 5;
+    } else if (gender !== 'unknown' && portrait.gender !== 'unknown') {
+      // CRITICAL: Severe penalty for wrong gender (visually disqualifying)
+      score -= 70;
     }
 
-    // Age match (+30 points)
+    // Age match (+50 points, increased from +40) - Visual authenticity
     if (portrait.age === age) {
-      score += 30;
+      score += 50;
     } else if (portrait.age === 'mixed') {
       score += 5;
+    } else {
+      // CRITICAL: Penalize major age mismatches (visually jarring)
+      // Child/elderly mismatches are especially problematic
+      const ageMismatches = {
+        'child': { 'young': -30, 'adult': -50, 'middle-aged': -60, 'elderly': -60 },
+        'young': { 'child': -30, 'middle-aged': -20, 'elderly': -30 },
+        'adult': { 'child': -50, 'elderly': -20 },
+        'middle-aged': { 'child': -60, 'young': -20, 'elderly': -10 },
+        'elderly': { 'child': -60, 'young': -30, 'adult': -20, 'middle-aged': -10 }
+      };
+
+      const penalty = ageMismatches[age]?.[portrait.age];
+      if (penalty) {
+        score += penalty;
+      }
     }
 
-    // Casta match (+20 points, -30 for major mismatch)
+    // Casta match (+30 points, -30 for major mismatch) - Visual authenticity
     const portraitCastas = Array.isArray(portrait.casta) ? portrait.casta : [portrait.casta];
     const normalizedPortraitCastas = portraitCastas.map(c => normalizeCasta(c));
     if (normalizedPortraitCastas.includes(casta)) {
-      score += 20;
+      score += 30;
     } else if (normalizedPortraitCastas.includes('any')) {
       score += 5;
     } else if (casta !== 'unknown') {
@@ -212,68 +274,113 @@ function matchGenericPortrait(entity) {
         'indio': ['indio']
       };
 
-      // Check if this is a major mismatch (different visible ethnic group)
       for (const [group, members] of Object.entries(majorEthnicGroups)) {
         const entityInGroup = members.includes(casta);
         const portraitInSameGroup = normalizedPortraitCastas.some(pc => members.includes(pc));
 
         if (entityInGroup && !portraitInSameGroup) {
-          // Entity is in this ethnic group but portrait isn't - major mismatch
           score -= 30;
           break;
         }
       }
     }
 
-    // Class match (+15 points)
+    // Class match (+25 points) - Social context
     const portraitClasses = Array.isArray(portrait.class) ? portrait.class : [portrait.class];
     const normalizedPortraitClasses = portraitClasses.map(c => normalizeClass(c));
     if (normalizedPortraitClasses.includes(socialClass)) {
-      score += 15;
+      score += 25;
     } else if (normalizedPortraitClasses.includes('any')) {
-      score += 3;
+      score += 5;
     }
 
-    // Occupation match (+50 points) - INCREASED from +25 to prioritize occupation-specific portraits
+    // PHASE 2: OCCUPATION CLUSTERING
+    // CRITICAL: Occupation should be heavily weighted - it's narrative-specific context
+    // A sailor should ALWAYS get a sailor portrait if available
+
+    // Exact occupation match (+75 points) - Tripled from +25 for strong prioritization
     const portraitOccupations = Array.isArray(portrait.occupation) ? portrait.occupation : [portrait.occupation];
-    const occupationMatch = portraitOccupations.some(occ =>
+    const exactOccupationMatch = portraitOccupations.some(occ =>
       occ.toLowerCase().includes(occupation) || occupation.includes(occ.toLowerCase())
     );
-    if (occupationMatch) {
-      score += 50;
+    if (exactOccupationMatch) {
+      score += 75;
     }
 
-    // Tag fuzzy matching (+10 points per tag) - INCREASED from +5 for better occupation matching
+    // Cluster match (+40 points) - Allows broader matching (vendor can use merchant portrait)
+    // Doubled from +20 to make semantic clusters more meaningful
+    if (!exactOccupationMatch && occupationCluster) {
+      const portraitClusters = portraitOccupations
+        .map(occ => getOccupationCluster(occ))
+        .filter(c => c !== null);
+
+      if (portraitClusters.includes(occupationCluster)) {
+        score += 40;
+      }
+    }
+
+    // Tag fuzzy matching (+25 points) - Semantic relevance
+    // Increased from +15 to make tags more meaningful
     if (portrait.tags && occupation !== 'unknown') {
       const tagMatch = portrait.tags.some(tag =>
         tag.toLowerCase().includes(occupation) || occupation.includes(tag.toLowerCase())
       );
       if (tagMatch) {
-        score += 10;
+        score += 25;
       }
     }
 
-    return { filename, score, portrait };
+    // CRITICAL: Sanity check - Must match at least 2 of 3 critical visual features
+    // This prevents obviously wrong portraits (e.g., male portrait for female character)
+    const genderMatches = portrait.gender === gender && gender !== 'unknown';
+    const ageMatches = portrait.age === age;
+    const castaMatches = normalizedPortraitCastas.includes(casta);
+    const criticalMatches = [genderMatches, ageMatches, castaMatches].filter(Boolean).length;
+
+    if (criticalMatches < 2) {
+      score = 0; // Disqualify - too many critical mismatches
+    }
+
+    // Tiebreaker: Calculate specificity (prefer portraits with detailed metadata)
+    const specificity = [
+      portrait.gender !== 'unknown' && portrait.gender !== 'any' ? 1 : 0,
+      portrait.age !== 'mixed' ? 1 : 0,
+      !normalizedPortraitCastas.includes('any') ? 1 : 0,
+      portrait.occupation && portrait.occupation !== 'unknown' ? 1 : 0
+    ].reduce((sum, v) => sum + v, 0);
+
+    return { filename, score, portrait, specificity };
   });
 
   // Sort by score descending
   scores.sort((a, b) => b.score - a.score);
 
-  // Log top 3 matches
-  console.log(`[Portrait Resolver] Top 3 matches for "${entity.name}":`);
-  scores.slice(0, 3).forEach((match, i) => {
-    console.log(`  ${i + 1}. ${match.filename} (score: ${match.score})`);
-  });
-
-  // Return best match (or default if score too low)
+  // Get best score
   const bestMatch = scores[0];
-  if (bestMatch && bestMatch.score >= 30) {
-    console.log(`[Portrait Resolver] ✓ Selected: ${bestMatch.filename} (score: ${bestMatch.score})`);
-    return bestMatch.filename;
-  } else {
+
+  if (!bestMatch || bestMatch.score < 30) {
     console.log(`[Portrait Resolver] ✗ No good match found (best: ${bestMatch?.score || 0}), using default`);
     return 'defaultnpc.jpg';
   }
+
+  // VARIETY IMPROVEMENT: Pick randomly from top 3 portraits
+  // Prevents selecting inappropriate portraits that happen to score similarly
+  // (e.g., child portraits when looking for middle-aged adults)
+  const TOP_N = 3;
+  const topMatches = scores.slice(0, Math.min(TOP_N, scores.length));
+
+  // Randomly select from top N matches
+  const selectedMatch = topMatches[Math.floor(Math.random() * topMatches.length)];
+
+  // Log top matches for debugging
+  console.log(`[Portrait Resolver] Top ${Math.min(5, scores.length)} matches for "${entity.name}":`);
+  scores.slice(0, 5).forEach((match, i) => {
+    const isSelected = match.filename === selectedMatch.filename;
+    console.log(`  ${i + 1}. ${match.filename} (score: ${match.score})${isSelected ? ' ← SELECTED' : ''}`);
+  });
+  console.log(`[Portrait Resolver] ✓ Randomly selected from top ${topMatches.length} matches`);
+
+  return selectedMatch.filename;
 }
 
 /**

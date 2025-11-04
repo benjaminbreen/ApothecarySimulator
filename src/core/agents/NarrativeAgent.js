@@ -9,6 +9,8 @@ import { getReputationTier, getFactionStanding, FACTION_INFO } from '../systems/
 import { findPortraitByName } from '../services/portraitMatcher';
 import { resolvePortrait } from '../services/portraitResolver';
 import { isValidPortrait, getFilteredPortraitList } from '../config/portraits.config';
+import { buildNPCContext } from '../services/locationContextService'; // Location NPC system
+import { isFeatureEnabled } from '../config/featureFlags';
 
 /**
  * Normalize portrait filenames so downstream UI always receives a consistent shape.
@@ -56,9 +58,11 @@ Faction Standing:
     context += `- ${info.name}: ${score}/100 (${standing})\n`;
   });
 
-  // If interacting with an NPC, highlight their faction's standing
-  if (selectedEntity?.social?.faction) {
-    context += `\n**IMPORTANT**: This NPC belongs to a faction. Check their faction standing above and adjust their attitude accordingly:
+  // If interacting with an NPC, provide attitude guidance
+  if (selectedEntity) {
+    if (selectedEntity.social?.faction) {
+      // Faction-affiliated NPC: Use faction standing
+      context += `\n**IMPORTANT**: This NPC belongs to a faction. Check their faction standing above and adjust their attitude accordingly:
 - Allied (80+): Very respectful, helpful, offers special favors
 - Friendly (60-79): Polite, cooperative, willing to help
 - Neutral (40-59): Business-like, neither warm nor cold
@@ -66,9 +70,97 @@ Faction Standing:
 - Hostile (<20): Openly hostile, may refuse service or insult Maria
 
 Use this to inform dialogue tone, willingness to help, and general demeanor.`;
+    } else {
+      // Non-faction NPC: Use overall reputation
+      context += `\n**IMPORTANT**: This NPC has no specific faction ties. Use Maria's overall reputation to guide their attitude:
+- Celebrated (80+): Rumors of Maria's skill precede her. Warm reception, eager to help, may offer discounts or favors
+- Respected (60-79): Known as competent. Polite, professional treatment. Willing to do business
+- Mixed Reputation (40-59): Some have heard good things, some bad. Neutral, cautious, business-like
+- Questionable (20-39): Suspicious rumors circulate. Cold reception, reluctant to help, may demand payment upfront
+- Notorious (<20): Bad reputation widespread. Openly hostile, may refuse service, insult Maria, or demand she leave
+
+Use this to inform dialogue tone, willingness to help, pricing, and general demeanor.`;
+    }
   }
 
   return context;
+}
+
+/**
+ * Build weather context for narrative generation
+ * Converts technical weather state into evocative prompts for LLM
+ * @param {Object} weather - Weather state from weatherService
+ * @param {Object} gameState - Current game state
+ * @returns {string} Formatted weather context for LLM
+ */
+function buildWeatherContext(weather, gameState) {
+  if (!weather) return '';
+
+  const parts = [];
+
+  // Header
+  parts.push('### Current Weather & Atmosphere');
+
+  // Precipitation
+  if (weather.precipitation !== 'none') {
+    const intensityDesc = weather.intensity > 0.7 ? 'heavy' :
+                         weather.intensity > 0.4 ? 'moderate' : 'light';
+    parts.push(`- ${intensityDesc} ${weather.precipitation} falling`);
+  }
+
+  // Cloud cover
+  const cloudDesc = weather.cloudCover > 0.8 ? 'overcast skies' :
+                   weather.cloudCover > 0.5 ? 'cloudy skies' :
+                   weather.cloudCover > 0.2 ? 'partly cloudy' : 'clear skies';
+  parts.push(`- ${cloudDesc}`);
+
+  // Wind
+  if (weather.windSpeed > 20) {
+    parts.push(`- strong winds (${Math.round(weather.windSpeed)} km/h)`);
+  } else if (weather.windSpeed > 10) {
+    parts.push(`- breezy winds`);
+  }
+
+  // Visibility
+  if (weather.visibility < 0.5) {
+    parts.push(`- poor visibility (${Math.round(weather.visibility * 100)}%)`);
+  }
+
+  // Special conditions
+  if (weather.special === 'thunderstorm') {
+    parts.push(`- **THUNDERSTORM**: Lightning flashes, thunder rumbling`);
+  }
+  if (weather.special === 'fog') {
+    parts.push(`- **HEAVY FOG**: Streets shrouded in mist`);
+  }
+  if (weather.special === 'heatwave') {
+    parts.push(`- **OPPRESSIVE HEAT**: Shimmering air, intense sun`);
+  }
+  if (weather.special === 'rainbow') {
+    parts.push(`- Rainbow visible after recent rain`);
+  }
+
+  // Ground conditions (from fx)
+  if (weather.fx?.surfaceWetnessNow > 0.5) {
+    parts.push(`- Ground is wet and muddy`);
+  }
+
+  // Atmospheric guidance for LLM
+  parts.push('\n**Narrative Instructions**:');
+  parts.push('- Mention weather naturally in scene descriptions (NOT every turn)');
+  parts.push('- NPCs react appropriately (seek shelter in rain, complain about heat, etc.)');
+  parts.push('- Describe sensory details: sounds (rain on tiles), smells (petrichor), tactile (wind on skin)');
+  parts.push('- Consider practicality: wet clothes, muddy streets, seeking cover, closing shutters');
+
+  // Historical context for afternoon thunderstorms
+  if (weather.precipitation === 'rain' && gameState.time) {
+    const hour = parseInt(gameState.time.split(':')[0]);
+    if (hour >= 14 && hour < 18) {
+      parts.push('- HISTORICAL NOTE: Afternoon thunderstorms are typical in Mexico City summer (wet season)');
+    }
+  }
+
+  return parts.join('\n');
 }
 
 /**
@@ -266,25 +358,29 @@ Return strict JSON (no markdown fencing, no prose outside the object).
 }`;
 
   const interactionIntentSection = `### Interaction Intent — Decide By Maria's ACTION
-Ask: *What is the visitor asking Maria to DO right now?*
+Ask: *What is the NPC asking Maria to DO right now?*
 
 - medical_diagnosis → Maria examines or treats a patient who is physically present (or immediately enters) the scene. She is using her medical judgement here in the shop. No travel required.
 - medical_followup → The same patient returns (or an emissary reports back) about an ongoing treatment Maria already manages. No new contract/fee—continue the conversation.
 - medical_purchase → The visitor wants Maria to PROVIDE medicine or a prepared remedy so they can take it away. Maria stays in the shop, selects/dispenses the remedy, accepts payment. Think "Please give me something for…".
-- house_call → The visitor wants Maria herself to TRAVEL examine/treat the patient on-site. Maria must LEAVE THE SHOP or plan a VISIT.
-  **Key indicators:**
+- house_call → **STRICTLY MEDICAL ONLY**. A messenger asks Maria to travel to EXAMINE/TREAT a SICK or INJURED patient. NOT for errands, harvesting, deliveries, or non-medical favors.
+  **Key indicators (ALL must be present):**
   * Messenger/intermediary arrives (not the patient themselves)
-  * Phrases like "come quickly", "please visit", "he/she needs you", "you must see", "cannot come here", "bedridden",
-  * Patient is NOT physically present - only described by messenger
+  * Patient is SICK, INJURED, or SUFFERING from a medical condition
+  * Messenger explicitly asks Maria to examine/treat/see the patient
+  * Phrases like "he's fallen ill", "she's bedridden", "needs a physician", "can you examine", "please treat"
   * Location mentioned or implied: "at the church", "at his estate", "in her chambers"
   **Examples:**
-  * ✓ "Sister Ines: 'Father Anselmo has taken ill. Please come to the monastery!'" → house_call
-  * ✓ "Servant: 'Don Luis cannot leave his bed. He requests your attendance.'" → house_call
+  * ✓ "Sister Ines: 'Father Anselmo has taken ill. Please come to the monastery!'" → house_call (medical: illness)
+  * ✓ "Servant: 'Don Luis cannot leave his bed. He requests your attendance.'" → house_call (medical: bedridden)
   * ✗ "An elderly man enters coughing. 'Please help me, señora.'" → medical_diagnosis (patient is here)
-  * ✗ "Wife: 'My husband is sick. His...unmentionables, they are swollen and red. Can you give me something discretely?'" → medical_purchase (wants medicine to take away)
+  * ✗ "Wife: 'My husband is sick. Can you give me something?'" → medical_purchase (wants medicine to take away)
+  * ✗ "Procurator's Clerk: 'The Bishop has terrible flux. Do you have gum mastic?'" → medical_purchase (buying medicine, NOT vendor_offer!)
+  * ✗ "Boy: 'My mother needs help harvesting herbs safely. Can you come show her?'" → nonmedical_request (NOT treating a patient)
+  * ✗ "Messenger: 'Don Luis requests you visit to discuss a business matter.'" → social (NOT medical)
 
-- nonmedical_request → Any favour, investigation, or errand unrelated to medicine. No remedy discussion, no diagnosis.
-- vendor_offer → The NPC is selling or offering goods/services to Maria (direction NPC → Maria). Maria is the buyer.
+- nonmedical_request → Any favour, investigation, or errand unrelated to medicine. No remedy discussion, no diagnosis. Includes: harvesting help, deliveries, social visits, errands.
+- vendor_offer → The NPC is selling NON-MEDICAL goods/services TO Maria (direction NPC → Maria). Maria is the buyer. **NEVER use for medicine requests - those are medical_purchase!**
 - social → Pure conversation, warnings, gossip, or relationship scenes with no actionable request.
 - none → No clear request or action this turn.`;
 
@@ -300,7 +396,15 @@ Ask: *What is the visitor asking Maria to DO right now?*
 - If the player (i.e. Maria) enters a command to do something, do it, no matter how strange! (Within reason - i.e. if the player says "fly on a spaceship," this is plainly impossible. But if they say "stand on my head and say a hail mary," then depict Maria doing EXACTLY that - but also depict realistic consequences.)
 - Stop before mechanical actions (mixing, prescribing, buying) so UI modals handle them.
 - Show real consequences, NPC reactions, and sensory detail grounded in 1680 Mexico City.
-- Close most narration responses with a bold prompt offering 2 concise follow-up choices unless the moment demands free input.`;
+- Close most narration responses with a bold prompt offering 2 concise follow-up choices unless the moment demands free input.
+
+**Time Passage for Waiting Actions:**
+- When player waits for specific event with stated duration ("wait for [NPC]" after saying "return in X minutes"):
+  * Check recent conversation history for stated time duration
+  * Advance time to MATCH that duration (e.g., "return in 30 minutes" → advance 30-35 minutes)
+  * Show the expected event occurring (NPC returns, task completes, etc.)
+- Passive observation ("look around"): 1-5 minutes, pure description
+- Vague waiting ("wait", "rest"): 10-15 minutes, may introduce new event`;
 
   const momentumSection = `### Momentum & Stakes
 - Every turn must deliver two micro-beats: immediate reaction to the player AND a fresh consequence, clue, or escalation.
@@ -346,14 +450,18 @@ Ask: *What is the visitor asking Maria to DO right now?*
   const simpleInteractionSection = `### Simple Interaction Guardrails
 - Only populate simpleInteraction when explicitly in "SIMPLE INTERACTION MODE".
 - If the scene mentions sickness, remedies, treatment, symptoms, or Maria's expertise, set simpleInteraction.type to "null" immediately. Medical matters always use the main medical systems.
-- Use it for brief non-medical encounters (charity, gossip, quick social visits). Keep to <=50 words and one physical beat + a few lines of dialogue.
-- Do NOT invent new simpleInteraction types. Supported values: vendor_offer, service_offer, donation_request, competitive_check, information_exchange, social_visit.
-- **vendor_offer** = NPC selling goods TO Maria. Structure: {type: "vendor_offer", npcName: "name", npcRole: "role", context: "offers X", offer: {item: "X", price: 12, description: "...", quality: null, quantity: 1}}
-- When SIMPLE INTERACTION MODE is active you MUST fill the simpleInteraction object with the specifics (prices, items, reasons) and keep the narrative laser-focused on that exchange.`;
-
-  const transactionDirectionSection = `### Transaction Direction Reminder
-- service_offer → NPC is selling or offering something TO Maria (direction NPC → Maria). Use only when Maria is the customer.
-- medical_purchase → NPC wants to BUY medicine FROM Maria (direction Maria → NPC). Use whenever they seek a remedy to take away, even if the patient is elsewhere.`;
+- Use it for brief non-medical encounters (charity, gossip, quick social visits, threats, gambling, investment offers). Keep to <=50 words and one physical beat + a few lines of dialogue.
+- Do NOT invent new simpleInteraction types. Supported values:
+  * **vendor_offer** = NPC selling goods TO Maria
+  * **service_offer** = NPC offering services TO Maria
+  * **competitive_check** = Rival apothecary scouting Maria's practice
+  * **extortion_demand** = Threats/demands from criminals, corrupt officials, or Inquisition proxies
+  * **gamble_opportunity** = NPC invites Maria to gamble/bet
+  * **investment_offer** = NPC presents investment opportunity TO Maria
+- **Odds guidance for gambling**: favorable (60% win) if NPC is friendly/drunk/unskilled, even (50%) for fair game, unfavorable (40%) if NPC is skilled/cheating/professional gambler
+- **Investment type guidance**: church_bond (⛪, no risk, 10% return, 5-10 days), cacao_plantation (🌿, low risk, 25-50%, 10-15 days), apothecary_syndicate (💊, low risk, 15-25%, 3-7 days), real_estate (🏠, medium risk, 35-60%, 20-30 days), manila_galleon (🚢, medium risk, 120-200% or total loss, 30-45 days), silver_mining (🏔️, high risk, 70-200% or total loss, 7-14 days)
+- **IMPORTANT**: Always provide a contextually appropriate emoji for the item/service being offered. Examples: 💧 for water, 🪵 for firewood, 📜 for documents/codices, 🍯 for honey, 🌿 for herbs, 🔥 for charcoal, 💀 for threats, 🎲 for gambling, ⛪ for church bonds, 🚢 for galleon trade, etc.
+- When SIMPLE INTERACTION MODE is active you MUST fill the simpleInteraction object with the specifics (prices, items, reasons, amounts, odds, investment details) and keep the narrative laser-focused on that exchange.`;
 
   const crisisActive = gameState?.crisis?.active;
   const crisisResolutionSection = crisisActive ? `### Crisis Context
@@ -415,7 +523,6 @@ ${narrative.pacing}` : '';
     animalSection,
     closingSection,
     simpleInteractionSection,
-    transactionDirectionSection,
     crisisResolutionSection,
     portraitDescriptorSection,
     entitySection,
@@ -536,7 +643,9 @@ export async function generateNarrative({
   journal = [],
   recentPortrait = null,
   isContinuation = false,
-  continuationNPC = null
+  continuationNPC = null,
+  weather = null, // PHASE 1: Weather state for narrative integration
+  options = {} // NEW: Options for special request types (e.g., list requests)
 }) {
   try {
     // Load scenario
@@ -568,20 +677,61 @@ export async function generateNarrative({
         vendor_offer: { tone: 'businesslike, impatient, transactional', items: 'cochineal dye (12r), textiles, pottery, spices, tools', vary: 'urgency, quality claims' },
         service_offer: { tone: 'cheerful, direct, salesmanlike', items: 'aqueduct water (3 reales), river water (2r), firewood (oak/pine, 4r), charcoal (6r)', vary: 'quality claims, source, urgency' },
         donation_request: { tone: ' humble, specific', items: 'bread (1r), tortillas, medicine, coins (2-3r)', vary: 'family situation, desperation level' },
-        competitive_check: { tone: 'calculating, businesslike, subtly condescending', items: 'lowball offers (50-70% value), quality criticism, price scouting', vary: 'politeness, directness' },
+        competitive_check: { tone: 'calculating, subtly competitive, friendly facade', items: 'requests to tour workshop, questions about ingredient sources, inquiries about techniques, general scouting', vary: 'how friendly vs obvious the competitive intent is' },
         information_exchange: { tone: 'coy, street-smart, transactional', items: 'gossip (1-2r), warnings, intel about Inquisitor/officials', vary: 'how much revealed upfront' },
         social_visit: { tone: 'warm but purposeful, concerned, friendly', items: 'warnings, books, herbs, advice', vary: 'urgency of warning' },
         extortion_demand: { tone: 'politely threatening, bureaucratic, matter-of-fact', items: '"voluntary donation" (5-10r), inspection fees, permits', vary: 'explicitness of threat' },
         protection_racket: { tone: 'matter-of-fact, casual threat, businesslike', items: 'monthly protection (5r), one-time payment (10r)', vary: 'how explicit the threat is' },
         entertainment_tip: { tone: 'charming, lighthearted, performative', items: 'songs (1r), stories, guitar music', vary: 'how much performed before asking' },
         food_purchase: { tone: 'cheerful, energetic, persuasive', items: 'fish from Xochimilco (2r), milk (1r), fresh tortillas, tamales', vary: 'freshness claims, time of day' },
-        gamble_opportunity: { tone: 'persuasive, hopeful, slightly desperate', items: 'cathedral lottery (2r/ticket, 200r prize), card games, dice', vary: 'prize amount' },
+        gamble_opportunity: { tone: 'persuasive, friendly, competitive', items: 'dice games (5-10r wager), card games (3-8r), cockfights (8-15r), friendly wagers', vary: 'wager amount, odds fairness, NPC skill level' },
+        investment_offer: { tone: 'businesslike, persuasive, opportunistic, confident', items: 'Church bonds (50r, low risk, 10%), Cacao shares (75r, 25-50%), Real estate (200r, 35-60%), Manila galleon (150r, high risk, 120-200%), Silver mining (100r, very high risk, 70-200%)', vary: 'investment amount, return estimates, urgency, NPC expertise/connection to opportunity' },
         labor_offer: { tone: 'earnest, humble, eager', items: 'work for food/shelter, apprentice position, temporary help', vary: 'skills offered, desperation' },
         neighbor_complaint: { tone: 'judgmental, indignant, self-righteous', items: 'noise complaints, smell complaints, impropriety accusations', vary: 'severity, specific grievance' },
         church_donation: { tone: 'persistent but pious, professional fundraiser', items: 'cathedral repairs, feast day expenses, charity for poor (2-10r)', vary: 'cause, urgency' }
       };
 
       const guidance = interactionGuidance[selectedEntity.simpleInteractionType] || { tone: 'direct', items: 'mundane goods', vary: 'approach' };
+
+      // Add gambling history context if applicable
+      let historyContext = '';
+      if (selectedEntity.simpleInteractionType === 'gamble_opportunity' && gameState?.gamblingHistory?.byNPC) {
+        const npcHistory = gameState.gamblingHistory.byNPC[selectedEntity.name];
+        if (npcHistory) {
+          historyContext += `\n**Gambling History with ${selectedEntity.name}**: ${npcHistory.totalWins}W-${npcHistory.totalLosses}L, net ${npcHistory.netGain >= 0 ? '+' : ''}${npcHistory.netGain}r. `;
+          if (npcHistory.totalWins > npcHistory.totalLosses) {
+            historyContext += `NPC is wary (Maria wins too often). May offer worse odds or be reluctant.`;
+          } else if (npcHistory.totalLosses > npcHistory.totalWins * 2) {
+            historyContext += `NPC sees Maria as easy money. May be eager, offer bigger wagers.`;
+          }
+        }
+        const currentStreak = gameState.gamblingHistory.currentStreak;
+        if (currentStreak && currentStreak.count >= 3) {
+          historyContext += `\n**Current ${currentStreak.count}-game ${currentStreak.type} streak!** Other gamblers are taking notice.`;
+        }
+      }
+
+      // Add extortion history context if applicable
+      if (selectedEntity.simpleInteractionType === 'extortion_demand' && gameState?.extortionHistory?.byNPC) {
+        const npcHistory = gameState.extortionHistory.byNPC[selectedEntity.name];
+        if (npcHistory) {
+          historyContext += `\n**Extortion History with ${selectedEntity.name}**: `;
+          if (npcHistory.timesPaid > 0) {
+            historyContext += `Paid ${npcHistory.timesPaid}x (last: ${npcHistory.lastAmount}r). `;
+            if (npcHistory.timesPaid > 1) {
+              historyContext += `⚠️ ESCALATE: They expect regular payments now. Demand ${Math.floor(npcHistory.lastAmount * 1.3)}+ reales this time.`;
+            } else {
+              historyContext += `They remember Maria complied. May return for more.`;
+            }
+          }
+          if (npcHistory.timesRefused > 0) {
+            historyContext += `Refused ${npcHistory.timesRefused}x. ⚠️ NPC is ANGRY. Escalate threat level (veiled→direct, direct→violent). Higher demands.`;
+          }
+          if (npcHistory.timesReported > 0) {
+            historyContext += `Reported to authorities ${npcHistory.timesReported}x. NPC is FURIOUS. This is personal now.`;
+          }
+        }
+      }
 
       simpleInteractionContext = `
 **SIMPLE INTERACTION MODE:**
@@ -590,13 +740,29 @@ Type: ${selectedEntity.simpleInteractionType}
 **Approach**: ${guidance.tone}
 **Typical items/offers**: ${guidance.items}
 **Vary this encounter**: ${guidance.vary}, demographics, exact dialogue
+${historyContext}
 
-**Rules**: BRIEF (50 words), direct offer/request, NO medical consultations, NO lengthy backstories
-**Format**: One physical action + one line of dialogue (or vice versa)
+**Rules**:
+- BRIEF (50 words max), direct offer/request, NO medical consultations, NO lengthy backstories
+- MUST mention the NPC in the narrative text BEFORE populating simpleInteraction JSON
+- Format: One physical action + one line of dialogue IN THE NARRATIVE TEXT
 
-**Examples of variation:**
-✓ "A water seller stops. 'Aqueduct water, 3 reales!'"
-✗ "Pedro explains his wife's symptoms in detail..." (TOO MEDICAL—WRONG TYPE)
+**CRITICAL - Two-Part Requirement:**
+1. **Narrative Text**: Describe the NPC arriving/calling out + their opening line
+2. **JSON Field**: Populate simpleInteraction with structured data
+
+**Examples of CORRECT format:**
+✓ Narrative: "A loud voice calls from outside. 'Fresh fish from Xochimilco!' Carmen the fish seller grins at you."
+   JSON: {simpleInteraction: {type: "vendor_offer", npcName: "Carmen the Fish Seller"...}}
+
+✓ Narrative: "An old woman approaches. 'Please, Señora, a few coins for bread?' She holds out a trembling hand."
+   JSON: {simpleInteraction: {type: "donation_request", npcName: "Elderly Beggar Woman"...}}
+
+**Examples of WRONG format:**
+✗ Narrative: [ends with previous NPC leaving, no mention of new person]
+   JSON: {simpleInteraction: {type: "vendor_offer"...}} ← WRONG! NPC not introduced!
+
+**If you populate simpleInteraction JSON, you MUST introduce the NPC in the narrative text first. No exceptions.**
 
 Generate a BRIEF, VARIED encounter. Don't reuse exact dialogue from previous turns.
 `;
@@ -604,6 +770,9 @@ Generate a BRIEF, VARIED encounter. Don't reuse exact dialogue from previous tur
 
     // Build reputation context
     const reputationContext = buildReputationContext(reputation, selectedEntity);
+
+    // Build weather context
+    const weatherContext = buildWeatherContext(weather, gameState);
 
     // Build skills context
     const skillsContext = playerSkills ? buildSkillsContext(playerSkills) : '';
@@ -635,25 +804,31 @@ DO:
 **No NPC Present:**
 Previous NPCs have departed. Do NOT continue their scenes. Set primaryNPC/primaryPortrait to null.
 
-**Waiting/Passive Actions:**
-- If player waits for SPECIFIC expected thing ("wait for escort", "await patient"): Fulfill that expectation
-- If player observes passively ("not much", "look around", "watch"): Pure description, no new events, no questions
-- If vague waiting ("rest", "wait"): Introduce new event
+**Waiting/Passive Actions & Time Passage:**
+- **Waiting for specific events with stated duration** ("wait for Mateo", "wait for the escort"):
+  * Check recent conversation history for stated time ("return in 30 minutes", "back in an hour")
+  * Advance time to MATCH that duration (e.g., if they said "30 minutes", advance ~30 minutes)
+  * Show the expected event occurring (person returns, task completes)
+  * Example: Maria sent Mateo on errand "return in 30 minutes" → Player says "wait" → Advance 30-35 minutes and show Mateo returning
+- **Passive observation** ("not much", "look around", "watch"): Pure description, minimal time (1-5 minutes), no new events
+- **Vague waiting** ("rest", "wait" with no context): Brief time passage (10-15 minutes), introduce new event
 `;
     }
 
     // EXPERIMENTAL: Portrait list for LLM to choose from (A/B testing vs demographic matching)
+    // Feature flag controlled to save ~280 tokens when disabled
     let experimentalPortraitSection = '';
-    try {
-      if (selectedEntity && !isContinuation) {
-        // Filter portraits based on selected entity
-        const portraitList = getFilteredPortraitList({
-          gender: selectedEntity.gender,
-          occupation: selectedEntity.occupation || selectedEntity.archetype,
-          limit: 35  // Token-efficient: ~280 tokens for 35 portraits
-        });
+    if (isFeatureEnabled('experimentalPortraitSelection')) {
+      try {
+        if (selectedEntity && !isContinuation) {
+          // Filter portraits based on selected entity
+          const portraitList = getFilteredPortraitList({
+            gender: selectedEntity.gender,
+            occupation: selectedEntity.occupation || selectedEntity.archetype,
+            limit: 35  // Token-efficient: ~280 tokens for 35 portraits
+          });
 
-        experimentalPortraitSection = `
+          experimentalPortraitSection = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🧪 EXPERIMENTAL PORTRAIT SELECTION (A/B Testing)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -693,12 +868,22 @@ This will NOT affect the game - it's for testing.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `;
       }
-    } catch (error) {
-      console.warn('[NarrativeAgent] ⚠️ Failed to generate experimental portrait list:', error);
+      } catch (error) {
+        console.warn('[NarrativeAgent] ⚠️ Failed to generate experimental portrait list:', error);
+      }
     }
 
     // Build conversation history (5 full turns + 10 journal entries)
     const recentHistory = buildConversationHistory(conversationHistory, journal, turnNumber);
+
+    // Build location NPC context (shows who is present at hard-coded locations)
+    const locationNPCContext = gameState.currentLocationNPCs && gameState.currentLocationNPCs.length > 0
+      ? buildNPCContext(gameState.currentLocationNPCs, gameState.location)
+      : '';
+
+    if (locationNPCContext) {
+      console.log('[NarrativeAgent] Location NPC context added for:', gameState.location);
+    }
 
     const userPrompt = `Context:
 ${contextSummary}
@@ -706,11 +891,14 @@ ${contextSummary}
 Recent Conversation:
 ${recentHistory}
 
+${locationNPCContext ? `\n${locationNPCContext}\n` : ''}
 ${entityContext ? `\n${entityContext}\n` : ''}
 ${simpleInteractionContext ? `\n${simpleInteractionContext}\n` : ''}
 ${continuationContext}
 ${noEncounterContext}
 ${reputationContext}
+
+${weatherContext ? `\n${weatherContext}\n` : ''}
 
 ${skillsContext ? `\n${skillsContext}\n` : ''}
 
@@ -722,9 +910,28 @@ Turn: ${turnNumber + 1}
 
 Generate narrative response. Remember: JSON format, concise, historically accurate, vivid details.`;
 
+    // Handle list requests (special mode for generating reference tables)
+    let finalSystemPrompt = narrativePrompt;
+    let finalUserPrompt = userPrompt;
+
+    if (options.isListRequest && options.listSystemPrompt) {
+      console.log('[NarrativeAgent] List request detected - using custom prompt for list type:', options.listType);
+
+      // For list requests, we override the system prompt entirely
+      // The list prompt contains specific table format instructions
+      finalSystemPrompt = options.listSystemPrompt;
+
+      // Simplified user prompt for lists - just the action and minimal context
+      finalUserPrompt = `Location: ${gameState.location || 'unknown'}
+Time: ${gameState.time || 'unknown'}
+Date: ${gameState.date || 'unknown'}
+
+${playerAction}`;
+    }
+
     const messages = [
-      { role: 'system', content: narrativePrompt },
-      { role: 'user', content: userPrompt }
+      { role: 'system', content: finalSystemPrompt },
+      { role: 'user', content: finalUserPrompt }
     ];
 
     // Log prompt token estimates (rough estimate: 1 token ≈ 4 chars)
@@ -737,15 +944,31 @@ Generate narrative response. Remember: JSON format, concise, historically accura
       total: totalPromptTokens
     });
 
+    // For list requests, we don't want JSON mode - we want plain text with markdown table
+    const responseFormat = options.isListRequest ? undefined : { type: 'json_object' };
+
     const response = await createChatCompletion(
       messages,
       0.7, // Higher temperature for more creative narrative
       1200,
-      { type: 'json_object' },
+      responseFormat,
       { agent: 'NarrativeAgent', turnNumber } // Metadata for LLM transparency view
     );
 
     const rawResponse = response.choices[0].message.content;
+
+    // Handle list requests differently - return raw text with table
+    if (options.isListRequest) {
+      console.log('[NarrativeAgent] List request completed, returning raw table');
+      return {
+        success: true,
+        narrative: rawResponse.trim(),
+        primaryPortrait: null,
+        primaryNPC: null,
+        requestNewPatient: false,
+        showPortraitFor: 'player'
+      };
+    }
 
     // Clean markdown-wrapped JSON (LLM sometimes returns ```json ... ```)
     const cleanedResponse = rawResponse

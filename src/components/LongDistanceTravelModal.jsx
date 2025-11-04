@@ -392,8 +392,8 @@ export function LongDistanceTravelModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[12000] bg-slate-900/75 backdrop-blur-sm flex items-center justify-center px-4 py-6">
-      <div className="relative w-full max-w-5xl bg-parchment-50 dark:bg-slate-950 border border-emerald-800/40 dark:border-sky-400/30 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-[12000] flex items-center justify-center px-4 py-6">
+      <div className="relative w-full max-w-5xl bg-parchment-50/90 dark:bg-slate-950/90 backdrop-blur-xl border border-emerald-800/40 dark:border-sky-400/30 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-emerald-800/10 dark:border-sky-400/20">
           <div className="flex items-center gap-3">
@@ -419,7 +419,7 @@ export function LongDistanceTravelModal({
         </div>
 
         {/* Tab controls */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-emerald-800/10 dark:border-sky-400/20 bg-white/60 dark:bg-slate-900/40">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-emerald-800/10 dark:border-sky-400/20 bg-white/40 dark:bg-slate-900/30">
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('list')}
@@ -517,7 +517,7 @@ export function LongDistanceTravelModal({
                     </div>
 
                     {travelPlan && (
-                      <div className="space-y-3 bg-white/80 dark:bg-slate-900/70 border border-emerald-600/20 dark:border-sky-400/20 rounded-xl px-4 py-3">
+                      <div className="space-y-3 bg-white/60 dark:bg-slate-900/50 border border-emerald-600/20 dark:border-sky-400/20 rounded-xl px-4 py-3">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-ink-500 dark:text-slate-400">Estimated duration</span>
                           <span className="font-semibold text-ink-900 dark:text-parchment-50">
@@ -547,7 +547,7 @@ export function LongDistanceTravelModal({
                         rows={3}
                         value={customNote}
                         onChange={(e) => setCustomNote(e.target.value)}
-                        className="w-full rounded-xl border border-emerald-600/20 dark:border-sky-400/20 bg-white/80 dark:bg-slate-900/70 text-sm text-ink-900 dark:text-parchment-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:focus:ring-sky-400/60"
+                        className="w-full rounded-xl border border-emerald-600/20 dark:border-sky-400/20 bg-white/60 dark:bg-slate-900/50 text-sm text-ink-900 dark:text-parchment-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/60 dark:focus:ring-sky-400/60"
                         placeholder="Barter tinctures, request an escort, arrange storage for cargo, etc."
                       />
                     </div>
@@ -560,7 +560,7 @@ export function LongDistanceTravelModal({
               </div>
             </div>
           ) : (
-            <div className="relative h-full bg-white/70 dark:bg-slate-900/70">
+            <div className="relative h-full bg-white/30 dark:bg-slate-900/30">
               <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
                 <button
                   onClick={zoomIn}
@@ -648,7 +648,7 @@ export function LongDistanceTravelModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-emerald-800/10 dark:border-sky-400/20 bg-white/70 dark:bg-slate-900/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="px-6 py-4 border-t border-emerald-800/10 dark:border-sky-400/20 bg-white/40 dark:bg-slate-900/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="text-xs text-ink-500 dark:text-slate-400 flex items-center gap-2">
             <FiNavigation className="text-emerald-600 dark:text-sky-300" />
             Journeys advance time and may incur additional narrative costs. The State Agent will adjudicate feasibility.

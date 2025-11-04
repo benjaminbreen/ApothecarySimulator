@@ -863,16 +863,36 @@ Compounding Method: ${selectedMethod}
             onClick={() => setCompoundResult(null)}
           >
             <div
-              className="bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-none sm:rounded-2xl shadow-2xl max-w-full sm:max-w-3xl w-full h-screen sm:max-h-[90vh] overflow-hidden border-4 border-double border-amber-700/50 dark:border-amber-500/30 animate-slideUp"
+              className="bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-none sm:rounded-2xl shadow-2xl max-w-full sm:max-w-3xl w-full overflow-hidden border-4 border-double border-amber-700/50 dark:border-amber-500/30 animate-slideUp flex flex-col"
+              style={{ maxHeight: '85vh' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <CompoundResultCard compound={compoundResult} />
+              {/* Scrollable content area */}
+              <div className="flex-1 overflow-hidden">
+                <CompoundResultCard compound={compoundResult} onClose={() => setCompoundResult(null)} />
+              </div>
 
-              {/* Continue Button */}
-              <div className="px-8 pb-6 flex justify-center">
+              {/* Continue Button - Fixed at bottom */}
+              <div
+                className="flex-shrink-0 px-6 py-3 border-t flex justify-center"
+                style={{
+                  background: isDark
+                    ? 'linear-gradient(to bottom, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.4))'
+                    : 'linear-gradient(to bottom, rgba(245, 238, 223, 0.5), rgba(250, 248, 243, 0.3))',
+                  borderColor: isDark
+                    ? 'rgba(251, 191, 36, 0.15)'
+                    : 'rgba(139, 92, 46, 0.15)'
+                }}
+              >
                 <button
                   onClick={() => setCompoundResult(null)}
-                  className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 dark:from-emerald-500 dark:to-emerald-600 dark:hover:from-emerald-600 dark:hover:to-emerald-700 text-white rounded-xl font-sans text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95"
+                  className="px-8 py-2.5 rounded-lg font-sans text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-95"
+                  style={{
+                    background: isDark
+                      ? 'linear-gradient(to right, #10b981, #059669)'
+                      : 'linear-gradient(to right, #059669, #047857)',
+                    color: '#ffffff'
+                  }}
                 >
                   Continue
                 </button>

@@ -15,10 +15,13 @@ import PortraitTestPanel from './PortraitTestPanel';
 import ProfessionTestPanel from './ProfessionTestPanel';
 import TestRunner from './TestRunner';
 import SimpleInteractionTestPanel from './SimpleInteractionTestPanel';
+import WeatherBackground from './WeatherBackground';
+import HorizonLine from './HorizonLine';
+import TimeAwareBackground from './TimeAwareBackground';
 
 const GAME_VERSION = '0.1.0';
 
-export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState, setGameState, health: propsHealth, energy: propsEnergy, onLoadTestPatient, onLoadPrescriptionTest }) {
+export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState, setGameState, health: propsHealth, energy: propsEnergy, weatherBackgroundEnabled, setWeatherBackgroundEnabled, onLoadTestPatient, onLoadPrescriptionTest }) {
   const [activeSection, setActiveSection] = useState('game');
   const [textSize, setTextSize] = useState('medium');
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
@@ -119,8 +122,59 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
               </p>
             </div>
 
-            {/* Dark Mode Toggle */}
-            <div className="flex items-center gap-2 sm:gap-3 mr-2 sm:mr-4">
+            {/* Weather Background Toggle & Dark Mode Toggle */}
+            <div className="flex items-center gap-3 sm:gap-4 mr-2 sm:mr-4">
+              {/* Weather Background Toggle */}
+              <div className="flex items-center gap-2">
+                <span
+                  className="hidden sm:inline-block text-xs font-medium transition-colors select-none"
+                  style={{
+                    fontFamily: "'Inter', sans-serif",
+                    color: isDarkMode ? '#fbbf24' : '#8b7a6a',
+                    letterSpacing: '0.02em'
+                  }}
+                >
+                  {weatherBackgroundEnabled ? '🌤️ Weather' : '📜 Classic'}
+                </span>
+                <button
+                  onClick={() => setWeatherBackgroundEnabled(!weatherBackgroundEnabled)}
+                  className="relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2"
+                  style={{
+                    background: weatherBackgroundEnabled
+                      ? (isDarkMode
+                        ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+                        : 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)')
+                      : (isDarkMode
+                        ? 'linear-gradient(135deg, #78716c 0%, #57534e 100%)'
+                        : 'linear-gradient(135deg, #d4c5b0 0%, #c4b5a0 100%)'),
+                    border: '2px solid rgba(139, 92, 46, 0.2)',
+                    boxShadow: weatherBackgroundEnabled
+                      ? (isDarkMode
+                        ? '0 2px 8px rgba(59, 130, 246, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.1)'
+                        : '0 2px 8px rgba(96, 165, 250, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.5)')
+                      : (isDarkMode
+                        ? '0 2px 8px rgba(0, 0, 0, 0.3)'
+                        : '0 2px 8px rgba(92, 74, 58, 0.2)'),
+                    focusRingColor: isDarkMode ? '#3b82f6' : '#60a5fa'
+                  }}
+                  aria-label="Toggle weather background"
+                  title={weatherBackgroundEnabled ? 'Disable Weather Background' : 'Enable Weather Background'}
+                >
+                  {/* Toggle Circle */}
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full transition-all duration-300 ease-in-out ${
+                      weatherBackgroundEnabled ? 'translate-x-6' : 'translate-x-0.5'
+                    }`}
+                    style={{
+                      background: 'white',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3)'
+                    }}
+                  />
+                </button>
+              </div>
+
+              {/* Dark Mode Toggle */}
+              <div className="flex items-center gap-2">
               <span
                 className="hidden sm:inline-block text-xs font-medium transition-colors select-none"
                 style={{
@@ -189,6 +243,7 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
                   </span>
                 </span>
               </button>
+              </div>
             </div>
 
             {/* Close Button */}
@@ -797,6 +852,13 @@ function CommandsSection() {
 }
 
 function DevSection({ onLoadTestPatient, onClose, gameState, setGameState, onLoadPrescriptionTest }) {
+  // Background/Environment testing state
+  const [testTime, setTestTime] = useState('10:00 AM');
+  const [testDate, setTestDate] = useState('August 22, 1680');
+  const [testSeason, setTestSeason] = useState('summer');
+  const [testHorizonType, setTestHorizonType] = useState('mountains-city');
+  const [testWeatherType, setTestWeatherType] = useState('clear');
+
   const handleLoadTestPatient = () => {
     const testPatient = {
       name: 'Don Vicente de Soto',
@@ -1078,6 +1140,197 @@ function DevSection({ onLoadTestPatient, onClose, gameState, setGameState, onLoa
           <span style={{ color: '#7c3aed', fontWeight: 600 }}>⚠️ These tests make real LLM calls and will take 1-2 minutes to complete.</span>
         </p>
         <SimpleInteractionTestPanel gameState={gameState} />
+      </SettingCard>
+
+      <SettingCard title="🌅 Background & Environment Testing">
+        <p className="text-sm mb-4" style={{
+          fontFamily: "'Inter', sans-serif",
+          color: '#5c4a3a',
+          lineHeight: '1.6'
+        }}>
+          <strong>Test the weather, time-of-day, and horizon systems.</strong> Scrub through different times, dates, weather conditions, and horizon types to see how the background rendering looks.
+        </p>
+
+        {/* Time of Day Control */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold mb-2" style={{
+            fontFamily: "'Inter', sans-serif",
+            color: '#3d2f24'
+          }}>
+            Time of Day
+          </label>
+          <select
+            value={testTime}
+            onChange={(e) => setTestTime(e.target.value)}
+            className="w-full px-3 py-2 rounded border"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.875rem',
+              borderColor: '#d4c5b0',
+              background: '#fefaf5'
+            }}
+          >
+            <option value="12:00 AM">Midnight (12:00 AM)</option>
+            <option value="3:00 AM">Night (3:00 AM)</option>
+            <option value="5:00 AM">Pre-Dawn (5:00 AM)</option>
+            <option value="6:00 AM">Dawn (6:00 AM)</option>
+            <option value="7:00 AM">Early Morning (7:00 AM)</option>
+            <option value="9:00 AM">Morning (9:00 AM)</option>
+            <option value="12:00 PM">Midday (12:00 PM)</option>
+            <option value="3:00 PM">Afternoon (3:00 PM)</option>
+            <option value="6:00 PM">Dusk (6:00 PM)</option>
+            <option value="7:30 PM">Twilight (7:30 PM)</option>
+            <option value="9:00 PM">Evening (9:00 PM)</option>
+          </select>
+        </div>
+
+        {/* Season/Date Control */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold mb-2" style={{
+            fontFamily: "'Inter', sans-serif",
+            color: '#3d2f24'
+          }}>
+            Season / Date
+          </label>
+          <select
+            value={testSeason}
+            onChange={(e) => {
+              setTestSeason(e.target.value);
+              // Update testDate based on season
+              const seasonDates = {
+                winter: 'December 21, 1680',
+                spring: 'March 21, 1680',
+                summer: 'June 21, 1680',
+                fall: 'September 21, 1680'
+              };
+              setTestDate(seasonDates[e.target.value]);
+            }}
+            className="w-full px-3 py-2 rounded border"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.875rem',
+              borderColor: '#d4c5b0',
+              background: '#fefaf5'
+            }}
+          >
+            <option value="winter">Winter (December 21)</option>
+            <option value="spring">Spring (March 21)</option>
+            <option value="summer">Summer (June 21)</option>
+            <option value="fall">Fall (September 21)</option>
+          </select>
+        </div>
+
+        {/* Weather Type Control */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold mb-2" style={{
+            fontFamily: "'Inter', sans-serif",
+            color: '#3d2f24'
+          }}>
+            Weather Conditions
+          </label>
+          <select
+            value={testWeatherType}
+            onChange={(e) => setTestWeatherType(e.target.value)}
+            className="w-full px-3 py-2 rounded border"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.875rem',
+              borderColor: '#d4c5b0',
+              background: '#fefaf5'
+            }}
+          >
+            <option value="clear">Clear</option>
+            <option value="partly-cloudy">Partly Cloudy</option>
+            <option value="overcast">Overcast</option>
+            <option value="light-rain">Light Rain</option>
+            <option value="rain">Rain</option>
+            <option value="heavy-rain">Heavy Rain</option>
+            <option value="thunderstorm">Thunderstorm</option>
+            <option value="fog">Fog</option>
+            <option value="mist">Mist</option>
+            <option value="snow">Snow (if cold)</option>
+          </select>
+        </div>
+
+        {/* Horizon Type Control */}
+        <div className="mb-4">
+          <label className="block text-sm font-semibold mb-2" style={{
+            fontFamily: "'Inter', sans-serif",
+            color: '#3d2f24'
+          }}>
+            Horizon Type
+          </label>
+          <select
+            value={testHorizonType}
+            onChange={(e) => setTestHorizonType(e.target.value)}
+            className="w-full px-3 py-2 rounded border"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.875rem',
+              borderColor: '#d4c5b0',
+              background: '#fefaf5'
+            }}
+          >
+            <option value="mountains-city">Mexico City (Mountains + Buildings)</option>
+            <option value="mountains">Mountains Only</option>
+            <option value="city">City Buildings Only</option>
+            <option value="desert">Desert Landscape</option>
+            <option value="forest">Forest</option>
+          </select>
+        </div>
+
+        {/* Preview Area */}
+        <div className="mt-6 rounded-lg border-2 overflow-hidden" style={{
+          borderColor: '#d4c5b0',
+          background: '#f5f0e8'
+        }}>
+          <div className="px-4 pt-3 pb-2 text-sm font-semibold" style={{
+            fontFamily: "'Inter', sans-serif",
+            color: '#3d2f24',
+            background: '#f5f0e8'
+          }}>
+            Live Background Preview
+          </div>
+          <div className="relative" style={{
+            height: '400px',
+            background: '#87CEEB'
+          }}>
+            {/* Live weather background rendering */}
+            <WeatherBackground
+              gameTime={testTime}
+              gameDate={testDate}
+              location="Botica de la Amargura"
+              viewMode="standard"
+              testWeatherOverride={testWeatherType}
+              testHorizonOverride={testHorizonType}
+            />
+
+            {/* Info overlay */}
+            <div className="absolute top-2 left-2 bg-black bg-opacity-50 text-white px-3 py-2 rounded text-xs" style={{
+              fontFamily: "'Inter', sans-serif",
+              pointerEvents: 'none'
+            }}>
+              <div><strong>Time:</strong> {testTime}</div>
+              <div><strong>Date:</strong> {testDate}</div>
+              <div><strong>Season:</strong> {testSeason}</div>
+              <div><strong>Weather:</strong> {testWeatherType}</div>
+              <div><strong>Horizon:</strong> {testHorizonType}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 p-3 rounded" style={{
+          background: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid rgba(59, 130, 246, 0.2)'
+        }}>
+          <p className="text-xs" style={{
+            fontFamily: "'Inter', sans-serif",
+            color: '#1e40af',
+            lineHeight: '1.5'
+          }}>
+            💡 <strong>Tip:</strong> Use these controls to verify that clouds, sky gradients, horizon silhouettes, smoke animations, and atmospheric effects render correctly across all times and weather conditions.
+          </p>
+        </div>
       </SettingCard>
     </div>
   );

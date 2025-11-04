@@ -11,6 +11,9 @@ import MixingDecisionCard from '../features/crafting/components/MixingDecisionCa
 import SimpleInteractionCard from './SimpleInteractionCard';
 import RandomEventCard from './RandomEventCard';
 import ExitConfirmationCard from './ExitConfirmationCard';
+import { parseListResponse } from '../utils/narrativeParser';
+import { FaListUl } from 'react-icons/fa';
+import { getListTypeLabel } from '../core/config/listTypes.config';
 
 /**
  * Sound effect definitions - maps trigger keywords to visual effects
@@ -236,6 +239,22 @@ function boldQuotedDialogue(content) {
   return content
     .replace(/"([^"]+)"/g, '**"$1"**')  // Straight quotes
     .replace(/"([^"]+)"/g, '**"$1"**'); // Curly quotes
+}
+
+/**
+ * Convert bracketed system labels to styled HTML
+ * Transforms "[ITEM SOLD]" → <span class="system-label">ITEM SOLD</span>
+ * This makes system labels stand out with custom styling
+ */
+function styleSystemLabels(content) {
+  if (typeof content !== 'string') return content;
+
+  // Match bracketed labels like [ITEM SOLD], [CONTRACT ACCEPTED], etc.
+  // Captures the label text without brackets and wraps in a styled span
+  return content.replace(
+    /\[([A-Z][A-Z\s]+)\]/g,
+    '<span class="system-label">$1</span>'
+  );
 }
 
 /**
@@ -616,6 +635,80 @@ const NarrativeEntry = React.memo(({
     );
   }
 
+  // LIST RESPONSE HANDLING - Special rendering for reference tables
+  const listData = parseListResponse(content);
+  if (listData.isListResponse && !isUser) {
+    const listLabel = getListTypeLabel(listData.listType);
+
+    // Handle validation errors
+    if (!listData.isValid) {
+      return (
+        <div className="narrative-entry-animated" data-entry-index={index}>
+          <div className="flex items-start gap-3">
+            {/* Error icon */}
+            <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900/40 dark:to-red-800/40 border-2 border-red-300 dark:border-red-600/50 flex items-center justify-center shadow-elevation-1 dark:shadow-dark-elevation-1 mt-1">
+              <FaListUl className="w-5 h-5 text-red-700 dark:text-red-400" />
+            </div>
+
+            {/* Error content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <FaListUl className="w-4 h-4 text-red-600 dark:text-red-500" />
+                <span className="text-sm font-semibold text-red-700 dark:text-red-400 font-sans">
+                  Error: {listLabel}
+                </span>
+              </div>
+              <div className="bg-gradient-to-br from-red-50 to-white dark:from-red-900/20 dark:to-slate-900/50 rounded-xl p-4 border-2 border-red-300 dark:border-red-600/30 shadow-elevation-1">
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  Unable to generate reference table. {listData.error}
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                  Please try again or choose a different list type.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Valid list response
+    return (
+      <div className="narrative-entry-animated" data-entry-index={index}>
+        <div className="flex items-start gap-3">
+          {/* List icon */}
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/40 dark:to-amber-800/40 border-2 border-amber-300 dark:border-amber-600/50 flex items-center justify-center shadow-elevation-1 dark:shadow-dark-elevation-1 mt-1">
+            <FaListUl className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+          </div>
+
+          {/* List content */}
+          <div className="flex-1 min-w-0">
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-2">
+              
+              <span className="text-sm font-semibold text-amber-700 dark:text-amber-400 font-sans">
+                {listLabel}
+              </span>
+            </div>
+
+            {/* Table container with parchment styling */}
+            <div className="bg-gradient-to-br from-parchment-50 to-white dark:from-slate-800/50 dark:to-slate-900/50 rounded-xl p-4 border-2 border-parchment-300 dark:border-amber-600/30 shadow-elevation-1 overflow-x-auto">
+              <div className="prose prose-sm max-w-none list-response-content">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeRaw]}
+                  className="text-sm text-ink-900 dark:text-parchment-100"
+                >
+                  {listData.content}
+                </ReactMarkdown>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Action result styling (for give/sell/prescribe completions)
   const actionResultStyles = {
     give: {
@@ -665,7 +758,7 @@ const NarrativeEntry = React.memo(({
         {/* Circular icon - hidden for system messages */}
         {!isSystem && (
           <div
-            className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-br from-parchment-100 to-white dark:from-slate-700 dark:to-slate-800 border-2 border-ink-200 dark:border-slate-600 flex items-center justify-center shadow-elevation-1 dark:shadow-dark-elevation-1 mt-1 overflow-hidden transition-colors duration-300 cursor-help"
+            className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-parchment-100 to-white dark:from-slate-700 dark:to-slate-800 border-2 border-ink-200 dark:border-slate-600 flex items-center justify-center shadow-elevation-1 dark:shadow-dark-elevation-1 mt-1 overflow-hidden transition-colors duration-300 cursor-help"
             title={getTooltipText()}
           >
             {getEntryIcon()}
@@ -779,7 +872,7 @@ const NarrativeEntry = React.memo(({
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className="text-[20px] text-ink-800 dark:text-parchment-100 font-sans transition-colors duration-300"
+                      className="text-[20px] text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300"
                     >
                       {content}
                     </ReactMarkdown>
@@ -845,7 +938,7 @@ const NarrativeEntry = React.memo(({
                 components={entityComponents}
                 className="text-lg text-ink-700 dark:text-parchment-300 font-sans leading-relaxed italic transition-colors duration-300"
               >
-                {systemAnnouncement}
+                {styleSystemLabels(systemAnnouncement)}
               </ReactMarkdown>
             </div>
           </div>
@@ -893,6 +986,7 @@ const NarrativeEntry = React.memo(({
               onChoice={(action) => onSimpleInteractionChoice(action, entry.card.data)}
               currentWealth={gameState.wealth || 0}
               inventory={gameState.inventory || []}
+              gameState={gameState}
               isDark={isDarkMode}
             />
           )}
@@ -1399,6 +1493,7 @@ const NarrativePanel = ({
                     onChoice={(action) => onSimpleInteractionChoice(action, pendingSimpleInteraction)}
                     currentWealth={gameState.wealth || 0}
                     inventory={gameState.inventory || []}
+                    gameState={gameState}
                     isDark={isDarkMode}
                   />
                 </div>
@@ -1414,6 +1509,7 @@ const NarrativePanel = ({
                     inventory={gameState.inventory || []}
                     onPropose={onProposeAction}
                     onDecline={onDeclineAction}
+                    onMix={onOpenMixingWorkshop}
                     isDark={isDarkMode}
                   />
                 </div>
@@ -1687,6 +1783,32 @@ const NarrativePanel = ({
           .dark .prose strong {
             color: #d4c5a9;
             font-weight: 600;
+          }
+
+          /* System labels - Bold, non-italic, amber badges */
+          .system-label {
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 0 4px;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+            font-weight: 700;
+            font-style: normal !important;
+            font-size: 0.85em;
+            letter-spacing: 0.05em;
+            border-radius: 4px;
+            border: 1px solid #fbbf24;
+            box-shadow: 0 1px 3px rgba(251, 191, 36, 0.2);
+            text-transform: uppercase;
+            white-space: nowrap;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          }
+
+          .dark .system-label {
+            background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+            color: #fef3c7;
+            border: 1px solid #b45309;
+            box-shadow: 0 1px 3px rgba(180, 83, 9, 0.4);
           }
         `}</style>
       </div>

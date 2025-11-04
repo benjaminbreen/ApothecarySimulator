@@ -18,6 +18,7 @@ export default function ActionPromptCard({
   inventory = [],
   onPropose,
   onDecline,
+  onMix,
   isDark = false
 }) {
   // actionPrompt structure from StateAgent:
@@ -145,6 +146,46 @@ export default function ActionPromptCard({
   const maxAmount = selectedItem
     ? inventory.find(i => i.name.toLowerCase() === selectedItem.name.toLowerCase())?.quantity || 1
     : 1;
+
+  // Check which suggested items are missing from inventory
+  const checkMissingItems = () => {
+    if (!actionPrompt.suggestedItems || actionPrompt.suggestedItems.length === 0) {
+      return { missing: [], available: [] };
+    }
+
+    const missing = [];
+    const available = [];
+
+    actionPrompt.suggestedItems.forEach(itemName => {
+      const itemInInventory = inventory.find(
+        inv => inv.name.toLowerCase() === itemName.toLowerCase()
+      );
+
+      if (!itemInInventory || itemInInventory.quantity === 0) {
+        missing.push(itemName);
+      } else {
+        available.push(itemName);
+      }
+    });
+
+    return { missing, available };
+  };
+
+  const { missing: missingItems, available: availableItems } = checkMissingItems();
+  const hasMissingItems = missingItems.length > 0;
+
+  const handleMixClick = () => {
+    if (onMix) {
+      // Pass the ailmentDescription and other context to the mixing workshop
+      onMix({
+        ailmentDescription: actionPrompt.ailmentDescription || actionPrompt.context,
+        recipientName: actionPrompt.recipientName,
+        npcId: actionPrompt.npcId,
+        suggestedItems: actionPrompt.suggestedItems,
+        missingItems: missingItems
+      });
+    }
+  };
 
   const handlePropose = () => {
     if (!selectedItem) return;
@@ -283,10 +324,26 @@ export default function ActionPromptCard({
           </div>
         )}
 
-        {/* Suggested Items Hint */}
+        {/* Suggested Items Hint with Availability Check */}
         {!selectedItem && actionPrompt.suggestedItems && actionPrompt.suggestedItems.length > 0 && (
-          <div className={`mb-2 ${isPrescribe ? 'text-purple-700 dark:text-purple-100/70' : 'text-white/70'} text-xs italic`}>
-            Suggested: {actionPrompt.suggestedItems.join(', ')}
+          <div className="mb-2 space-y-1">
+            {/* Available items */}
+            {availableItems.length > 0 && (
+              <div className={`${isPrescribe ? 'text-purple-700 dark:text-purple-100/70' : 'text-white/70'} text-xs italic`}>
+                ✓ In stock: {availableItems.join(', ')}
+              </div>
+            )}
+
+            {/* Missing items with suggestion to mix */}
+            {missingItems.length > 0 && (
+              <div className={`${isPrescribe ? 'text-amber-700 dark:text-amber-300' : 'text-yellow-200'} text-xs font-semibold`}>
+                ✗ Not in stock: {missingItems.join(', ')}
+                <br />
+                <span className={`${isPrescribe ? 'text-purple-800 dark:text-purple-200' : 'text-white'} italic`}>
+                  → Consider mixing an alternative remedy
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -401,6 +458,18 @@ export default function ActionPromptCard({
 
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-2 justify-end">
+          {/* Mix a Remedy Button - Always available */}
+          {onMix && (
+            <button
+              onClick={handleMixClick}
+              className={`${secondaryButtonClass} flex items-center gap-1`}
+              title="Open mixing workshop to craft a remedy"
+            >
+              🧪 Mix a Remedy
+            </button>
+          )}
+
+          {/* Primary Action Button */}
           <button
             onClick={handlePropose}
             disabled={!selectedItem || (actionPrompt.type === 'prescribe' && !selectedRoute)}
@@ -410,8 +479,10 @@ export default function ActionPromptCard({
           >
             {actionPrompt.type === 'sell' ? 'Complete Sale' : actionPrompt.type === 'give' ? 'Give Item' : 'Offer Prescription'}
           </button>
+
+          {/* Decline Button */}
           <button
-            onClick={onDecline}
+            onClick={() => onDecline(actionPrompt)}
             className={secondaryButtonClass}
           >
             Decline

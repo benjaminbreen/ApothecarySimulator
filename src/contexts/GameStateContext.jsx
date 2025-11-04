@@ -17,11 +17,12 @@ const GameStateContext = createContext(null);
  * @param {Object} props
  * @param {React.ReactNode} props.children - Child components
  * @param {string} props.scenarioId - Scenario identifier (e.g., '1680-mexico-city')
+ * @param {Object} props.loadedSaveData - Optional loaded save data
  */
-export function GameStateProvider({ children, scenarioId }) {
+export function GameStateProvider({ children, scenarioId, loadedSaveData = null }) {
   // Use the existing useGameState hook to manage state
   // This approach allows us to gradually migrate without rewriting all the state logic
-  const gameStateValue = useGameStateHook(scenarioId);
+  const gameStateValue = useGameStateHook(scenarioId, loadedSaveData);
 
   return (
     <GameStateContext.Provider value={gameStateValue}>

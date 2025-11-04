@@ -38,7 +38,8 @@ export function selectContextAwareEntity(context) {
     npcDepartedLastTurn = false,
     reputation,
     wealth,
-    conversationLock = null
+    conversationLock = null,
+    signJustHung = false // TRIGGER: Force patient spawn when sign just hung
   } = context;
 
   // Query EntityManager for ALL NPCs (static + auto-generated + LLM-created)
@@ -279,6 +280,12 @@ export function selectContextAwareEntity(context) {
     // Filter out recently seen NPCs
     if (recentNPCs.includes(entity.name)) {
       weight *= 0.1; // Much less likely to repeat
+    }
+
+    // SIGN JUST HUNG TRIGGER: Force patient spawn (extremely high weight)
+    if (signJustHung && (entity.entityType || entity.type) === 'patient') {
+      console.log('[EntityAgent] ⚠️ SIGN JUST HUNG - Massively boosting patient weight');
+      weight *= 100.0; // Almost guarantee patient selection
     }
 
     // PATIENT PRIORITY: Patients should be ~50% of encounters

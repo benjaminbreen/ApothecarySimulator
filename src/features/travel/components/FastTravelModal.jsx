@@ -58,7 +58,8 @@ const DESTINATIONS = [
     category: 'local',
     description: 'Your apothecary shop',
     travelTime: 0,
-    energyCost: 0
+    energyCost: 0,
+    mapId: 'botica-interior'
   },
   {
     id: 'la-merced',
@@ -66,7 +67,8 @@ const DESTINATIONS = [
     category: 'local',
     description: 'Bustling marketplace with vendors',
     travelTime: 15, // minutes
-    energyCost: 5
+    energyCost: 5,
+    mapId: 'mercado-interior'
   },
   {
     id: 'plaza-mayor',
@@ -74,7 +76,8 @@ const DESTINATIONS = [
     category: 'local',
     description: 'Central square of Mexico City',
     travelTime: 20,
-    energyCost: 5
+    energyCost: 5,
+    mapId: 'mexico-city-center'
   },
   {
     id: 'alameda',
@@ -82,7 +85,8 @@ const DESTINATIONS = [
     category: 'local',
     description: 'Public garden and promenade',
     travelTime: 25,
-    energyCost: 5
+    energyCost: 5,
+    mapId: 'mexico-city-center'
   },
   {
     id: 'san-hipolito',
@@ -90,7 +94,8 @@ const DESTINATIONS = [
     category: 'local',
     description: 'Hospital for the mentally ill',
     travelTime: 30,
-    energyCost: 5
+    energyCost: 5,
+    mapId: 'mexico-city-center'
   },
   {
     id: 'hospital-real',
@@ -98,7 +103,8 @@ const DESTINATIONS = [
     category: 'local',
     description: 'Indigenous hospital',
     travelTime: 35,
-    energyCost: 10
+    energyCost: 10,
+    mapId: 'mexico-city-center'
   },
   {
     id: 'cathedral',
@@ -106,7 +112,17 @@ const DESTINATIONS = [
     category: 'local',
     description: 'Largest cathedral in the Americas',
     travelTime: 20,
-    energyCost: 5
+    energyCost: 5,
+    mapId: 'mexico-city-center'
+  },
+  {
+    id: 'consulado',
+    name: 'El Consulado de Mercaderes',
+    category: 'local',
+    description: 'Merchants\' Guild Hall and investment center',
+    travelTime: 20,
+    energyCost: 5,
+    mapId: 'consulado-interior'
   },
 
   // VALLEY OF MEXICO (Riding L1)
@@ -315,7 +331,8 @@ export default function FastTravelModal({
     onTravel({
       destination: destination.name,
       travelTime: destination.travelTime,
-      energyCost: destination.energyCost
+      energyCost: destination.energyCost,
+      mapId: destination.mapId // Pass map ID for location change
     });
 
     onClose();

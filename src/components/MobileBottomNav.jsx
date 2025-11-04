@@ -1,6 +1,6 @@
 import React from 'react';
 import { triggerHaptic } from '../utils/haptics';
-import './MobileBottomNav.css';
+
 
 /**
  * Mobile Bottom Navigation Component

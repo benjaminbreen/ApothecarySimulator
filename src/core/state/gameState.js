@@ -83,6 +83,25 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       tradeHistory: {}, // { [npcId]: [transactions...] }
       // Document library - tracks all received documents (letters, codices, maps, etc.)
       documents: [], // [{ name, type, metadata, dateReceived, turnReceived, read }]
+      // Gambling history - tracks all gambling interactions
+      gamblingHistory: {
+        byNPC: {}, // { [npcName]: { totalWins, totalLosses, netGain, lastGameType, lastInteraction } }
+        recentGames: [], // Last 10 games: [{ npcName, gameType, result: 'win'|'lose', amount, turnNumber }]
+        currentStreak: { type: null, count: 0 } // Track win/loss streaks
+      },
+      // Extortion history - tracks all extortion attempts and responses
+      extortionHistory: {
+        byNPC: {}, // { [npcName]: { timesPaid, timesRefused, timesNegotiated, timesReported, lastAmount, lastResponse, lastTurn, threatenerType } }
+        activeProtection: [], // NPCs/patrons providing protection: [{ protectorName, expiresOnTurn }]
+        pendingRetaliation: [] // Scheduled retaliations: [{ npcName, triggerTurn, retaliationType, severity }]
+      },
+      // Pending consequences - events scheduled to trigger in future turns
+      pendingConsequences: [], // [{ type, triggerTurn, data, description }]
+      // Investment system - track active investments and history
+      investments: {
+        active: [], // Active investments: [{ id, typeId, type, emoji, amount, startDate, maturityDate, duration, status, riskLevel }]
+        history: [] // Completed investments: [{ id, typeId, type, amount, payout, profit, returnPercentage, outcome, completedDate }]
+      },
     };
   } catch (error) {
     console.error('Failed to load scenario, using fallback:', error);
@@ -129,13 +148,41 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       tradeHistory: {}, // { [npcId]: [transactions...] }
       // Document library - tracks all received documents (letters, codices, maps, etc.)
       documents: [], // [{ name, type, metadata, dateReceived, turnReceived, read }]
+      // Gambling history - tracks all gambling interactions
+      gamblingHistory: {
+        byNPC: {}, // { [npcName]: { totalWins, totalLosses, netGain, lastGameType, lastInteraction } }
+        recentGames: [], // Last 10 games: [{ npcName, gameType, result: 'win'|'lose', amount, turnNumber }]
+        currentStreak: { type: null, count: 0 } // Track win/loss streaks
+      },
+      // Extortion history - tracks all extortion attempts and responses
+      extortionHistory: {
+        byNPC: {}, // { [npcName]: { timesPaid, timesRefused, timesNegotiated, timesReported, lastAmount, lastResponse, lastTurn, threatenerType } }
+        activeProtection: [], // NPCs/patrons providing protection: [{ protectorName, expiresOnTurn }]
+        pendingRetaliation: [] // Scheduled retaliations: [{ npcName, triggerTurn, retaliationType, severity }]
+      },
+      // Pending consequences - events scheduled to trigger in future turns
+      pendingConsequences: [], // [{ type, triggerTurn, data, description }]
+      // Investment system - track active investments and history
+      investments: {
+        active: [], // Active investments: [{ id, typeId, type, emoji, amount, startDate, maturityDate, duration, status, riskLevel }]
+        history: [] // Completed investments: [{ id, typeId, type, amount, payout, profit, returnPercentage, outcome, completedDate }]
+      },
     };
   }
 };
 
 // Initial game state hook
-export const useGameState = (scenarioId) => {
-  const [gameState, setGameState] = useState(() => initializeGameState(scenarioId));
+export const useGameState = (scenarioId, loadedSaveData = null) => {
+  const [gameState, setGameState] = useState(() => {
+    // If loaded save data exists, use it instead of initializing new game
+    if (loadedSaveData && loadedSaveData.gameState) {
+      console.log('[useGameState] Loading from save data');
+      return loadedSaveData.gameState;
+    }
+
+    console.log('[useGameState] Initializing new game');
+    return initializeGameState(scenarioId);
+  });
 
   const [lastAddedItem, setLastAddedItem] = useState(null);
 
@@ -451,11 +498,78 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
       }
     }
 
+    // Check for matured investments
+    let updatedInvestments = { ...prevState.investments };
+    if (prevState.investments && prevState.investments.active && prevState.investments.active.length > 0) {
+      const activeInvestments = prevState.investments.active || [];
+      const maturedInvestments = [];
+      const stillActiveInvestments = [];
+
+      // Import investment utilities dynamically
+      const { hasMatured } = require('../../../features/commerce/utils/investmentCalculator');
+      const { calculateInvestmentOutcome } = require('../../../features/commerce/utils/investmentCalculator');
+      const { getAllInvestmentTypes } = require('../../../features/commerce/data/investmentTypes');
+
+      activeInvestments.forEach(investment => {
+        if (hasMatured(investment, newDate)) {
+          // Get investment type definition
+          const investmentType = getAllInvestmentTypes().find(t => t.id === investment.typeId);
+
+          if (investmentType) {
+            // Calculate outcome (without async LLM narrative for now)
+            const result = calculateInvestmentOutcome(investment, investmentType, prevState.playerSkills || {}, prevState.reputation || {});
+
+            // Add to wealth
+            newWealth += result.payout;
+
+            // Create history entry
+            const historyEntry = {
+              id: investment.id,
+              typeId: investment.typeId,
+              type: investment.type,
+              amount: investment.amount,
+              payout: result.payout,
+              profit: result.profit,
+              returnPercentage: result.returnPercentage,
+              outcome: result.outcome.label,
+              outcomeDescription: result.outcome.description,
+              completedDate: newDate,
+              startDate: investment.startDate,
+              maturityDate: investment.maturityDate
+            };
+
+            maturedInvestments.push(historyEntry);
+            console.log(`[Investment] Matured: ${investment.type} - ${result.payout} reales (${result.returnPercentage >= 0 ? '+' : ''}${result.returnPercentage}%)`);
+          } else {
+            console.warn(`[Investment] Unknown investment type: ${investment.typeId}`);
+            stillActiveInvestments.push(investment);
+          }
+        } else {
+          stillActiveInvestments.push(investment);
+        }
+      });
+
+      // Update investments state
+      updatedInvestments = {
+        active: stillActiveInvestments,
+        history: [
+          ...(maturedInvestments || []),
+          ...(prevState.investments.history || [])
+        ]
+      };
+
+      // Log summary if any investments matured
+      if (maturedInvestments.length > 0) {
+        console.log(`[Investment] ${maturedInvestments.length} investment(s) matured. New wealth: ${newWealth}`);
+      }
+    }
+
     return {
       ...prevState,
       time: newTime,
       date: newDate,
       wealth: newWealth,
+      investments: updatedInvestments,
     };
   });
 }, []);

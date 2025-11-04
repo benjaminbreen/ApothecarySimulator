@@ -56,6 +56,20 @@ export function checkNPCConditions(npcName, gameState) {
     shopSign = {}
   } = gameState;
 
+  // Helper: Get faction reputation (supports both old and new structures)
+  const getFactionRep = (factionName) => {
+    // New structure: reputation.factions.church
+    if (reputation.factions && reputation.factions[factionName] !== undefined) {
+      return reputation.factions[factionName];
+    }
+    // Old structure: reputation.church (backward compatibility for tests)
+    if (reputation[factionName] !== undefined) {
+      return reputation[factionName];
+    }
+    // Default
+    return 50;
+  };
+
   // Default: NPC is available with normal weight
   let available = true;
   let weight = 1.0;
@@ -91,7 +105,7 @@ export function checkNPCConditions(npcName, gameState) {
 
     case "Inquisitor Fernando":
       // Inquisitor - appears based on low church reputation, not turn number
-      const churchRep = reputation.church || 50;
+      const churchRep = getFactionRep('church');
 
       if (churchRep < 20) {
         // Very low church reputation - high danger
@@ -133,7 +147,7 @@ export function checkNPCConditions(npcName, gameState) {
       if (location && location.toLowerCase().includes('church')) {
         weight = 5;
         reason = "At church location";
-      } else if ((reputation.church || 50) > 70) {
+      } else if (getFactionRep('church') > 70) {
         weight = 2;
         reason = "Good standing with church";
       }
@@ -152,10 +166,10 @@ export function checkNPCConditions(npcName, gameState) {
 
     case "Esteban Velázquez":
       // Muleteer - appears mid-game, more likely if player needs help
-      if (turnNumber < 15) {
+      if (turnNumber < 5) {
         available = false;
         reason = "Too early for muleteer";
-      } else if ((reputation.church || 50) < 35) {
+      } else if (getFactionRep('church') < 35) {
         // Player might need escape route soon
         weight = 3;
         reason = "Player may need transportation assistance";
@@ -179,7 +193,7 @@ export function checkNPCConditions(npcName, gameState) {
       if (turnNumber < 12) {
         available = false;
         reason = "Too early for Tía Makeda";
-      } else if ((reputation.commonFolk || 50) > 60) {
+      } else if (getFactionRep('commonFolk') > 60) {
         weight = 2;
         reason = "Good reputation with common folk";
       }
@@ -220,11 +234,11 @@ export function checkNPCConditions(npcName, gameState) {
       if (hourSocorro < 7 || hourSocorro > 19) {
         available = false;
         reason = "Widow Socorro seeks shelter at night";
-      } else if ((reputation.commonFolk || 50) >= 60) {
+      } else if (getFactionRep('commonFolk') >= 60) {
         // Known to be kind to the poor
         weight = 6;
         reason = "Widow knows Maria is charitable";
-      } else if ((reputation.commonFolk || 50) >= 40) {
+      } else if (getFactionRep('commonFolk') >= 40) {
         weight = 5;
         reason = "Widow has heard Maria might help";
       } else {
@@ -275,11 +289,11 @@ export function checkNPCConditions(npcName, gameState) {
       if (turnNumber < 8) {
         available = false;
         reason = "Too early for nun's friendship";
-      } else if ((reputation.church || 50) < 30) {
+      } else if (getFactionRep('church') < 30) {
         // Trying to warn Maria of danger
         weight = 6;
         reason = "Sister Teresa concerned about Inquisition threat";
-      } else if ((reputation.church || 50) >= 60) {
+      } else if (getFactionRep('church') >= 60) {
         // Friendly social visits
         weight = 5;
         reason = "Sister Teresa friendly visit";
@@ -371,7 +385,7 @@ export function checkNPCConditions(npcName, gameState) {
     case "Don Esteban the Lottery Seller":
       // Lottery ticket seller (fallen merchant)
       const hourEsteban = parseTimeToHour(time);
-      if (hourEsteban < 9 || hourEsteban > 18) {
+      if (hourEsteban < 6 || hourEsteban > 18) {
         available = false;
         reason = "Don Esteban retired for the day";
       } else {
@@ -417,7 +431,7 @@ export function checkNPCConditions(npcName, gameState) {
       if (hourAlonso < 9 || hourAlonso > 17) {
         available = false;
         reason = "Padre Alonso at cathedral for prayers";
-      } else if ((reputation.church || 50) < 40) {
+      } else if (getFactionRep('church') < 40) {
         // More pressure if church reputation is low
         weight = 6;
         reason = "Padre Alonso pressing for donations";

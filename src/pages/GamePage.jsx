@@ -20,6 +20,7 @@ import { ToastProvider, useToast } from '../components/ToastNotification';
 import Tooltip from '../components/Tooltip';
 import { NarrativeLoading } from '../components/LoadingSkeleton';
 import SettingsModal from '../components/SettingsModal_V3';
+import HelpModal from '../components/HelpModal';
 import ItemActionPopup from '../components/ItemActionPopup';
 import LevelUpNotification from '../components/LevelUpNotification';
 import ProfessionChoiceModal from '../components/ProfessionChoiceModal';
@@ -28,6 +29,7 @@ import ContractOfferModal from '../components/ContractOfferModal';
 import ItemConsumptionModal from '../components/ItemConsumptionModal';
 import GameOverModal from '../components/GameOverModal';
 import SimpleInteractionCard from '../components/SimpleInteractionCard';
+import WeatherBackground from '../components/WeatherBackground'; // PHASE 3: Weather system
 
 const ACTION_PROMPT_SUPPRESSION_WINDOW = 60 * 1000; // 1 minute cooldown for repeated prescribe prompts
 import RandomEventCard from '../components/RandomEventCard';
@@ -37,6 +39,7 @@ import { PurchaseOfferCard } from '../components/PurchaseOfferCard'; // Purchase
 import LongDistanceTravelModal from '../components/LongDistanceTravelModal';
 import ReadableTextModal from '../components/ReadableTextModal'; // Document modal for letters, codices, etc.
 import PrescriptionOutcomeModal from '../features/medical/components/PrescriptionOutcomeModal'; // Detailed prescription outcome modal
+import SaveLoadModal from '../components/SaveLoadModal'; // Save/Load system
 
 // Feature components
 import { useGameState as useGameStateHook } from '../core/state/gameState'; // Legacy hook (for reference)
@@ -51,6 +54,7 @@ import { useSkills } from '../core/hooks/useSkills'; // Now wrapped by PlayerCon
 import resourceManager from '../systems/ResourceManager';
 import { scenarioLoader } from '../core/services/scenarioLoader';
 import { initializeEventSystem } from '../core/events/randomEventService';
+import { resetWeatherEventTracking } from '../core/events/weatherEventService';
 import { getTransactionManager, TRANSACTION_CATEGORIES } from '../core/systems/transactionManager';
 import { getAllAbilitiesForProfession, getXPMultiplier, getSkillXPMultiplier } from '../core/systems/professionAbilities';
 import { getProfessionIcon, getProfessionName, getPlayerTitle } from '../core/systems/levelingSystem';
@@ -80,6 +84,7 @@ import EntityList from '../EntityList';
 import { parseNarrativeChoices } from '../utils/narrativeParser';
 import { getGridSystem } from '../features/map/services/gridMovementSystem';
 import { getWorldTravelOptions } from '../features/map/services/locationRegistry';
+import { getLocationNPCs } from '../core/services/locationContextService';
 import { getMariaPortrait, getDeterminedPortrait, getPortraitFromStatus } from '../utils/portraitSelector';
 
 const PDFPopup = lazy(() => import('../shared/components/PDFPopup'));
@@ -210,11 +215,48 @@ const GameContent = () => {
     }
   }, [currentMapId, scenario]);
 
-  // Initialize random event system on mount
+  // Populate location NPCs ONCE when map changes (persist across turns)
+  useEffect(() => {
+    if (currentMapId && gameState.time && gameState.date) {
+      const locationNPCs = getLocationNPCs(currentMapId, gameState.time, gameState.date);
+      if (locationNPCs.length > 0) {
+        console.log(`[GamePage] Populating location NPCs for ${currentMapId}: ${locationNPCs.length} NPCs`);
+        setGameState(prev => ({
+          ...prev,
+          currentLocationNPCs: locationNPCs
+        }));
+      } else {
+        // Clear location NPCs for non-hardcoded locations
+        console.log(`[GamePage] No location NPCs defined for ${currentMapId}`);
+        setGameState(prev => ({
+          ...prev,
+          currentLocationNPCs: []
+        }));
+      }
+    }
+  }, [currentMapId]); // ONLY re-run when map changes (NOT on time/date changes)
+
+  // Initialize event systems on mount
   useEffect(() => {
     initializeEventSystem();
-    console.log('[GamePage] Random event system initialized');
+    resetWeatherEventTracking();
+    console.log('[GamePage] Random event and weather event systems initialized');
   }, []); // Run once on mount
+
+  // VIEWPORT: Track location changes for contextual images
+  useEffect(() => {
+    // When location changes, set flag to true
+    setRecentLocationChange(true);
+    console.log('[Viewport] Location changed:', gameState.location);
+
+    // Auto-reset after 5 seconds (viewport images show for a brief period)
+    const timer = setTimeout(() => {
+      setRecentLocationChange(false);
+      console.log('[Viewport] Location change flag reset');
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [gameState.location]);
 
   // NPC position tracking (real-time updates every 100ms)
   const {
@@ -248,6 +290,12 @@ const GameContent = () => {
         type: 'market',
         isFastTravel: true,
         mapId: 'mercado-interior'
+      },
+      {
+        name: 'El Consulado de Mercaderes',
+        type: 'guild hall',
+        isFastTravel: true,
+        mapId: 'consulado-interior'
       }
     ];
 
@@ -322,11 +370,16 @@ const GameContent = () => {
   const setIsGameLogOpen = (value) => value ? openModal('gameLog') : closeModal('gameLog');
   const isSettingsOpen = modals.settings;
   const setIsSettingsOpen = (value) => value ? openModal('settings') : closeModal('settings');
+  const isHelpOpen = modals.help;
+  const setIsHelpOpen = (value) => value ? openModal('help') : closeModal('help');
 
   // Non-modal UI state (kept as useState)
   const [leftSidebarTab, setLeftSidebarTab] = useState('inventory'); // Control left sidebar tab
   const [isCharacterCardCollapsed, setIsCharacterCardCollapsed] = useState(false); // Track CharacterCard collapse state for condensed header stats
   const [mobileTab, setMobileTab] = useState('character');
+
+  // Opening animation state - only plays once on first game load
+  const [hasPlayedOpeningAnimation, setHasPlayedOpeningAnimation] = useState(false);
 
   // Central Panel state
   const [activeTab, setActiveTab] = useState('chronicle');
@@ -346,6 +399,7 @@ const GameContent = () => {
   // NOTE: tradingNPC now from NPCContext
   const [tradeMode, setTradeMode] = useState('market'); // 'market' | 'npc' | 'inventory'
   const [inventoryViewMode, setInventoryViewMode] = useState('shelf'); // 'shelf' | 'list'
+  const [preselectedTradeTab, setPreselectedTradeTab] = useState(null); // Optional tab to preselect (e.g., 'investments')
 
   // Simple interaction system state
   const [pendingSimpleInteraction, setPendingSimpleInteraction] = useState(null);
@@ -361,6 +415,13 @@ const GameContent = () => {
 
   // Phase 3B/4: Travel animation state
   const [travelAnimationState, setTravelAnimationState] = useState(null);
+
+  // House call zoom state (for background zoom effect)
+  const [travelZoomState, setTravelZoomState] = useState({
+    isActive: false,
+    progress: 0,
+    targetX: 50 // Default center
+  });
 
   // Long-distance travel card state
   const [longDistanceCard, setLongDistanceCard] = useState(null);
@@ -382,11 +443,19 @@ const GameContent = () => {
   // Dynamic action chips from narrative parser
   const [dynamicChips, setDynamicChips] = useState(null);
 
+  // VIEWPORT: Track recent location changes for contextual images
+  const [recentLocationChange, setRecentLocationChange] = useState(false);
+
   const closeLongDistanceCard = useCallback(() => {
     setLongDistanceCard(null);
+    // Restore normal UI mode
+    setBackgroundMode('normal');
   }, []);
 
   const openLongDistanceTravelCard = useCallback((trigger = 'manual') => {
+    // Fade UI to show background (immersive mode)
+    setBackgroundMode('travel');
+
     const travelOptions = getWorldTravelOptions({
       scenario,
       currentMapId,
@@ -424,6 +493,17 @@ const GameContent = () => {
   const [narrationDarkMode, setNarrationDarkMode] = useState(false);
   const isNarrationSettingsOpen = modals.narrationSettings;
   const setIsNarrationSettingsOpen = (value) => value ? openModal('narrationSettings') : closeModal('narrationSettings');
+
+  // Weather background toggle (default: true)
+  const [weatherBackgroundEnabled, setWeatherBackgroundEnabled] = useState(() => {
+    const saved = localStorage.getItem('apothecary_weatherBackground');
+    return saved === null ? true : saved === 'true';
+  });
+
+  // Persist weather background preference
+  useEffect(() => {
+    localStorage.setItem('apothecary_weatherBackground', String(weatherBackgroundEnabled));
+  }, [weatherBackgroundEnabled]);
   const isLLMViewOpen = modals.llmView;
   const setIsLLMViewOpen = (value) => value ? openModal('llmView') : closeModal('llmView');
 
@@ -653,6 +733,17 @@ const GameContent = () => {
   const [pendingDocument, setPendingDocument] = useState(null);
   const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
 
+  // Save/Load modal state
+  const [isSaveLoadModalOpen, setIsSaveLoadModalOpen] = useState(false);
+
+  // Background mode state - controls when main UI fades to show background
+  const [backgroundMode, setBackgroundMode] = useState('normal');
+  // Modes: 'normal' (UI visible), 'weather' (weather view), 'travel' (long distance), 'housecall', 'event'
+  const isUIFaded = backgroundMode !== 'normal'; // Computed property for fade state
+
+  const [weatherDescription, setWeatherDescription] = useState('Clear');
+  const [currentWeather, setCurrentWeather] = useState(null); // Full weather state for narrative integration
+
   // Item action popup state (for drag-drop on portraits)
   const [itemActionPopup, setItemActionPopup] = useState({
     isOpen: false,
@@ -683,11 +774,12 @@ const GameContent = () => {
   const [showIncorporatePopup, setShowIncorporatePopup] = useState(false);
 
   // Auto-save transactions to localStorage
-  useEffect(() => {
-    if (transactionManager && scenarioId) {
-      transactionManager.saveToStorage(scenarioId);
-    }
-  }, [gameState.wealth, transactionManager, scenarioId]);
+  // NOTE: Disabled until save system is implemented
+  // useEffect(() => {
+  //   if (transactionManager && scenarioId) {
+  //     transactionManager.saveToStorage(scenarioId);
+  //   }
+  // }, [gameState.wealth, transactionManager, scenarioId]);
 
   // Real-time clock: advance game time by 10 minutes every real-world minute
   useEffect(() => {
@@ -699,6 +791,17 @@ const GameContent = () => {
     // Cleanup interval on unmount
     return () => clearInterval(clockInterval);
   }, [advanceTime]);
+
+  // Opening animation - mark as complete after animation finishes
+  useEffect(() => {
+    if (!hasPlayedOpeningAnimation) {
+      // Total animation time: pause (500ms) + narrative (600ms) + overlapping cascades + buffer
+      const timeout = setTimeout(() => {
+        setHasPlayedOpeningAnimation(true);
+      }, 2800);
+      return () => clearTimeout(timeout);
+    }
+  }, [hasPlayedOpeningAnimation]);
 
   // Auto-switch to Reputation tab when reputation changes
   useEffect(() => {
@@ -753,13 +856,9 @@ const GameContent = () => {
 
       console.log(`[Level Up] ${prevLevelRef.current} → ${playerSkills.level} (+${healthGain} health, +${energyGain} energy)`);
 
-      // Check if reached level 5 and no profession chosen
-      if (playerSkills.level === 5 && !gameState.chosenProfession) {
-        // Show profession choice modal after level-up notification closes
-        setTimeout(() => {
-          setShowProfessionChoiceModal(true);
-        }, 6000); // Wait for level-up notification to auto-dismiss
-      }
+      // NOTE: Profession choice modal NO LONGER auto-opens at level 5
+      // Instead, a glowing "Choose Profession" badge appears in the character card
+      // User must click the badge to open the modal
 
       // Check if a profession ability unlocked at this level (L10/L15/L20/L25)
       if (gameState.chosenProfession) {
@@ -938,6 +1037,8 @@ const GameContent = () => {
     setShowExitConfirmation, // Exit confirmation system
     setTradingNPC, // Trade system
     setTradeMode, // Trade system
+    setInventoryViewMode, // Trade system - inventory view mode
+    setPreselectedTradeTab, // Trade system - tab pre-selection
     setPendingSimpleInteraction, // Simple interaction system
     setPendingRandomEvent, // Random event system
     setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
@@ -952,6 +1053,7 @@ const GameContent = () => {
     openLongDistanceTravelCard,
     triggerGameOver,
     setCrisisState,
+    setBackgroundMode, // Immersive background mode (fade UI for travel/events)
 
     // State values
     isLoading, // CRITICAL FIX: Pass loading state for double-click guard
@@ -982,6 +1084,7 @@ const GameContent = () => {
     playerSkills,
     journal,
     pendingExitData, // Exit confirmation system state
+    currentWeather, // PHASE 1: Weather state for narrative integration
 
     // Callbacks from gameState
     updateInventory,
@@ -991,6 +1094,8 @@ const GameContent = () => {
     addCompoundToInventory,
     refreshInventory,
     toggleShopSign,
+    updateWealth,
+    updateHealth,
     updateEnergy,
     addTradeOpportunity, // Trade system
     removeTradeOpportunity, // Trade system
@@ -1067,6 +1172,7 @@ const GameContent = () => {
     handleForageComplete,
     handleItemDrop,
     handleSubmit,
+    handleListRequest, // List feature handler
     handleQuickAction,
     handleActionClick,
     handleCommandClick,
@@ -1093,6 +1199,8 @@ const GameContent = () => {
   const handleLongDistanceTravelSubmit = useCallback((plan) => {
     if (!plan?.command) return;
     setLongDistanceCard(null);
+    // Restore normal UI mode
+    setBackgroundMode('normal');
     setUserInput(plan.command);
 
     setTimeout(() => {
@@ -1100,6 +1208,20 @@ const GameContent = () => {
       handleSubmit(fakeEvent, plan.command);
     }, 50);
   }, [handleSubmit, setUserInput, setLongDistanceCard]);
+
+  /**
+   * Handle loading a save game
+   * Reloads the page with the saved data
+   */
+  const handleLoadSave = useCallback((saveData) => {
+    console.log('[GamePage] Loading save:', saveData.metadata);
+
+    // Store the save data in sessionStorage so it persists across page reload
+    sessionStorage.setItem('pendingLoadSave', JSON.stringify(saveData));
+
+    // Reload the page to fully reset state
+    window.location.reload();
+  }, []);
 
   // Note: Old addCompoundToInventoryWithSaleTrigger removed - sale proposal system deprecated
 
@@ -1153,6 +1275,36 @@ const GameContent = () => {
       detectNewBooks(historyOutput);
     }
   }, [historyOutput]);
+
+  // Auto-save every 5 turns
+  React.useEffect(() => {
+    const turnNumber = gameState.turnNumber;
+
+    // Auto-save every 5 turns (skip turn 0)
+    if (turnNumber > 0 && turnNumber % 5 === 0) {
+      console.log('[Auto-save] Saving at turn', turnNumber);
+
+      // Use the auto-save function from saveManager
+      const { autoSave } = require('../core/services/saveManager');
+      const { createSaveData } = require('../core/services/saveManager');
+
+      try {
+        const saveData = createSaveData({
+          gameState,
+          playerSkills,
+          conversationHistory,
+          reputation,
+          npcRelationships: {},
+          slotName: `Auto-save Turn ${turnNumber}`
+        });
+
+        autoSave(saveData);
+        toast.success('Auto-saved!', { duration: 2000 });
+      } catch (error) {
+        console.error('[Auto-save] Error:', error);
+      }
+    }
+  }, [gameState.turnNumber, gameState, playerSkills, conversationHistory, reputation, toast]);
 
   // Drag-drop handlers for portraits
   const handleItemDropOnPlayer = (item) => {
@@ -1257,6 +1409,10 @@ const GameContent = () => {
   const handleMainMenu = () => {
     console.log('[GameOver] Returning to main menu');
     window.location.href = '/'; // Navigate to home page
+  };
+
+  const handleWeatherToggle = () => {
+    setBackgroundMode(prev => prev === 'weather' ? 'normal' : 'weather');
   };
 
   const handleItemDropOnNPC = (item, npcData) => {
@@ -1703,15 +1859,27 @@ Be historically accurate, immersive, and concise. Write in third person past ten
     console.log('[GamePage] Travel state update:', travelState);
     if (!travelState || travelState.progress >= 100 || travelState.isAnimating === false) {
       setTravelAnimationState(null);
+      // Deactivate zoom when travel completes
+      setTravelZoomState({ isActive: false, progress: 0, targetX: 50 });
     } else {
       setTravelAnimationState(travelState);
+      // Update zoom state with progress
+      setTravelZoomState({
+        isActive: true,
+        progress: travelState.progress,
+        targetX: pendingHouseCall?.targetLocation || 50
+      });
     }
-  }, []);
+  }, [pendingHouseCall]);
 
   const handleCancelTravel = useCallback(() => {
     console.log('[House Call] User cancelled travel');
     setPendingHouseCall(null);
     setTravelAnimationState(null);
+    // Reset zoom state
+    setTravelZoomState({ isActive: false, progress: 0, targetX: 50 });
+    // Restore normal UI mode
+    setBackgroundMode('normal');
     // Refund payment
     const refundAmount = pendingHouseCall?.paymentAmount || 0;
     if (refundAmount > 0) {
@@ -1720,7 +1888,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
     } else {
       toast.info('House call cancelled.', { duration: 2000 });
     }
-  }, [pendingHouseCall]);
+  }, [pendingHouseCall, setWealth, toast]);
 
   // Purchase offer callbacks
   const handleViewPurchaseItems = useCallback(() => {
@@ -1800,59 +1968,100 @@ Be historically accurate, immersive, and concise. Write in third person past ten
             currentMapId={currentMapId}
           />
         ) : (
-          <div className={`h-screen flex flex-col overflow-hidden bg-gradient-to-br from-parchment-100 via-parchment-50/50 to-parchment-50/80 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 transition-colors duration-500 ${narrationDarkMode ? 'dark' : ''}`}>
+          <div className="relative min-h-screen overflow-hidden">
+            {/* PHASE 3: Weather Background Layer (z-index: -10) */}
+            {weatherBackgroundEnabled ? (
+              <WeatherBackground
+                gameTime={gameState.time}
+                gameDate={gameState.date}
+                location={gameState.location}
+                viewMode="standard"
+                onWeatherChange={(description, weatherState) => {
+                  setWeatherDescription(description);
+                  setCurrentWeather(weatherState); // Store full weather state for narrative agent
+                }}
+                travelZoom={backgroundMode === 'housecall' ? travelZoomState : null}
+                isWeatherViewActive={backgroundMode === 'weather'}
+              />
+            ) : (
+              /* Classic parchment/dark background when weather is disabled */
+              <div className="absolute inset-0 -z-10 transition-colors duration-500" style={{
+                background: narrationDarkMode
+                  ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)'
+                  : 'linear-gradient(135deg, #faf8f3 0%, #f5f1e8 50%, #faf8f3 100%)'
+              }} />
+            )}
 
+            {/* Main UI Content (z-index: auto, glass effects allow weather to show through) */}
+            <div
+              className={`relative z-10 h-screen flex flex-col overflow-hidden bg-gradient-to-br from-parchment-100/70 via-parchment-50/40 to-parchment-50/50 dark:from-slate-950/70 dark:via-slate-900/60 dark:to-slate-950/70 transition-colors duration-500 ${narrationDarkMode ? 'dark' : ''}`}
+              style={{ pointerEvents: isUIFaded ? 'none' : 'auto' }}
+            >
 
-        {/* Header */}
+        {/* Header - Always visible */}
         <Header
+          style={{ pointerEvents: 'auto' }}
           location={gameState.location}
           time={gameState.time}
           date={gameState.date}
-          onSaveGame={handleSaveGame}
+          onSaveGame={() => setIsSaveLoadModalOpen(true)}
           onSettings={() => setIsSettingsOpen(true)}
+          onHelp={() => setIsHelpOpen(true)}
+          weatherDescription={weatherDescription}
+          onWeatherClick={handleWeatherToggle}
+          isWeatherViewActive={backgroundMode === 'weather'}
           showCondensedStats={isCharacterCardCollapsed}
           health={gameState.health}
           energy={gameState.energy}
           wealth={gameState.wealth}
         />
 
-        {/* House Call Active Indicator */}
-        {activePatient && (currentMapId === 'humble-house-interior' || currentMapId === 'middling-house-interior') && (
-          <div style={{
-            position: 'fixed',
-            top: '80px',
-            right: '20px',
-            zIndex: 1000,
-            backgroundColor: '#059669',
-            color: 'white',
-            padding: '12px 20px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            maxWidth: '280px'
-          }}>
-            <div style={{ fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '18px' }}>🏥</span>
-              House Call Active
+        {/* Fading content wrapper - everything below Header */}
+        <div className={`flex-1 flex flex-col overflow-hidden transition-opacity duration-500 ${isUIFaded ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          {/* House Call Active Indicator */}
+          {activePatient && (currentMapId === 'humble-house-interior' || currentMapId === 'middling-house-interior') && (
+            <div style={{
+              position: 'fixed',
+              top: '80px',
+              right: '20px',
+              zIndex: 1000,
+              backgroundColor: '#059669',
+              color: 'white',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              maxWidth: '280px'
+            }}>
+              <div style={{ fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>🏥</span>
+                House Call Active
+              </div>
+              <div style={{ fontSize: '12px', opacity: 0.9 }}>
+                Patient: {activePatient.name}
+              </div>
+              <div style={{ fontSize: '11px', opacity: 0.8 }}>
+                Type "return to botica" when finished
+              </div>
             </div>
-            <div style={{ fontSize: '12px', opacity: 0.9 }}>
-              Patient: {activePatient.name}
-            </div>
-            <div style={{ fontSize: '11px', opacity: 0.8 }}>
-              Type "return to botica" when finished
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-hidden">
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-hidden">
           <div className={`h-full max-w-screen-2xl mx-auto px-4 py-1.5 flex gap-6 transition-all duration-500 ease-in-out ${
             activeTab === 'patient' ? 'gap-6' : 'gap-6'
           }`}>
 
             {/* Left Sidebar - Character Card & Status Panel */}
+            <div
+              style={{
+                opacity: hasPlayedOpeningAnimation ? 1 : 0,
+                transform: hasPlayedOpeningAnimation ? 'none' : 'translateX(-20px)',
+                animation: hasPlayedOpeningAnimation ? 'none' : 'slideInFromLeft 600ms ease-out 900ms forwards'
+              }}
+            >
             <LeftSidebar
               wealth={gameState.wealth}
               status={gameState.status} // Pass status from StateAgent
@@ -1882,6 +2091,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
               onOpenSkillDetail={(skillId) => setDetailSkillId(skillId)}
               onOpenFullInventory={handleOpenFullInventory}
               onItemDropOnPlayer={handleItemDropOnPlayer}
+              onOpenProfessionModal={() => setShowProfessionChoiceModal(true)}
               statusPanelTab={leftSidebarTab}
               onStatusPanelTabChange={setLeftSidebarTab}
               xpGain={xpGain}
@@ -1890,11 +2100,19 @@ Be historically accurate, immersive, and concise. Write in third person past ten
               reputationDelta={reputationChange?.delta || null}
               newlyAddedItemName={lastAddedItem?.name || null}
             />
+            </div>
 
             {/* Center - Central Panel (Tabbed Interface) */}
-            <main className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-500 ease-in-out ${
-              activeTab === 'patient' ? 'mr-0' : ''
-            }`}>
+            <main
+              className={`flex-1 flex flex-col min-w-0 overflow-hidden transition-all duration-500 ease-in-out ${
+                activeTab === 'patient' ? 'mr-0' : ''
+              }`}
+              style={{
+                opacity: hasPlayedOpeningAnimation ? 1 : 0,
+                transform: hasPlayedOpeningAnimation ? 'none' : 'translateY(10px)',
+                animation: hasPlayedOpeningAnimation ? 'none' : 'fadeInUp 600ms ease-out 500ms forwards'
+              }}
+            >
               <CentralPanel
                 activeTab={activeTab}
                 onTabChange={handleTabChange}
@@ -1984,17 +2202,25 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                     dynamicChips={dynamicChips}
                     nearbyLocations={nearbyLocations}
                     onRequestLongDistanceTravel={() => openLongDistanceTravelCard('chip')}
+                    onListRequest={handleListRequest}
                   />
                 </div>
               )}
             </main>
 
             {/* Right Sidebar - Context - Slides out when Patient View is active */}
-            <div className={`transition-all duration-500 ease-in-out ${
-              activeTab === 'patient'
-                ? 'w-0 opacity-0 translate-x-full overflow-hidden pointer-events-none'
-                : 'w-[356px] lg:w-[356px] xl:w-[370px] opacity-100 translate-x-0'
-            }`}>
+            <div
+              className={`transition-all duration-500 ease-in-out ${
+                activeTab === 'patient'
+                  ? 'w-0 opacity-0 translate-x-full overflow-hidden pointer-events-none'
+                  : 'w-[356px] lg:w-[356px] xl:w-[370px] opacity-100 translate-x-0'
+              }`}
+              style={{
+                opacity: hasPlayedOpeningAnimation || activeTab === 'patient' ? undefined : 0,
+                transform: hasPlayedOpeningAnimation || activeTab === 'patient' ? undefined : 'translateX(20px)',
+                animation: hasPlayedOpeningAnimation || activeTab === 'patient' ? 'none' : 'slideInFromRight 600ms ease-out 1200ms forwards'
+              }}
+            >
               <ContextPanel
                 location={gameState.location}
                 locationDetails={gameState.location}
@@ -2032,6 +2258,9 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 activeTab={activeTab} // FIX #4: Tab context for portrait display
                 activePatient={activePatient} // FIX #4: Patient entity for Patient View tab
                 reputationChange={reputationChange} // Reputation change indicator
+                focusedItem={gameState.focusedItem || null} // VIEWPORT: Item player is examining/using
+                gameTime={gameState.time || null} // VIEWPORT: Current game time for time-based scenes
+                recentLocationChange={recentLocationChange} // VIEWPORT: Whether location just changed
                 onLocationChange={(newLocation) => {
                   console.log('Location changed to:', newLocation);
                   updateLocation(newLocation);
@@ -2050,7 +2279,12 @@ Be historically accurate, immersive, and concise. Write in third person past ten
 
           </div>
           </div>
-          </div>
+        </div>
+        {/* End fading content wrapper */}
+
+        </div>
+        {/* End weather background wrapper */}
+        </div>
         )}
         {/* End conditional rendering */}
 
@@ -2077,6 +2311,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           detailSkillId={detailSkillId}
           showPOIModal={showPOIModal}
           isSettingsOpen={isSettingsOpen}
+          isHelpOpen={isHelpOpen}
           isPdfOpen={isPdfOpen}
           showEndGamePopup={showEndGamePopup}
           isEatOpen={isEatOpen}
@@ -2097,6 +2332,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           tradeMode={tradeMode}
           tradingNPC={tradingNPC}
           inventoryViewMode={inventoryViewMode}
+          preselectedTradeTab={preselectedTradeTab}
           selectedPatient={selectedPatient}
           selectedNPC={selectedNPC}
           selectedItem={selectedItem}
@@ -2149,6 +2385,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           setShowPOIModal={setShowPOIModal}
           setSelectedPOIEntity={setSelectedPOIEntity}
           setIsSettingsOpen={setIsSettingsOpen}
+          setIsHelpOpen={setIsHelpOpen}
           closePdfPopup={closePdfPopup}
           setShowEndGamePopup={setShowEndGamePopup}
           setIsEatOpen={setIsEatOpen}
@@ -2184,6 +2421,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           setIsPrescribing={setIsPrescribing}
           setIsInventoryOpen={setIsInventoryOpen}
           setNPCPosition={setNPCPosition}
+          setCurrentMapId={setCurrentMapId}
           npcPositions={npcPositions}
           recentNPCs={filteredNPCPositions}
           handleWealthChange={handleWealthChange}
@@ -2209,6 +2447,10 @@ Be historically accurate, immersive, and concise. Write in third person past ten
 
           // Prescription outcome handlers
           onPrescriptionPending={handlePrescriptionPending}
+
+          // Weather background toggle
+          weatherBackgroundEnabled={weatherBackgroundEnabled}
+          setWeatherBackgroundEnabled={setWeatherBackgroundEnabled}
         />
 
         {/* Level Up Notification */}
@@ -2366,6 +2608,63 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           }}
         />
 
+        {/* Save/Load Modal - manage save slots */}
+        <SaveLoadModal
+          isOpen={isSaveLoadModalOpen}
+          onClose={() => setIsSaveLoadModalOpen(false)}
+          onLoadSave={handleLoadSave}
+          gameState={gameState}
+          playerSkills={playerSkills}
+          conversationHistory={conversationHistory}
+          reputation={reputation}
+          npcRelationships={{}}
+        />
+
+        {/* Opening animation CSS */}
+        <style jsx="true">{`
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
+          }
+
+          @keyframes fadeInUp {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          @keyframes slideInFromLeft {
+            from {
+              opacity: 0;
+              transform: translateX(-20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0);
+            }
+          }
+
+          @keyframes slideInFromRight {
+            from {
+              opacity: 0;
+              transform: translateX(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0);
+            }
+          }
+        `}</style>
+
       </DndProvider>
   );
 };
@@ -2381,8 +2680,25 @@ function GamePageWithProvider() {
   const scenario = scenarioLoader.getScenario(scenarioId || '1680-mexico-city');
   const characterData = scenario?.character;
 
+  // Check if there's a pending load save in sessionStorage
+  const pendingLoadSaveJSON = sessionStorage.getItem('pendingLoadSave');
+  let loadedSaveData = null;
+
+  if (pendingLoadSaveJSON) {
+    try {
+      loadedSaveData = JSON.parse(pendingLoadSaveJSON);
+      console.log('[GamePage] Loading from sessionStorage:', loadedSaveData.metadata);
+
+      // Clear the pending load save
+      sessionStorage.removeItem('pendingLoadSave');
+    } catch (error) {
+      console.error('[GamePage] Error parsing pendingLoadSave:', error);
+      sessionStorage.removeItem('pendingLoadSave');
+    }
+  }
+
   return (
-    <GameStateProvider scenarioId={scenarioId || '1680-mexico-city'}>
+    <GameStateProvider scenarioId={scenarioId || '1680-mexico-city'} loadedSaveData={loadedSaveData}>
       <ModalProvider>
         <PlayerProvider characterData={characterData}>
           <NPCProvider>

@@ -6,7 +6,7 @@
 // Document keywords for detection
 const DOCUMENT_KEYWORDS = {
   letter: ['letter', 'carta', 'missive', 'correspondence', 'epistle'],
-  document: ['document', 'documento', 'parchment', 'scroll', 'escritura', 'deed', 'proclamation', 'notice'],
+  document: ['document', 'documento', 'parchment', 'scroll', 'escritura', 'deed', 'proclamation', 'notice', 'summons', 'citación', 'warrant', 'writ', 'complaint'],
   codex: ['codex', 'manuscript', 'manuscrito', 'tome', 'grimoire', 'treatise'],
   note: ['note', 'nota', 'message', 'mensaje', 'memorandum'],
   contract: ['contract', 'contrato', 'agreement', 'accord'],
@@ -106,17 +106,31 @@ export function extractDocumentMetadata(itemName, narrativeContext = '', invento
  * @returns {boolean} True if should auto-open
  */
 export function shouldAutoOpenDocument(documentData, narrativeContext = '') {
+  const lowerNarrative = narrativeContext.toLowerCase();
+
   // Auto-open if explicitly handed over in narrative
-  const handoffKeywords = ['hands you', 'gives you', 'offers you', 'presents you', 'passes you'];
+  const handoffKeywords = [
+    'hands you', 'gives you', 'offers you', 'presents you', 'passes you',
+    'holding out', 'holds out', 'held out', 'holding the', 'clutching a',
+    'extends the', 'extending the', 'thrusts the', 'thrust the',
+    'slides the', 'slide the', 'pushes the', 'push the'
+  ];
   const hasHandoff = handoffKeywords.some(keyword =>
-    narrativeContext.toLowerCase().includes(keyword)
+    lowerNarrative.includes(keyword)
   );
 
   // Auto-open if marked as story-critical
   const isCritical = documentData.tier === 'story-critical' ||
                      documentData.importance === 'high';
 
-  return hasHandoff || isCritical;
+  // Auto-open for legal/official documents (summons, warrants, complaints)
+  const isLegal = documentData.type === 'document' &&
+                  (lowerNarrative.includes('summons') ||
+                   lowerNarrative.includes('warrant') ||
+                   lowerNarrative.includes('complaint') ||
+                   lowerNarrative.includes('citación'));
+
+  return hasHandoff || isCritical || isLegal;
 }
 
 export default {

@@ -79,6 +79,10 @@ ${purpose ? `- Purpose: ${purpose}` : ''}
 Use this metadata to inform the document's content, tone, and style.`;
     }
 
+    // Special handling for environmental text
+    const isEnvironmental = item.isEnvironmental || item.tier === 'environmental';
+    const envType = item.metadata?.environmentalType || item.type;
+
     const messages = [
       {
         role: 'system',
@@ -91,20 +95,33 @@ Guidelines:
 - For signs: Write the full sign text with hierarchical headings (business name, tagline, details, prices, hours). Use # for main heading, ## for sections, ### for subsections. Include 1-2 relevant emoji symbols (like 🍞 for bakery, ⚖️ for scales, 🔨 for blacksmith, etc.)
 - For labels: Write complete label text with contents, provenance, instructions
 - For inscriptions: Full inscription text with any dating or attribution
+- For plaques: Commemorative text with dates, names, dedications - usually 1-3 sentences
+- For notices/posters: Official announcements with authority header, proclamation body, footer with date/seal
+- For graffiti: Crude, hand-scratched text - may be warnings, insults, prayers, or political messages
+- For carvings/murals: Decorative text integrated with visual art, often religious or historical
 - For documents/letters: Full document content with appropriate salutations, body, and closings for the historical period
 - For codices/manuscripts: Scholarly or medical text with period-appropriate terminology
 
+${isEnvironmental ? `ENVIRONMENTAL TEXT (${envType}):
+This is text Maria is reading IN THE SCENE - not a portable document.
+- Keep it SHORT (signs aren't essays): 1-3 sentences for plaques, 1-2 short paragraphs max for notices
+- Match the medium: official notices are formal, tavern signs are casual, graffiti is crude
+- Consider context: ${item.description || 'text in the environment'}
+- Include period-appropriate formatting (dates, seals, signatures for official text)` : ''}
+
 Be historically accurate for 1680s Mexico. Use period-appropriate language and style.
-Keep it concise (150-300 words).
+Keep it concise (${isEnvironmental ? '50-150 words' : '150-300 words'}).
 
 IMPORTANT: Format your response with markdown:
-- For SIGNS/LABELS: Use # for main business name, ## for section headings (like "PRECIOS FIJOS"), ### for subsections. Add emoji symbols relevant to the business (🍞🥖🌾 for food, ⚖️💰 for commerce, 🔨⚒️ for trades, 📜✒️ for writing, 🍷🍺 for taverns, etc.)
+- For SIGNS/LABELS/NOTICES: Use # for main heading, ## for section headings, ### for subsections. Add emoji symbols relevant to the content (🍞🥖 for food, ⚖️💰 for commerce, 🔨⚒️ for trades, 📜✒️ for writing, 🍷🍺 for taverns, ⚔️🛡️ for military, ⛪✝️ for church, etc.)
+- For GRAFFITI: Simple text, no headers, may include crude symbols
+- For PLAQUES/INSCRIPTIONS: Center the text with headers, formal tone
 - For BOOKS/DOCUMENTS/LETTERS: DO NOT use headers (# ## ###) - just body text
 - Use **bold** for emphasis or decorated text
 - Use *italics* for Latin phrases or foreign words
 - Use line breaks between paragraphs
 
-${item.type === 'sign' || item.type === 'label' ? 'This is a sign, so use markdown headers to create visual hierarchy like a painted wooden sign. Include emoji as decorative elements!' : 'Your response will be displayed as a 17th century document with initial capitals and flourishes.'}${contextString}${metadataString}`
+${item.type === 'sign' || item.type === 'label' || item.type === 'notice' || item.type === 'poster' || item.type === 'board' ? 'This is a sign/notice, so use markdown headers to create visual hierarchy like a painted wooden sign or posted proclamation. Include emoji as decorative elements!' : 'Your response will be displayed as a 17th century document with initial capitals and flourishes.'}${contextString}${metadataString}`
       },
       {
         role: 'user',

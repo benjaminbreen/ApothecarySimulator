@@ -272,6 +272,23 @@ export default {
       description: 'City council'
     },
 
+    // ===== EL CONSULADO DE MERCADERES (East of Plaza, financial center) =====
+    {
+      id: 'consulado-mercaderes',
+      name: 'El Consulado',
+      fullName: 'Consulado de Mercaderes de la Ciudad de México',
+      polygon: [[1120, 610], [1270, 610], [1270, 730], [1120, 730]],
+      type: 'commercial',
+      subtype: 'guild-hall',
+      hasInterior: 'consulado-interior',
+      entrancePoint: { x: 1195, y: 740 },
+      labelPosition: [1195, 670],
+      priority: 3,
+      alwaysShowLabel: true,
+      yearBuilt: 1594,
+      description: 'Merchants\' guild and financial exchange - center of colonial commerce'
+    },
+
     // ===== SANTO DOMINGO COMPLEX (Block: 360-540 x 110-290) =====
     {
       id: 'santo-domingo-church',

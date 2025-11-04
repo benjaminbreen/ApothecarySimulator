@@ -1,8 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import PropTypes from 'prop-types';
 
-const CompoundResultCard = ({ compound }) => {
+const CompoundResultCard = ({ compound, onClose }) => {
   const isSuccess = compound.name !== 'Unusable Sludge';
+
+  // Keyboard shortcuts - ESC and Enter to close
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // Rarity colors and styling
   const rarityStyles = {
@@ -36,7 +49,7 @@ const CompoundResultCard = ({ compound }) => {
 
   return (
     <div className={`
-      relative rounded-3xl p-6 mb-6 border-3 border-double shadow-2xl overflow-hidden
+      relative rounded-3xl p-6 border-3 border-double shadow-2xl overflow-y-auto custom-scrollbar max-h-[calc(85vh-140px)]
       ${isSuccess
         ? 'bg-gradient-to-br from-botanical-50 via-emerald-50 to-botanical-100 dark:from-emerald-950/50 dark:via-emerald-900/40 dark:to-emerald-950/50 border-botanical-400 dark:border-emerald-600/50'
         : 'bg-gradient-to-br from-danger-50 via-red-50 to-danger-100 dark:from-red-950/50 dark:via-red-900/40 dark:to-red-950/50 border-danger-400 dark:border-red-600/50'
@@ -60,15 +73,15 @@ const CompoundResultCard = ({ compound }) => {
         {isSuccess ? '✨ SUCCESS' : '⚠️ FAILED EXPERIMENT'}
       </div>
 
-      {/* Rarity Badge - Only show for successful compounds */}
+      {/* Rarity Badge - Only show for successful compounds - SIMPLIFIED (no pulse) */}
       {isSuccess && compound.rarity && (
         <div
           className={`
             absolute -top-1 right-8 px-6 py-2 rounded-b-xl border-2 border-t-0 font-display font-bold text-sm tracking-widest shadow-lg
-            bg-gradient-to-b ${rarity.bg} text-white ${rarity.border} uppercase animate-pulse
+            bg-gradient-to-b ${rarity.bg} text-white ${rarity.border} uppercase
           `}
           style={{
-            boxShadow: `0 4px 12px ${rarity.glow}, 0 0 20px ${rarity.glow}`
+            boxShadow: `0 4px 12px ${rarity.glow}`
           }}
         >
           {compound.rarity === 'legendary' && '⭐ '}
@@ -77,36 +90,46 @@ const CompoundResultCard = ({ compound }) => {
         </div>
       )}
 
-      <div className="flex items-start gap-8 mt-4">
-        {/* Compound Emoji */}
-        <div className={`
-          flex-shrink-0 relative
-          ${isSuccess ? 'animate-float' : 'animate-pulse'}
-        `}>
-          <div
-            className="text-9xl filter drop-shadow-2xl"
-            style={{
-              textShadow: isSuccess
-                ? '0 0 30px rgba(34, 197, 94, 0.6), 0 0 60px rgba(34, 197, 94, 0.4)'
-                : '0 0 30px rgba(239, 68, 68, 0.6), 0 0 60px rgba(239, 68, 68, 0.4)'
-            }}
-          >
-            {compound.emoji}
+      <div className="flex flex-col md:flex-row items-start gap-4 md:gap-8 mt-4">
+        {/* Left Column: Emoji + Description */}
+        <div className="flex-shrink-0 w-full md:w-48 space-y-6">
+          {/* Compound Emoji */}
+          <div className={`
+            relative
+            ${isSuccess ? 'animate-float' : 'animate-pulse'}
+          `}>
+            <div
+              className="text-9xl filter drop-shadow-2xl"
+              style={{
+                textShadow: isSuccess
+                  ? '0 0 30px rgba(34, 197, 94, 0.6), 0 0 60px rgba(34, 197, 94, 0.4)'
+                  : '0 0 30px rgba(239, 68, 68, 0.6), 0 0 60px rgba(239, 68, 68, 0.4)'
+              }}
+            >
+              {compound.emoji}
+            </div>
+          </div>
+
+          {/* Description Quote */}
+          <div className="bg-white/60 dark:bg-slate-900/40 rounded-xl p-5 border-2 border-dashed border-ink-300 dark:border-slate-600">
+            <p className="text-base text-ink-700 dark:text-amber-200 font-serif italic leading-relaxed">
+              "{compound.description}"
+            </p>
           </div>
         </div>
 
-        {/* Compound Details */}
-        <div className="flex-1">
+        {/* Right Column: Compound Details */}
+        <div className="flex-1 w-full">
           {/* Name */}
           <h3 className="font-display text-4xl font-bold text-ink-900 dark:text-amber-50 mb-4 drop-shadow-md">
             {compound.name}
           </h3>
 
           {/* Main Stats Grid */}
-          <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
             {/* Latin Name */}
             <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-ink-200 dark:border-slate-600 backdrop-blur-sm">
-              <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
+              <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Nomen Latinum
               </span>
               <p className="font-serif italic text-lg text-ink-900 dark:text-amber-100">
@@ -116,7 +139,7 @@ const CompoundResultCard = ({ compound }) => {
 
             {/* Spanish Name */}
             <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-ink-200 dark:border-slate-600 backdrop-blur-sm">
-              <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
+              <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Nombre Español
               </span>
               <p className="font-serif italic text-lg text-ink-900 dark:text-amber-100">
@@ -126,7 +149,7 @@ const CompoundResultCard = ({ compound }) => {
 
             {/* Humoral Qualities */}
             <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-ink-200 dark:border-slate-600 backdrop-blur-sm">
-              <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
+              <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Humoral Qualities
               </span>
               <p className="font-display text-lg font-bold text-botanical-700 dark:text-emerald-400">
@@ -136,7 +159,7 @@ const CompoundResultCard = ({ compound }) => {
 
             {/* Value */}
             <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-ink-200 dark:border-slate-600 backdrop-blur-sm">
-              <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
+              <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Market Value
               </span>
               <p className="font-display text-2xl font-bold text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
@@ -148,26 +171,19 @@ const CompoundResultCard = ({ compound }) => {
 
           {/* Medicinal Effects */}
           <div className="bg-gradient-to-r from-potion-50/80 via-potion-100/60 to-potion-50/80 dark:from-purple-900/20 dark:via-purple-800/20 dark:to-purple-900/20 rounded-xl p-4 border border-potion-300 dark:border-purple-700/30 mb-4">
-            <span className="block text-xs uppercase tracking-wider text-potion-700 dark:text-purple-300 font-serif font-semibold mb-2">
+            <span className="block text-sm uppercase tracking-wider text-potion-700 dark:text-purple-300 font-serif font-semibold mb-2">
               Medicinal Effects
             </span>
-            <p className="text-base text-ink-800 dark:text-amber-100 font-serif leading-relaxed">
+            <p className="text-lg text-ink-800 dark:text-amber-100 font-serif leading-relaxed">
               {compound.medicinalEffects || 'N/A'}
-            </p>
-          </div>
-
-          {/* Description */}
-          <div className="bg-white/60 dark:bg-slate-900/40 rounded-xl p-5 border-2 border-dashed border-ink-300 dark:border-slate-600 mb-4">
-            <p className="text-lg text-ink-700 dark:text-amber-200 font-serif italic leading-relaxed">
-              "{compound.description}"
             </p>
           </div>
 
           {/* Citation & Historical Accuracy */}
           <div className="border-t-2 border-ink-200 dark:border-slate-700 pt-2">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
               <div className="flex-1">
-                <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-2">
+                <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-2">
                   Historical Source
                 </span>
                 <p className="text-sm text-ink-600 dark:text-amber-300/80 font-serif italic leading-relaxed">
@@ -177,7 +193,7 @@ const CompoundResultCard = ({ compound }) => {
 
               {/* Historical Accuracy Score */}
               {isSuccess && compound.historicalAccuracyScore && (
-                <div className="flex-shrink-0 text-center">
+                <div className="flex-shrink-0 text-center sm:text-right">
                   <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-1">
                     Authenticity
                   </span>
@@ -200,7 +216,7 @@ const CompoundResultCard = ({ compound }) => {
               )}
             </div>
 
-            
+
           </div>
         </div>
       </div>
@@ -240,7 +256,8 @@ CompoundResultCard.propTypes = {
     rarity: PropTypes.oneOf(['common', 'scarce', 'rare', 'legendary']),
     historicalAccuracyScore: PropTypes.number,
     historicalAccuracyRationale: PropTypes.string
-  }).isRequired
+  }).isRequired,
+  onClose: PropTypes.func.isRequired
 };
 
 export default CompoundResultCard;

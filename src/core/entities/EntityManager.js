@@ -321,8 +321,28 @@ class EntityManager {
       }
     }
 
-    // Step 2: Infer gender if still missing
-    if (!enriched.appearance) enriched.appearance = {};
+    // Step 2: Skip procedural enrichment for LLM-provided entities
+    // LLM-provided entities already have complete, curated data
+    if (enriched.llmProvided === true) {
+      const logKey = `skip-enrich:${enriched.id || enriched.name}`;
+      if (!this.loggedMessages.has(logKey)) {
+        console.log(`[EntityManager] Skipping procedural enrichment for LLM-provided entity: ${enriched.name}`);
+        this.loggedMessages.add(logKey);
+      }
+      return enriched;
+    }
+
+    // Step 3: Infer gender if still missing
+    // CRITICAL FIX: Handle case where appearance is a string instead of object
+    if (!enriched.appearance || typeof enriched.appearance !== 'object' || Array.isArray(enriched.appearance)) {
+      const oldDescription = typeof enriched.appearance === 'string' ? enriched.appearance : null;
+      enriched.appearance = {};
+      if (oldDescription) {
+        enriched.appearance.description = oldDescription;
+        console.log(`[EntityManager] Converted string appearance to object for ${enriched.name}`);
+      }
+    }
+
     if (!enriched.appearance.gender || enriched.appearance.gender === 'unknown') {
       const inferredGender = this.inferGender(enriched);
       if (inferredGender !== 'unknown') {
@@ -335,8 +355,17 @@ class EntityManager {
       }
     }
 
-    // Step 3: Infer faction if missing (for reputation system)
-    if (!enriched.social) enriched.social = {};
+    // Step 4: Infer faction if missing (for reputation system)
+    // CRITICAL FIX: Handle case where social is a string instead of object
+    if (!enriched.social || typeof enriched.social !== 'object' || Array.isArray(enriched.social)) {
+      const oldDescription = typeof enriched.social === 'string' ? enriched.social : null;
+      enriched.social = {};
+      if (oldDescription) {
+        enriched.social.description = oldDescription;
+        console.log(`[EntityManager] Converted string social to object for ${enriched.name}`);
+      }
+    }
+
     if (!enriched.social.faction) {
       const inferredFaction = this.inferFaction(enriched);
       enriched.social.faction = inferredFaction;
@@ -384,7 +413,15 @@ class EntityManager {
     } else {
       // Fallback: basic stats generation
       if (!enriched.personality?.bigFive) {
-        enriched.personality = enriched.personality || {};
+        // CRITICAL FIX: Handle case where personality is a string
+        if (!enriched.personality || typeof enriched.personality !== 'object' || Array.isArray(enriched.personality)) {
+          const oldDescription = typeof enriched.personality === 'string' ? enriched.personality : null;
+          enriched.personality = {};
+          if (oldDescription) {
+            enriched.personality.description = oldDescription;
+            console.log(`[EntityManager] Converted string personality to object for ${enriched.name}`);
+          }
+        }
         enriched.personality.bigFive = this.generateBasicBigFive(enriched);
         enriched.personality.temperament = calculateTemperament(enriched.personality.bigFive);
       }
@@ -396,17 +433,28 @@ class EntityManager {
     }
 
     // Initialize memory if missing
-    if (!enriched.memory) {
+    // CRITICAL FIX: Handle case where memory is a string
+    if (!enriched.memory || typeof enriched.memory !== 'object' || Array.isArray(enriched.memory)) {
+      const oldDescription = typeof enriched.memory === 'string' ? enriched.memory : null;
       enriched.memory = {
         interactions: [],
         maxInteractions: 10,
-        archivedSummary: ''
+        archivedSummary: oldDescription || ''
       };
+      if (oldDescription) {
+        console.log(`[EntityManager] Converted string memory to object for ${enriched.name}`);
+      }
     }
 
     // Initialize relationships if missing
-    if (!enriched.relationships) {
+    // CRITICAL FIX: Handle case where relationships is a string
+    if (!enriched.relationships || typeof enriched.relationships !== 'object' || Array.isArray(enriched.relationships)) {
+      const oldDescription = typeof enriched.relationships === 'string' ? enriched.relationships : null;
       enriched.relationships = {};
+      if (oldDescription) {
+        enriched.relationships.description = oldDescription;
+        console.log(`[EntityManager] Converted string relationships to object for ${enriched.name}`);
+      }
     }
 
     // Note: Portrait resolution moved to display layer (portraitResolver.js)

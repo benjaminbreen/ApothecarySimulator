@@ -49,7 +49,10 @@ const ContextPanel = ({
   isTraveling = false, // Phase 4: Whether currently traveling
   activeTab = 'chronicle', // FIX #4: Current active tab for tab-aware portrait display
   activePatient = null, // FIX #4: Active patient entity for Patient View tab
-  reputationChange = null // { delta: number, timestamp: number } - reputation change indicator
+  reputationChange = null, // { delta: number, timestamp: number } - reputation change indicator
+  focusedItem = null, // VIEWPORT: Item player is examining/using
+  gameTime = null, // VIEWPORT: Current game time for time-based scenes
+  recentLocationChange = false // VIEWPORT: Whether location just changed
 }) => {
   // Collapse entire panel state
   const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
@@ -360,9 +363,9 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
     if (actionId === 'hangSign' && toggleShopSign) {
       console.log('[Shop Sign] Hanging sign to attract patients');
       toggleShopSign(true);
-      // Trigger a narrative turn with system message
+      // Trigger a narrative turn with special flag to spawn patient
       if (onRoomCommand) {
-        onRoomCommand(null, 'You have hung your shop sign. Customers are more likely to come now. The only thing to do is wait.');
+        onRoomCommand(null, 'You hang your shop sign outside, displaying it prominently to passersby. Within moments, someone should notice.', { signJustHung: true });
       }
       return;
     }
@@ -397,6 +400,9 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
           npcPresent={hasPortrait}
           npcName={currentNPC?.name || null}
           npcPortrait={currentNPC?.url || null}
+          focusedItem={focusedItem}
+          gameTime={gameTime}
+          recentLocationChange={recentLocationChange}
           npcData={npcData}
           onPortraitClick={onPortraitClick}
           onItemDropOnNPC={onItemDropOnNPC}

@@ -26,6 +26,7 @@ import { processPatientDialogue } from '../../core/agents/PatientDialogueAgent';
 import { extractPatientContext } from '../../core/agents/PatientContextExtractor';
 import { enrichPatientData } from '../../core/entities/PatientEnrichment';
 import { entityManager } from '../../core/entities/EntityManager';
+import { calculateTemperament } from '../../core/entities/entitySchema';
 import { createChatCompletion } from '../../core/services/llmService';
 import { buildSystemPrompt } from '../../prompts/promptModules';
 import { scenarioLoader } from '../../core/services/scenarioLoader';
@@ -40,11 +41,15 @@ import { generateNextSteps } from '../../core/services/nextStepsGenerator';
 import { mapNPCFactionToSystemFaction, updateFactionFromNPCInteraction } from '../../core/systems/reputationSystem';
 import { simulateLongDistanceTravel } from '../../core/agents/LongDistanceTravelAgent';
 import { checkForRandomEvent, processEventChoice, initializeEventSystem } from '../../core/events/randomEventService';
+import { checkForWeatherEvent } from '../../core/events/weatherEventService';
 import { getDetailImagePathSync } from '../../utils/detailImageResolver';
 import { isDocumentItem, getDocumentType, extractDocumentMetadata, shouldAutoOpenDocument } from '../../utils/documentDetector';
 import { getHouseCallData } from '../../features/medical/services/houseSelector';
 import { getTransactionManager, TRANSACTION_CATEGORIES } from '../../core/systems/transactionManager';
 import { MedicalRecordsManager } from '../../core/systems/medicalRecordsManager';
+import { interpolatePrompt } from '../../core/config/listTypes.config';
+import { formatNPCsAsTable } from '../../core/services/locationContextService';
+import { checkAndTriggerConsequences } from '../../systems/consequenceSystem';
 
 // PHASE 2.1: Specialized navigation handlers hook
 import { useNavigationHandlers } from './useNavigationHandlers';
@@ -63,6 +68,8 @@ import { useUIHandlers } from './useUIHandlers';
 
 // PHASE 2.6: Specialized item handlers hook
 import { useItemHandlers } from './useItemHandlers';
+
+const DOOR_COMMAND_REGEX = /^(?:\s*(?:go|walk|move|step|head)\s+(?:to|toward|towards)\s+(?:the\s+)?door\s*|see\s+who\s+is\s+there\s*|answer\s+the\s+door\s*|open\s+the\s+door\s*)$/i;
 
 const sanitizePortraitFilename = (filename) => {
   if (!filename) return null;
@@ -153,6 +160,8 @@ export function useGameHandlers({
   setShowExitConfirmation, // Exit confirmation system
   setTradingNPC, // Trade system
   setTradeMode, // Trade system
+  setInventoryViewMode, // Trade system - inventory view mode
+  setPreselectedTradeTab, // Trade system - tab pre-selection for TradeModal
   setPendingSimpleInteraction, // Simple interaction system
   setPendingRandomEvent, // Random event system
   setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
@@ -166,6 +175,7 @@ export function useGameHandlers({
   openLongDistanceTravelCard,
   triggerGameOver,
   setCrisisState,
+  setBackgroundMode, // Immersive background mode (fade UI for travel/events)
 
   // State values
   isLoading, // CRITICAL FIX: Loading state for double-click guard
@@ -183,6 +193,7 @@ export function useGameHandlers({
   npcTracker,
   reputation,
   reputationEmoji,
+  npcRelationships = {}, // NPC relationships (for save system, default to empty object)
   currentMapData,
   playerPosition,
   playerFacing,
@@ -196,6 +207,7 @@ export function useGameHandlers({
   playerSkills,
   journal,
   pendingExitData, // Exit confirmation system state
+  currentWeather, // PHASE 1: Weather state for narrative integration
 
   // Callbacks from gameState
   updateInventory,
@@ -205,6 +217,8 @@ export function useGameHandlers({
   addCompoundToInventory,
   refreshInventory,
   toggleShopSign,
+  updateWealth,
+  updateHealth,
   updateEnergy,
   addTradeOpportunity, // Trade system
   removeTradeOpportunity, // Trade system
@@ -251,6 +265,7 @@ export function useGameHandlers({
   // Track if NPC departed last turn (for continuation detection)
   const npcDepartedLastTurnRef = useRef(false);
   const conversationLockRef = useRef(null);
+  const walkPlayerToDoorRef = useRef(null);
 
   const clearConversationLock = useCallback(() => {
    if (conversationLockRef.current) {
@@ -489,7 +504,11 @@ export function useGameHandlers({
     updateReputation,
     setTravelAnimationState,
     openLongDistanceTravelCard,
+    setBackgroundMode, // Immersive background mode
   });
+  if (navigationHandlers.walkPlayerToDoor) {
+    walkPlayerToDoorRef.current = navigationHandlers.walkPlayerToDoor;
+  }
 
   // PHASE 2.2: Initialize medical handlers hook
   // NOTE: Must come AFTER addJournalEntry and other helpers are defined
@@ -503,6 +522,7 @@ export function useGameHandlers({
     previousPortraitEntityRef,
     recentPortraitRef,
     setPendingHouseCall,
+    setBackgroundMode, // Immersive background mode for house calls
     // Legacy params
     gameState,
     turnNumber,
@@ -560,6 +580,7 @@ export function useGameHandlers({
     setIsPatientRosterOpen,
     setTradingNPC,
     setTradeMode,
+    setInventoryViewMode,
     setIsLedgerOpen,
     setSelectedNpcName,
     setShowSymptomsPopup,
@@ -576,6 +597,11 @@ export function useGameHandlers({
     gameState,
     npcTracker,
     npcPositions,
+    // Save system params
+    playerSkills,
+    conversationHistory,
+    reputation,
+    npcRelationships,
   });
 
   // PHASE 2.6: Initialize item handlers hook
@@ -596,6 +622,156 @@ export function useGameHandlers({
   // SECTION 4: MAIN ORCHESTRATOR
   // Core narrative processing logic (handleSubmit)
   // ============================================================================
+
+  // LIST REQUEST HANDLER
+  // Handles generation of reference lists (people, sensory details, objects, ingredients)
+  const handleListRequest = useCallback(async (listType) => {
+    console.log('🔵 [handleListRequest] CALLED with listType:', listType);
+    console.log('🔵 [handleListRequest] gameState available?', !!gameState);
+    console.log('🔵 [handleListRequest] gameState.location:', gameState?.location);
+
+    // Safety check
+    if (!gameState) {
+      console.error('🔴 [handleListRequest] gameState is undefined!');
+      return;
+    }
+
+    // Prevent spam submissions
+    if (isLoading) {
+      console.log('[handleListRequest] Already processing, ignoring duplicate request');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // FAST PATH: Use cached location NPCs for "people" list type
+      if (listType.id === 'people' && gameState.currentLocationNPCs) {
+        console.log('[handleListRequest] Using cached location NPCs for "people" list');
+
+        const userPrompt = `List all ${listType.label.toLowerCase()}.`;
+        const tableMarkdown = formatNPCsAsTable(gameState.currentLocationNPCs);
+
+        // Add the special list marker that triggers table rendering
+        const markdown = `[LIST_RESPONSE:people]\n${tableMarkdown}`;
+
+        // Add to conversation history
+        addToHistory({ role: 'user', content: userPrompt });
+        addToHistory({ role: 'assistant', content: markdown });
+
+        // Display the table
+        setHistoryOutput(markdown);
+
+        // Clear user input
+        setUserInput('');
+
+        setIsLoading(false);
+        return;
+      }
+
+      // SLOW PATH: LLM-generated list for other types or dynamic locations
+      console.log('[handleListRequest] Using LLM for list generation (no cached NPCs)');
+
+      // Build the user prompt - simple request for the list
+      const userPrompt = `List all ${listType.label.toLowerCase()}.`;
+
+      // Get interpolated system prompt with game state
+      const systemPromptAddition = interpolatePrompt(listType, gameState);
+
+      console.log('🔵 [handleListRequest] Calling orchestrator with list request');
+      console.log('🔵 [handleListRequest] User prompt:', userPrompt);
+      console.log('🔵 [handleListRequest] System prompt length:', systemPromptAddition.length);
+
+      // Call orchestrator with special flag for list requests
+      const result = await orchestrateTurn({
+        scenarioId: gameState.scenarioId || scenarioId || '1680-mexico-city',
+        playerAction: userPrompt,
+        conversationHistory,
+        gameState,
+        turnNumber,
+        recentNPCs: npcTracker.getRecentNPCs(),
+        reputation: reputation,
+        wealth: currentWealth,
+        mapData: currentMapData,
+        playerPosition: playerPosition,
+        playerFacing: playerFacing,
+        currentMapId: currentMapId,
+        playerSkills: playerSkills,
+        journal: journal,
+        activePatient: activePatient,
+        recentPortrait: recentPortraitRef.current,
+        npcDepartedLastTurn: npcDepartedLastTurnRef.current,
+        conversationLock: conversationLockRef.current,
+        weather: currentWeather, // PHASE 1: Weather state for narrative integration
+        options: { isListRequest: true, listType: listType.id, listSystemPrompt: systemPromptAddition }
+      });
+
+      console.log('[handleListRequest] Received result:', result);
+
+      // Add the list response to conversation history
+      addToHistory({ role: 'user', content: userPrompt });
+      addToHistory({ role: 'assistant', content: result.narrative });
+
+      // Display the narrative (which should contain the markdown table)
+      setHistoryOutput(result.narrative);
+
+      // Clear user input
+      setUserInput('');
+
+      // Parse for dynamic chips (though lists typically won't have choices)
+      const parsedChips = parseNarrativeChoices(result.narrative);
+      if (parsedChips) {
+        setDynamicChips(parsedChips);
+      }
+
+    } catch (error) {
+      console.error('[handleListRequest] Error generating list:', error);
+
+      // Determine error type and show appropriate message
+      let errorMessage;
+
+      if (error.message?.includes('timeout') || error.message?.includes('ETIMEDOUT')) {
+        errorMessage = `*Request timed out while generating ${listType.label.toLowerCase()}. The AI took too long to respond. Please try again.*`;
+      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        errorMessage = `*Network error while generating ${listType.label.toLowerCase()}. Please check your internet connection and try again.*`;
+      } else if (error.message?.includes('API key')) {
+        errorMessage = `*API authentication error. Please check your API keys in settings.*`;
+      } else if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
+        errorMessage = `*API rate limit reached. Please wait a moment before trying again.*`;
+      } else {
+        errorMessage = `*Unable to generate ${listType.label.toLowerCase()} at this time. ${error.message || 'Please try again.'}*`;
+      }
+
+      addToHistory({ role: 'assistant', content: errorMessage });
+      setHistoryOutput(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    isLoading,
+    setIsLoading,
+    gameState,
+    conversationHistory,
+    scenarioId,
+    turnNumber,
+    npcTracker,
+    reputation,
+    currentWealth,
+    currentMapData,
+    playerPosition,
+    playerFacing,
+    currentMapId,
+    playerSkills,
+    journal,
+    activePatient,
+    recentPortraitRef,
+    npcDepartedLastTurnRef,
+    conversationLockRef,
+    addToHistory,
+    setHistoryOutput,
+    setUserInput,
+    setDynamicChips,
+  ]);
 
   // MAIN SUBMIT HANDLER
   const handleSubmit = useCallback(async (e, actionOverride = null, options = {}) => {
@@ -619,6 +795,17 @@ export function useGameHandlers({
 
     // Use override if provided (from chip clicks), otherwise fall back to userInput state
     const originalInput = (actionOverride || userInput).trim();
+
+    if (!actionOverride && DOOR_COMMAND_REGEX.test(originalInput)) {
+      const doorMover = walkPlayerToDoorRef.current;
+      if (typeof doorMover === 'function') {
+        try {
+          await doorMover();
+        } catch (error) {
+          console.error('[DoorShortcut] Failed to animate walk to door:', error);
+        }
+      }
+    }
 
     if (originalInput.startsWith('#long_travel ')) {
       try {
@@ -647,7 +834,7 @@ export function useGameHandlers({
     }
 
     // Extract metadata options
-    const { actionResultType } = options;
+    const { actionResultType, llmInstructions } = options;
 
     // Handle command shortcuts
 
@@ -1088,11 +1275,59 @@ export function useGameHandlers({
       }
     }
 
+    // Check for pending consequences that should trigger this turn
+    const triggeredConsequences = checkAndTriggerConsequences(
+      gameState,
+      turnNumber,
+      {
+        updateWealth,
+        updateHealth,
+        updateEnergy,
+        updateInventory,
+        toast
+      }
+    );
+
+    // If consequences were triggered, inject their narrative as a system message
+    if (triggeredConsequences.length > 0) {
+      console.log(`[Consequence] ${triggeredConsequences.length} consequence(s) triggered this turn`);
+
+      for (const consequenceResult of triggeredConsequences) {
+        // Add consequence narrative to conversation history
+        const consequenceMessage = {
+          role: 'assistant',
+          content: consequenceResult.narrative,
+          isConsequence: true // Flag to style differently if needed
+        };
+
+        addToHistory(consequenceMessage);
+        setHistoryOutput(consequenceResult.narrative);
+
+        // Add journal entry
+        addJournalEntry({
+          turnNumber,
+          date: gameState.date,
+          entry: `⚠️ CONSEQUENCE: ${consequenceResult.effects.join(', ')}`
+        });
+
+        // Show toast notification
+        toast.error(`⚠️ Consequence triggered!`, { duration: 4000 });
+      }
+
+      // Brief pause to let player see the consequence before continuing
+      // (Optional: could also short-circuit and not call orchestrator this turn)
+    }
+
     // Use AgentOrchestrator for coordinated agent responses
     try {
+      // Build player action for LLM (may include instructions not shown in Chronicle)
+      const playerActionForLLM = llmInstructions
+        ? `${narrativeText}\n\n${llmInstructions}`
+        : narrativeText;
+
       const result = await orchestrateTurn({
         scenarioId: gameState.scenarioId || '1680-mexico-city',
-        playerAction: narrativeText,
+        playerAction: playerActionForLLM,
         conversationHistory,
         gameState: {
           ...gameState,
@@ -1112,7 +1347,9 @@ export function useGameHandlers({
         activePatient: activePatient, // Pass current active patient for contextual guards
         recentPortrait: recentPortraitRef.current, // PHASE 2: Pass last portrait for consistency
         npcDepartedLastTurn: npcDepartedLastTurnRef.current, // Pass departure status from last turn
-        conversationLock: conversationLockRef.current
+        conversationLock: conversationLockRef.current,
+        weather: currentWeather, // PHASE 1: Weather state for narrative integration
+        signJustHung: options.signJustHung || false // TRIGGER: Force patient spawn when sign just hung
       });
 
       if (!result.success) {
@@ -1125,25 +1362,41 @@ export function useGameHandlers({
       if (result.primaryNPC) {
         console.log('[Primary NPC] Received from LLM:', result.primaryNPC.name);
 
+        // Generate basic bigFive from personality string for humoral display
+        const personalityTraits = result.primaryNPC.personality ?
+          result.primaryNPC.personality.split(',').map(t => t.trim().toLowerCase()) : [];
+
+        // Simple heuristic mapping of personality traits to Big Five
+        const bigFive = {
+          openness: personalityTraits.some(t => ['curious', 'imaginative', 'creative'].includes(t)) ? 70 : 50,
+          conscientiousness: personalityTraits.some(t => ['careful', 'organized', 'diligent'].includes(t)) ? 70 : 50,
+          extroversion: personalityTraits.some(t => ['outgoing', 'talkative', 'sociable'].includes(t)) ? 70 :
+                        personalityTraits.some(t => ['shy', 'reserved', 'quiet'].includes(t)) ? 30 : 50,
+          agreeableness: personalityTraits.some(t => ['kind', 'generous', 'warm'].includes(t)) ? 70 :
+                         personalityTraits.some(t => ['suspicious', 'cold', 'harsh'].includes(t)) ? 30 : 50,
+          neuroticism: personalityTraits.some(t => ['anxious', 'nervous', 'worried', 'fearful'].includes(t)) ? 70 :
+                       personalityTraits.some(t => ['calm', 'stable', 'confident'].includes(t)) ? 30 : 50
+        };
+
         const npcEntity = {
-          ...result.primaryNPC,
+          name: result.primaryNPC.name,
           id: `npc_${result.primaryNPC.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
           entityType: 'npc',
           type: 'npc',
           llmProvided: true, // Flag to prevent procedural override
+          description: result.primaryNPC.description,
+          age: result.primaryNPC.age,
+          gender: result.primaryNPC.gender,
+          appearance: result.primaryNPC.appearance, // Keep as string from LLM
+          personality: {
+            traits: personalityTraits,
+            bigFive: bigFive,
+            temperament: calculateTemperament(bigFive)
+          },
           social: {
             class: result.primaryNPC.class,
             casta: result.primaryNPC.casta,
             occupation: result.primaryNPC.occupation
-          },
-          appearance: {
-            gender: result.primaryNPC.gender,
-            age: result.primaryNPC.age,
-            description: result.primaryNPC.appearance
-          },
-          personality: {
-            traits: result.primaryNPC.personality,
-            description: result.primaryNPC.personality
           },
           tier: 'recurring' // LLM-generated NPCs are recurring by default
         };
@@ -1161,12 +1414,20 @@ export function useGameHandlers({
       let primaryPortraitFile = null;
       let portraitForHistory = null; // Separate value for conversation history context
 
-      // Priority: LLM portrait > Turn 1 entrance fallback > Map
+      // Priority: LLM portrait > Auto-resolve from showPortraitFor > Turn 1 entrance fallback > Map
       if (result.primaryPortrait) {
         const normalizedPortrait = sanitizePortraitFilename(result.primaryPortrait);
         console.log('[Portrait] LLM selected portrait:', result.primaryPortrait, '→ normalized to:', normalizedPortrait);
         primaryPortraitFile = normalizedPortrait;
         portraitForHistory = normalizedPortrait;
+      } else if (result.showPortraitFor && result.showPortraitFor !== 'player') {
+        // Auto-resolve portrait: LLM specified entity to show portrait for, but didn't provide filename
+        // Construct portrait filename from entity name (e.g., "Frog" → "frog.jpg")
+        const entityName = result.showPortraitFor.toLowerCase().trim();
+        const autoPortraitFile = `${entityName}.jpg`;
+        console.log('[Portrait] Auto-resolving portrait for:', result.showPortraitFor, '→', autoPortraitFile);
+        primaryPortraitFile = autoPortraitFile;
+        portraitForHistory = autoPortraitFile;
       } else if (turnNumber === 1) {
         // Turn 1 fallback: Show entrance image only if LLM didn't provide a portrait
         // This allows map to show if player uses Exit button on turn 1
@@ -1434,6 +1695,11 @@ export function useGameHandlers({
         if (result.gameState.status) {
           setGameState(prev => ({ ...prev, status: result.gameState.status }));
           console.log('[State] Updated status:', result.gameState.status);
+        }
+        // VIEWPORT: Update focusedItem for contextual image display
+        if (result.gameState.focusedItem !== undefined) {
+          setGameState(prev => ({ ...prev, focusedItem: result.gameState.focusedItem }));
+          console.log('[Viewport] Updated focusedItem:', result.gameState.focusedItem);
         }
 
         // Handle reputation events from extreme actions
@@ -1779,6 +2045,53 @@ export function useGameHandlers({
         }
       }
 
+      // PHASE 1B: Environmental text detection (signs, plaques, inscriptions)
+      // Lightweight: only triggers when narrative explicitly shows Maria reading
+      const narrative = result.narrative || historyOutput;
+      const lowerNarrative = narrative.toLowerCase();
+
+      // Only trigger if narrative explicitly shows Maria reading environmental text
+      const readingPatterns = [
+        /(?:you read|maria reads?|reading|examine[sd]?)\s+(?:the|a)\s+(sign|plaque|inscription|notice|poster|graffiti|carving|tablet|board|mural)/i,
+        /(?:sign|plaque|notice|inscription|poster|board)\s+(?:says?|reads?|states?)/i,
+        /(?:written|inscribed|carved|painted)\s+(?:on|into|above)/i
+      ];
+
+      const isReadingEnvironmentalText = readingPatterns.some(pattern => pattern.test(narrative));
+
+      // Don't trigger if already showing a document
+      const hasDocumentTriggered = result.inventoryChanges?.some(c => c.isReadable);
+
+      if (isReadingEnvironmentalText && !hasDocumentTriggered) {
+        console.log('[EnvironmentalText] Detected active reading in narrative');
+
+        // Extract type from narrative
+        const typeMatch = narrative.match(/\b(sign|plaque|inscription|notice|poster|graffiti|carving|tablet|board|mural)\b/i);
+        const type = typeMatch ? typeMatch[1].toLowerCase() : 'sign';
+
+        const textDocument = {
+          name: `${type.charAt(0).toUpperCase() + type.slice(1)} Text`,
+          type: type,
+          description: `Environmental text - ${type}`,
+          tier: 'environmental',
+          metadata: {
+            environmentalType: type,
+            turnSeen: turnNumber,
+            dateSeen: gameState.date,
+            gameLocation: gameState.location
+          },
+          narrativeContext: narrative,
+          isEnvironmental: true // Flag: don't add to inventory
+        };
+
+        console.log('[EnvironmentalText] Creating environmental text modal:', textDocument.name);
+
+        setPendingDocument(textDocument);
+        setTimeout(() => {
+          setIsDocumentModalOpen(true);
+        }, 800);
+      }
+
       // Handle relationship changes and reputation feedback
       if (result.relationshipChanges && result.relationshipChanges.length > 0) {
         console.log(`[Relationship] Processing ${result.relationshipChanges.length} relationship changes`);
@@ -1891,6 +2204,94 @@ export function useGameHandlers({
         }
       }
 
+      // OFFER COMPLETION: Handle sell/give offer acceptance/rejection
+      // Process pendingOffer from options if present
+      if (options.pendingOffer) {
+        const offer = options.pendingOffer;
+        console.log('[Offer] Processing offer result:', { offer, narrative: result.narrative });
+
+        // Detect acceptance/rejection from LLM narrative
+        const narrativeLower = result.narrative.toLowerCase();
+        const accepted = narrativeLower.includes('accept') || narrativeLower.includes('pay') || narrativeLower.includes('take') || narrativeLower.includes('grateful') || narrativeLower.includes('thank');
+        const rejected = narrativeLower.includes('reject') || narrativeLower.includes('refuse') || narrativeLower.includes('decline') || narrativeLower.includes('inappropriate') || narrativeLower.includes('too expensive');
+        const negotiated = narrativeLower.includes('bargain') || narrativeLower.includes('negotiate') || narrativeLower.includes('haggle') || narrativeLower.includes('lower price');
+
+        if (rejected && !accepted) {
+          // REJECTION: Keep item in inventory, no transaction
+          console.log(`[Offer] ${offer.recipientName} REJECTED the offer - no transaction`);
+
+          // Add system message to conversation history
+          setConversationHistory(prev => [...prev, {
+            role: 'system',
+            content: `*[OFFER REJECTED] ${offer.recipientName} refused Maria's offer of ${offer.item.name}.*`
+          }]);
+
+          // Toast notification
+          toast.error(`${offer.recipientName} rejected your offer`, { duration: 3000 });
+
+        } else if (negotiated && !accepted) {
+          // NEGOTIATION: Keep item for now, may need player response
+          console.log(`[Offer] ${offer.recipientName} wants to NEGOTIATE - no transaction yet`);
+
+          toast.info(`${offer.recipientName} wants to negotiate`, { duration: 3000 });
+
+        } else {
+          // ACCEPTANCE (default if not clearly rejected): Complete transaction
+          console.log(`[Offer] ${offer.recipientName} ACCEPTED the offer - completing transaction`);
+
+          // Remove item from inventory
+          updateInventory(offer.item.name, -offer.amount);
+
+          // For sell type, add money to wealth
+          if (offer.type === 'sell' && offer.price > 0) {
+            updateWealth(offer.price);
+
+            // Log transaction to ledger
+            const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+            const currentWealth = (gameState.wealth || 0) + offer.price;
+            const description = `Sold ${offer.amount}× ${offer.item.name} to ${offer.recipientName}`;
+            transactionManager.logTransaction(
+              'income',
+              TRANSACTION_CATEGORIES.MEDICINE_SALES,
+              description,
+              offer.price,
+              currentWealth,
+              gameState.date,
+              gameState.time
+            );
+            console.log('[Offer] Transaction logged to ledger');
+          }
+
+          // Add system message to conversation history
+          const systemMessages = {
+            sell: `*[ITEM SOLD] Maria sells ${offer.amount}× ${offer.item.name} to ${offer.recipientName} for ${offer.price} reales.*`,
+            give: `*[ITEM GIVEN] Maria gives ${offer.amount}× ${offer.item.name} to ${offer.recipientName} as a gift.*`
+          };
+          setConversationHistory(prev => [...prev, {
+            role: 'system',
+            content: systemMessages[offer.type] || systemMessages.give
+          }]);
+
+          // Add journal entry
+          const journalEntries = {
+            sell: `Sold ${offer.amount}× ${offer.item.name} to ${offer.recipientName} for ${offer.price} reales.`,
+            give: `Gave ${offer.amount}× ${offer.item.name} to ${offer.recipientName}.`
+          };
+          addJournalEntry({
+            turnNumber,
+            date: gameState.date,
+            entry: journalEntries[offer.type] || journalEntries.give
+          });
+
+          // Toast notification
+          const toastMessages = {
+            sell: `Sold ${offer.item.name} for ${offer.price} reales`,
+            give: `Gave ${offer.item.name} to ${offer.recipientName}`
+          };
+          toast.success(toastMessages[offer.type] || toastMessages.give, { duration: 3000 });
+        }
+      }
+
       // CARD PRIORITY SYSTEM: Check if simpleInteraction is active
       // Used to prevent multiple cards appearing on same turn
       const rawSimpleInteraction = result.simpleInteraction;
@@ -1930,6 +2331,14 @@ export function useGameHandlers({
 
         // Treatment contract detected
         console.log('[Contract] Offer finalized and ready for player decision:', result.contractOffer.type, result.contractOffer);
+
+        // Auto-populate contract price if not specified (defaults to 0)
+        if (!result.contractOffer.paymentOffered || result.contractOffer.paymentOffered === 0) {
+          const randomPrice = Math.floor(Math.random() * 19) + 2; // Random 2-20 reales
+          result.contractOffer.paymentOffered = randomPrice;
+          console.log(`[Contract] Auto-populated price: ${randomPrice} reales (NPC didn't specify amount)`);
+        }
+
         // Store in conversation history so card stays in place
         assistantMessage.card = {
           type: 'contract',
@@ -2310,8 +2719,24 @@ export function useGameHandlers({
           };
           setPendingRandomEvent(eventCard);
         } else {
-          // Clear any previous random event
-          setPendingRandomEvent(null);
+          // Check for weather events (only if no random event triggered)
+          // Weather events are less frequent but more dramatic
+          const weatherEventCard = await checkForWeatherEvent(currentWeather, gameState);
+
+          if (weatherEventCard) {
+            console.log('[WeatherEvent] Weather event triggered:', weatherEventCard.title);
+            // Fade UI to show weather background (immersive mode)
+            setBackgroundMode('event');
+            // Store in conversation history so card stays in place
+            assistantMessage.card = {
+              type: 'weather_event',
+              data: weatherEventCard
+            };
+            setPendingRandomEvent(weatherEventCard); // Reuse same UI component
+          } else {
+            // Clear any previous event
+            setPendingRandomEvent(null);
+          }
         }
       }
 
@@ -2436,6 +2861,7 @@ export function useGameHandlers({
   const commerceHandlers = useCommerceHandlers({
     addJournalEntry,
     setConversationHistory,
+    setHistoryOutput,
     toast,
     awardXP,
     updateReputation,
@@ -2443,6 +2869,8 @@ export function useGameHandlers({
     setTradingNPC,
     setTradeMode,
     setIsBuyOpen,
+    setCurrentMapId,
+    setPreselectedTradeTab,
     removeTradeOpportunity,
     setPendingSimpleInteraction,
     setPendingMixingDecision,
@@ -2458,6 +2886,7 @@ export function useGameHandlers({
     gameState,
     turnNumber,
     npcTracker,
+    clearConversationLock,
   });
 
   // ARROW KEY MOVEMENT HANDLER
@@ -2593,6 +3022,8 @@ export function useGameHandlers({
 
     // Clear the pending random event
     setPendingRandomEvent(null);
+    // Restore normal UI mode
+    setBackgroundMode('normal');
 
     // Show toast notification
     let toastMessage = narrative.substring(0, 80);
@@ -2620,6 +3051,7 @@ export function useGameHandlers({
     turnNumber,
     setConversationHistory,
     setPendingRandomEvent,
+    setBackgroundMode,
     toast
   ]);
 
@@ -2677,6 +3109,7 @@ export function useGameHandlers({
     addJournalEntry,
     handleJournalEntrySubmit,
     handleSubmit,
+    handleListRequest, // List feature handler
     handleEntityClick,
     handleRandomEventChoice,
     handleFurnitureClick,

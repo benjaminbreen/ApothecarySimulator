@@ -183,6 +183,123 @@ scenarios/1680-mexico-city/
 }
 ```
 
+### List System (Reference Tables)
+**Purpose**: Generate contextual reference tables via LLM for quick information at a glance
+
+#### Overview
+The List system provides 4 types of dynamically-generated markdown tables:
+- **People present**: NPCs/people visible in current location
+- **Sensory details**: What Maria perceives with each sense
+- **Visible objects**: Notable items and furnishings
+- **Available ingredients**: Materia medica accessible at this location
+
+**Access**: Click "List" chip in input area → select list type from dropdown
+
+#### Architecture
+
+**Flow**:
+```
+User clicks List chip
+  → ListDropdown shows options
+  → handleListRequest called with selected listType
+  → orchestrateTurn with options.isListRequest = true
+  → NarrativeAgent generates markdown table (bypasses JSON mode)
+  → parseListResponse validates format
+  → NarrativePanel renders with special styling
+```
+
+**Key Files**:
+- `src/core/config/listTypes.config.js` - List type definitions and prompt templates
+- `src/components/ListDropdown.jsx` - Dropdown UI for list type selection
+- `src/utils/narrativeParser.js` - parseListResponse() validation function
+- `src/pages/hooks/useGameHandlers.js` - handleListRequest() handler
+- `src/core/agents/NarrativeAgent.js` - LLM table generation (raw text mode)
+- `src/components/NarrativePanel.js` - Table rendering with validation error handling
+
+#### List Type Configuration
+
+Each list type in `listTypes.config.js` defines:
+- **id**: Unique identifier (e.g., 'people', 'sensory')
+- **label**: Display name (e.g., "People present")
+- **icon**: React icon component (FaUsers, FaEye, FaCube, FaLeaf)
+- **tooltip**: Help text
+- **columns**: Expected table columns
+- **emptyMessage**: Text shown when nothing to list
+- **promptTemplate**: LLM prompt with strict formatting rules
+
+**Prompt Template Variables**: `{location}`, `{time}`, `{date}` (interpolated from gameState)
+
+#### Response Format
+
+LLM must respond with marker + markdown table:
+```markdown
+[LIST_RESPONSE:people]
+| Name/Description | Age | Class/Casta | Gender | Clothing | Activity |
+|------------------|-----|-------------|--------|----------|----------|
+| **Isabel Valdés** | middle-aged | criollo | female | worn black dress | waiting anxiously |
+```
+
+**Validation** (in parseListResponse):
+- Checks for `[LIST_RESPONSE:type]` marker
+- Validates table has header row (pipes `|`)
+- Validates table has separator row (`|---|`)
+- Validates minimum 2 lines (header + separator)
+- Accepts empty state messages (e.g., "No other people are currently visible.")
+
+#### Error Handling
+
+**LLM Errors** (in handleListRequest):
+- Timeout: "Request timed out..."
+- Network: "Network error... check internet connection"
+- API key: "API authentication error"
+- Rate limit: "API rate limit reached"
+- Generic: "Unable to generate... try again"
+
+**Validation Errors** (in NarrativePanel):
+- Shown with red styling
+- Displays error message from validation
+- Suggests trying again or choosing different list type
+
+#### Styling
+
+**CSS** (in `src/index.css`):
+- `.list-response-content table` - Serif fonts, brown/amber headers
+- Dark mode support with amber accents
+- Mobile responsive (horizontal scroll, reduced font size)
+- Zebra striping for readability
+- Hover effects on rows
+
+**UI** (in NarrativePanel):
+- Amber circular icon with FaListUl
+- Parchment-style container
+- "Reference: {List Type}" header
+- Special error state with red styling
+
+#### Adding New List Types
+
+1. Add list type object to `LIST_TYPES` array in `listTypes.config.js`:
+```javascript
+{
+  id: 'newtype',
+  label: 'New Type Label',
+  icon: FaIconComponent,
+  tooltip: 'Tooltip text',
+  columns: ['Column1', 'Column2'],
+  emptyMessage: 'Nothing to show.',
+  promptTemplate: `[Detailed prompt with examples]`
+}
+```
+
+2. Add empty message to validation in `narrativeParser.js`:
+```javascript
+const validEmptyMessages = [
+  // ... existing messages
+  'Nothing to show.',
+];
+```
+
+3. Test in multiple locations and scenarios
+
 ### Character (`src/features/character/`)
 - **Portrait System**: Emotion-based portraits (happy, sad, worried, determined, curious)
 - **Stats Panel**: Health, energy, wealth, reputation display
@@ -230,7 +347,7 @@ scenarios/1680-mexico-city/
 **3. Portrait Display (ContextPanel.js)**
 - Receives `primaryPortraitFile` from useGameHandlers
 - Displays portrait at `/portraits/{filename}`
-- **Phase 2**: LLM-primary path with fallback warnings if old system used
+- Uses LLM-selected portraits with automatic fallback to demographic matching
 
 #### Adding New Portraits
 
@@ -270,9 +387,11 @@ The script will:
 - Gender/age/class patterns → Elite/Common/Young/Elderly Women/Men
 
 **Files:**
-- Portrait config: `src/core/config/portraits.config.js`
-- Sync script: `scripts/syncPortraits.js`
-- ~~`portraitLibrary.js`~~ (deprecated, will be deleted in Phase 3)
+- Portrait config: `src/core/config/portraits.config.js` - LLM-facing portrait categories
+- Portrait library: `src/core/services/portraitLibrary.js` - Demographic metadata for 613 portraits
+- Portrait resolver: `src/core/services/portraitResolver.js` - Portrait matching algorithm (call `resolvePortrait()`)
+- Portrait matcher: `src/core/services/portraitMatcher.js` - Name-based portrait file matching
+- Sync script: `scripts/syncPortraits.js` - Auto-categorizes new portraits
 
 #### Identity Consistency Rules (NarrativeAgent prompt)
 
@@ -399,7 +518,7 @@ const response = await createChatCompletion(prompt, messages);
 src/
 ├── pages/
 │   ├── HomePage.jsx           # Scenario selection
-│   └── GamePage.jsx           # Main game loop (1135 lines)
+│   └── GamePage.jsx           # Main game loop (~2,467 lines)
 │
 ├── core/
 │   ├── agents/                # LLM agent coordination
@@ -448,9 +567,9 @@ src/
 5. **Limited testing**: No automated tests, manual QA only
 
 ### Technical Debt
-1. **GamePage.jsx**: 1135 lines (could split into smaller components)
+1. **GamePage.jsx**: ~2,467 lines (could split into smaller components, though hooks have been extracted)
 2. **Prop drilling**: Some components pass 10+ props (could use React Context)
-3. **CSS organization**: Mix of CSS files and inline styles
+3. **CSS organization**: Mix of 15 CSS files and inline styles (Tailwind migration in progress)
 4. **Error handling**: Minimal LLM error recovery beyond fallbacks
 
 ### Edge Cases
@@ -461,7 +580,52 @@ src/
 
 ---
 
-## Roadmap
+## ✅ Implemented Features
+
+### Onboarding & Tutorial
+- ✅ **Tutorial system** (`src/shared/components/GameIntro.js`): Two-page interactive tutorial with tooltips, shown on first load
+
+### Mobile & Responsive Design
+- ✅ **Complete mobile system** (`src/contexts/MobileLayoutContext.jsx`):
+  - Breakpoint detection (phone, tablet, laptop, desktop)
+  - Touch-optimized input (`src/components/MobileInput.jsx`)
+  - Gesture support (useLongPress, useGesture, haptics)
+  - 78 files with mobile-responsive code
+  - Mobile layouts and navigation
+
+### UI & Visual Systems
+- ✅ **Loading states** (`src/components/LoadingSkeleton.js`): Skeleton screens, loading indicators, progress bars
+- ✅ **Weather system** (`src/components/WeatherBackground.jsx`): Complete weather, clouds, time-of-day, precipitation, atmospheric effects
+- ✅ **Interactive map** (`src/features/map/`): Grid-based movement, NPC positioning, interior/exterior maps
+
+### Progression Systems
+- ✅ **Skill system** (`src/core/systems/levelingSystem.js`):
+  - Levels 1-99 with dynamic XP
+  - 6 profession specializations (Alchemist, Herbalist, Surgeon, Poisoner, Scholar, Court Physician)
+  - 15+ tracked skills (Herbalism, Anatomy, Diagnosis, Surgery, Alchemy, etc.)
+  - Skill checks influence outcomes
+- ✅ **Profession abilities** (`src/core/systems/professionAbilities.js`): Unique abilities per specialization
+
+### Social & Relationship Systems
+- ✅ **Relationship graph** (`src/core/entities/RelationshipGraph.js`): Complete social network
+- ✅ **Interaction memory** (`src/core/entities/InteractionMemory.js`): NPC relationship tracking
+- ✅ **Reputation system** (`src/core/systems/reputationSystem.js`): 6 faction reputations (Church, Elite, Merchants, Common Folk, Indigenous, Guild)
+
+### Dynamic Content
+- ✅ **Random events system** (`src/core/events/eventPool.js`): 30 events across 5 categories:
+  - Street Life (8 events): Jugglers, merchants, processions, pickpockets
+  - Environmental (6 events): Rare herbs, murals, plague rats, black market
+  - Religious (7 events): Indulgences, public penance, converso suspicion
+  - Economic (5 events): Dice games, desperate vendors, barter
+  - Danger (4 events): Inquisition notices, constable questioning, medical emergencies
+- ✅ **Event selection logic** with triggers, skill checks, reputation impacts
+
+### Medical Systems
+- ✅ **Wound system** (`src/core/entities/combat/woundSystem.js`): Wound tracking, infection, healing progression
+
+---
+
+## 🚧 Roadmap (Remaining Work)
 
 ### Phase 1: Core Improvements (High Priority)
 
@@ -471,36 +635,32 @@ src/
 - [ ] **Entity caching**: Persist procedural data to localStorage
 - [ ] **React.memo**: Prevent unnecessary re-renders in expensive components
 
-#### 1.2 Save System
-- [ ] **Multiple save slots**: 3 manual saves + 1 autosave
+#### 1.2 Save System Enhancement
+- [ ] **Multiple save slots**: 3 manual saves + 1 autosave (currently only single localStorage save)
 - [ ] **Save versioning**: Migrations for breaking changes
 - [ ] **Export/import saves**: JSON download/upload
 - [ ] **Save metadata**: Timestamp, scenario, turn number, portrait preview
 
 #### 1.3 UI Polish
-- [ ] **Loading states**: Skeletons for LLM calls, entity generation
+- [ ] **Command autocomplete**: Suggest commands as typing, quick action buttons
 - [ ] **Tooltips**: Help text for all commands, stats, conditions
 - [ ] **Accessibility**: Keyboard navigation, ARIA labels, screen reader support
-- [ ] **Mobile optimization**: Responsive design (currently desktop-first)
 
 ### Phase 2: New Features (Medium Priority)
 
-#### 2.1 Combat & Wound System
-- [x] Wound system implemented (`src/core/entities/combat/woundSystem.js`)
-- [ ] Combat UI (turn-based medical combat, e.g., treating battlefield wounds)
-- [ ] Treatment consequences (infection risk, recovery time)
-- [ ] Historical weaponry (sword wounds, musket balls, burns)
+#### 2.1 Combat & Medical Expansion
+- [ ] **Combat UI**: Turn-based medical combat (e.g., treating battlefield wounds)
+- [ ] **Treatment consequences**: Infection risk, recovery time tracking
+- [ ] **Historical weaponry**: Sword wounds, musket balls, burns
 
-#### 2.2 Relationship System Expansion
-- [x] Relationship graph built (`src/core/entities/RelationshipGraph.js`)
-- [ ] Gossip system (NPCs share info about player actions)
-- [ ] Reputation tiers (affects prices, NPC attitudes, quest availability)
-- [ ] Romance/rivalry arcs (deep relationships with key NPCs)
+#### 2.2 Social Systems Expansion
+- [ ] **Gossip propagation**: NPCs share info about player actions (currently only 1 gossip event)
+- [ ] **Romance/rivalry arcs**: Deep relationships with key NPCs
 
-#### 2.3 Dynamic World Events
-- [ ] **Random encounters**: Plague outbreaks, market shortages, festivals
+#### 2.3 Dynamic World Events Expansion
+- [ ] **Plague outbreaks**: Epidemic mechanics affecting gameplay
 - [ ] **NPC life events**: Births, deaths, marriages (affect quests)
-- [ ] **Weather system**: Affects travel, ingredient availability
+- [ ] **Seasonal festivals**: Systematic calendar events
 - [ ] **News system**: Historical events (e.g., King's death, Inquisition trials)
 
 #### 2.4 Economy Expansion
@@ -538,18 +698,12 @@ src/
 - [ ] Branching outcomes based on relationship, skills
 - [ ] Emergent storylines (not just scripted)
 
-#### 4.2 Skill System
-- [ ] Medical skills: Diagnosis, Surgery, Herbalism, Chemistry
-- [ ] XP/leveling from successful treatments
-- [ ] Skill checks influence outcomes (e.g., surgery success rate)
-- [ ] Skill trees (unlock advanced treatments)
-
-#### 4.3 NPC Scheduling
+#### 4.2 NPC Scheduling
 - [ ] Time-based NPC locations (e.g., merchant at market 9-5)
 - [ ] Daily routines (sleep, work, socialize)
 - [ ] Special events (church on Sunday, market days)
 
-#### 4.4 Multiplayer/Social
+#### 4.3 Multiplayer/Social
 - [ ] Asynchronous co-op (send items/messages to other players)
 - [ ] Shared world events (plague affects all players)
 - [ ] Leaderboards (wealth, patients cured, quests completed)
@@ -647,7 +801,7 @@ A: Rich historical setting (Inquisition, converso identity, colonial tensions, h
 **Objectives**:
 - Convert 10,000+ lines of custom CSS to Tailwind
 - Implement cohesive dark mode
-- Split 1,468-line GamePage.jsx into modular hooks and components
+- Split ~2,467-line GamePage.jsx into modular hooks and components
 - Eliminate prop drilling with Context providers
 - Achieve 100% feature parity (zero breakage)
 
@@ -656,6 +810,31 @@ A: Rich historical setting (Inquisition, converso identity, colonial tensions, h
 
 ---
 
-**Last Updated**: October 10, 2025
+**Last Updated**: November 3, 2024
 **Contributors**: Benjamin Breen (lead developer)
 **License**: TBD
+
+---
+
+## Recent Updates (November 2024)
+
+### Code Cleanup
+- **Removed 10 dead code files** (~2,030 lines):
+  - Test files: App.test.js, setupTests.js, forageSystem.test.js, phase1.test.js, weatherSystemTest.js
+  - Duplicate components: Old .js versions replaced by .jsx Tailwind rewrites
+  - Empty files: App.css
+- **Cleaned up portraitLibrary.js** (removed 193 lines of unused/duplicate code):
+  - Removed unused `getMatchingPortrait()` function
+  - Removed duplicate helper functions (now only in portraitResolver.js)
+  - Now a pure data file containing only PORTRAIT_LIBRARY object
+- **Clarified portrait system architecture**:
+  - `portraitLibrary.js` - Data only (613 portrait definitions)
+  - `portraitResolver.js` - Portrait matching logic (call `resolvePortrait()`)
+  - `portraitMatcher.js` - Name-based file matching
+  - `portraits.config.js` - LLM-facing categories
+
+### Current Codebase Stats
+- **318 JS/JSX files** (down from 328)
+- **~123,000 lines of code**
+- **15 CSS files** (~4,883 lines)
+- **613 portrait images**

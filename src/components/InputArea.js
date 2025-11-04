@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useDrop } from 'react-dnd';
 import { getDefaultChips } from '../utils/narrativeParser';
 import { LocationDropdown } from './LocationDropdown';
+import { ListDropdown } from './ListDropdown';
 
 // Tooltip component that renders via Portal
 const Tooltip = ({ children, targetRef, colorScheme, show }) => {
@@ -68,10 +69,13 @@ const InputArea = ({
   dynamicChips = null, // Array of dynamic action chips from narrative parser
   nearbyLocations = [], // Array of nearby locations for "Go somewhere" dropdown
   onRequestLongDistanceTravel = null,
+  onListRequest = null, // New callback for when a list type is selected
 }) => {
   const inputRef = useRef(null);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [locationDropdownTarget, setLocationDropdownTarget] = useState(null);
+  const [showListDropdown, setShowListDropdown] = useState(false);
+  const [listDropdownTarget, setListDropdownTarget] = useState(null);
 
   // Drop zone for inventory items
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
@@ -101,7 +105,7 @@ const InputArea = ({
   // Determine which chips to display: dynamic (from narrative) or default
   const defaultChipConfigs = getDefaultChips();
 
-  // If we have dynamic chips, use first 2-3 from narrative, then only show "Go somewhere"
+  // If we have dynamic chips, use first 2-3 from narrative, then only show "Go somewhere" and "List"
   let quickActions;
   if (dynamicChips && dynamicChips.length > 0) {
     // Use dynamic chips (2-3 from narrative)
@@ -113,16 +117,32 @@ const InputArea = ({
       isDynamic: true,
     }));
 
-    // When dynamic chips are present, only show "Go somewhere" as the additional option
+    // When dynamic chips are present, only show "Go somewhere" and "List" as additional options
     const goSomewhereChip = defaultChipConfigs.find(chip => chip.label === 'Go somewhere');
-    const additionalChips = goSomewhereChip ? [{
-      icon: goSomewhereChip.icon,
-      label: goSomewhereChip.label,
-      action: goSomewhereChip.action,
-      tooltip: goSomewhereChip.tooltip,
-      isDynamic: false,
-      isGoSomewhere: true, // Special flag for location dropdown
-    }] : [];
+    const listChip = defaultChipConfigs.find(chip => chip.label === 'List');
+    const additionalChips = [];
+
+    if (goSomewhereChip) {
+      additionalChips.push({
+        icon: goSomewhereChip.icon,
+        label: goSomewhereChip.label,
+        action: goSomewhereChip.action,
+        tooltip: goSomewhereChip.tooltip,
+        isDynamic: false,
+        isGoSomewhere: true, // Special flag for location dropdown
+      });
+    }
+
+    if (listChip) {
+      additionalChips.push({
+        icon: listChip.icon,
+        label: listChip.label,
+        action: listChip.action,
+        tooltip: listChip.tooltip,
+        isDynamic: false,
+        isList: true, // Special flag for list dropdown
+      });
+    }
 
     quickActions = [...dynamicMapped, ...additionalChips];
   } else {
@@ -134,11 +154,20 @@ const InputArea = ({
       tooltip: chip.tooltip,
       isDynamic: false,
       isGoSomewhere: chip.label === 'Go somewhere', // Flag for special handling
+      isList: chip.label === 'List', // Flag for special handling
     }));
   }
 
-  const handleQuickAction = (action, isGoSomewhere, chipRef) => {
-    console.log('[InputArea] handleQuickAction called:', { action, isGoSomewhere, nearbyLocationsCount: nearbyLocations.length });
+  const handleQuickAction = (action, isGoSomewhere, isList, chipRef) => {
+    console.log('[InputArea] handleQuickAction called:', { action, isGoSomewhere, isList, nearbyLocationsCount: nearbyLocations.length });
+
+    // Special handling for "List" - show list dropdown
+    if (isList && typeof onListRequest === 'function') {
+      console.log('[InputArea] Opening list dropdown');
+      setListDropdownTarget(chipRef);
+      setShowListDropdown(true);
+      return;
+    }
 
     // Special handling for "Go somewhere" - show location dropdown
     if (isGoSomewhere && (nearbyLocations.length > 0 || typeof onRequestLongDistanceTravel === 'function')) {
@@ -187,6 +216,21 @@ const InputArea = ({
         const fakeEvent = { preventDefault: () => {} };
         handleSubmit(fakeEvent, action);
       }, 100);
+    }
+  };
+
+  const handleListSelect = (listType) => {
+    console.log('🟢 [InputArea] handleListSelect called with:', listType);
+    console.log('🟢 [InputArea] onListRequest exists?', typeof onListRequest);
+    setShowListDropdown(false);
+
+    // Call parent handler
+    if (onListRequest) {
+      console.log('🟢 [InputArea] Calling onListRequest...');
+      onListRequest(listType);
+      console.log('🟢 [InputArea] onListRequest called');
+    } else {
+      console.error('🔴 [InputArea] onListRequest is not defined!');
     }
   };
 
@@ -284,7 +328,7 @@ const InputArea = ({
                 <button
                   ref={(el) => chipRefs.current[refKey].current = el}
                   type="button"
-                  onClick={() => handleQuickAction(qa.action, qa.isGoSomewhere, chipRefs.current[refKey])}
+                  onClick={() => handleQuickAction(qa.action, qa.isGoSomewhere, qa.isList, chipRefs.current[refKey])}
                   onMouseEnter={() => setHoveredAction(idx)}
                   onMouseLeave={() => setHoveredAction(null)}
                   disabled={disabled}
@@ -344,6 +388,14 @@ const InputArea = ({
         nearbyLocations={nearbyLocations}
         targetRef={locationDropdownTarget}
         onRequestLongDistanceTravel={onRequestLongDistanceTravel}
+      />
+
+      {/* List Dropdown */}
+      <ListDropdown
+        show={showListDropdown}
+        onClose={() => setShowListDropdown(false)}
+        onSelectListType={handleListSelect}
+        targetRef={listDropdownTarget}
       />
     </div>
   );

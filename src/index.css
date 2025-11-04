@@ -347,6 +347,15 @@ a:hover {
   }
 }
 
+@keyframes bird-pulse {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 0.8;
+  }
+}
+
 @keyframes slideInBottom {
   from {
     opacity: 0;
@@ -617,4 +626,121 @@ a:hover {
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(251, 191, 36, 0.4);
+}
+
+/* ============================================
+   LIST RESPONSE TABLES
+   Reference tables for people, sensory details, objects, ingredients
+   ============================================ */
+
+.list-response-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Crimson Text', 'EB Garamond', Georgia, serif;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.list-response-content th {
+  background: linear-gradient(135deg, #8a7149 0%, #6d5a3a 100%);
+  color: #fefcf7;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  font-family: 'Cinzel', serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-bottom: 2px solid #6d5a3a;
+}
+
+.list-response-content td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e4dac3;
+  color: #1a1108;
+  vertical-align: top;
+}
+
+.list-response-content td:first-child {
+  font-weight: 600;
+}
+
+.list-response-content tbody tr:nth-child(even) {
+  background: rgba(249, 245, 235, 0.5);
+}
+
+.list-response-content tbody tr:hover {
+  background: rgba(138, 113, 73, 0.12);
+  transition: background 0.15s ease;
+}
+
+.list-response-content tbody tr {
+  transition: background 0.15s ease;
+}
+
+/* Empty message styling */
+.list-response-content p {
+  font-style: italic;
+  color: #8a7149;
+  text-align: center;
+  padding: 20px;
+  margin: 0;
+}
+
+/* Dark mode list response tables */
+.dark .list-response-content th {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(217, 119, 6, 0.15) 100%);
+  color: #fbbf24;
+  border-bottom: 2px solid rgba(251, 191, 36, 0.3);
+}
+
+.dark .list-response-content td {
+  border-bottom: 1px solid rgba(71, 85, 105, 0.4);
+  color: #e2e8f0;
+}
+
+.dark .list-response-content tbody tr:nth-child(even) {
+  background: rgba(30, 41, 59, 0.3);
+}
+
+.dark .list-response-content tbody tr:hover {
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.dark .list-response-content p {
+  color: #94a3b8;
+}
+
+/* Mobile responsive tables */
+@media (max-width: 768px) {
+  .list-response-content {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .list-response-content table {
+    font-size: 0.8rem;
+    min-width: 500px; /* Prevent excessive squishing */
+  }
+
+  .list-response-content th,
+  .list-response-content td {
+    padding: 8px 10px;
+  }
+
+  .list-response-content th {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .list-response-content table {
+    font-size: 0.75rem;
+  }
+
+  .list-response-content th,
+  .list-response-content td {
+    padding: 6px 8px;
+  }
 }

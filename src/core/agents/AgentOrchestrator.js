@@ -53,25 +53,36 @@ export async function orchestrateTurn({
   activePatient = null,
   recentPortrait = null,
   npcDepartedLastTurn = false,
-  conversationLock = null
+  conversationLock = null,
+  weather = null, // PHASE 1: Weather state for narrative integration
+  signJustHung = false, // TRIGGER: Force patient spawn when sign just hung
+  options = {} // NEW: Options for special request types (e.g., list requests)
 }) {
   try {
     // Step 1: Context-aware entity selection
-  const selectedEntity = selectContextAwareEntity({
-    scenarioId,
-    playerAction, // NEW: Pass player action for intent detection
-    turnNumber,
-    location: gameState.location,
-    time: gameState.time,
-    date: gameState.date,
-    recentNPCs,
-    npcDepartedLastTurn, // NEW: Track if NPC left last turn
-    reputation,
-    wealth,
-    shopSign: gameState.shopSign || {}, // Pass shop sign status for patient flow
-    activePatient, // Pass active patient to prevent duplicate selections
-    conversationLock
-  });
+    // SKIP entity selection for list requests (lists are about current scene, not NPCs)
+    let selectedEntity = null;
+
+    if (!options.isListRequest) {
+      selectedEntity = selectContextAwareEntity({
+        scenarioId,
+        playerAction, // NEW: Pass player action for intent detection
+        turnNumber,
+        location: gameState.location,
+        time: gameState.time,
+        date: gameState.date,
+        recentNPCs,
+        npcDepartedLastTurn, // NEW: Track if NPC left last turn
+        reputation,
+        wealth,
+        shopSign: gameState.shopSign || {}, // Pass shop sign status for patient flow
+        activePatient, // Pass active patient to prevent duplicate selections
+        conversationLock,
+        signJustHung // TRIGGER: Force patient spawn
+      });
+    } else {
+      console.log('[AgentOrchestrator] List request - skipping entity selection');
+    }
 
     if (selectedEntity) {
       console.log(`[Turn ${turnNumber}] Selected entity: ${selectedEntity.name} (${selectedEntity.entityType || selectedEntity.type})`);
@@ -120,7 +131,9 @@ export async function orchestrateTurn({
       journal,
       recentPortrait: isContinuation ? recentPortrait : null, // PHASE 2: Only maintain portrait during true continuations
       isContinuation, // PHASE 3: Flag if conversation is continuing
-      continuationNPC: continuationNPC // Always pass if available
+      continuationNPC: continuationNPC, // Always pass if available
+      weather, // PHASE 1: Weather state for narrative integration
+      options // NEW: Pass options for special request types (e.g., list requests)
     });
 
     if (!narrativeResult.success) {
@@ -232,6 +245,22 @@ export async function orchestrateTurn({
     }
 
     // Step 4: Extract game state from narrative using StateAgent (with map data and location registry)
+    // SKIP state extraction for list requests (no game state changes)
+    if (options.isListRequest) {
+      console.log('[AgentOrchestrator] List request - skipping state extraction');
+      // Return early with just the narrative for list requests
+      return {
+        success: true,
+        narrative: narrativeResult.narrative,
+        gameState: {}, // No state changes
+        primaryPortrait: narrativeResult.primaryPortrait,
+        primaryNPC: narrativeResult.primaryNPC,
+        showPortraitFor: narrativeResult.showPortraitFor,
+        requestNewPatient: false,
+        allNewEntities: []
+      };
+    }
+
     const detectedIntent = narrativeResult.interactionIntent || 'none';
     console.log(`[AgentOrchestrator] Interaction intent from NarrativeAgent: ${detectedIntent}`);
 
@@ -246,7 +275,8 @@ export async function orchestrateTurn({
       availableLocations, // NEW: Pass location registry for granular location tracking
       primaryNPC: narrativeResult.primaryNPC || null, // NEW: Pass primary NPC for contract name resolution
       activePatient: activePatient || null, // NEW: Pass active patient for treatment context
-      interactionIntent: detectedIntent
+      interactionIntent: detectedIntent,
+      narrativeEntities: narrativeResult.entities || [] // Pass entities for accurate patient identification
     });
 
     // Step 5: Validate state changes

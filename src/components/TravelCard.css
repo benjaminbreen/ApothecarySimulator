@@ -13,13 +13,16 @@
   transform: translate(-50%, -50%);
   z-index: 9999;
 
-  /* VISUAL STYLING */
-  background: linear-gradient(135deg, #0d9488 0%, #06b6d4 100%);
+  /* GLASS-MORPHIC STYLING - allows TimeAwareBackground to show through */
+  background: rgba(13, 148, 136, 0.85); /* Teal with transparency */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px); /* Safari support */
   border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   padding: 24px;
   max-width: 600px;
   width: 90%;
-  box-shadow: 0 8px 24px rgba(6, 182, 212, 0.5), 0 0 0 9999px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   color: white;
   animation: slideIn 0.4s ease-out;
 }
@@ -80,7 +83,7 @@
   align-items: center;
   gap: 8px;
   font-size: 16px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.15);
   padding: 10px 16px;
   border-radius: 8px;
 }
@@ -100,7 +103,7 @@
   justify-content: space-around;
   flex-wrap: wrap;
   gap: 16px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.12);
   padding: 16px;
   border-radius: 8px;
 }
@@ -127,10 +130,10 @@
 }
 
 .travel-narrative {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.15);
   padding: 16px;
   border-radius: 8px;
-  border-left: 4px solid rgba(255, 255, 255, 0.4);
+  border-left: 4px solid rgba(255, 255, 255, 0.5);
 }
 
 .travel-narrative p {
@@ -149,10 +152,10 @@
 
 .progress-bar {
   height: 24px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
 }
 
 .progress-fill {
@@ -177,8 +180,8 @@
 }
 
 .skip-travel-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.25);
+  border: 2px solid rgba(255, 255, 255, 0.5);
   color: white;
   padding: 10px 24px;
   border-radius: 8px;
@@ -191,10 +194,10 @@
 }
 
 .skip-travel-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.7);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .skip-travel-btn:active {

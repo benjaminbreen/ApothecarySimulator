@@ -49,6 +49,7 @@ export default {
       'Chapultepec Forest',
       'The Alameda',
       'Plaza Mayor',
+      'El Consulado de Mercaderes',
       'Inquisition Palace',
       'Hospital Real de los Naturales',
       'San Hipólito',
@@ -246,6 +247,7 @@ Just as you begin to sort through your inventory, a sharp knock at the door anno
       // Government and institutional
       'Inquisition Palace': 'interior-palace',
       'Palace of the Viceroy': 'interior-palace',
+      'El Consulado de Mercaderes': 'interior-palace',
 
       // Medical facilities
       'Hospital Real de los Naturales': 'interior-hospital',

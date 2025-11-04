@@ -149,7 +149,17 @@ export async function runTestScenario(scenario, gameState, logCallback = console
         gameState,
         turnNumber: i + 1,
         recentNPCs: [],
-        reputation: gameState.reputation || { commonFolk: 5, church: 0, criollos: 0, indigenous: 0, physicians: 0, inquisition: 0 },
+        reputation: gameState.reputation || {
+          overall: 50,
+          factions: {
+            commonFolk: 5,
+            church: 0,
+            criollos: 0,
+            indigenous: 0,
+            physicians: 0,
+            inquisition: 0
+          }
+        },
         wealth: gameState.wealth || 100,
         mapData: null,
         playerPosition: null,

@@ -73,12 +73,51 @@ export function adaptEntityForPatientModal(entity) {
 export function adaptEntityForNPCModal(entity) {
   if (!entity) return null;
 
-  // If already in nested format, return as-is
-  if (entity.appearance || entity.personality || entity.social) {
+  // Check if entity is fully nested (ALL major objects are proper objects, not strings)
+  const isFullyNested =
+    (entity.appearance && typeof entity.appearance === 'object' && (entity.appearance.age || entity.appearance.gender)) &&
+    (entity.personality && typeof entity.personality === 'object' && entity.personality.bigFive) &&
+    (entity.social && typeof entity.social === 'object' && entity.social.occupation);
+
+  // If fully nested format, return as-is
+  if (isFullyNested) {
     return entity;
   }
 
-  // Convert flat format to nested (for backward compatibility)
+  // Otherwise, convert to nested format
+  // Handle appearance: if it's a string (LLM-generated), preserve it; otherwise build object
+  let appearance = entity.appearance;
+  if (typeof appearance !== 'string') {
+    // Build object from individual fields
+    appearance = {
+      age: entity.age,
+      gender: entity.gender,
+      height: entity.height,
+      build: entity.build,
+      face: entity.face || {},
+      hair: entity.hair || {},
+      distinguishingFeatures: entity.distinguishingFeatures || []
+    };
+  }
+
+  // Handle personality: if it's a string (LLM-generated), parse it; otherwise use object
+  let personality = entity.personality;
+  if (typeof personality === 'string') {
+    // LLM gave us personality as a string (e.g., "anxious, formal")
+    const traits = personality.split(',').map(t => t.trim()).filter(t => t.length > 0);
+    personality = {
+      bigFive: {},
+      temperament: {},
+      traits
+    };
+  } else if (typeof personality !== 'object') {
+    personality = {
+      bigFive: {},
+      temperament: {},
+      traits: []
+    };
+  }
+
   return {
     name: entity.name,
     id: entity.id,
@@ -90,21 +129,9 @@ export function adaptEntityForNPCModal(entity) {
       image: entity.image || entity.portrait || null
     },
 
-    appearance: {
-      age: entity.age,
-      gender: entity.gender,
-      height: entity.height,
-      build: entity.build,
-      face: entity.face || {},
-      hair: entity.hair || {},
-      distinguishingFeatures: entity.distinguishingFeatures || []
-    },
+    appearance,
 
-    personality: entity.personality || {
-      bigFive: {},
-      temperament: {},
-      traits: []
-    },
+    personality,
 
     social: {
       occupation: entity.occupation,

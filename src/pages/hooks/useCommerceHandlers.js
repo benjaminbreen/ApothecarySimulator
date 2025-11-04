@@ -9,7 +9,7 @@ import { entityManager } from '../../core/entities/EntityManager';
 import { createChatCompletion } from '../../core/services/llmService';
 import { mapNPCFactionToSystemFaction } from '../../core/systems/reputationSystem';
 import { MedicalRecordsManager } from '../../core/systems/medicalRecordsManager';
-import { getTransactionManager, TRANSACTION_CATEGORIES } from '../../core/systems/transactionManager';
+import { getTransactionManager, TRANSACTION_CATEGORIES, TRANSACTION_OUTCOMES } from '../../core/systems/transactionManager';
 
 /**
  * Helper: Check if donation is abstract (non-physical)
@@ -39,12 +39,89 @@ function isAbstractDonation(itemName) {
 }
 
 /**
+ * Helper: Build evaluation prompt for give/sell outcomes
+ * Relies on LLM knowledge of 17th century medicine rather than hard-coded tables
+ */
+function buildGiveSellOutcomePrompt({ type, recipientName, item, amount, price, ailmentDescription }) {
+  const quantityText = `${amount}× ${item.name}`;
+  const priceLine = type === 'sell'
+    ? `Maria is asking ${price} reales for this transaction.`
+    : 'This is a charitable gift with no payment expected.';
+  const ailmentLine = ailmentDescription
+    ? `The recipient originally described their need as: "${ailmentDescription}".`
+    : 'The recipient did not describe a specific ailment.';
+
+  return `You adjudicate outcomes for a historical roleplaying game set in 1680 Mexico City.
+Maria de Lima, a converso apothecary, offers ${quantityText} of ${item.name} to ${recipientName} as a ${type === 'sell' ? 'sale' : 'gift'}.
+${priceLine}
+${ailmentLine}
+
+Consider period-appropriate medical reasoning (humoral theory, materia medica, colonial trade realities) and the item’s actual usefulness for the stated ailment. Do not force a positive outcome—if the offering is unsuitable or suspicious, let the recipient hesitate, counter, or refuse.
+
+Respond with ONLY a JSON object in this format:
+{
+  "accepted": true | false,
+  "decision": "accepted" | "declined" | "counter",
+  "finalPrice": ${type === 'sell' ? 'number (use the amount actually exchanged, or the amount they would accept if countering)' : '0'},
+  "narrative": "2-3 sentences from an omniscient narrator describing the exchange and the recipient’s reaction",
+  "reason": "Short phrase explaining why they responded that way"
+}
+
+Rules:
+- If decision is "counter", set accepted to false and finalPrice to the counter-offer amount (or leave null if they want a different remedy).
+- For gifts, finalPrice must be 0.
+- Keep the narrative grounded in the situation; do not invent cures the item cannot plausibly deliver.`;
+}
+
+/**
+ * Helper: Parse LLM outcome response for give/sell actions
+ */
+function parseGiveSellOutcome(rawText, type, fallbackPrice) {
+  const defaultNarrative = 'The exchange fizzles awkwardly; no goods change hands.';
+  try {
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      const accepted = Boolean(parsed.accepted);
+      const decision = parsed.decision || (accepted ? 'accepted' : 'declined');
+      let finalPrice = type === 'sell' ? Number(parsed.finalPrice ?? fallbackPrice ?? 0) : 0;
+
+      if (Number.isNaN(finalPrice) || finalPrice < 0) {
+        finalPrice = fallbackPrice ?? 0;
+      }
+      if (type !== 'sell') {
+        finalPrice = 0;
+      }
+
+      return {
+        accepted,
+        decision,
+        finalPrice,
+        narrative: parsed.narrative || defaultNarrative,
+        reason: parsed.reason || '',
+      };
+    }
+  } catch (error) {
+    console.error('[ActionPrompt] Failed to parse give/sell outcome:', error);
+  }
+
+  return {
+    accepted: false,
+    decision: 'declined',
+    finalPrice: type === 'sell' ? (fallbackPrice ?? 0) : 0,
+    narrative: defaultNarrative,
+    reason: 'No clear outcome returned',
+  };
+}
+
+/**
  * Custom hook for commerce/trade handlers
  * Manages sales, trades, and simple NPC interactions
  *
  * @param {Object} params - Hook parameters
  * @param {Function} params.addJournalEntry - Journal entry adder
  * @param {Function} params.setConversationHistory - Conversation history setter
+ * @param {Function} params.setHistoryOutput - Narrative output setter
  * @param {Function} params.toast - Toast notification function
  * @param {Function} params.awardXP - Award XP function
  * @param {Function} params.updateReputation - Update faction reputation
@@ -52,6 +129,8 @@ function isAbstractDonation(itemName) {
  * @param {Function} params.setTradingNPC - Set trading NPC
  * @param {Function} params.setTradeMode - Set trade mode
  * @param {Function} params.setIsBuyOpen - Open buy/trade modal
+ * @param {Function} params.setCurrentMapId - Change current map/location
+ * @param {Function} params.setPreselectedTradeTab - Preselect tab in TradeModal
  * @param {Function} params.removeTradeOpportunity - Remove trade opportunity from state
  * @param {Function} params.setPendingSimpleInteraction - Set pending simple interaction
  * @param {Function} params.setPendingMixingDecision - Set pending mixing decision
@@ -66,12 +145,14 @@ function isAbstractDonation(itemName) {
  * @param {Object} params.gameState - DEPRECATED: Use useGameState() instead
  * @param {number} params.turnNumber - Current turn number
  * @param {Object} params.npcTracker - NPC tracker instance
+ * @param {Function} params.clearConversationLock - Clears active NPC conversation lock
  *
  * @returns {Object} Commerce handlers
  */
 export function useCommerceHandlers({
   addJournalEntry,
   setConversationHistory,
+  setHistoryOutput,
   toast,
   awardXP,
   updateReputation,
@@ -79,6 +160,8 @@ export function useCommerceHandlers({
   setTradingNPC,
   setTradeMode,
   setIsBuyOpen,
+  setCurrentMapId,
+  setPreselectedTradeTab,
   removeTradeOpportunity,
   setPendingSimpleInteraction,
   setPendingMixingDecision,
@@ -97,6 +180,7 @@ export function useCommerceHandlers({
   gameState,
   turnNumber,
   npcTracker,
+  clearConversationLock,
 }) {
   // Context hooks
   const { updateInventory, updateWealth } = useGameState();
@@ -212,6 +296,18 @@ export function useCommerceHandlers({
   const handleDeclineTrade = useCallback((opportunityId) => {
     console.log('[Trade] Declined trade opportunity:', opportunityId);
 
+    // Log failed transaction attempt
+    const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+    transactionManager.logInteractionAttempt(
+      TRANSACTION_CATEGORIES.OTHER,
+      `Declined trade opportunity (ID: ${opportunityId})`,
+      0, // No amount available without opportunity details
+      TRANSACTION_OUTCOMES.DECLINED_OFFER,
+      'Player rejected the trade',
+      gameState.date,
+      gameState.time
+    );
+
     // Remove the opportunity
     removeTradeOpportunity(opportunityId);
 
@@ -224,7 +320,8 @@ export function useCommerceHandlers({
   }, [
     removeTradeOpportunity,
     setConversationHistory,
-    toast
+    toast,
+    gameState
   ]);
 
   /**
@@ -237,8 +334,10 @@ export function useCommerceHandlers({
 
     const { type, npcName } = interaction;
 
-    // Detect if this is a dismissal action (NPC should be removed from tracking)
-    const isDismissal = ['refuse', 'decline', 'not_now', 'not_today', 'no_thanks'].includes(action.toLowerCase());
+    // ALL simple interactions are one-and-done brief encounters
+    // After any action (buy, refuse, donate, gamble, etc.), the NPC should depart
+    // This is different from medical consultations which span multiple turns
+    const isDismissal = true;
 
     // Determine time increment based on interaction type
     const timeIncrements = {
@@ -247,7 +346,8 @@ export function useCommerceHandlers({
       donation_request: 5,
       competitive_check: 10,
       information_exchange: 5,
-      social_visit: 15
+      social_visit: 15,
+      investment_offer: 10 // Investment discussions take a bit longer
     };
     const timeIncrement = timeIncrements[type] || 5;
 
@@ -296,27 +396,70 @@ export function useCommerceHandlers({
       }
 
       case 'competitive_check': {
-        const { targetItem, offeredPrice, actualValue } = interaction.competitive;
-        if (action === 'sell_lowball') {
-          // Sell at lowball price
-          updateInventory(targetItem, -1, `sold to ${npcName}`);
-          updateWealth(offeredPrice);
-          reputationChange = -2; // Slight reputation hit for appearing desperate
-          journalText = `Sold ${targetItem} to ${npcName} for ${offeredPrice} reales (below market value).`;
-          toast.warning(`Sold for ${offeredPrice} reales. Market value was ${actualValue}`, { duration: 3000 });
-        } else if (action === 'demand_fair') {
-          // Demand fair price - competitive check passed
-          updateInventory(targetItem, -1, `sold to ${npcName}`);
-          updateWealth(actualValue);
-          reputationChange = +3; // Reputation boost for standing firm
-          xpAmount = 2; // Extra XP for good business sense
-          journalText = `Refused lowball offer and sold ${targetItem} to ${npcName} for fair price (${actualValue} reales).`;
-          toast.success(`Sold for fair price: ${actualValue} reales! +3 reputation`, { duration: 3000 });
+        const { difficulty = 'medium' } = interaction.competitive;
+
+        if (action === 'show_around') {
+          // Friendly but risky - reveal information to rival
+          reputationChange = +2; // Reputation boost for being friendly
+          journalText = `Showed ${npcName} around the workshop. They seemed impressed but also took careful note of everything.`;
+          toast.warning(`${npcName} learned about your methods. Reputation +2 but they may use this knowledge against you.`, { duration: 4000 });
+          xpAmount = 1;
+        } else if (action === 'refuse_politely') {
+          // Safe but unfriendly - maintain secrets but seem closed-off
+          reputationChange = -1; // Small reputation hit for being unfriendly
+          journalText = `Politely refused ${npcName}'s request to see the workshop. They seemed disappointed but accepted gracefully.`;
+          toast.info(`Maintained trade secrets. Reputation -1 for appearing closed-off.`, { duration: 3000 });
+          xpAmount = 1;
+        } else if (action === 'misdirect') {
+          // Deception check - try to feed them false information
+          const deceptionSuccessRate = {
+            easy: 0.8,
+            medium: 0.5,
+            hard: 0.3
+          };
+          const successRate = deceptionSuccessRate[difficulty] || 0.5;
+          const success = Math.random() < successRate;
+
+          if (success) {
+            // Successfully misdirected rival
+            reputationChange = +3; // Reputation boost for cunning
+            journalText = `Successfully misdirected ${npcName} with false information about your methods. They left believing they learned something valuable.`;
+            toast.success(`Misdirection successful! ${npcName} was fooled. +3 reputation for cunning`, { duration: 4000 });
+            xpAmount = 3; // Extra XP for successful deception
+          } else {
+            // Failed deception - rival caught on
+            reputationChange = -3; // Reputation hit for obvious deception
+            journalText = `Attempted to misdirect ${npcName}, but they saw through the ruse. They left offended and suspicious.`;
+            toast.error(`${npcName} saw through your deception! Reputation -3`, { duration: 4000 });
+            xpAmount = 1;
+          }
+        } else if (action === 'boast') {
+          // Show off - try to intimidate rival with superiority
+          const intimidationSuccessRate = {
+            easy: 0.7,
+            medium: 0.5,
+            hard: 0.3
+          };
+          const successRate = intimidationSuccessRate[difficulty] || 0.5;
+          const success = Math.random() < successRate;
+
+          if (success) {
+            // Successfully intimidated rival
+            reputationChange = +4; // Strong reputation boost for demonstrating superiority
+            journalText = `Demonstrated your superior knowledge and techniques to ${npcName}. They left visibly impressed and intimidated.`;
+            toast.success(`${npcName} was intimidated by your expertise! +4 reputation`, { duration: 4000 });
+            xpAmount = 2;
+          } else {
+            // Failed to impress - came off as arrogant
+            reputationChange = -2; // Reputation hit for arrogance
+            journalText = `Boasted about your techniques to ${npcName}, but they seemed unimpressed. You may have come across as arrogant.`;
+            toast.warning(`${npcName} wasn't impressed. Reputation -2 for arrogance`, { duration: 3000 });
+            xpAmount = 1;
+          }
         } else {
-          // Dismiss the rival
-          reputationChange = +1; // Small reputation boost for refusing to engage
-          journalText = `Dismissed ${npcName}'s attempt to undercut prices.`;
-          toast.info('Dismissed rival apothecary', { duration: 2000 });
+          // Default case - shouldn't happen
+          journalText = `${npcName}'s visit concluded.`;
+          toast.info('Visit concluded', { duration: 2000 });
         }
         break;
       }
@@ -371,12 +514,408 @@ export function useCommerceHandlers({
           updateWealth(-price);
           // Add item to inventory
           updateInventory(item, quantity, `purchased from ${npcName}`);
+
+          // Log transaction to ledger (Libro de Cuentas)
+          const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+          const currentWealth = (gameState.wealth || 0) - price; // Calculate wealth after purchase
+          transactionManager.logTransaction(
+            'expense',
+            TRANSACTION_CATEGORIES.INGREDIENT_PURCHASES,
+            `Bought ${item} from ${npcName}`,
+            price,
+            currentWealth,
+            gameState.date,
+            gameState.time
+          );
+          console.log(`[Ledger] Logged purchase of ${item} from ${npcName} for ${price} reales`);
+
           journalText = `Purchased ${item} from ${npcName} for ${price} reales.`;
           toast.success(`Bought ${item} for ${price} reales`, { duration: 2000 });
+        } else if (action === 'haggle') {
+          // Haggling attempt - simple skill check
+          const baseSuccessRate = 0.5; // 50% base success rate
+          const roll = Math.random();
+          const success = roll < baseSuccessRate;
+
+          if (success) {
+            // Successful haggle - 10-20% discount
+            const discountPercent = Math.floor(Math.random() * 11) + 10; // 10-20%
+            const discount = Math.floor(price * (discountPercent / 100));
+            const finalPrice = price - discount;
+
+            // Check if player can afford discounted price
+            if ((gameState.wealth || 0) >= finalPrice) {
+              // Deduct wealth
+              updateWealth(-finalPrice);
+              // Add item to inventory
+              updateInventory(item, quantity, `purchased from ${npcName} (haggled)`);
+
+              // Log transaction to ledger
+              const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+              const currentWealth = (gameState.wealth || 0) - finalPrice;
+              transactionManager.logTransaction(
+                'expense',
+                TRANSACTION_CATEGORIES.INGREDIENT_PURCHASES,
+                `Bought ${item} from ${npcName} (haggled down from ${price}r)`,
+                finalPrice,
+                currentWealth,
+                gameState.date,
+                gameState.time
+              );
+              console.log(`[Ledger] Logged haggled purchase of ${item} for ${finalPrice} reales (was ${price})`);
+
+              journalText = `Successfully haggled with ${npcName}! Purchased ${item} for ${finalPrice} reales (${discountPercent}% discount).`;
+              toast.success(`Haggled successfully! Saved ${discount} reales`, { duration: 3000 });
+              reputationChange = +1; // Small reputation boost for successful haggling
+              xpAmount = 2; // Extra XP for skillful negotiation
+            } else {
+              // Can't afford even with discount
+              journalText = `Haggled with ${npcName} down to ${finalPrice} reales, but still couldn't afford it.`;
+              toast.warning(`Negotiated to ${finalPrice}r but can't afford it`, { duration: 2500 });
+            }
+          } else {
+            // Failed haggle - NPC slightly annoyed but accepts original price if player wants
+            journalText = `Tried to haggle with ${npcName}, but they refused to budge on the price.`;
+            toast.warning(`${npcName} wasn't interested in haggling`, { duration: 2500 });
+            reputationChange = -1; // Small reputation hit for failed haggle
+          }
         } else {
           // Refused to buy
           journalText = `Declined ${npcName}'s offer to purchase ${item}.`;
           toast.info('Offer declined', { duration: 1500 });
+        }
+        break;
+      }
+
+      case 'extortion_demand': {
+        const { demandType, amount, difficulty, threatener, threatLevel } = interaction.extortion;
+
+        // Initialize extortion history if needed
+        if (!gameState.extortionHistory) {
+          gameState.extortionHistory = {
+            byNPC: {},
+            activeProtection: [],
+            pendingRetaliation: []
+          };
+        }
+
+        // Helper to update extortion history
+        const updateExtortionHistory = (response) => {
+          if (!gameState.extortionHistory.byNPC[npcName]) {
+            gameState.extortionHistory.byNPC[npcName] = {
+              timesPaid: 0,
+              timesRefused: 0,
+              timesNegotiated: 0,
+              timesReported: 0,
+              lastAmount: amount,
+              lastResponse: response,
+              lastTurn: turnNumber,
+              threatenerType: threatener
+            };
+          }
+          const npcHistory = gameState.extortionHistory.byNPC[npcName];
+          npcHistory[`times${response.charAt(0).toUpperCase() + response.slice(1)}`]++;
+          npcHistory.lastAmount = amount;
+          npcHistory.lastResponse = response;
+          npcHistory.lastTurn = turnNumber;
+          npcHistory.threatenerType = threatener;
+        };
+
+        // Helper to schedule consequence
+        const scheduleConsequence = (type, severity, turnsUntil = 3) => {
+          if (!gameState.pendingConsequences) {
+            gameState.pendingConsequences = [];
+          }
+          gameState.pendingConsequences.push({
+            type: 'extortion_retaliation',
+            triggerTurn: turnNumber + turnsUntil,
+            data: {
+              npcName,
+              retaliationType: type,
+              severity,
+              threatener,
+              originalAmount: amount
+            },
+            description: `${npcName}'s threatened retaliation for refusing extortion`
+          });
+          console.log(`[Extortion] Scheduled ${type} retaliation from ${npcName} in ${turnsUntil} turns`);
+        };
+
+        if (action === 'pay') {
+          // Pay the extortion
+          updateWealth(-amount);
+          updateExtortionHistory('paid');
+          reputationChange = -2; // Paying extortion hurts reputation (seen as weak)
+
+          // Check if this is a repeat payment - escalate amount next time
+          const history = gameState.extortionHistory.byNPC[npcName];
+          if (history && history.timesPaid > 1) {
+            journalText = `Paid ${amount} reales to ${npcName} again. They've come to expect regular payments now...`;
+            toast.warning(`Paid extortion. Reputation -2. They'll be back for more.`, { duration: 3500 });
+          } else {
+            journalText = `Paid ${amount} reales to ${npcName} to avoid trouble. The ${demandType} demand has been satisfied... for now.`;
+            toast.warning(`Paid extortion money. Reputation -2`, { duration: 3000 });
+          }
+          xpAmount = 0; // No XP for giving in
+        } else if (action === 'refuse') {
+          // Refuse the extortion - brave but triggers consequences
+          updateExtortionHistory('refused');
+          reputationChange = +2; // Brave stance improves reputation
+
+          // Schedule retaliation based on threatener type and threat level
+          const retaliationTypes = {
+            gang: ['vandalism', 'assault', 'theft'],
+            official: ['shop_closure', 'fine', 'investigation'],
+            inquisition_proxy: ['investigation', 'social_pressure', 'inquisition_notice'],
+            rival: ['price_war', 'rumors', 'sabotage']
+          };
+          const severityMap = { veiled: 'low', direct: 'medium', violent: 'high' };
+          const possibleRetaliations = retaliationTypes[threatener] || ['vandalism'];
+          const retaliationType = possibleRetaliations[Math.floor(Math.random() * possibleRetaliations.length)];
+
+          scheduleConsequence(retaliationType, severityMap[threatLevel] || 'medium', Math.floor(Math.random() * 3) + 2); // 2-4 turns
+
+          journalText = `Refused ${npcName}'s demands. They didn't take it well. There may be consequences...`;
+          toast.error(`Refused extortion! Watch your back. Reputation +2 for courage`, { duration: 4000 });
+          xpAmount = 3; // XP for bravery
+        } else if (action === 'negotiate') {
+          // Attempt to negotiate - skill check
+          const successRate = { easy: 0.7, medium: 0.5, hard: 0.3 }[difficulty] || 0.5;
+          const success = Math.random() < successRate;
+
+          if (success) {
+            // Successful negotiation - reduced payment
+            const reducedAmount = Math.floor(amount * 0.6); // 40% discount
+            updateWealth(-reducedAmount);
+            updateExtortionHistory('negotiated');
+            reputationChange = +1; // Slight reputation boost for skillful negotiation
+            journalText = `Successfully negotiated with ${npcName}. Reduced payment to ${reducedAmount} reales instead of ${amount}.`;
+            toast.success(`Negotiated down to ${reducedAmount} reales!`, { duration: 3000 });
+            xpAmount = 2; // XP for skillful handling
+          } else {
+            // Failed negotiation - now they're angry, schedule minor consequence
+            updateExtortionHistory('negotiated');
+            scheduleConsequence('intimidation', 'low', 2);
+            journalText = `Attempted to negotiate with ${npcName}, but they were unmoved. The threat remains, and they seem more dangerous now.`;
+            toast.error(`Negotiation failed!`, { duration: 2500 });
+            reputationChange = -1;
+            xpAmount = 0;
+          }
+        } else if (action === 'report') {
+          // Report to authorities (only possible for non-official threats)
+          updateExtortionHistory('reported');
+          reputationChange = +3; // Good standing with law-abiding folks
+          journalText = `Reported ${npcName} to the authorities. They promised to investigate the matter.`;
+          toast.success(`Authorities notified. Reputation +3 for law-abiding behavior`, { duration: 3500 });
+          xpAmount = 2;
+
+          // Small chance corrupt authorities tip off the extorter (10% chance of consequence)
+          if (Math.random() < 0.1) {
+            scheduleConsequence('retaliation_for_snitching', 'high', 3);
+            console.log(`[Extortion] Corrupt authorities tipped off ${npcName}!`);
+          }
+        }
+        break;
+      }
+
+      case 'gamble_opportunity': {
+        const { gameType, wager, potentialWin } = interaction.gamble;
+
+        // Initialize gambling history if needed
+        if (!gameState.gamblingHistory) {
+          gameState.gamblingHistory = {
+            byNPC: {},
+            recentGames: [],
+            currentStreak: { type: null, count: 0 }
+          };
+        }
+
+        // Helper to update gambling history
+        const updateGamblingHistory = (result, amount) => {
+          // Update NPC-specific history
+          if (!gameState.gamblingHistory.byNPC[npcName]) {
+            gameState.gamblingHistory.byNPC[npcName] = {
+              totalWins: 0,
+              totalLosses: 0,
+              netGain: 0,
+              lastGameType: gameType,
+              lastInteraction: turnNumber
+            };
+          }
+          const npcHistory = gameState.gamblingHistory.byNPC[npcName];
+          if (result === 'win') {
+            npcHistory.totalWins++;
+            npcHistory.netGain += amount;
+          } else {
+            npcHistory.totalLosses++;
+            npcHistory.netGain -= Math.abs(amount);
+          }
+          npcHistory.lastGameType = gameType;
+          npcHistory.lastInteraction = turnNumber;
+
+          // Update recent games (keep last 10)
+          gameState.gamblingHistory.recentGames.unshift({
+            npcName,
+            gameType,
+            result,
+            amount,
+            turnNumber
+          });
+          if (gameState.gamblingHistory.recentGames.length > 10) {
+            gameState.gamblingHistory.recentGames.pop();
+          }
+
+          // Update streak
+          if (gameState.gamblingHistory.currentStreak.type === result) {
+            gameState.gamblingHistory.currentStreak.count++;
+          } else {
+            gameState.gamblingHistory.currentStreak = { type: result, count: 1 };
+          }
+        };
+
+        if (action === 'bet_won') {
+          // Player won the bet
+          const netGain = potentialWin - wager;
+          updateWealth(netGain);
+          updateGamblingHistory('win', netGain);
+
+          // Log transaction to ledger
+          const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+          const currentWealth = (gameState.wealth || 0) + netGain;
+          transactionManager.logTransaction(
+            'income',
+            TRANSACTION_CATEGORIES.OTHER,
+            `Won ${gameType} gamble with ${npcName}`,
+            netGain,
+            currentWealth,
+            gameState.date,
+            gameState.time
+          );
+          console.log(`[Ledger] Logged gambling win of ${netGain} reales from ${gameType}`);
+
+          journalText = `Won at ${gameType} with ${npcName}! Gained ${netGain} reales.`;
+          toast.success(`🎉 You won ${potentialWin} reales!`, { duration: 3500 });
+          reputationChange = +1; // Slight reputation boost for winning
+          xpAmount = 2;
+
+          // Check for win streak
+          if (gameState.gamblingHistory.currentStreak.count >= 3) {
+            toast.warning(`${gameState.gamblingHistory.currentStreak.count} win streak! Other gamblers are taking notice...`, { duration: 4000 });
+          }
+        } else if (action === 'bet_doubled_won') {
+          // Player won the double-or-nothing bet
+          const doubledAmount = (potentialWin - wager) * 2;
+          updateWealth(doubledAmount);
+          updateGamblingHistory('win', doubledAmount);
+
+          // Log transaction to ledger
+          const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+          const currentWealth = (gameState.wealth || 0) + doubledAmount;
+          transactionManager.logTransaction(
+            'income',
+            TRANSACTION_CATEGORIES.OTHER,
+            `Won DOUBLED ${gameType} gamble with ${npcName}`,
+            doubledAmount,
+            currentWealth,
+            gameState.date,
+            gameState.time
+          );
+          console.log(`[Ledger] Logged DOUBLED gambling win of ${doubledAmount} reales from ${gameType}`);
+
+          journalText = `Doubled down and WON at ${gameType} with ${npcName}! Gained ${doubledAmount} reales total!`;
+          toast.success(`🎉🎉 DOUBLED! You won ${doubledAmount} reales!`, { duration: 4000 });
+          reputationChange = +2; // Bigger reputation boost for risky win
+          xpAmount = 4; // Extra XP for risky success
+        } else if (action === 'bet_lost') {
+          // Player lost the bet
+          updateWealth(-wager);
+          updateGamblingHistory('lose', wager);
+
+          // Log transaction to ledger
+          const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+          const currentWealth = (gameState.wealth || 0) - wager;
+          transactionManager.logTransaction(
+            'expense',
+            TRANSACTION_CATEGORIES.OTHER,
+            `Lost ${gameType} gamble with ${npcName}`,
+            wager,
+            currentWealth,
+            gameState.date,
+            gameState.time
+          );
+          console.log(`[Ledger] Logged gambling loss of ${wager} reales from ${gameType}`);
+
+          journalText = `Lost ${wager} reales gambling at ${gameType} with ${npcName}.`;
+          toast.error(`Lost ${wager} reales`, { duration: 3000 });
+          reputationChange = -1; // Slight reputation hit for losing
+          xpAmount = 0;
+        } else if (action === 'bet_doubled_lost') {
+          // Player lost the double-or-nothing bet (loses initial winnings)
+          const lostWinnings = potentialWin - wager;
+          // No wealth change since initial win wasn't applied yet
+          updateGamblingHistory('lose', lostWinnings);
+
+          journalText = `Tried to double winnings at ${gameType} with ${npcName}, but lost it all. Sometimes greed doesn't pay.`;
+          toast.error(`💔 Lost all winnings! Walked away with nothing.`, { duration: 3500 });
+          reputationChange = -2; // Bigger reputation hit for greedy loss
+          xpAmount = 0;
+        } else if (action === 'walk_away') {
+          // Declined to gamble
+          journalText = `Declined ${npcName}'s invitation to gamble at ${gameType}. Sometimes discretion is the better part of valor.`;
+          toast.info(`Played it safe`, { duration: 2000 });
+          xpAmount = 0;
+        }
+        break;
+      }
+
+      case 'investment_offer': {
+        const { investment } = interaction;
+        const { investmentType, amount, expectedReturn, duration, description } = investment;
+
+        // Map investment type to display name
+        const investmentTypeNames = {
+          church_bond: 'Church Bond',
+          cacao_plantation: 'Cacao Plantation Shares',
+          apothecary_syndicate: 'Apothecary Supply Syndicate',
+          real_estate: 'Real Estate Venture',
+          manila_galleon: 'Manila Galleon Trade',
+          silver_mining: 'Silver Mining Consortium'
+        };
+        const investmentDisplayName = investmentTypeNames[investmentType] || investmentType;
+
+        if (action === 'view_details') {
+          // Player wants to visit El Consulado to see investment details
+          // Change location to El Consulado interior and open TradeModal with investments tab preselected
+          journalText = `Agreed to visit El Consulado de Mercaderes with ${npcName} to review the ${investmentDisplayName} opportunity.`;
+          toast.info(`Heading to El Consulado with ${npcName}...`, { duration: 3000 });
+
+          // Change location to El Consulado interior
+          setCurrentMapId('consulado-interior');
+          console.log('[InvestmentOffer] Changed location to consulado-interior');
+
+          // Preselect investments tab for TradeModal
+          setPreselectedTradeTab('investments');
+          console.log('[InvestmentOffer] Preselected investments tab');
+
+          // Open TradeModal
+          setIsBuyOpen(true);
+          console.log('[InvestmentOffer] Opened TradeModal with investments tab preselected');
+
+          xpAmount = 1; // Small XP for investigating opportunity
+        } else if (action === 'decline' || action === 'maybe_later') {
+          // Player declined or deferred the investment opportunity
+          const declinedText = action === 'decline'
+            ? `Declined ${npcName}'s ${investmentDisplayName} investment opportunity.`
+            : `Told ${npcName} you'll consider the ${investmentDisplayName} investment another time.`;
+
+          journalText = declinedText;
+          toast.info(action === 'decline' ? 'Investment declined' : 'Maybe another time', { duration: 2000 });
+          xpAmount = 0;
+        } else {
+          // Unknown action
+          journalText = `Concluded discussion with ${npcName} about the investment opportunity.`;
+          toast.info('Discussion concluded', { duration: 2000 });
+          xpAmount = 0;
         }
         break;
       }
@@ -472,6 +1011,9 @@ export function useCommerceHandlers({
       // CRITICAL: Clear portrait refs to prevent false continuation detection
       if (recentPortraitRef) recentPortraitRef.current = null;
       if (previousPortraitEntityRef) previousPortraitEntityRef.current = null;
+      if (typeof clearConversationLock === 'function') {
+        clearConversationLock();
+      }
     }
 
     // Simulate player action text for full narrative turn
@@ -488,12 +1030,16 @@ export function useCommerceHandlers({
           : `politely decline ${npcName}'s request`;
         break;
       case 'competitive_check':
-        if (action === 'sell_lowball') {
-          simulatedAction = `accept ${npcName}'s lowball offer`;
-        } else if (action === 'demand_fair') {
-          simulatedAction = `demand a fair price from ${npcName}`;
+        if (action === 'show_around') {
+          simulatedAction = `show ${npcName} around the workshop`;
+        } else if (action === 'refuse_politely') {
+          simulatedAction = `politely refuse to show ${npcName} around`;
+        } else if (action === 'misdirect') {
+          simulatedAction = `attempt to misdirect ${npcName} with false information`;
+        } else if (action === 'boast') {
+          simulatedAction = `demonstrate my superior skills to ${npcName}`;
         } else {
-          simulatedAction = `Not today - send ${npcName} on their way`;
+          simulatedAction = `conclude the visit with ${npcName}`;
         }
         break;
       case 'information_exchange':
@@ -505,11 +1051,68 @@ export function useCommerceHandlers({
         simulatedAction = `spend time with ${npcName}`;
         break;
       case 'vendor_offer':
-        // Note: 'view_items' returns early, so this only handles refusal
-        simulatedAction = `politely decline ${npcName}'s offer to view their goods`;
+        if (action === 'buy') {
+          simulatedAction = `purchase the ${interaction.offer.item} from ${npcName}`;
+        } else if (action === 'haggle') {
+          simulatedAction = `attempt to negotiate a better price with ${npcName}`;
+        } else {
+          simulatedAction = `politely decline ${npcName}'s offer`;
+        }
+        break;
+      case 'extortion_demand':
+        if (action === 'pay') {
+          simulatedAction = `pay ${npcName} the demanded ${interaction.extortion.amount} reales`;
+        } else if (action === 'refuse') {
+          simulatedAction = `refuse ${npcName}'s extortion demands`;
+        } else if (action === 'negotiate') {
+          simulatedAction = `attempt to negotiate with ${npcName}`;
+        } else if (action === 'report') {
+          simulatedAction = `report ${npcName} to the authorities`;
+        } else {
+          simulatedAction = `deal with ${npcName}'s threats`;
+        }
+        break;
+      case 'gamble_opportunity':
+        if (action === 'bet_won') {
+          simulatedAction = `win at ${interaction.gamble.gameType} against ${npcName}`;
+        } else if (action === 'bet_doubled_won') {
+          simulatedAction = `risk it all and WIN the double-or-nothing bet at ${interaction.gamble.gameType} with ${npcName}`;
+        } else if (action === 'bet_lost') {
+          simulatedAction = `lose at ${interaction.gamble.gameType} against ${npcName}`;
+        } else if (action === 'bet_doubled_lost') {
+          simulatedAction = `try to double my winnings but lose everything at ${interaction.gamble.gameType} with ${npcName}`;
+        } else if (action === 'walk_away') {
+          simulatedAction = `decline ${npcName}'s gambling invitation`;
+        } else {
+          simulatedAction = `consider ${npcName}'s gambling offer`;
+        }
+        break;
+      case 'investment_offer':
+        if (action === 'view_details') {
+          const investmentTypeNames = {
+            church_bond: 'Church Bond',
+            cacao_plantation: 'Cacao Plantation',
+            apothecary_syndicate: 'Apothecary Syndicate',
+            real_estate: 'Real Estate',
+            manila_galleon: 'Manila Galleon',
+            silver_mining: 'Silver Mining'
+          };
+          const investmentName = investmentTypeNames[interaction.investment?.investmentType] || 'investment';
+          simulatedAction = `accompany ${npcName} to El Consulado de Mercaderes to review the ${investmentName} opportunity in detail`;
+        } else if (action === 'decline') {
+          simulatedAction = `politely decline ${npcName}'s investment offer`;
+        } else if (action === 'maybe_later') {
+          simulatedAction = `tell ${npcName} I'll consider their investment offer another time`;
+        } else {
+          simulatedAction = `conclude the discussion with ${npcName}`;
+        }
         break;
       default:
         simulatedAction = `interact with ${npcName}`;
+    }
+
+    if (npcName) {
+      simulatedAction = `${simulatedAction} and see ${npcName} out so they can continue with their day.`;
     }
 
     console.log('[SimpleInteraction] Triggering full narrative turn with simulated action:', simulatedAction);
@@ -536,7 +1139,8 @@ export function useCommerceHandlers({
     recentPortraitRef,
     previousPortraitEntityRef,
     toast,
-    handleSubmit
+    handleSubmit,
+    clearConversationLock
   ]);
 
   /**
@@ -630,6 +1234,19 @@ export function useCommerceHandlers({
   const handleDeclineSale = useCallback((inquiry) => {
     console.log('[SaleInquiry] Declined sale opportunity:', inquiry);
 
+    // Log failed transaction attempt
+    const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+    const ailmentText = inquiry.ailmentDescription ? ` for ${inquiry.ailmentDescription}` : '';
+    transactionManager.logInteractionAttempt(
+      TRANSACTION_CATEGORIES.MEDICINE_SALES,
+      `${inquiry.offeredBy} requested remedy${ailmentText}`,
+      0, // No price negotiated yet
+      TRANSACTION_OUTCOMES.REJECTED_BY_PLAYER,
+      'Player declined the sale inquiry',
+      gameState.date,
+      gameState.time
+    );
+
     // Log to conversation history
     setConversationHistory(prev => [...prev,
       { role: 'system', content: `*[SALE INQUIRY DECLINED] Maria politely declined ${inquiry.offeredBy}'s request.*` }
@@ -650,7 +1267,7 @@ export function useCommerceHandlers({
     setConversationHistory,
     addJournalEntry,
     turnNumber,
-    gameState.date,
+    gameState,
     toast
   ]);
 
@@ -876,35 +1493,33 @@ export function useCommerceHandlers({
 
     console.log('[ActionPrompt] Proposing action:', { type, recipientName, item: item.name, amount, price, route, includeBloodletting, bloodAmount });
 
-    // For prescribe type, DON'T auto-complete - trigger narrative turn instead
+    // For prescribe type, trigger a full narrative turn
     if (type === 'prescribe') {
-      // Build prescription offer description
-      const bloodlettingText = includeBloodletting
-        ? ` Maria also proposes bloodletting (phlebotomy), drawing ${bloodAmount} ounces of blood to restore humoral balance.`
+      const bloodlettingNote = includeBloodletting
+        ? ` Maria also recommends bloodletting (drawing ${bloodAmount} ounces of blood) to restore humoral balance.`
         : '';
 
-      const offerPrompt = `[PRESCRIPTION OFFER]
+      // Format prescription as clean statement (capitalize properly)
+      const recipientNameCapitalized = recipientName.split(' ').map(word =>
+        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      ).join(' ');
 
-Maria de Lima offers a prescription to ${recipientName} for their ${ailmentDescription}:
-- Medicine: ${amount} ${amount === 1 ? 'drachm' : 'drachms'} of ${item.name}
-- Route: ${route}
-- Price: ${price} reales${bloodlettingText}
+      // Create clean prescription statement (what player sees in Chronicle)
+      const cleanStatement = `Maria de Lima offers ${recipientNameCapitalized} a prescription for their ${ailmentDescription}: ${amount} ${amount === 1 ? 'drachm' : 'drachms'} of ${item.name} (${route}), price ${price} reales.${bloodlettingNote}`;
 
-Describe Maria presenting the physical medicine (NOT just a written prescription, but the actual substance) to ${recipientName}. Show their reaction and final decision in 2-3 sentences.
+      // Create full prompt with instructions (what LLM sees to guide behavior)
+      const llmInstructions = `
+Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-3 sentences. Show their physical response and decision.
 
-They must:
-- ACCEPT: Pay ${price} reales, take the medicine, and leave satisfied/hopeful
-- BARGAIN: Argue the price is too high, offer less, cause tension
-- DECLINE: Refuse outright, express doubt/anger, and leave without buying
+Context:
+- ${price} reales is ${price > 50 ? 'extremely expensive (several months of wages for a common laborer)' : price > 20 ? 'moderately expensive (2-3 weeks of wages)' : 'affordable (a few days of wages)'} for ${recipientName.includes('Don') || recipientName.includes('Doña') ? 'a wealthy patron' : 'a common person (note: sailors earn ~80-100 reales/month)'}.
+- ${recipientNameCapitalized} can ACCEPT (pay and take the medicine gratefully), BARGAIN (counter-offer with less money, create tension), or DECLINE (refuse, possibly offended by the price or skeptical of the treatment).
+- Make their decision realistic based on their social class, the price, and their desperation level.`;
 
-Make the outcome CLEAR - state explicitly whether they bought it, negotiated, or declined. End with something that propels the plot forward (they leave with medicine, storm off insulted, promise to return with money, etc.).`;
-
-      // Clear the action prompt
       setPendingActionPrompt(null);
 
-      // Call handleSubmit to trigger full narrative turn
-      // Pass prescription data as metadata for StateAgent
-      await handleSubmit(null, offerPrompt, {
+      await handleSubmit(null, cleanStatement, {
+        llmInstructions, // Pass instructions separately so they don't appear in Chronicle
         actionResultType: 'prescription_offer',
         pendingPrescription: {
           recipientName,
@@ -919,28 +1534,115 @@ Make the outcome CLEAR - state explicitly whether they bought it, negotiated, or
         }
       });
 
-      return; // Exit early - LLM will handle the outcome
+      return;
     }
 
-    // For sell/give types, continue with auto-complete flow
-    // Remove item from inventory
-    updateInventory(item.name, -amount);
-
-    // For sell type, add money to wealth
-    if (type === 'sell' && price > 0) {
-      updateWealth(price);
+    if (type !== 'sell' && type !== 'give') {
+      console.warn('[ActionPrompt] Unsupported action type:', type);
+      return;
     }
 
-    // Log transaction to ledger (Libro de Cuentas)
-    if (type === 'sell' && price > 0) {
+    let outcome;
+    try {
+      const systemPrompt = buildGiveSellOutcomePrompt({
+        type,
+        recipientName,
+        item,
+        amount,
+        price,
+        ailmentDescription
+      });
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: 'Determine the realistic outcome. Reply with JSON only.' }
+      ];
+      const response = await createChatCompletion(messages, 0.4, 400);
+      const rawText = response?.choices?.[0]?.message?.content || response;
+      outcome = parseGiveSellOutcome(rawText, type, price);
+      console.log('[ActionPrompt] Give/Sell evaluation outcome:', outcome);
+    } catch (error) {
+      console.error('[ActionPrompt] LLM evaluation failed:', error);
+      toast.error('The interaction stalled; please try again.', { duration: 3000 });
+      return;
+    }
+
+    const { accepted, decision, finalPrice, narrative, reason } = outcome;
+    const primarySystemTag = (() => {
+      if (accepted) {
+        if (type === 'sell') {
+          return `*[ITEM SOLD] Maria sells ${amount}× ${item.name} to ${recipientName} for ${finalPrice || price || 0} reales.*`;
+        }
+        return `*[ITEM GIVEN] Maria gives ${amount}× ${item.name} to ${recipientName}.*`;
+      }
+      if (decision === 'counter') {
+        return `*[OFFER COUNTERED] ${recipientName} is not satisfied with the terms and proposes a change.*`;
+      }
+      return `*[OFFER DECLINED] ${recipientName} refuses the ${item.name}.*`;
+    })();
+    const systemSummary = (() => {
+      if (decision === 'counter' && type === 'sell') {
+        const counterText = finalPrice > 0
+          ? `${recipientName} counters with ${finalPrice} reales.`
+          : `${recipientName} counters and asks for different terms.`;
+        return `*${counterText}${reason ? ` (${reason})` : ''}*`;
+      }
+      const base = reason || (accepted ? `${recipientName} accepts the offer.` : `${recipientName} declines.`);
+      return `*${base}*`;
+    })();
+
+    setConversationHistory(prev => [
+      ...prev,
+      { role: 'system', content: primarySystemTag },
+      { role: 'assistant', content: narrative },
+      { role: 'system', content: systemSummary }
+    ]);
+    setHistoryOutput(narrative);
+
+    if (!accepted) {
+      const journalDecline = (() => {
+        if (type === 'sell') {
+          if (decision === 'counter') {
+            return `Proposed selling ${amount}× ${item.name} to ${recipientName} for ${price} reales; they countered with ${finalPrice} reales. ${reason || ''}`.trim();
+          }
+          return `Attempted to sell ${amount}× ${item.name} to ${recipientName}, but they refused. ${reason || ''}`.trim();
+        }
+        return `Attempted to give ${amount}× ${item.name} to ${recipientName}, but they did not accept. ${reason || ''}`.trim();
+      })();
+
+      addJournalEntry({
+        turnNumber,
+        date: gameState.date,
+        entry: journalDecline
+      });
+
+      if (decision === 'counter' && type === 'sell') {
+        toast.info(`${recipientName} proposes ${finalPrice} reales instead.`, { duration: 3500 });
+        return; // Keep prompt open for player to respond
+      }
+
+      setPendingActionPrompt(null);
+      toast.warning(reason ? reason : `${recipientName} declines.`, { duration: 2500 });
+      return;
+    }
+
+    updateInventory(item.name, -amount, type === 'sell' ? 'sold' : 'gift');
+
+    let actualPrice = type === 'sell' ? (finalPrice || price || 0) : 0;
+    if (type === 'sell' && actualPrice < 0) {
+      actualPrice = 0;
+    }
+
+    if (type === 'sell' && actualPrice > 0) {
+      updateWealth(actualPrice);
+
       const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
-      const currentWealth = (gameState.wealth || 0) + price; // Wealth AFTER transaction
+      const currentWealth = (gameState.wealth || 0) + actualPrice;
       const description = `Sold ${amount}× ${item.name} to ${recipientName}`;
       transactionManager.logTransaction(
         'income',
         TRANSACTION_CATEGORIES.MEDICINE_SALES,
         description,
-        price,
+        actualPrice,
         currentWealth,
         gameState.date,
         gameState.time
@@ -948,12 +1650,8 @@ Make the outcome CLEAR - state explicitly whether they bought it, negotiated, or
       console.log('[ActionPrompt] Transaction logged to ledger');
     }
 
-    // Add to medical records (Patient Roster) for sell type
     if (type === 'sell' && recipientName) {
-      // Get NPC entity from entityManager
       let npcEntity = npcId ? entityManager.getById(npcId) : entityManager.getByName(recipientName);
-
-      // If not found, search recent NPCs
       if (!npcEntity) {
         const recentNPCs = npcTracker.getRecentNPCs();
         const matchedName = recentNPCs.find(name => name.toLowerCase() === recipientName.toLowerCase());
@@ -961,8 +1659,6 @@ Make the outcome CLEAR - state explicitly whether they bought it, negotiated, or
           npcEntity = entityManager.getByName(matchedName);
         }
       }
-
-      // If still not found, create minimal patient record
       if (!npcEntity) {
         console.warn(`[ActionPrompt] NPC entity not found for ${recipientName}, creating minimal record`);
         npcEntity = {
@@ -972,19 +1668,18 @@ Make the outcome CLEAR - state explicitly whether they bought it, negotiated, or
         };
       }
 
-      // Add session to medical records
       const sessionData = {
         date: gameState.date,
-        turnNumber: turnNumber,
-        sessionType: 'purchase', // Purchase type (not examination)
+        turnNumber,
+        sessionType: 'purchase',
         prescriptions: [{
           medicine: item.name,
-          route: type === 'prescribe' ? 'Oral' : 'N/A', // Default route for prescriptions
+          route: 'N/A',
           dosage: `${amount} ${amount === 1 ? 'drachm' : 'drachms'}`,
-          price: type === 'sell' ? price : 0
+          price: actualPrice
         }],
-        outcome: 'Completed', // Mark as completed immediately
-        payment: type === 'sell' ? price : 0,
+        outcome: 'Completed',
+        payment: actualPrice,
         ailment: ailmentDescription || 'Medicine purchase'
       };
 
@@ -1000,58 +1695,28 @@ Make the outcome CLEAR - state explicitly whether they bought it, negotiated, or
       console.log(`[ActionPrompt] Added ${recipientName} to patient roster (purchase session)`);
     }
 
-    // Log to conversation history based on type
-    const actions = {
-      give: `*[ITEM GIVEN] Maria gives ${amount}× ${item.name} to ${recipientName} as a gift.*`,
-      sell: `*[ITEM SOLD] Maria sells ${amount}× ${item.name} to ${recipientName} for ${price} reales.*`,
-      prescribe: `*[PRESCRIPTION GIVEN] Maria prescribes ${amount}× ${item.name} to ${recipientName} for ${ailmentDescription}.*`
-    };
-
-    setConversationHistory(prev => [...prev,
-      { role: 'system', content: actions[type] || actions.give }
-    ]);
-
-    // Add journal entry
-    const journalEntries = {
-      give: `Gave ${amount}× ${item.name} to ${recipientName}.`,
-      sell: `Sold ${amount}× ${item.name} to ${recipientName} for ${price} reales.`,
-      prescribe: `Prescribed ${amount}× ${item.name} to ${recipientName} for ${ailmentDescription}.`
-    };
+    const journalEntry = type === 'sell'
+      ? `Sold ${amount}× ${item.name} to ${recipientName} for ${actualPrice} reales.`
+      : `Gave ${amount}× ${item.name} to ${recipientName}.`;
 
     addJournalEntry({
       turnNumber,
       date: gameState.date,
-      entry: journalEntries[type] || journalEntries.give
+      entry: journalEntry
     });
 
-    // Clear the action prompt
     setPendingActionPrompt(null);
 
-    // Toast notification
-    const toastMessages = {
-      give: `Gave ${item.name} to ${recipientName}`,
-      sell: `Sold ${item.name} for ${price} reales`,
-      prescribe: `Prescribed ${item.name} for ${ailmentDescription}`
-    };
-
-    toast.success(toastMessages[type] || toastMessages.give, { duration: 2000 });
-
-    // Trigger LLM narration describing the result
-    // Pass action type as metadata so NarrativePanel can style it
-    const followUpPrompts = {
-      give: `[You just gave ${amount}× ${item.name} to ${recipientName} as a gift. Describe their reaction and what happens next in 2-3 sentences.]`,
-      sell: `[You just sold ${amount}× ${item.name} to ${recipientName} for ${price} reales. Describe the transaction completion and their reaction in 2-3 sentences.]`,
-      prescribe: `[You just prescribed ${amount}× ${item.name} to ${recipientName} for their ${ailmentDescription}. Describe how they receive the prescription and what happens next in 2-3 sentences.]`
-    };
-
-    // Call handleSubmit with null event, prompt as actionOverride, and options with metadata
-    await handleSubmit(null, followUpPrompts[type] || followUpPrompts.give, {
-      actionResultType: type // Metadata for styling
-    });
+    if (type === 'sell') {
+      toast.success(`Sold ${item.name} for ${actualPrice} reales`, { duration: 2500 });
+    } else {
+      toast.success(`${recipientName} accepts the gift`, { duration: 2500 });
+    }
   }, [
     updateInventory,
     updateWealth,
     setConversationHistory,
+    setHistoryOutput,
     addJournalEntry,
     setPendingActionPrompt,
     turnNumber,
@@ -1066,8 +1731,27 @@ Make the outcome CLEAR - state explicitly whether they bought it, negotiated, or
    * Handle declining action prompt
    * Just clears the prompt and logs to history
    */
-  const handleDeclineAction = useCallback(() => {
-    console.log('[ActionPrompt] Action declined');
+  const handleDeclineAction = useCallback((actionPrompt = null) => {
+    console.log('[ActionPrompt] Action declined', actionPrompt);
+
+    // Log failed transaction attempt
+    if (actionPrompt) {
+      const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+      const itemsText = actionPrompt.suggestedItems && actionPrompt.suggestedItems.length > 0
+        ? ` (suggested: ${actionPrompt.suggestedItems.join(', ')})`
+        : '';
+      const ailmentText = actionPrompt.ailmentDescription ? ` for ${actionPrompt.ailmentDescription}` : '';
+
+      transactionManager.logInteractionAttempt(
+        actionPrompt.type === 'prescribe' ? TRANSACTION_CATEGORIES.MEDICINE_SALES : TRANSACTION_CATEGORIES.OTHER,
+        `${actionPrompt.recipientName} requested ${actionPrompt.type}${ailmentText}${itemsText}`,
+        actionPrompt.priceOffered || 0,
+        TRANSACTION_OUTCOMES.DECLINED_OFFER,
+        'Player declined the request',
+        gameState.date,
+        gameState.time
+      );
+    }
 
     // Log to conversation history
     setConversationHistory(prev => [...prev,
@@ -1081,7 +1765,8 @@ Make the outcome CLEAR - state explicitly whether they bought it, negotiated, or
   }, [
     setConversationHistory,
     setPendingActionPrompt,
-    toast
+    toast,
+    gameState
   ]);
 
   return {

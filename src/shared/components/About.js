@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import '../../ContentGuide.css'; // Reusing the same CSS
+
 
 const About = ({ isOpen, toggleAbout }) => {
 

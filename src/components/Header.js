@@ -8,11 +8,18 @@ const Header = ({
   date = 'August 22, 1680',
   onSaveGame,
   onSettings,
+  onHelp,
+  // Weather props
+  weatherDescription = 'Clear',
+  onWeatherClick,
+  isWeatherViewActive = false,
   // Condensed stats props
   showCondensedStats = false,
   health = 85,
   energy = 62,
-  wealth = 11
+  wealth = 11,
+  // Style prop for pointer events control
+  style
 }) => {
 
   const handleSaveGame = () => {
@@ -32,7 +39,10 @@ const Header = ({
   };
 
   return (
-    <header className="flex-shrink-0 relative overflow-hidden bg-gradient-to-b from-parchment-50 to-white/70 dark:from-slate-900 dark:to-slate-950 border-b-2 border-parchment-400 dark:border-amber-600/30 transition-colors duration-300">
+    <header
+      className="flex-shrink-0 mb-0.5 relative overflow-hidden bg-gradient-to-b from-parchment-50 to-white/70 dark:from-slate-900 dark:to-slate-950 border-b-2 border-parchment-400 dark:border-amber-600/30 transition-colors duration-300"
+      style={style}
+    >
       {/* Decorative pattern overlay */}
       <div className="absolute inset-0 opacity-10 dark:opacity-10" style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%238a7149' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
@@ -42,29 +52,29 @@ const Header = ({
         <div className="flex items-center justify-between">
           {/* Title Section */}
           <div className="flex items-center gap-8">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 ">
               {/* Ornamental icon */}
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-parchment-200 to-parchment-300 dark:from-amber-600/20 dark:to-amber-700/30 border-2 border-parchment-400 dark:border-amber-600/40 flex items-center justify-center shadow-md dark:shadow-glow-amber transition-all duration-300">
+              <div className="flex-shrink-0 w-9 h-9 opacity-80 rounded-full bg-gradient-to-br from-parchment-200 to-parchment-300 dark:from-amber-600/20 dark:to-amber-700/30 border-2 border-parchment-400 dark:border-amber-600/40 flex items-center justify-center shadow-md dark:shadow-glow-amber transition-all duration-300">
                 <span className="text-xl">⚗️</span>
               </div>
 
               <div>
-                <h1 className="font-bold text-ink-800 dark:text-amber-400 tracking-wide transition-colors duration-300" style={{
-                  fontSize: '1.2rem',
+                <h1 className="font-bold mt-1.5 -mb-1 text-ink-800 dark:text-amber-400 tracking-wide transition-colors duration-300" style={{
+                  fontSize: '1.15rem',
                   fontFamily: "'Cinzel', serif",
-                  letterSpacing: '0.1em',
-                  lineHeight: '1.1',
+                  letterSpacing: '0.12em',
+                  lineHeight: '1',
                   textTransform: 'uppercase'
                 }}>
                   The Apothecary
                 </h1>
-                <p className="text-sm text-ink-500 dark:text-slate-400 font-serif italic mt-0.5 leading-none transition-colors duration-300">A Medical History Educational Game</p>
+                <p className="text-[15px] text-ink-500 mt-1.5 mb-1.5 dark:text-slate-400 font-serif italic leading-none transition-colors duration-300">A Medical History Educational Game</p>
               </div>
             </div>
 
             {/* Location & Time - More elegant */}
             <div className="hidden lg:flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-parchment-300 dark:border-slate-600 shadow-sm dark:shadow-dark-elevation-1 transition-all duration-300">
+              <div className="flex items-center ml-2 gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-parchment-300 dark:border-slate-600 shadow-sm dark:shadow-dark-elevation-1 transition-all duration-300">
                 <svg className="w-4 h-4 text-emerald-600 dark:text-amber-500 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -85,11 +95,38 @@ const Header = ({
                 energy={energy}
                 wealth={wealth}
               />
+              {/* Weather Badge */}
+              <button
+                onClick={onWeatherClick}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl backdrop-blur-sm border shadow-sm transition-all duration-300 ${
+                  isWeatherViewActive
+                    ? 'bg-sky-500/80 border-sky-400 text-white'
+                    : 'bg-white/60 dark:bg-slate-800/60 border-parchment-300 dark:border-slate-600 text-ink-800 dark:text-parchment-200 hover:bg-white/80 dark:hover:bg-slate-700/60'
+                }`}
+                title="Toggle weather view"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                </svg>
+                <span className="text-sm font-sans font-medium">{weatherDescription}</span>
+              </button>
             </div>
           </div>
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {onHelp && (
+              <RippleIconButton
+                onClick={onHelp}
+                className="p-2 hover:bg-parchment-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200 text-ink-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-amber-400 border border-transparent hover:border-parchment-300 dark:hover:border-slate-600"
+                title="Help & Content Guide"
+                aria-label="Help"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </RippleIconButton>
+            )}
             <RippleIconButton
               onClick={handleSettings}
               className="p-2 hover:bg-parchment-100 dark:hover:bg-slate-800 rounded-xl transition-all duration-200 text-ink-600 dark:text-slate-400 hover:text-ink-900 dark:hover:text-amber-400 border border-transparent hover:border-parchment-300 dark:hover:border-slate-600"
@@ -108,7 +145,7 @@ const Header = ({
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
-              Save Game
+              Save
             </RippleButton>
           </div>
         </div>

@@ -9,6 +9,7 @@ import boticaInterior from './boticaInterior';
 import cathedralInterior from './cathedralInterior';
 import palacioInterior from './palacioInterior';
 import mercadoInterior from './mercadoInterior';
+import consuladoInterior from './consuladoInterior';
 import humbleHouseInterior from './humbleHouseInterior';
 import middlingHouseInterior from './middlingHouseInterior';
 
@@ -22,6 +23,7 @@ export default {
     'cathedral-interior': cathedralInterior,
     'palacio-interior': palacioInterior,
     'mercado-interior': mercadoInterior,
+    'consulado-interior': consuladoInterior,
     'humble-house-interior': humbleHouseInterior,
     'middling-house-interior': middlingHouseInterior
   }

@@ -3,7 +3,7 @@
 
 import React from 'react';
 
-export function TabNavigation({ activeTab, onTabChange, hasActivePatient, onOpenSettings }) {
+export function TabNavigation({ activeTab, onTabChange, hasActivePatient, onOpenSettings, onHeaderClick }) {
   const allTabs = [
     {
       id: 'chronicle',
@@ -39,11 +39,17 @@ export function TabNavigation({ activeTab, onTabChange, hasActivePatient, onOpen
   const tabs = allTabs.filter(tab => tab.showIf === undefined || tab.showIf === true);
 
   return (
-    <div className="relative flex items-center border-b-2 border-slate-400/30 bg-parchment-50/40 opacity-90 gap-1 px-5 py-0 bg-gradient-to-b from-parchment-50 to-white/40 dark:from-slate-800 dark:to-slate-900/40 backdrop-blur-sm transition-colors duration-300">
+    <div
+      className="relative flex items-center border-b-2 border-slate-400/30 bg-parchment-50/40 opacity-90 gap-1 px-5 py-0 bg-gradient-to-b from-parchment-50 to-white/40 dark:from-slate-800 dark:to-slate-900/40 backdrop-blur-sm transition-colors duration-300 cursor-pointer"
+      onClick={onHeaderClick}
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}
-          onClick={() => onTabChange(tab.id)}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent header click
+            onTabChange(tab.id);
+          }}
           className={`
             relative px-5 py-3 text-sm font-semibold tracking-wide transition-all duration-200
             ${activeTab === tab.id
@@ -65,7 +71,10 @@ export function TabNavigation({ activeTab, onTabChange, hasActivePatient, onOpen
 
       {/* Settings Icon - Far Right */}
       <button
-        onClick={onOpenSettings}
+        onClick={(e) => {
+          e.stopPropagation(); // Prevent header click
+          onOpenSettings();
+        }}
         className="ml-auto px-3 py-2 text-ink-400 dark:text-parchment-400 hover:text-ink-700 dark:hover:text-parchment-200 hover:bg-white/50 dark:hover:bg-slate-800/50 rounded-lg transition-all duration-200"
         title="Narration Settings"
         style={{ zIndex: 1 }}

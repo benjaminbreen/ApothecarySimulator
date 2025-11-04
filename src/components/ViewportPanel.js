@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import { MapRenderer } from '../features/map';
 import StudyTab from './StudyTab';
+import { selectViewportImage } from '../core/config/viewportImages.config';
 
 const ViewportPanel = ({
   location = 'Mexico City',
@@ -40,13 +41,30 @@ const ViewportPanel = ({
   pendingHouseCall = null, // Phase 3B: House call data (triggers map view)
   travelPath = null, // Phase 4: Travel animation path
   isTraveling = false, // Phase 4: Whether currently traveling
-  reputationChange = null // { delta: number, timestamp: number } - shows reputation change indicator
+  reputationChange = null, // { delta: number, timestamp: number } - shows reputation change indicator
+  focusedItem = null, // VIEWPORT: Item player is examining/using
+  gameTime = null, // VIEWPORT: Current game time for time-based scenes
+  recentLocationChange = false // VIEWPORT: Whether location just changed
 }) => {
   const defaultTab = npcPresent ? 'portrait' : 'map';
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [hoveredTab, setHoveredTab] = useState(null);
   const [previousTab, setPreviousTab] = useState(defaultTab);
   const [pulsePortraitTab, setPulsePortraitTab] = useState(false);
+
+  // VIEWPORT IMAGES: Select contextual image when no NPC present
+  const viewportImage = React.useMemo(() => {
+    // If NPC present, don't show viewport image
+    if (npcPresent) return null;
+
+    // Otherwise, select contextual image
+    return selectViewportImage({
+      focusedItem,
+      location,
+      gameTime,
+      recentLocationChange
+    });
+  }, [npcPresent, focusedItem, location, gameTime, recentLocationChange]);
 
   // Track reputation change with auto-clear after 10 seconds
   const [visibleReputationChange, setVisibleReputationChange] = useState(null);
@@ -387,6 +405,29 @@ const ViewportPanel = ({
                     {visibleReputationChange.delta > 0 ? '+' : ''}{visibleReputationChange.delta} reputation!
                   </div>
                 )}
+              </div>
+            ) : viewportImage ? (
+              // VIEWPORT IMAGE: Display contextual scene/item/location image
+              <div className="text-center">
+                <div className="inline-block mb-4">
+                  <div className="relative">
+                    {/* Decorative frame corners - softer styling for scenes */}
+                    <div className="absolute -top-2 -left-2 w-5 h-5 border-l-2 border-t-2 border-ink-300 dark:border-parchment-400 transition-colors duration-300"></div>
+                    <div className="absolute -top-2 -right-2 w-5 h-5 border-r-2 border-t-2 border-ink-300 dark:border-parchment-400 transition-colors duration-300"></div>
+                    <div className="absolute -bottom-2 -left-2 w-5 h-5 border-l-2 border-b-2 border-ink-300 dark:border-parchment-400 transition-colors duration-300"></div>
+                    <div className="absolute -bottom-2 -right-2 w-5 h-5 border-r-2 border-b-2 border-ink-300 dark:border-parchment-400 transition-colors duration-300"></div>
+
+                    <div className="w-[260px] h-[210px] rounded-lg overflow-hidden border-4 border-ink-200 dark:border-parchment-600 shadow-elevation-2 transition-all">
+                      <img src={viewportImage} alt="Scene" className="w-full h-full object-cover" />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-sm text-ink-500 dark:text-parchment-300 font-sans uppercase tracking-wide transition-colors duration-300">
+                  {focusedItem ? `Examining: ${focusedItem}` : locationDetails}
+                </p>
+                <p className="text-xs text-ink-400 dark:text-parchment-400 font-sans mt-0.5 transition-colors duration-300">
+                  {focusedItem ? 'Item in focus' : 'Current location'}
+                </p>
               </div>
             ) : (
               <div className="text-center">

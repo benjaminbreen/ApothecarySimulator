@@ -2,8 +2,9 @@
 // Flags default to conservative values; override via Vite env (VITE_FEATURE_FLAGNAME)
 
 const DEFAULT_FLAGS = {
-  revisedInteractionPipeline: false,
-  interactionDebugLogging: false
+  revisedInteractionPipeline: false, // DISABLED: Adds intent whitelist, negotiation gating, and action prompt filtering
+  interactionDebugLogging: false,
+  experimentalPortraitSelection: false // DISABLED: A/B testing for LLM portrait selection (saves ~280 tokens when off)
 };
 
 const envOverrides = (() => {

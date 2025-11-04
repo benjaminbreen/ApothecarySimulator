@@ -29,6 +29,7 @@ import { getHouseCallData } from '../../features/medical/services/houseSelector'
  * @param {Function} params.previousPortraitEntityRef - Ref to previous portrait entity
  * @param {Function} params.recentPortraitRef - Ref to recent portrait
  * @param {Function} params.setPendingHouseCall - Set pending house call state (Phase 3A)
+ * @param {Function} params.setBackgroundMode - Set background mode for immersive UI
  * @param {Object} params.gameState - DEPRECATED: Use useGameState() instead
  * @param {number} params.turnNumber - Current turn number
  * @param {Array} params.conversationHistory - Conversation history
@@ -49,6 +50,7 @@ export function useMedicalHandlers({
   previousPortraitEntityRef,
   recentPortraitRef,
   setPendingHouseCall,
+  setBackgroundMode, // Immersive background mode (fade UI for travel)
   // Legacy params
   gameState,
   turnNumber,
@@ -262,18 +264,20 @@ export function useMedicalHandlers({
    * Handle accepting a treatment contract
    * Generates transition narrative, updates wealth, sets active patient
    */
-  const handleAcceptTreatment = useCallback(async (patientEntity, paymentAmount) => {
+  const handleAcceptTreatment = useCallback(async (patientEntity, paymentAmount, contractMeta = null) => {
     console.log('[Contract] Accepting treatment:', patientEntity.name, 'Payment:', paymentAmount);
 
     // PHASE 3A: Detect house calls based on patientLocation in metadata
-    const isHouseCall = patientEntity.metadata?.patientLocation &&
-                        patientEntity.metadata?.patientLocation !== 'pending'; // Exclude "pending" from house calls
-    const houseLocation = patientEntity.metadata?.patientLocation;
+    const metaLocation = contractMeta?.patientLocation ?? patientEntity.metadata?.patientLocation;
+    const metaIsEmissary = contractMeta?.isEmissary ?? patientEntity.metadata?.isEmissary;
+    const isHouseCall = Boolean(metaIsEmissary || (metaLocation && metaLocation !== 'pending')); // Exclude "pending" from house calls
+    const houseLocation = metaLocation;
 
     console.log('[Phase 3A] House call detection:', {
       isHouseCall,
       location: houseLocation,
-      patientMetadata: patientEntity.metadata
+      patientMetadata: patientEntity.metadata,
+      contractMeta
     });
 
     // Update wealth immediately (payment received upfront)
@@ -292,7 +296,7 @@ export function useMedicalHandlers({
     });
 
     // PENDING PATIENT: If patient details are incomplete, generate clarification scene
-    const isPendingDetails = patientEntity.metadata?.patientLocation === 'pending';
+    const isPendingDetails = (metaLocation || patientEntity.metadata?.patientLocation) === 'pending';
 
     if (isPendingDetails) {
       console.log('[Contract] Patient details pending, generating clarification scene');
@@ -337,7 +341,7 @@ Keep it brief and professional. Maria needs this information before she can begi
       } catch (error) {
         console.error('[Contract] Clarification narrative failed:', error);
         // Fallback to simple message
-        const fallback = `You nod to ${patientEntity.metadata?.offeredBy || 'the requester'}. "I accept. But I will need the patient's name, location, and symptoms before I can provide treatment."`;
+        const fallback = `You nod to ${contractMeta?.offeredBy || patientEntity.metadata?.offeredBy || 'the requester'}. "I accept. But I will need the patient's name, location, and symptoms before I can provide treatment."`;
         setConversationHistory(prev => [...prev,
           { role: 'system', content: `*[CONTRACT ACCEPTED] Maria agreed to treat ${patientEntity.name} for ${paymentAmount} reales (details pending).*` },
           { role: 'assistant', content: fallback }
@@ -371,8 +375,8 @@ Keep it brief and professional. Maria needs this information before she can begi
           .join('\n');
 
         // Determine who made the request
-        const representedBy = patientEntity.metadata?.representedBy;
-        const ailmentDescription = patientEntity.description || 'Unknown condition';
+        const representedBy = contractMeta?.offeredBy || patientEntity.metadata?.representedBy;
+        const ailmentDescription = contractMeta?.ailmentDescription || patientEntity.description || 'Unknown condition';
 
         const houseCallPrompt = `You are narrating a brief transition scene in a historical medical RPG.
 
@@ -414,6 +418,8 @@ Keep it brief and atmospheric. End with Maria ready to depart.`;
         // Display narrative
         setHistoryOutput(transitionNarrative);
 
+        // Fade UI to show background (immersive mode)
+        setBackgroundMode('housecall');
         setPendingHouseCall(houseCallData);
         setPendingContract(null); // Clear contract modal
 
@@ -426,6 +432,8 @@ Keep it brief and atmospheric. End with Maria ready to depart.`;
         ]);
         setHistoryOutput(`You gather your medical supplies and prepare to travel to ${houseLocation} to treat ${patientEntity.name}.`);
 
+        // Fade UI to show background (immersive mode)
+        setBackgroundMode('housecall');
         setPendingHouseCall(houseCallData);
         setPendingContract(null);
         setIsLoading(false);
@@ -449,9 +457,9 @@ Keep it brief and atmospheric. End with Maria ready to depart.`;
         .join('\n');
 
       // Determine who is physically present
-      const representedBy = patientEntity.metadata?.representedBy;
+      const representedBy = contractMeta?.offeredBy || patientEntity.metadata?.representedBy;
       const isRepresentative = representedBy && representedBy !== patientEntity.name;
-      const ailmentDescription = patientEntity.description || 'Not yet examined';
+      const ailmentDescription = contractMeta?.ailmentDescription || patientEntity.description || 'Not yet examined';
 
       const systemPrompt = `You are narrating a brief transition scene in a historical medical RPG.
 

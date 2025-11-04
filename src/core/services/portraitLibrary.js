@@ -638,7 +638,7 @@ export const PORTRAIT_LIBRARY = {
     age: 'young',
     casta: ['española', 'criolla', 'mestiza'],
     class: 'middling',
-    occupation: ['maid', 'servant', 'youth'],
+    occupation: ['night maid', 'night servant'],
     tags: ['young', 'night', 'mysterious']
   },
   'seamstressdraperortextilemerchant.jpg': {
@@ -1171,6 +1171,14 @@ export const PORTRAIT_LIBRARY = {
     occupation: ['servant', 'attendant', 'page', 'household staff'],
     tags: ['servant', 'young', 'peninsular', 'español', 'domestic']
   },
+    'youngmalemessenger.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: ['español', 'peninsular'],
+    class: ['middling', 'common'],
+    occupation: ['messenger', 'page', 'young man', 'household staff'],
+    tags: ['messenger', 'young', 'peninsular', 'español', 'domestic']
+  },
 
   // Elderly Servants
   'elderlymaleservant.jpg': {
@@ -1272,208 +1280,562 @@ export const PORTRAIT_LIBRARY = {
     class: 'animal',
     occupation: ['donkey', 'pack animal', 'transport'],
     tags: ['animal', 'donkey', 'transport', 'working']
+  },
+
+  // Auto-generated entries from sync script
+  'artisaninworkshop.jpg': {
+    gender: 'unknown',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'middling',
+    occupation: 'artisan',
+    tags: ['artisan']
+  },
+  'conquistadorfrontier.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: 'español',
+    class: 'common',
+    occupation: 'conquistador',
+    tags: ['conquistador', 'male', 'español']
+  },
+  'cowboyonhorse.jpg': {
+    gender: 'male',
+    age: 'child',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male', 'child']
+  },
+  'criollafemalematron40s.jpg': {
+    gender: 'female',
+    age: 'middle-aged',
+    casta: 'criollo',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'middle-aged', 'criollo']
+  },
+  'criollafemaleservantyoung.jpg': {
+    gender: 'female',
+    age: 'young',
+    casta: 'criollo',
+    class: 'common',
+    occupation: 'servant',
+    tags: ['servant', 'female', 'young', 'criollo']
+  },
+  'criollofemaleseamstressmiddleaged.jpg': {
+    gender: 'female',
+    age: 'middle-aged',
+    casta: 'criollo',
+    class: 'common',
+    occupation: 'seamstress',
+    tags: ['seamstress', 'female', 'middle-aged', 'criollo']
+  },
+  'criollomaleprintermiddleaged.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'criollo',
+    class: 'common',
+    occupation: 'printer',
+    tags: ['printer', 'male', 'middle-aged', 'criollo']
+  },
+  'curandera.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'healer',
+    tags: ['healer', 'female']
+  },
+  'dominicannunelderly.jpg .png': {
+    gender: 'female',
+    age: 'elderly',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'nun',
+    tags: ['nun', 'female', 'elderly']
+  },
+  'dominicannunelderly.png': {
+    gender: 'female',
+    age: 'elderly',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'nun',
+    tags: ['nun', 'female', 'elderly']
+  },
+  'elderlyafricanwoman.jpg': {
+    gender: 'female',
+    age: 'elderly',
+    casta: 'africano',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'elderly', 'africano']
+  },
+  'elderlycriollamatroninterior.jpg': {
+    gender: 'female',
+    age: 'elderly',
+    casta: 'criollo',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'elderly', 'criollo']
+  },
+  'elderlycriollonun.jpg': {
+    gender: 'female',
+    age: 'elderly',
+    casta: 'criollo',
+    class: 'common',
+    occupation: 'nun',
+    tags: ['nun', 'female', 'elderly', 'criollo']
+  },
+  'fishermanonriver.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'fisherman',
+    tags: ['fisherman', 'male']
+  },
+  'handsomecriolloyoungnobleman.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'criollo',
+    class: 'elite',
+    occupation: 'unknown',
+    tags: ['male', 'young', 'criollo', 'elite']
+  },
+  'indianmerchants.jpg': {
+    gender: 'unknown',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'middling',
+    occupation: 'merchant',
+    tags: ['merchant']
+  },
+  'indiofemalechinampafarmerelderly.jpg': {
+    gender: 'female',
+    age: 'elderly',
+    casta: 'indio',
+    class: 'common',
+    occupation: 'farmer',
+    tags: ['farmer', 'female', 'elderly', 'indio']
+  },
+  'indioyoungmale.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'indio',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male', 'young', 'indio']
+  },
+  'juana_milk_vendor.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'vendor',
+    tags: ['vendor', 'female']
+  },
+  'malejeweler.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'jeweler',
+    tags: ['jeweler', 'male']
+  },
+  'manandwomandinnercandlelight.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female']
+  },
+  'manattablecandle.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male']
+  },
+  'manonhorse.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male']
+  },
+  'manonhorsebacknight.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male']
+  },
+  'manwritingwithlantern.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male']
+  },
+  'marketplacevendorindiowoman.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'indio',
+    class: 'common',
+    occupation: 'vendor',
+    tags: ['vendor', 'female', 'indio']
+  },
+  'marketvendors.jpg': {
+    gender: 'unknown',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'vendor',
+    tags: ['vendor']
+  },
+  'mestizawomanaged30s.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'mestizo',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'mestizo']
+  },
+  'mestizomaleartisan.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: 'mestizo',
+    class: 'middling',
+    occupation: 'artisan',
+    tags: ['artisan', 'male', 'mestizo']
+  },
+  'middleagedcriollofemaleservant.jpg': {
+    gender: 'female',
+    age: 'middle-aged',
+    casta: 'criollo',
+    class: 'common',
+    occupation: 'servant',
+    tags: ['servant', 'female', 'middle-aged', 'criollo']
+  },
+  'middleagedmalemuleteer.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'muleteer',
+    tags: ['muleteer', 'male', 'middle-aged']
+  },
+  'middleagedmaleportuguesesailor.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'sailor',
+    tags: ['sailor', 'male', 'middle-aged']
+  },
+  'middleagedpeasantwoman.jpg': {
+    gender: 'female',
+    age: 'middle-aged',
+    casta: 'unknown',
+    class: 'poor',
+    occupation: 'unknown',
+    tags: ['female', 'middle-aged', 'poor']
+  },
+  'middleagedtheologianorscholar.jpg': {
+    gender: 'unknown',
+    age: 'middle-aged',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'scholar',
+    tags: ['scholar', 'middle-aged']
+  },
+  'mulattonyoungman.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'mulatto',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male', 'young', 'mulatto']
+  },
+  'noblemalechild.jpg': {
+    gender: 'male',
+    age: 'child',
+    casta: 'unknown',
+    class: 'elite',
+    occupation: 'unknown',
+    tags: ['male', 'child', 'elite']
+  },
+  'oldmanholdingcandlenight.jpg': {
+    gender: 'male',
+    age: 'elderly',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male', 'elderly']
+  },
+  'peninsularenoblewomanfemaleindoorsmiddleaged.jpg': {
+    gender: 'female',
+    age: 'middle-aged',
+    casta: 'español',
+    class: 'elite',
+    occupation: 'unknown',
+    tags: ['female', 'middle-aged', 'español', 'elite']
+  },
+  'peninsularpriestmiddleaged.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'español',
+    class: 'common',
+    occupation: 'priest',
+    tags: ['priest', 'male', 'middle-aged', 'español']
+  },
+  'poormalepickpocketyoung.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'unknown',
+    class: 'poor',
+    occupation: 'thief',
+    tags: ['thief', 'male', 'young', 'poor']
+  },
+  'pooryoungmaninterior.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'unknown',
+    class: 'poor',
+    occupation: 'unknown',
+    tags: ['male', 'young', 'poor']
+  },
+  'priest.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'priest',
+    tags: ['priest', 'male']
+  },
+  'sailor.jpg': {
+    gender: 'unknown',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'sailor',
+    tags: ['sailor']
+  },
+  'shopkeeper.jpg': {
+    gender: 'unknown',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'shopkeeper',
+    tags: ['shopkeeper']
+  },
+  'shopkeeperatwindowdusk.jpg': {
+    gender: 'unknown',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'shopkeeper',
+    tags: ['shopkeeper']
+  },
+  'skinnyyoungman.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male', 'young']
+  },
+  'soldier_guard_middleaged_espanol.jpg': {
+    gender: 'unknown',
+    age: 'elderly',
+    casta: 'español',
+    class: 'common',
+    occupation: 'soldier',
+    tags: ['soldier', 'elderly', 'español']
+  },
+  'soldiers.jpg': {
+    gender: 'unknown',
+    age: 'elderly',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'soldier',
+    tags: ['soldier', 'elderly']
+  },
+  'teenagemaleservant.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'servant',
+    tags: ['servant', 'male', 'young']
+  },
+  'unhealthyindiowoman.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'indio',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'indio']
+  },
+  'unhealthymiddleagedman.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male', 'middle-aged']
+  },
+  'unhealthypickpocket.jpg': {
+    gender: 'unknown',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'thief',
+    tags: ['thief']
+  },
+  'widow.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female']
+  },
+  'widow.png': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female']
+  },
+  'widowpeninsulare30s.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'español',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'español']
+  },
+  'womanhand.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female']
+  },
+  'womanswork.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female']
+  },
+  'youngcavalier.jpg': {
+    gender: 'unknown',
+    age: 'young',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'cavalier',
+    tags: ['cavalier', 'young']
+  },
+  'youngcriollawoman.jpg': {
+    gender: 'female',
+    age: 'young',
+    casta: 'criollo',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'young', 'criollo']
+  },
+  'youngcriollawoman.png': {
+    gender: 'female',
+    age: 'young',
+    casta: 'criollo',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'young', 'criollo']
+  },
+  'youngfootman.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'servant',
+    tags: ['servant', 'male', 'young']
+  },
+  'youngmalemessenger.png': {
+    gender: 'male',
+    age: 'young',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'messenger',
+    tags: ['messenger', 'male', 'young']
+  },
+  'youngmaleservant.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'servant',
+    tags: ['servant', 'male', 'young']
+  },
+  'youngmanwithfaciallaceration.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male', 'young']
+  },
+  'youngmanwithpox.jpg': {
+    gender: 'male',
+    age: 'young',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['male', 'young']
+  },
+  'youngmestizawoman.jpg': {
+    gender: 'female',
+    age: 'young',
+    casta: 'mestizo',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'young', 'mestizo']
+  },
+  'youngpeasantwoman.jpg': {
+    gender: 'female',
+    age: 'young',
+    casta: 'unknown',
+    class: 'poor',
+    occupation: 'unknown',
+    tags: ['female', 'young', 'poor']
+  },
+  'youngwomansmallpox.jpg': {
+    gender: 'female',
+    age: 'young',
+    casta: 'unknown',
+    class: 'common',
+    occupation: 'unknown',
+    tags: ['female', 'young']
   }
 };
 
 /**
- * Normalize age from number or string to standard categories
- * @param {string|number} age - Age value
- * @returns {string} Normalized age category
+ * NOTE: This file contains ONLY portrait metadata.
+ *
+ * For portrait resolution logic, see portraitResolver.js which provides:
+ * - resolvePortrait() - THE ONLY function to call for getting portraits
+ * - Normalization functions (age, class, casta)
+ * - Demographic matching algorithm
+ *
+ * This separation keeps data (this file) separate from logic (portraitResolver.js).
  */
-function normalizeAge(age) {
-  if (!age) return 'adult';
-
-  const numAge = parseInt(age);
-  if (isNaN(numAge)) {
-    // Already a category
-    const ageLower = age.toLowerCase();
-    if (['child', 'young', 'adult', 'middle-aged', 'elderly', 'mixed'].includes(ageLower)) {
-      return ageLower;
-    }
-    return 'adult';
-  }
-
-  // Convert number to category
-  if (numAge < 13) return 'child';
-  if (numAge < 25) return 'young';
-  if (numAge < 45) return 'adult';
-  if (numAge < 60) return 'middle-aged';
-  return 'elderly';
-}
-
-/**
- * Normalize social class to standard categories
- * @param {string} socialClass - Class designation
- * @returns {string} Normalized class
- */
-function normalizeClass(socialClass) {
-  if (!socialClass) return 'common';
-
-  const classMap = {
-    'upper class': 'elite',
-    'elite': 'elite',
-    'nobility': 'elite',
-    'aristocrat': 'elite',
-    'noble': 'elite',
-    'middle class': 'middling',
-    'middling': 'middling',
-    'merchant': 'middling',
-    'artisan': 'middling',
-    'craftsman': 'middling',
-    'lower class': 'common',
-    'common': 'common',
-    'working class': 'common',
-    'peasant': 'common',
-    'laborer': 'common',
-    'enslaved': 'enslaved',
-    'slave': 'enslaved',
-    'clergy': 'religious',
-    'religious': 'religious',
-    'priest': 'religious',
-    'monk': 'religious',
-    'nun': 'religious',
-    'friar': 'religious'
-  };
-
-  return classMap[socialClass.toLowerCase().trim()] || 'common';
-}
-
-/**
- * Normalize casta designation
- * @param {string} casta - Casta designation
- * @returns {string} Normalized casta
- */
-function normalizeCasta(casta) {
-  if (!casta) return 'mestizo';
-
-  const castaLower = casta.toLowerCase().trim();
-
-  // Handle variations
-  const castaMap = {
-    'español': 'español',
-    'espanol': 'español',
-    'spanish': 'español',
-    'peninsular': 'español',
-    'criollo': 'criollo',
-    'creole': 'criollo',
-    'mestizo': 'mestizo',
-    'mixed': 'mestizo',
-    'indio': 'indio',
-    'indigenous': 'indio',
-    'native': 'indio',
-    'mulato': 'mulato',
-    'mulatto': 'mulato',
-    'africano': 'africano',
-    'african': 'africano',
-    'europeo': 'europeo',
-    'european': 'europeo',
-    'portugués': 'portugués',
-    'portuguese': 'portugués'
-  };
-
-  return castaMap[castaLower] || castaLower;
-}
-
-/**
- * Get best matching portrait for an NPC based on demographic data
- * @param {Object} npc - NPC entity with demographic data
- * @returns {string} - Portrait filename (defaults to 'defaultnpc.jpg')
- */
-export function getMatchingPortrait(npc) {
-  if (!npc) return 'defaultnpc.jpg';
-
-  // Extract and normalize NPC demographics
-  const rawGender = npc.appearance?.gender || npc.gender || 'unknown';
-  const rawAge = npc.appearance?.age || npc.age || 'adult';
-  const rawCasta = npc.social?.casta || npc.casta || 'unknown';
-  const rawClass = npc.social?.class || npc.class || 'common';
-  const occupation = npc.social?.occupation || npc.occupation || npc.archetype || 'unknown';
-
-  // Normalize values for matching
-  const gender = rawGender;  // Keep as-is for gender
-  const age = normalizeAge(rawAge);
-  const casta = normalizeCasta(rawCasta);
-  const socialClass = normalizeClass(rawClass);
-
-  console.log(`[Portrait Matcher] Searching for: ${gender}, ${age}, ${casta}, ${socialClass}, ${occupation}`);
-
-  // Score each portrait
-  const scores = Object.entries(PORTRAIT_LIBRARY).map(([filename, portrait]) => {
-    let score = 0;
-
-    // Gender match (critical, +50 points for actual genders, +10 for unknown)
-    if (portrait.gender === gender) {
-      // Penalize matches where both are 'unknown' - prefer specific gender portraits
-      if (gender === 'unknown' && portrait.gender === 'unknown') {
-        score += 10;
-      } else {
-        score += 50;  // Actual gender match
-      }
-    } else if (portrait.gender === 'unknown' || portrait.gender === 'group') {
-      score += 10;
-    }
-
-    // Age match (+30 points)
-    if (portrait.age === age) score += 30;
-    else if (portrait.age === 'mixed') score += 5;
-
-    // Casta match (+20 points)
-    const portraitCastas = Array.isArray(portrait.casta) ? portrait.casta : [portrait.casta];
-    const normalizedPortraitCastas = portraitCastas.map(c => normalizeCasta(c));
-    if (normalizedPortraitCastas.includes(casta)) score += 20;
-    else if (normalizedPortraitCastas.includes('any')) score += 5;
-
-    // Class match (+15 points)
-    const portraitClasses = Array.isArray(portrait.class) ? portrait.class : [portrait.class];
-    const normalizedPortraitClasses = portraitClasses.map(c => normalizeClass(c));
-    if (normalizedPortraitClasses.includes(socialClass)) score += 15;
-    else if (normalizedPortraitClasses.includes('any')) score += 3;
-
-    // Occupation match (+25 points)
-    const portraitOccupations = Array.isArray(portrait.occupation) ? portrait.occupation : [portrait.occupation];
-    const occupationLower = occupation.toLowerCase();
-    const occupationMatch = portraitOccupations.some(occ =>
-      occ.toLowerCase().includes(occupationLower) || occupationLower.includes(occ.toLowerCase())
-    );
-    if (occupationMatch) score += 25;
-
-    // Tag fuzzy matching (+5 points per tag)
-    if (portrait.tags && occupation) {
-      const tagMatch = portrait.tags.some(tag =>
-        tag.toLowerCase().includes(occupationLower) || occupationLower.includes(tag.toLowerCase())
-      );
-      if (tagMatch) score += 5;
-    }
-
-    // Penalty for named portraits (should only match exact NPCs)
-    if (portrait.name && portrait.name !== npc.name) {
-      score -= 100;
-    }
-
-    return { filename, score, portrait };
-  });
-
-  // Sort by score descending
-  scores.sort((a, b) => b.score - a.score);
-
-  // Log top matches
-  console.log(`[Portrait Matcher] Top 3 matches for ${npc.name}:`);
-  scores.slice(0, 3).forEach((match, i) => {
-    console.log(`  ${i + 1}. ${match.filename} (score: ${match.score})`);
-  });
-
-  // Return best match (or default if score too low)
-  const bestMatch = scores[0];
-  if (bestMatch.score >= 30) {
-    console.log(`[Portrait Matcher] ✓ Selected: ${bestMatch.filename}`);
-    return bestMatch.filename;
-  } else {
-    console.log(`[Portrait Matcher] ✗ No good match found (best score: ${bestMatch.score}), using default`);
-    return 'defaultnpc.jpg';
-  }
-}
-
-export default {
-  PORTRAIT_LIBRARY,
-  getMatchingPortrait
-};

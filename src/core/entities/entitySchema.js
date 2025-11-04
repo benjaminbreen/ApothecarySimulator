@@ -607,18 +607,27 @@ export const Relationship = {
 export function calculateTemperament(bigFive) {
   const { extroversion, neuroticism, openness, agreeableness, conscientiousness } = bigFive;
 
-  // Calculate humoral balance
-  // Sanguine = high extroversion, low neuroticism
-  const blood = (extroversion + (100 - neuroticism)) / 2;
+  // Calculate humoral balance with more variance
+  // Include additional traits and apply variance modifier for more distinct temperaments
 
-  // Choleric = high extroversion, high neuroticism
-  const yellowBile = (extroversion + neuroticism) / 2;
+  // Sanguine = high extroversion, low neuroticism, high openness
+  let blood = (extroversion * 1.5 + (100 - neuroticism) * 1.2 + openness * 0.8) / 3.5;
 
-  // Melancholic = low extroversion, high neuroticism
-  const blackBile = ((100 - extroversion) + neuroticism) / 2;
+  // Choleric = high extroversion, high neuroticism, low agreeableness
+  let yellowBile = (extroversion * 1.2 + neuroticism * 1.5 + (100 - agreeableness) * 1.0) / 3.7;
 
-  // Phlegmatic = low extroversion, low neuroticism
-  const phlegm = ((100 - extroversion) + (100 - neuroticism)) / 2;
+  // Melancholic = low extroversion, high neuroticism, high conscientiousness
+  let blackBile = ((100 - extroversion) * 1.4 + neuroticism * 1.3 + conscientiousness * 0.9) / 3.6;
+
+  // Phlegmatic = low extroversion, low neuroticism, high agreeableness
+  let phlegm = ((100 - extroversion) * 1.3 + (100 - neuroticism) * 1.4 + agreeableness * 0.8) / 3.5;
+
+  // Add random variance (±8%) to emphasize individual differences
+  const variance = () => 0.92 + Math.random() * 0.16; // 0.92 to 1.08
+  blood *= variance();
+  yellowBile *= variance();
+  blackBile *= variance();
+  phlegm *= variance();
 
   // Normalize to sum to 100
   const total = blood + yellowBile + blackBile + phlegm;

@@ -34,6 +34,7 @@ export function LeftSidebar({
   onOpenSkillDetail = null,
   onOpenFullInventory = null, // Handler to open full inventory modal
   onItemDropOnPlayer = null, // New prop for drag-drop
+  onOpenProfessionModal = null, // New prop: opens profession choice modal
   statusPanelTab = undefined, // External control of status panel tab
   onStatusPanelTabChange = undefined, // Callback when tab changes
   inventory = [], // Inventory array from gameState
@@ -60,6 +61,7 @@ export function LeftSidebar({
         portraitImage={portraitImage}
         onOpenCharacterModal={() => setShowCharacterModal(true)}
         onItemDropOnPlayer={onItemDropOnPlayer}
+        onOpenProfessionModal={onOpenProfessionModal}
         onCollapseChange={onCharacterCardCollapseChange}
       />
 

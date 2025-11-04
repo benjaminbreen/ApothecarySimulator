@@ -99,11 +99,7 @@ function ContractOfferModal({
             age: 'adult'
           },
           demographics: potentialPatient.demographics, // LLM demographics
-          metadata: {
-            representedBy: offer.isEmissary ? offer.offeredBy : null, // Only set if emissary
-            paymentAgreed: offer.paymentOffered,
-            patientLocation: offer.patientLocation || null // House call location (Phase 3A)
-          }
+          metadata: {}
         };
       } else {
         // Extract demographics from description
@@ -125,11 +121,7 @@ function ContractOfferModal({
             gender: extractedDemographics.gender,
             age: extractedDemographics.age
           },
-          metadata: {
-            representedBy: offer.isEmissary ? offer.offeredBy : null, // Only set if emissary
-            paymentAgreed: offer.paymentOffered,
-            patientLocation: offer.patientLocation || null // House call location (Phase 3A)
-          }
+          metadata: {}
         };
         console.log('[ContractModal] Created patient entity with extracted demographics:', extractedDemographics);
       }
@@ -139,7 +131,23 @@ function ContractOfferModal({
       console.log('[ContractModal] Registered patient entity:', patientEntity.name);
     }
 
-    onAcceptTreatment(patientEntity, offer.paymentOffered);
+    // Ensure patient metadata reflects latest contract details (even if entity already existed)
+    patientEntity.metadata = {
+      ...(patientEntity.metadata || {}),
+      representedBy: offer.isEmissary ? offer.offeredBy : null,
+      offeredBy: offer.offeredBy || null,
+      paymentAgreed: offer.paymentOffered,
+      patientLocation: offer.patientLocation || null,
+      isEmissary: !!offer.isEmissary,
+      contractIntent: offer.type || 'treatment'
+    };
+
+    // Enrich description/appearance from contract if missing
+    if (offer.patientDescription && (!patientEntity.description || patientEntity.description === 'Patient requiring treatment')) {
+      patientEntity.description = offer.patientDescription;
+    }
+
+    onAcceptTreatment(patientEntity, offer.paymentOffered, offer);
     onClose();
   };
 

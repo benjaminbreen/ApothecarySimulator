@@ -28,10 +28,23 @@ export function PlayerStatusPanel({
 }) {
   const [internalActiveTab, setInternalActiveTab] = useState('inventory');
   const [hoveredTab, setHoveredTab] = useState(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Use controlled tab if provided, otherwise use internal state
   const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
   const setActiveTab = onTabChange || setInternalActiveTab;
+
+  // Handle tab click with collapse/expand logic
+  const handleTabClick = (tabId) => {
+    if (tabId === activeTab && !isCollapsed) {
+      // Clicking active tab when expanded -> collapse
+      setIsCollapsed(true);
+    } else {
+      // Clicking different tab or clicking when collapsed -> expand and switch
+      setIsCollapsed(false);
+      setActiveTab(tabId);
+    }
+  };
 
   // Tab configuration with color schemes
   const tabs = [
@@ -76,20 +89,30 @@ export function PlayerStatusPanel({
   const isDark = document.documentElement.classList.contains('dark');
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden transition-all duration-300 rounded-2xl" style={{
+    <div className="flex flex-col overflow-hidden rounded-2xl" style={{
+      flex: isCollapsed ? '0 0 auto' : '1 1 auto',
+      transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
       background: isDark
-        ? 'linear-gradient(315deg, rgba(15, 23, 42, 1.0) 0%, rgba(30, 41, 59, 1.0) 50%, rgba(15, 23, 42, 1.0) 100%)'
-        : 'linear-gradient(315deg, rgba(255, 255, 255, 0.88) 0%, rgba(249, 245, 235, 0.92) 50%, rgba(252, 250, 247, 0.90) 100%)',
-      backdropFilter: 'blur(16px) saturate(120%)',
-      WebkitBackdropFilter: 'blur(16px) saturate(120%)',
-      border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)',
+        ? 'linear-gradient(315deg, rgba(15, 23, 42, 0.45) 0%, rgba(30, 41, 59, 0.55) 50%, rgba(15, 23, 42, 0.45) 100%)'
+        : 'linear-gradient(315deg, rgba(255, 255, 255, 0.4) 0%, rgba(249, 245, 235, 0.5) 50%, rgba(252, 250, 247, 0.45) 100%)',
+      backdropFilter: 'blur(20px) saturate(140%)',
+      WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+      border: isDark ? '1px solid rgba(71, 85, 105, 0.4)' : '1px solid rgba(209, 213, 219, 0.5)',
       boxShadow: isDark
-        ? '0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-        : '0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
+        ? '0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.2)'
+        : '0 8px 32px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 1px 2px rgba(0, 0, 0, 0.05)',
     }}>
 
-      {/* Tab Headers - Modern Minimal */}
-      <div className="flex border-b-2 border-ink-100 dark:border-slate-700 bg-white dark:bg-slate-800" style={{ borderRadius: '16px 16px 0 0' }}>
+      {/* Tab Headers - Glassomorphic */}
+      <div className="flex border-b-2 transition-all duration-500" style={{
+        borderRadius: '16px 16px 0 0',
+        borderColor: isDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.4)',
+        background: isDark
+          ? 'linear-gradient(180deg, rgba(30, 41, 59, 0.3) 0%, rgba(15, 23, 42, 0.2) 100%)'
+          : 'linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(249, 245, 235, 0.25) 100%)',
+        backdropFilter: 'blur(12px) saturate(120%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(120%)',
+      }}>
         {tabs.map((tab, index) => {
           const isActive = activeTab === tab.id;
           const isHovered = hoveredTab === tab.id;
@@ -100,15 +123,26 @@ export function PlayerStatusPanel({
           return (
             <RippleButton
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
               onMouseEnter={() => setHoveredTab(tab.id)}
               onMouseLeave={() => setHoveredTab(null)}
               rippleColor={tabColors.ripple}
-              className="flex-1 px-5 py-3 font-sans font-semibold text-sm tracking-wide transition-all duration-300 relative"
+              className="flex-1 px-5 py-3 font-sans font-semibold text-sm tracking-wide transition-all duration-500 relative"
               style={{
                 color: isActive ? tabColors.active : tabColors.inactive,
-                backgroundColor: isHovered && !isActive ? (isDark ? '#334155' : '#f8f8f7') : (isDark ? '#1e293b' : '#ffffff'),
-                borderRadius: isFirst ? '16px 0 0 0' : isLast ? '0 16px 0 0' : '0'
+                background: isHovered && !isActive
+                  ? (isDark
+                      ? 'linear-gradient(180deg, rgba(51, 65, 85, 0.5) 0%, rgba(30, 41, 59, 0.4) 100%)'
+                      : 'linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(248, 244, 238, 0.4) 100%)')
+                  : 'transparent',
+                backdropFilter: isHovered ? 'blur(16px) saturate(150%)' : 'blur(8px)',
+                WebkitBackdropFilter: isHovered ? 'blur(16px) saturate(150%)' : 'blur(8px)',
+                borderRadius: isFirst ? '16px 0 0 0' : isLast ? '0 16px 0 0' : '0',
+                boxShadow: isHovered && !isActive
+                  ? (isDark
+                      ? 'inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.2)'
+                      : 'inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 2px 8px rgba(0, 0, 0, 0.05)')
+                  : 'none'
               }}
             >
               {tab.label}
@@ -117,7 +151,10 @@ export function PlayerStatusPanel({
                   className="absolute bottom-0 left-0 right-0 transition-all duration-300"
                   style={{
                     height: '2px',
-                    background: isDark ? tab.gradient.dark : tab.gradient.light
+                    background: isDark ? tab.gradient.dark : tab.gradient.light,
+                    boxShadow: isDark
+                      ? `0 0 8px ${tabColors.active}40`
+                      : `0 0 6px ${tabColors.active}30`
                   }}
                 />
               )}
@@ -126,38 +163,46 @@ export function PlayerStatusPanel({
         })}
       </div>
 
-      {/* Tab Content - Embossed inset with realistic warm parchment lighting */}
+      {/* Tab Content - Glassomorphic with subtle texture */}
       <div
-        className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 transition-all duration-300 relative"
+        className="overflow-y-auto custom-scrollbar px-3 py-3 relative"
         style={{
+          flex: isCollapsed ? '0 0 0' : '1 1 auto',
+          maxHeight: isCollapsed ? '0' : '100%',
+          opacity: isCollapsed ? 0 : 1,
+          paddingTop: isCollapsed ? 0 : '0.75rem',
+          paddingBottom: isCollapsed ? 0 : '0.75rem',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           background: isDark
             ? `
-                radial-gradient(ellipse at 0% 0%, rgba(51, 65, 85, 0.35) 0%, transparent 50%),
-                radial-gradient(ellipse at 100% 100%, rgba(71, 85, 105, 0.2) 0%, transparent 50%),
-                repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(100, 116, 139, 0.03) 2px, rgba(100, 116, 139, 0.03) 4px),
-                repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(100, 116, 139, 0.015) 3px, rgba(100, 116, 139, 0.015) 6px),
-                linear-gradient(135deg, rgba(15, 23, 42, 0.4) 0%, rgba(30, 41, 59, 0.25) 100%)
+                radial-gradient(ellipse at 0% 0%, rgba(51, 65, 85, 0.2) 0%, transparent 50%),
+                radial-gradient(ellipse at 100% 100%, rgba(71, 85, 105, 0.15) 0%, transparent 50%),
+                repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(100, 116, 139, 0.02) 2px, rgba(100, 116, 139, 0.02) 4px),
+                repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(100, 116, 139, 0.01) 3px, rgba(100, 116, 139, 0.01) 6px),
+                linear-gradient(135deg, rgba(15, 23, 42, 0.25) 0%, rgba(30, 41, 59, 0.15) 100%)
               `
             : `
-                radial-gradient(ellipse at 10% 10%, rgba(180, 150, 110, 0.05) 20%, transparent 35%),
-                radial-gradient(ellipse at 100% 100%, rgba(255, 250, 240, 0.3) 0%, transparent 45%),
-                repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(139, 125, 107, 0.02) 2px, rgba(139, 125, 107, 0.02) 4px),
-                repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(139, 125, 107, 0.022) 3px, rgba(139, 125, 107, 0.02) 6px),
-                linear-gradient(135deg, rgba(245, 240, 232, 1) 0%, rgba(248, 244, 238, 0.98) 100%)
+                radial-gradient(ellipse at 10% 10%, rgba(180, 150, 110, 0.04) 20%, transparent 35%),
+                radial-gradient(ellipse at 100% 100%, rgba(255, 250, 240, 0.15) 0%, transparent 45%),
+                repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(139, 125, 107, 0.015) 2px, rgba(139, 125, 107, 0.015) 4px),
+                repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(139, 125, 107, 0.012) 3px, rgba(139, 125, 107, 0.012) 6px),
+                linear-gradient(135deg, rgba(245, 240, 232, 0.3) 0%, rgba(248, 244, 238, 0.25) 100%)
               `,
           backgroundSize: '100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%',
+          backdropFilter: 'blur(8px) saturate(110%)',
+          WebkitBackdropFilter: 'blur(8px) saturate(110%)',
           boxShadow: isDark
             ? `
-                inset 3px 3px 8px rgba(0, 0, 0, 0.35),
-                inset 1px 1px 3px rgba(0, 0, 0, 0.25),
-                inset -2px -2px 4px rgba(71, 85, 105, 0.15),
-                inset 0 0 0 1px rgba(71, 85, 105, 0.2)
+                inset 2px 2px 6px rgba(0, 0, 0, 0.2),
+                inset 1px 1px 2px rgba(0, 0, 0, 0.15),
+                inset -1px -1px 3px rgba(71, 85, 105, 0.1),
+                inset 0 0 0 1px rgba(71, 85, 105, 0.15)
               `
             : `
-                inset 1px 3px 8px rgba(140, 100, 60, 0.2),
-                inset 2px 2px 10px rgba(120, 85, 50, 0.05),
-                inset -2px -2px 4px rgba(255, 252, 245, 0.8),
-                inset 0 0 0 1px rgba(200, 180, 150, 0.05)
+                inset 1px 2px 6px rgba(140, 100, 60, 0.12),
+                inset 1px 1px 4px rgba(120, 85, 50, 0.04),
+                inset -1px -1px 3px rgba(255, 252, 245, 0.5),
+                inset 0 0 0 1px rgba(200, 180, 150, 0.04)
               `,
         }}
       >

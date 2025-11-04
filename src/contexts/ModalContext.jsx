@@ -19,6 +19,7 @@ const INITIAL_MODAL_STATE = {
   diagnose: false,
   gameLog: false,
   settings: false,
+  help: false,
 
   // Action Modals
   mixing: false,
@@ -248,6 +249,7 @@ export const MODALS = {
   DIAGNOSE: 'diagnose',
   GAME_LOG: 'gameLog',
   SETTINGS: 'settings',
+  HELP: 'help',
 
   // Actions
   MIXING: 'mixing',

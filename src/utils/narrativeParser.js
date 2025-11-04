@@ -25,6 +25,7 @@ import {
   FaGift,
   FaMoneyBillWave,
   FaMortarPestle,
+  FaListUl,
 } from 'react-icons/fa';
 
 /**
@@ -265,10 +266,10 @@ export function getDefaultChips() {
       tooltip: 'Inspect your possessions and ingredients',
     },
     {
-      label: 'Ask',
-      icon: FaQuestion,
+      label: 'List',
+      icon: FaListUl,
       action: 'ask about ',
-      tooltip: 'Inquire about people, places, or things',
+      tooltip: 'View available options and actions',
     },
     {
       label: 'Go somewhere',
@@ -291,7 +292,96 @@ export function getDefaultChips() {
   ];
 }
 
+/**
+ * Parse list response marker from narrative text
+ * List responses start with [LIST_RESPONSE:type] marker
+ * @param {string} text - Narrative text
+ * @returns {object} Parse result with isListResponse flag, validation errors
+ */
+export function parseListResponse(text) {
+  if (!text || typeof text !== 'string') {
+    return { isListResponse: false };
+  }
+
+  const markerPattern = /^\[LIST_RESPONSE:(\w+)\]/;
+  const match = text.match(markerPattern);
+
+  if (match) {
+    const content = text.replace(markerPattern, '').trim();
+
+    // Validate response format
+    const validation = validateListResponse(content);
+
+    return {
+      isListResponse: true,
+      listType: match[1],
+      content: content,
+      isValid: validation.isValid,
+      error: validation.error
+    };
+  }
+
+  return { isListResponse: false };
+}
+
+/**
+ * Validate list response content
+ * Checks if content is a valid markdown table or empty state message
+ * @param {string} content - List response content (without marker)
+ * @returns {object} Validation result
+ */
+function validateListResponse(content) {
+  if (!content) {
+    return {
+      isValid: false,
+      error: 'Empty response received'
+    };
+  }
+
+  // Check for valid empty state messages
+  const validEmptyMessages = [
+    'No other people are currently visible.',
+    'Unable to perceive sensory details.',
+    'No notable objects visible.',
+    'No ingredients available here.'
+  ];
+
+  if (validEmptyMessages.some(msg => content.includes(msg))) {
+    return { isValid: true, error: null };
+  }
+
+  // Check for markdown table format (must have header row with |)
+  const hasTableHeader = /\|.*\|/.test(content);
+  const hasTableSeparator = /\|[-:\s]+\|/.test(content);
+
+  if (!hasTableHeader) {
+    return {
+      isValid: false,
+      error: 'Invalid table format: missing header row'
+    };
+  }
+
+  if (!hasTableSeparator) {
+    return {
+      isValid: false,
+      error: 'Invalid table format: missing separator row'
+    };
+  }
+
+  // Check for minimum content (at least 3 lines: header, separator, and one row OR empty message)
+  const lines = content.split('\n').filter(line => line.trim());
+  if (lines.length < 2) {
+    return {
+      isValid: false,
+      error: 'Invalid table format: insufficient rows'
+    };
+  }
+
+  return { isValid: true, error: null };
+}
+
 export default {
   parseNarrativeChoices,
   getDefaultChips,
+  parseListResponse,
 };

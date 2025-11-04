@@ -67,6 +67,7 @@ export function CharacterCard({
   onOpenCharacterModal,
   onItemDropOnPlayer, // New prop for handling item drops
   onCollapseChange, // Callback when collapse state changes
+  onOpenProfessionModal, // New prop: opens profession choice modal
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -484,6 +485,20 @@ export function CharacterCard({
         .ring-pulse-critical {
           animation: ringPulseCritical 1s ease-in-out;
         }
+
+        /* Profession choice badge glow animation */
+        @keyframes professionBadgeGlow {
+          0%, 100% {
+            box-shadow: 0 0 8px rgba(251, 191, 36, 0.4), 0 0 16px rgba(251, 191, 36, 0.2);
+          }
+          50% {
+            box-shadow: 0 0 16px rgba(251, 191, 36, 0.6), 0 0 24px rgba(251, 191, 36, 0.3);
+          }
+        }
+
+        .profession-badge-glow {
+          animation: professionBadgeGlow 2s ease-in-out infinite;
+        }
       `}</style>
     <div className="group rounded-2xl p-4 shadow-lg dark:shadow-dark-elevation-2 mb-4 flex-shrink-0 transition-all duration-300 hover:shadow-2xl dark:hover:shadow-dark-elevation-3 relative overflow-hidden bg-gradient-to-br from-parchment-50/50 via-white/90 to-parchment-50/70 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 backdrop-blur-lg border border-parchment-300/30 hover:border-parchment-400/50 dark:border-slate-600/30 dark:hover:border-amber-500/40"
     >
@@ -635,6 +650,22 @@ export function CharacterCard({
               Level {characterLevel}
             </span>
 
+            {/* PROFESSION CHOICE BADGE - Level 5, no profession chosen */}
+            {characterLevel >= 5 && !chosenProfession && onOpenProfessionModal && (
+              <button
+                onClick={onOpenProfessionModal}
+                className="text-xs px-2.5 py-1.5 rounded-md font-bold font-sans border-2 transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 profession-badge-glow"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.15))',
+                  color: '#d97706',
+                  borderColor: '#fbbf24',
+                }}
+                title="Click to choose your profession specialization!"
+              >
+                🌟 Choose Profession
+              </button>
+            )}
+
             {/* Profession Badge (only shown after Level 5 profession choice) */}
             {chosenProfession && (
               <span
@@ -692,8 +723,8 @@ export function CharacterCard({
             borderRadius: '10px',
             background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0%, rgba(0, 0, 0, 0.03) 100%)',
                boxShadow: `
-              inset 0 2px 4px rgba(0, 0, 0, 0.1),
-              inset 0 1px 2px rgba(0, 0, 0, 0.05),
+              inset 0 2px 4px rgba(0, 0, 0, 0.05),
+              inset 0 1px 5px rgba(0, 0, 0, 0.05),
               0 1px 0 rgba(255, 255, 255, 0.55)
             `,
             padding: '0px'
@@ -702,9 +733,9 @@ export function CharacterCard({
               className="h-full relative overflow-hidden group/bar liquid-shimmer-green"
               style={{
                 width: `${health}%`,
-                borderRadius: '9px',
+                borderRadius: '5px',
                 background: 'linear-gradient(90deg, #5cf04f 2%, #5bd93f 40%, #2ed93f 65%, #16a329 89%, #179128 100%)',
-                boxShadow: `inset 0 1px 1.5px rgba(255, 255, 255, 0.38)`,
+                boxShadow: `inset 0 1px 1.5px rgba(255, 255, 255, 0.28)`,
                 transition: 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
                 cursor: 'pointer'
               }}
@@ -761,8 +792,8 @@ export function CharacterCard({
             borderRadius: '10px',
             background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0%, rgba(0, 0, 0, 0.04) 100%)',
             boxShadow: `
-              inset 0 2px 4px rgba(0, 0, 0, 0.15),
-              inset 0 1px 2px rgba(0, 0, 0, 0.05),
+                   inset 0 2px 4px rgba(0, 0, 0, 0.05),
+              inset 0 1px 5px rgba(0, 0, 0, 0.05),
               0 1px 0 rgba(255, 255, 255, 0.55)
             `,
             padding: '0px'
@@ -828,8 +859,8 @@ export function CharacterCard({
             borderRadius: '19px',
             background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0%, rgba(0, 0, 0, 0.03) 100%)',
            boxShadow: `
-              inset 0 2px 4px rgba(0, 0, 0, 0.15),
-              inset 0 1px 2px rgba(0, 0, 0, 0.05),
+                 inset 0 2px 4px rgba(0, 0, 0, 0.05),
+              inset 0 1px 5px rgba(0, 0, 0, 0.05),
               0 1px 0 rgba(255, 255, 255, 0.55)
             `,
             padding: '0px'
@@ -839,8 +870,8 @@ export function CharacterCard({
               style={{
                 width: `${Math.min(100, (wealth / 100) * 100)}%`,
                 borderRadius: '9px',
-                background: 'linear-gradient(90deg, #fef08a 0%, #fde047 10%, #facc15 52%, #eab308 98%, #ca8a04 100%)',
-                boxShadow: `inset 0 1px 1.5px rgba(255, 255, 255, 0.38)`,
+                background: 'linear-gradient(90deg, #fef08a 0%, #fde047 0%, #facc15 72%, #eab308 96%, #d9a109 100%)',
+                boxShadow: `inset 0 1px 1.5px rgba(255, 255, 255, 0.58)`,
                 transition: 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
                 cursor: 'pointer'
               }}

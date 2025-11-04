@@ -5,6 +5,14 @@
  * based on patient's social class, casta, and wealth level.
  */
 
+// Building X positions on horizon for zoom targeting (% from left edge)
+// These correspond to actual building positions in HorizonLine.jsx
+const BUILDING_POSITIONS = {
+  humble: [18, 32, 45, 58, 72, 85], // Small houses/huts
+  middling: [12, 42, 68, 88], // Medium houses/shops
+  wealthy: [25, 55, 78] // Large buildings (for future use)
+};
+
 /**
  * Determine which house template to use based on patient characteristics
  * FIXED: Added null/undefined validation for patient parameter
@@ -133,6 +141,13 @@ export function getHouseCallData(patient, destination) {
   const distance = calculateDistanceToLocation(destination);
   const travelTime = calculateTravelTime(distance);
 
+  // Determine house type from mapId
+  const houseType = mapId.includes('humble') ? 'humble' : 'middling';
+
+  // Select random building position for zoom target
+  const positions = BUILDING_POSITIONS[houseType] || BUILDING_POSITIONS.middling;
+  const targetLocation = positions[Math.floor(Math.random() * positions.length)];
+
   return {
     patientEntity: patient,
     houseMapId: mapId,
@@ -140,6 +155,7 @@ export function getHouseCallData(patient, destination) {
     destination,
     distance,
     travelTime,
-    originalMapId: 'botica-interior' // Always return to botica
+    originalMapId: 'botica-interior', // Always return to botica
+    targetLocation // X position (%) for zoom effect
   };
 }

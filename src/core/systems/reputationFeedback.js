@@ -225,7 +225,7 @@ export function getReputationFeedbackPreview(npcId, relationshipDelta) {
     return null;
   }
 
-  const npc = entityManager.get(npcId);
+  const npc = entityManager.getById(npcId);
 
   if (!npc || !npc.social?.faction) {
     return null;

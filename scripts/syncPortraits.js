@@ -78,6 +78,7 @@ function loadCurrentConfig() {
 
 /**
  * Categorize a portrait filename based on patterns
+ * Returns null if file doesn't appear to be a portrait
  */
 function categorizePortrait(filename) {
   const lower = filename.toLowerCase();
@@ -122,8 +123,9 @@ function categorizePortrait(filename) {
     return 'Common Men';
   }
 
-  // Default fallback
-  return 'Common Men';
+  // CRITICAL FIX: Return null instead of defaulting to 'Common Men'
+  // This prevents non-portrait files (locations, ingredients, etc.) from being added
+  return null;
 }
 
 /**
@@ -144,9 +146,17 @@ function addNewPortraits(categories, allPortraits) {
   console.log(`\n📸 Found ${newPortraits.length} new portrait(s):\n`);
 
   const added = [];
+  const skipped = [];
 
   for (const portrait of newPortraits) {
     const category = categorizePortrait(portrait);
+
+    if (!category) {
+      // Skip files that don't match portrait patterns (likely locations/ingredients)
+      skipped.push(portrait);
+      console.log(`   ⚠ Skipped: ${portrait} (doesn't match portrait patterns)`);
+      continue;
+    }
 
     if (!categories[category]) {
       categories[category] = [];
@@ -156,6 +166,10 @@ function addNewPortraits(categories, allPortraits) {
     added.push({ portrait, category });
 
     console.log(`   + ${portrait} → ${category}`);
+  }
+
+  if (skipped.length > 0) {
+    console.log(`\n⚠ Skipped ${skipped.length} non-portrait file(s). Add them manually if needed.`);
   }
 
   return { categories, added };

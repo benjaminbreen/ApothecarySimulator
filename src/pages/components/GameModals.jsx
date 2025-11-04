@@ -16,8 +16,8 @@ import PrescribePopup from '../../features/medical/components/PrescribePopup.jsx
 import SimplePrescribeModal from '../../features/medical/components/SimplePrescribeModal';
 import NPCPatientModal from '../../features/medical/components/NPCPatientModal';
 import NPCModal from '../../features/modals/NPCModal';
-import Diagnose from '../../features/medical/components/Diagnose';
-import Buy from '../../features/commerce/components/Buy';
+
+
 import TradeModal from '../../features/commerce/components/TradeModal';
 import LedgerModal from '../../features/commerce/components/LedgerModal';
 import OfferItemModal from '../../features/commerce/components/OfferItemModal';
@@ -33,6 +33,7 @@ import EatAction from '../../components/EatAction';
 import ForageAction from '../../features/foraging/ForageAction';
 import GameLog from '../../components/GameLog';
 import SettingsModal from '../../components/SettingsModal_V3';
+import HelpModal from '../../components/HelpModal';
 import InteractiveMapModal from '../../features/map/components/InteractiveMapModal';
 import POIModal from '../../components/POIModal';
 import imageMap from '../../imageMap';
@@ -63,6 +64,7 @@ export function GameModals({
   detailSkillId,
   showPOIModal,
   isSettingsOpen,
+  isHelpOpen,
   isPdfOpen,
   showEndGamePopup,
   isEatOpen,
@@ -83,6 +85,7 @@ export function GameModals({
   tradeMode,
   tradingNPC,
   inventoryViewMode,
+  preselectedTradeTab, // Optional tab to preselect in TradeModal
   selectedPatient,
   selectedNPC,
   selectedItem,
@@ -135,6 +138,7 @@ export function GameModals({
   setShowPOIModal,
   setSelectedPOIEntity,
   setIsSettingsOpen,
+  setIsHelpOpen,
   closePdfPopup,
   setShowEndGamePopup,
   setIsEatOpen,
@@ -170,6 +174,7 @@ export function GameModals({
   setIsPrescribing,
   setIsInventoryOpen,
   setNPCPosition,
+  setCurrentMapId, // For fast travel map changes
   npcPositions,
   recentNPCs, // Filtered list of NPCs mentioned in narrative
   handleWealthChange,
@@ -195,6 +200,10 @@ export function GameModals({
 
   // Prescription outcome handlers
   onPrescriptionPending, // NEW: Handler for prescription outcome data (for "More Info" button)
+
+  // Weather background toggle
+  weatherBackgroundEnabled,
+  setWeatherBackgroundEnabled,
 }) {
   return (
     <>
@@ -401,6 +410,17 @@ export function GameModals({
           mode={tradeMode}
           tradingNPC={tradingNPC}
           initialViewMode={inventoryViewMode}
+          preselectedTab={preselectedTradeTab}
+          activeInvestments={gameState.investments?.active || []}
+          setActiveInvestments={(newInvestments) => {
+            setGameState(prev => ({
+              ...prev,
+              investments: {
+                ...prev.investments,
+                active: newInvestments
+              }
+            }));
+          }}
         />
       )}
 
@@ -543,6 +563,7 @@ export function GameModals({
         }}
         npc={selectedNPC}
         primaryPortraitFile={primaryPortraitFile}
+        conversationHistory={conversationHistory}
       />
 
       {/* Item Modal Enhanced */}
@@ -608,6 +629,8 @@ export function GameModals({
         setGameState={setGameState}
         health={health}
         energy={energy}
+        weatherBackgroundEnabled={weatherBackgroundEnabled}
+        setWeatherBackgroundEnabled={setWeatherBackgroundEnabled}
         onLoadTestPatient={(patient) => {
           setActivePatient(patient);
           setActiveTab('patient');
@@ -627,6 +650,12 @@ export function GameModals({
             }
           ]);
         }}
+      />
+
+      {/* Help Modal */}
+      <HelpModal
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
       />
 
       {/* Interactive Map Modal */}
@@ -670,10 +699,16 @@ export function GameModals({
           playerSkills={playerSkills}
           currentLocation={gameState.location}
           currentWealth={currentWealth}
-          energy={energy}
-          onTravelComplete={(destination, energyCost, travelTime, wealthCost) => {
+          currentEnergy={energy}
+          onTravel={({ destination, energyCost, travelTime, wealthCost = 0, mapId }) => {
             // Update location
             updateLocation(destination);
+
+            // Change map if mapId is provided
+            if (mapId && setCurrentMapId) {
+              setCurrentMapId(mapId);
+              console.log('[FastTravel] Changed map to:', mapId);
+            }
 
             // Deduct energy
             applyResourceChanges('travel', {

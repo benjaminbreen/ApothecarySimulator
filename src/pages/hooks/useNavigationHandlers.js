@@ -10,6 +10,12 @@ import { orchestrateTurn } from '../../core/agents/AgentOrchestrator';
 import { scenarioLoader } from '../../core/services/scenarioLoader';
 import { parseNarrativeChoices } from '../../utils/narrativeParser';
 import { determinePatientPosition, getPlacementNarrative } from '../../features/medical/services/patientPositioning'; // Phase 3C
+import { getLocationNPCs } from '../../core/services/locationContextService'; // Location NPC system
+import { resolvePortrait } from '../../core/services/portraitResolver'; // Phase 2: Portrait resolution
+import { entityManager } from '../../core/entities/EntityManager'; // For enriching patient entities
+
+const BOTICA_MAIN_DOOR = { x: 400, y: 700 };
+const WALK_STEP_DELAY_MS = 70;
 
 /**
  * Custom hook for navigation handlers
@@ -50,6 +56,7 @@ import { determinePatientPosition, getPlacementNarrative } from '../../features/
  * @param {Function} params.awardXP - Award XP function (Phase 3D)
  * @param {Function} params.updateReputation - Update reputation function (Phase 3D)
  * @param {Function} params.setTravelAnimationState - Set travel animation state for map overlay
+ * @param {Function} params.setBackgroundMode - Set background mode for immersive UI
  *
  * @returns {Object} Navigation handlers
  */
@@ -93,6 +100,7 @@ export function useNavigationHandlers({
   updateReputation,
   setTravelAnimationState,
   openLongDistanceTravelCard,
+  setBackgroundMode, // Immersive background mode
 }) {
   // Context hooks
   const { updateLocation, advanceTime, updateInventory, setGameState, setEnergy } = useGameState();
@@ -662,7 +670,8 @@ export function useNavigationHandlers({
     const locationMap = {
       'Botica de la Amargura': 'botica-interior',
       'Metropolitan Cathedral': 'cathedral-interior',
-      'La Merced Market': 'mercado-interior'
+      'La Merced Market': 'mercado-interior',
+      'El Consulado de Mercaderes': 'consulado-interior'
     };
 
     const mapId = locationMap[locationName];
@@ -671,10 +680,15 @@ export function useNavigationHandlers({
     if (mapId) {
       console.log('[HandleFastTravel] Traveling to:', locationName, 'mapId:', mapId);
 
-      // Update location
+      // Generate location NPCs
+      const locationNPCs = getLocationNPCs(mapId, gameState.time, gameState.date);
+      console.log(`[HandleFastTravel] Generated ${locationNPCs.length} NPCs for ${locationName}`);
+
+      // Update location and store location NPCs
       setGameState(prev => ({
         ...prev,
-        location: locationName
+        location: locationName,
+        currentLocationNPCs: locationNPCs // Store NPCs for this location
       }));
 
       // Set the map
@@ -864,6 +878,80 @@ export function useNavigationHandlers({
       setPatientDialogue([]); // Clear previous dialogue
       console.log('[Phase 3B] Set active patient:', patientEntity.name);
 
+      // 6.5. PORTRAIT FIX: Resolve and set portrait for house call patient
+      console.log('[Portrait Phase 2] House call patient now present, resolving portrait for:', patientEntity.name);
+
+      // Ensure patient is registered in EntityManager (required for enrichment)
+      let enrichedPatient = entityManager.getById(patientEntity.id);
+      if (!enrichedPatient) {
+        console.log('[Portrait Phase 2] Patient not registered, registering and enriching:', patientEntity.name);
+        entityManager.register(patientEntity);
+        enrichedPatient = entityManager.getById(patientEntity.id);
+      }
+
+      // Fallback to raw entity if registration failed
+      if (!enrichedPatient) {
+        console.warn('[Portrait Phase 2] Entity registration failed, using raw entity');
+        enrichedPatient = patientEntity;
+      }
+
+      // CRITICAL FIX: Infer missing demographics from context before portrait resolution
+      if (!enrichedPatient.social) enrichedPatient.social = {};
+      if (!enrichedPatient.appearance) enrichedPatient.appearance = {};
+
+      // Infer casta from name patterns and house type
+      if (!enrichedPatient.social.casta || enrichedPatient.social.casta === 'unknown') {
+        // Check for Spanish nobility markers
+        if (enrichedPatient.name.match(/don |doña |de la |del /i) || houseCallData.destination?.match(/don |doña /i)) {
+          enrichedPatient.social.casta = 'español';
+          console.log('[Portrait Phase 2] Inferred casta as español from name/location');
+        } else if (finalHouseMapId === 'elite-house-interior') {
+          enrichedPatient.social.casta = 'criollo';
+          console.log('[Portrait Phase 2] Inferred casta as criollo from elite house');
+        } else if (finalHouseMapId === 'middling-house-interior') {
+          enrichedPatient.social.casta = 'mestizo';
+          console.log('[Portrait Phase 2] Inferred casta as mestizo from middling house');
+        } else {
+          enrichedPatient.social.casta = 'mestizo'; // Default
+          console.log('[Portrait Phase 2] Defaulted casta to mestizo');
+        }
+      }
+
+      // Infer occupation from age and context
+      if (!enrichedPatient.social.occupation || enrichedPatient.social.occupation === 'unknown') {
+        const age = enrichedPatient.appearance?.age || 'adult';
+        const socialClass = enrichedPatient.social?.class || 'common';
+
+        if (age === 'child' || age === 'young') {
+          enrichedPatient.social.occupation = socialClass === 'elite' ? 'Noble youth' : 'Apprentice';
+        } else if (socialClass === 'elite') {
+          enrichedPatient.social.occupation = 'Gentleman';
+        } else {
+          enrichedPatient.social.occupation = 'Commoner';
+        }
+        console.log('[Portrait Phase 2] Inferred occupation as', enrichedPatient.social.occupation);
+      }
+
+      // Resolve portrait using demographics (enrichment should have populated these)
+      const patientPortrait = resolvePortrait(enrichedPatient);
+      if (patientPortrait) {
+        const portraitFilename = patientPortrait.replace('/portraits/', '');
+        console.log('[Portrait Phase 2] Setting house call patient portrait:', portraitFilename);
+
+        // Store portrait in patient entity for display in patient view
+        enrichedPatient.image = portraitFilename;
+        if (!enrichedPatient.visual) enrichedPatient.visual = {};
+        enrichedPatient.visual.image = portraitFilename;
+        console.log('[Portrait Phase 2] Stored portrait in patient entity:', portraitFilename);
+
+        setPrimaryPortraitFile(portraitFilename);
+
+        // Update active patient to include the portrait
+        setActivePatient({ ...enrichedPatient });
+      } else {
+        console.warn('[Portrait Phase 2] Could not resolve portrait for house call patient:', patientEntity.name);
+      }
+
       // 7. Generate arrival narrative with patient placement context
       const placementNarrative = getPlacementNarrative(positionData, patientEntity);
       const arrivalNarrative = `Maria arrives at ${houseName} in ${destination}. The journey took ${travelTime} minutes through the winding streets of Mexico City.\n\n${placementNarrative}`;
@@ -883,6 +971,8 @@ export function useNavigationHandlers({
 
       // 9. Clear pending house call state
       setPendingHouseCall(null);
+      // Restore normal UI mode
+      setBackgroundMode('normal');
 
       // 10. Show success toast
       if (toast) {
@@ -903,6 +993,8 @@ export function useNavigationHandlers({
       }
       // Clear pending house call on error
       setPendingHouseCall(null);
+      // Restore normal UI mode
+      setBackgroundMode('normal');
       if (setTravelAnimationState) {
         setTravelAnimationState(null);
       }
@@ -919,6 +1011,7 @@ export function useNavigationHandlers({
     setConversationHistory,
     addJournalEntry,
     setPendingHouseCall,
+    setBackgroundMode,
     toast,
     turnNumber,
     gameState.date,
@@ -1023,6 +1116,152 @@ export function useNavigationHandlers({
     setTravelAnimationState
   ]);
 
+  const walkPlayerToDoor = useCallback(async () => {
+    if (currentMapId !== 'botica-interior') {
+      console.debug('[DoorShortcut] Skipping animation - not in botica interior');
+      return false;
+    }
+
+    try {
+      const scenario = scenarioLoader.getScenario(gameState.scenarioId || '1680-mexico-city');
+      const freshMapData = scenario?.maps?.interior?.[currentMapId];
+
+      if (!freshMapData) {
+        console.warn('[DoorShortcut] No interior map data for botica-interior');
+        return false;
+      }
+
+      const { getGridSystem } = await import('../../features/map/services/gridMovementSystem');
+      const gridSystem = getGridSystem(currentMapId, freshMapData);
+
+      const mainDoor = Array.isArray(freshMapData?.doors)
+        ? freshMapData.doors.find(door => door.id === 'main-entrance')
+        : null;
+
+      const doorX = Array.isArray(mainDoor?.position) ? mainDoor.position[0] : BOTICA_MAIN_DOOR.x;
+      const doorY = Array.isArray(mainDoor?.position) ? mainDoor.position[1] : BOTICA_MAIN_DOOR.y;
+      const approachOffset = gridSystem.gridSize * 2; // Step inside the doorway
+      const approachY = Math.max(doorY - approachOffset, 0);
+
+      const targetGrid = gridSystem.pixelToGrid(doorX, approachY);
+      const targetPosition = {
+        x: targetGrid.x,
+        y: targetGrid.y,
+        gridX: targetGrid.gridX,
+        gridY: targetGrid.gridY
+      };
+
+      let startGrid;
+      if (playerPosition && typeof playerPosition.x === 'number' && typeof playerPosition.y === 'number') {
+        if (typeof playerPosition.gridX === 'number' && typeof playerPosition.gridY === 'number') {
+          startGrid = {
+            x: playerPosition.x,
+            y: playerPosition.y,
+            gridX: playerPosition.gridX,
+            gridY: playerPosition.gridY
+          };
+        } else {
+          const derived = gridSystem.pixelToGrid(playerPosition.x, playerPosition.y);
+          startGrid = {
+            x: derived.x,
+            y: derived.y,
+            gridX: derived.gridX,
+            gridY: derived.gridY
+          };
+        }
+      } else {
+        startGrid = { ...targetPosition };
+      }
+
+      const startPosition = startGrid;
+      const pathResult = gridSystem.findPath(startPosition, targetPosition);
+
+      console.debug('[DoorShortcut] Path result:', {
+        valid: pathResult.valid,
+        length: pathResult.path?.length || 0,
+        reason: pathResult.reason,
+        start: startPosition,
+        target: targetPosition
+      });
+
+      let steps = pathResult.valid && Array.isArray(pathResult.path)
+        ? pathResult.path.slice(1)
+        : null;
+
+      if (!steps || steps.length === 0) {
+        const boundsWidth = freshMapData?.bounds?.width || 1000;
+        const lateralOffset = gridSystem.gridSize * 7; // 140px sidestep around counter
+        const walkwayLeftX = Math.max(doorX - lateralOffset, gridSystem.gridSize * 5);
+        const walkwayRightX = Math.min(doorX + lateralOffset, boundsWidth - gridSystem.gridSize * 5);
+        const lateralX = startPosition.x >= doorX ? walkwayLeftX : walkwayRightX;
+
+        const fallbackPoints = [
+          { x: lateralX, y: startPosition.y },
+          { x: lateralX, y: approachY },
+          { x: doorX, y: approachY }
+        ];
+
+        const fallbackPath = [startPosition];
+        let fallbackValid = true;
+
+        for (const point of fallbackPoints) {
+          const gridPoint = gridSystem.pixelToGrid(point.x, point.y);
+          if (!gridSystem.isWalkable(gridPoint.gridX, gridPoint.gridY)) {
+            fallbackValid = false;
+            break;
+          }
+          fallbackPath.push({
+            x: gridPoint.x,
+            y: gridPoint.y,
+            gridX: gridPoint.gridX,
+            gridY: gridPoint.gridY
+          });
+        }
+
+        if (fallbackValid) {
+          console.warn('[DoorShortcut] Using fallback path to door');
+          steps = fallbackPath.slice(1);
+        } else {
+          console.warn('[DoorShortcut] No valid path to door - teleporting to entrance');
+          setPlayerPosition(targetPosition);
+          setPlayerFacing(180);
+          return true;
+        }
+      }
+
+      if (steps.length === 0) {
+        setPlayerFacing(180);
+        return true;
+      }
+
+      let currentStep = { ...startPosition };
+      for (const step of steps) {
+        currentStep = {
+          x: step.x,
+          y: step.y,
+          gridX: step.gridX,
+          gridY: step.gridY
+        };
+
+        setPlayerPosition(currentStep);
+        await new Promise(resolve => setTimeout(resolve, WALK_STEP_DELAY_MS));
+      }
+
+      setPlayerFacing(180);
+      console.debug('[DoorShortcut] Arrived at door in', steps.length, 'steps');
+      return true;
+    } catch (error) {
+      console.error('[DoorShortcut] Failed to walk to door:', error);
+      return false;
+    }
+  }, [
+    currentMapId,
+    gameState.scenarioId,
+    playerPosition,
+    setPlayerPosition,
+    setPlayerFacing
+  ]);
+
   return {
     handleMovement,
     handleEnterBuilding,
@@ -1031,5 +1270,6 @@ export function useNavigationHandlers({
     handleNaturalLanguageNavigation,
     handleHouseCallArrival, // Phase 3B/3C
     handleCompleteHouseCall, // Phase 3D
+    walkPlayerToDoor,
   };
 }

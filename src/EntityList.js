@@ -3190,6 +3190,135 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   interactionFrequency: "medium" // Appears once every 2-3 game days
 },
 
+// === INVESTMENT BROKERS & OPPORTUNITY SEEKERS ===
+// NPCs who present investment opportunities to Maria
+
+{
+  id: "don-fernando-de-herrera",
+  entityType: "npc",
+  name: "Don Fernando de Herrera",
+  demographics: { age: "middle-aged", gender: "male", casta: "peninsular", class: "elite" },
+  occupation: "Investment Broker",
+  personality: "Shrewd, persuasive, well-connected, opportunistic",
+  appearance: "Well-dressed merchant in silk doublet with gold buttons, carrying a leather portfolio",
+  description: "A financial intermediary who brings investment opportunities to successful merchants and apothecaries. Connected to the Consulado de Mercaderes.",
+  background: "Fernando came to New Spain twenty years ago as a clerk and built a fortune by matching investors with opportunities. He knows which galleons are sailing, which mines are producing, and which estates need capital. His commission depends on closing deals, so he's persistent but professional. He only approaches those with proven wealth and business acumen.",
+  faction: "Merchants",
+  tier: "recurring",
+  portraitImage: "peninsularmalemiddleagedmerchant.jpg",
+  imgdescription: "A well-groomed Spanish man in his 40s with graying temples, wearing expensive clothing and carrying a leather case of documents. He has the confident bearing of someone who handles large sums of money daily.",
+  simpleInteractionType: "investment_offer",
+  preferredInvestmentTypes: ["church_bond", "real_estate", "apothecary_syndicate"], // Focuses on safer investments
+  conditions: {
+    bookkeeping: { min: 5, weight: 3.0 }, // Only appears if player has Bookkeeping 5+
+    wealth: { min: 75, weight: 2.5 }, // Only appears if player has enough capital
+    turnNumber: { min: 30, weight: 1.5 }, // Appears later in game
+    location: { allowed: ["botica-interior", "mercado-interior"], weight: 2.0 } // Visits at shop or market
+  },
+  interactionFrequency: "low" // Rare, high-value encounters
+},
+
+{
+  id: "capitan-miguel-sanchez",
+  entityType: "npc",
+  name: "Capitán Miguel Sánchez",
+  demographics: { age: "adult", gender: "male", casta: "criollo", class: "middling" },
+  occupation: "Ship Captain",
+  personality: "Adventurous, persuasive, risk-taker, charismatic",
+  appearance: "Weathered sea captain with sun-darkened skin, wearing practical maritime clothing",
+  description: "Captain of a Manila-bound galleon seeking investors for cargo space. Offers high-risk, high-reward opportunities.",
+  background: "Miguel has captained three successful Manila voyages and lost one ship to pirates. He understands the risks but believes fortune favors the bold. He seeks investors to fill his cargo hold with trade goods—the more capital, the bigger the potential profit. His pitch is exciting but honest about the dangers. He only approaches those brave enough (or wealthy enough) to afford losses.",
+  faction: "Merchants",
+  tier: "recurring",
+  portraitImage: "criollomalesailorturban.jpg",
+  imgdescription: "A rugged criollo man in his early 30s with sun-weathered features and a confident grin. He wears a loose linen shirt and has the muscular build of someone who works the rigging. His eyes carry the distant look of someone who's crossed oceans.",
+  simpleInteractionType: "investment_offer",
+  preferredInvestmentTypes: ["manila_galleon"], // Specializes in galleon trade
+  conditions: {
+    bookkeeping: { min: 5, weight: 2.5 },
+    wealth: { min: 100, weight: 3.0 }, // Higher wealth requirement for risky ventures
+    turnNumber: { min: 40, weight: 1.2 },
+    location: { allowed: ["botica-interior", "plaza-mayor", "mercado-interior"], weight: 1.5 }
+  },
+  interactionFrequency: "rare" // Very rare, only before galleon departures
+},
+
+{
+  id: "fray-domingo-ortiz",
+  entityType: "npc",
+  name: "Fray Domingo Ortiz",
+  demographics: { age: "elderly", gender: "male", casta: "criollo", class: "clergy" },
+  occupation: "Dominican Friar & Fundraiser",
+  personality: "Pious, persistent, financially astute, persuasive",
+  appearance: "Elderly Dominican friar in black and white habit, carrying a small donation ledger",
+  description: "A respected friar who manages church finances and offers church bond investments to the faithful. Safe and guaranteed returns.",
+  background: "Fray Domingo has managed Santo Domingo's finances for three decades. He knows the Church always pays its debts—backed by tithes, landholdings, and vast wealth. Church bonds fund cathedral repairs, missionary work, and charitable institutions. The returns are modest but absolutely guaranteed. Fray Domingo appeals to both faith and practical finance, making it easy for believers to grow wealth while serving God.",
+  faction: "Church",
+  tier: "recurring",
+  portraitImage: "priestelderlycriollo.jpg",
+  imgdescription: "A dignified elderly friar with silver hair and kind eyes. He wears the traditional Dominican black and white habit and carries himself with the authority of someone who's managed church finances for decades. Despite his age, his mind is sharp and his ledger meticulously maintained.",
+  simpleInteractionType: "investment_offer",
+  preferredInvestmentTypes: ["church_bond"], // Only offers church bonds
+  conditions: {
+    bookkeeping: { min: 3, weight: 2.0 }, // Lower skill requirement (safer investment)
+    wealth: { min: 30, weight: 1.5 }, // Lower wealth requirement
+    turnNumber: { min: 20, weight: 1.0 },
+    location: { allowed: ["botica-interior", "cathedral-interior"], weight: 2.0 }
+  },
+  interactionFrequency: "medium" // More common than other investment offers
+},
+
+{
+  id: "rodrigo-mendoza",
+  entityType: "npc",
+  name: "Rodrigo Mendoza",
+  demographics: { age: "middle-aged", gender: "male", casta: "mestizo", class: "middling" },
+  occupation: "Mining Engineer",
+  personality: "Enthusiastic, optimistic, technical, risk-tolerant",
+  appearance: "Dust-covered engineer with calloused hands, carrying mineral samples and survey maps",
+  description: "A mining engineer from Zacatecas seeking investors for silver mining consortiums. High risk, extraordinary potential returns.",
+  background: "Rodrigo splits his time between the northern mines and Mexico City, recruiting investors for new mining ventures. He's seen fortunes made overnight when a rich vein is struck—and he's seen mines collapse into worthless pits. His pitch is honest about the risks but intoxicating in its promise. He brings actual mineral samples to prove the quality of the ore. Only those with significant capital and strong stomachs should consider his offers.",
+  faction: "Merchants",
+  tier: "recurring",
+  portraitImage: "mestizomaleartisanmiddleaged.jpg",
+  imgdescription: "A sturdy mestizo man in his 40s with permanently dust-stained clothing and strong, scarred hands from years of mine work. He carries a pouch of ore samples and has the infectious enthusiasm of a true believer in New Spain's silver wealth. His eyes light up when discussing geology.",
+  simpleInteractionType: "investment_offer",
+  preferredInvestmentTypes: ["silver_mining"], // Specializes in mining investments
+  conditions: {
+    bookkeeping: { min: 7, weight: 3.0 }, // High skill requirement (complex, risky)
+    wealth: { min: 120, weight: 3.5 }, // High wealth requirement
+    turnNumber: { min: 50, weight: 1.0 }, // Late game only
+    location: { allowed: ["botica-interior", "consulado-interior"], weight: 1.5 }
+  },
+  interactionFrequency: "rare" // Rare, high-stakes encounters
+},
+
+{
+  id: "dona-isabel-ruiz-de-velasco",
+  entityType: "npc",
+  name: "Doña Isabel Ruiz de Velasco",
+  demographics: { age: "middle-aged", gender: "female", casta: "criolla", class: "elite" },
+  occupation: "Property Owner & Real Estate Broker",
+  personality: "Sophisticated, calculating, socially astute, business-minded",
+  appearance: "Elegantly dressed criolla woman in fine silk, carrying property deeds and rental ledgers",
+  description: "A wealthy widow who manages extensive real estate holdings and brings co-investment opportunities to established merchants.",
+  background: "After her husband's death, Isabel discovered she had a talent for property management. She owns houses, shops, and warehouses throughout Mexico City and has built a second fortune through strategic purchases and rentals. She seeks partners to co-invest in promising properties—sharing both risk and reward. Her network among the noble families gives her access to prime real estate before it hits the public market. She only approaches those with social standing and proven financial acumen.",
+  faction: "Nobles",
+  tier: "recurring",
+  portraitImage: "criollofemalepatronessmiddleaged.jpg",
+  imgdescription: "A distinguished criolla woman in her late 40s wearing expensive silk clothing and jewelry that speaks of old money. She carries herself with the confidence of someone who owns half a city block. Her ledger is bound in leather and filled with rental income records.",
+  simpleInteractionType: "investment_offer",
+  preferredInvestmentTypes: ["real_estate", "apothecary_syndicate"], // Property and business investments
+  conditions: {
+    bookkeeping: { min: 6, weight: 2.5 },
+    wealth: { min: 150, weight: 3.0 }, // High wealth requirement
+    reputation: { faction: "Nobles", min: 55, weight: 2.0 }, // Requires good noble reputation
+    turnNumber: { min: 45, weight: 1.0 },
+    location: { allowed: ["botica-interior", "consulado-interior", "palacio-interior"], weight: 1.8 }
+  },
+  interactionFrequency: "rare" // Exclusive, high-value encounters
+},
+
 ];
 
 

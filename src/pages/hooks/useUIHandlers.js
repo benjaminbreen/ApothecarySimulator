@@ -3,6 +3,7 @@
 // Extracted from useGameHandlers.js (Phase 2.5)
 
 import { useCallback } from 'react';
+import { createSaveData, saveGame } from '../../core/services/saveManager';
 
 /**
  * Custom hook for UI handlers
@@ -31,6 +32,7 @@ import { useCallback } from 'react';
  * @param {Function} params.setIsPatientRosterOpen - Patient roster modal toggle
  * @param {Function} params.setTradingNPC - Trading NPC setter
  * @param {Function} params.setTradeMode - Trade mode setter
+ * @param {Function} params.setInventoryViewMode - Inventory view mode setter
  * @param {Function} params.setIsLedgerOpen - Ledger modal toggle
  * @param {Function} params.setSelectedNpcName - NPC name setter
  * @param {Function} params.setShowSymptomsPopup - Symptoms popup toggle
@@ -46,6 +48,10 @@ import { useCallback } from 'react';
  * @param {Object} params.gameState - Game state object
  * @param {Object} params.npcTracker - NPC tracker
  * @param {Array} params.npcPositions - NPC positions array
+ * @param {Object} params.playerSkills - Player skills and progression
+ * @param {Array} params.conversationHistory - Conversation history
+ * @param {Object} params.reputation - Reputation data
+ * @param {Object} params.npcRelationships - NPC relationships
  *
  * @returns {Object} UI handlers
  */
@@ -73,6 +79,7 @@ export function useUIHandlers({
   setIsPatientRosterOpen,
   setTradingNPC,
   setTradeMode,
+  setInventoryViewMode,
   setIsLedgerOpen,
   setSelectedNpcName,
   setShowSymptomsPopup,
@@ -89,6 +96,11 @@ export function useUIHandlers({
   gameState,
   npcTracker,
   npcPositions,
+  // Save system params
+  playerSkills,
+  conversationHistory,
+  reputation,
+  npcRelationships,
 }) {
   /**
    * Helper: Fuzzy match for NPC name matching
@@ -200,7 +212,20 @@ export function useUIHandlers({
           setIsRestDurationOpen(true);
           break;
         case 'bargain': {
-          // Context-aware trading: detect if at market, with NPC, or viewing full inventory
+          // Context-aware trading system
+          // IMPORTANT: Generic NPC trading is DISABLED to prevent immersion-breaking scenarios
+          // (e.g., priests selling black market goods, nobles buying mercury)
+          //
+          // NPC trading ONLY via narrative systems:
+          // - vendor_offer cards (NPC selling TO Maria)
+          // - actionPrompt type="sell" (NPC buying FROM Maria)
+          //
+          // TradeModal is for:
+          // - Market mode (at La Merced or similar)
+          // - Black Market (Bargaining 5+)
+          // - Investments (at El Consulado)
+          // - Inventory viewing
+
           const location = gameState?.location || '';
           const locationLower = location.toLowerCase();
 
@@ -212,34 +237,26 @@ export function useUIHandlers({
           const recentNPCs = npcTracker.getRecentNPCs();
           const recentNPC = recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
 
-          // Check if there's a trade opportunity for this NPC
+          // Check if there's a narrative-generated trade opportunity for this NPC
           const tradeOpportunity = gameState.tradeOpportunities?.find(
             opp => opp.npcName === recentNPC
           );
 
           if (tradeOpportunity) {
-            // If there's an active trade opportunity, use NPC mode with that opportunity
+            // If there's an active trade opportunity from narrative, use NPC mode
             console.log('[Trade] Opening trade with NPC from opportunity:', tradeOpportunity.npcName);
             setTradingNPC(tradeOpportunity);
-            setTradeMode('npc');
-          } else if (recentNPC && !isAtMarket) {
-            // If interacting with NPC but not at market, use NPC trade mode
-            console.log('[Trade] Opening trade with recent NPC:', recentNPC);
-            setTradingNPC({
-              npcName: recentNPC,
-              type: 'both', // Allow both buying and selling
-              interest: { items: [], reason: 'General trade', urgency: 'moderate', priceMultiplier: 1.0 },
-              offering: { items: [] }
-            });
             setTradeMode('npc');
           } else if (isAtMarket) {
             // If at a market, use market mode
             console.log('[Trade] Opening market trade at:', location);
             setTradeMode('market');
           } else {
-            // Default: Full inventory mode (no market, no NPC)
-            console.log('[Trade] Opening full inventory mode');
+            // Default: Full inventory view (no generic NPC trading)
+            // NPC trading only via narrative systems (vendor_offer, actionPrompt)
+            console.log('[Trade] Opening inventory view - no generic NPC trading');
             setTradeMode('inventory');
+            setInventoryViewMode('shelf');
           }
 
           setIsBuyOpen(true);
@@ -363,11 +380,35 @@ export function useUIHandlers({
 
   /**
    * Handle save game
-   * Shows success toast (actual save logic to be implemented)
+   * Saves game to localStorage slot 1 by default
+   *
+   * @param {string} slotKey - Optional save slot key (defaults to slot 1)
+   * @param {string} slotName - Optional save name
    */
-  const handleSaveGame = () => {
-    toast.success('Game saved successfully!');
-    // Add actual save logic here
+  const handleSaveGame = (slotKey = 'apothecary_save_slot_1', slotName = 'Quick Save') => {
+    try {
+      // Create save data from current game state
+      const saveData = createSaveData({
+        gameState,
+        playerSkills,
+        conversationHistory,
+        reputation,
+        npcRelationships,
+        slotName
+      });
+
+      // Save to localStorage
+      const success = saveGame(slotKey, saveData);
+
+      if (success) {
+        toast.success(`Game saved to ${slotName}!`);
+      } else {
+        toast.error('Failed to save game. Check console for details.');
+      }
+    } catch (error) {
+      console.error('[handleSaveGame] Error:', error);
+      toast.error('Failed to save game. Check console for details.');
+    }
   };
 
   /**

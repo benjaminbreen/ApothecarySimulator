@@ -21,6 +21,19 @@ export const TRANSACTION_CATEGORIES = {
 };
 
 /**
+ * Transaction Outcomes (for non-monetary interactions)
+ */
+export const TRANSACTION_OUTCOMES = {
+  REJECTED_BY_PLAYER: 'Rejected by Player',
+  REJECTED_BY_NPC: 'Rejected by NPC',
+  FAILED_NEGOTIATION: 'Failed Negotiation',
+  DECLINED_OFFER: 'Declined Offer',
+  INSUFFICIENT_FUNDS: 'Insufficient Funds',
+  INSUFFICIENT_STOCK: 'Insufficient Stock',
+  CANCELLED: 'Cancelled'
+};
+
+/**
  * TransactionManager class
  * Handles all financial transaction logging for the ledger system
  */
@@ -30,7 +43,7 @@ export class TransactionManager {
   }
 
   /**
-   * Log a new transaction
+   * Log a completed monetary transaction
    * @param {string} type - 'income' or 'expense'
    * @param {string} category - Transaction category from TRANSACTION_CATEGORIES
    * @param {string} description - Human-readable description
@@ -50,12 +63,45 @@ export class TransactionManager {
       category: category,
       description: description,
       amount: Math.abs(amount), // Always store as positive
-      balance: currentWealth
+      balance: currentWealth,
+      status: 'completed' // Completed monetary transaction
     };
 
     this.transactions.push(transaction);
     console.log(`[TransactionManager] Logged ${type}: ${description} (${amount} reales)`);
     return transaction;
+  }
+
+  /**
+   * Log a failed/rejected transaction attempt
+   * @param {string} category - Transaction category from TRANSACTION_CATEGORIES
+   * @param {string} description - Human-readable description
+   * @param {number} proposedAmount - Proposed transaction amount (0 if not applicable)
+   * @param {string} outcome - Outcome from TRANSACTION_OUTCOMES
+   * @param {string} reason - Why it failed/was rejected
+   * @param {string} date - Game date
+   * @param {string} time - Game time
+   * @returns {Object} The created interaction record
+   */
+  logInteractionAttempt(category, description, proposedAmount, outcome, reason, date, time) {
+    const interaction = {
+      id: `int_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date().toISOString(),
+      date: date || 'Unknown Date',
+      time: time || 'Unknown Time',
+      type: 'interaction', // Non-monetary interaction
+      category: category,
+      description: description,
+      amount: proposedAmount || 0, // Store proposed amount for reference
+      balance: null, // No balance change
+      status: 'failed',
+      outcome: outcome,
+      reason: reason
+    };
+
+    this.transactions.push(interaction);
+    console.log(`[TransactionManager] Logged interaction: ${description} - ${outcome}`);
+    return interaction;
   }
 
   /**
@@ -68,12 +114,28 @@ export class TransactionManager {
 
   /**
    * Get transactions filtered by type
-   * @param {string} type - 'income', 'expense', or 'all'
+   * @param {string} type - 'income', 'expense', 'interaction', or 'all'
    * @returns {Array} Filtered transactions
    */
   getTransactionsByType(type) {
     if (type === 'all') return this.getTransactions();
     return this.transactions.filter(t => t.type === type);
+  }
+
+  /**
+   * Get only completed monetary transactions (excludes interactions)
+   * @returns {Array} Monetary transactions only
+   */
+  getMonetaryTransactions() {
+    return this.transactions.filter(t => t.type === 'income' || t.type === 'expense');
+  }
+
+  /**
+   * Get only interaction attempts (excludes monetary transactions)
+   * @returns {Array} Interaction attempts only
+   */
+  getInteractionAttempts() {
+    return this.transactions.filter(t => t.type === 'interaction');
   }
 
   /**
@@ -96,22 +158,22 @@ export class TransactionManager {
   }
 
   /**
-   * Get total income
+   * Get total income (monetary transactions only)
    * @returns {number} Sum of all income transactions
    */
   getTotalIncome() {
     return this.transactions
-      .filter(t => t.type === 'income')
+      .filter(t => t.type === 'income' && t.status === 'completed')
       .reduce((sum, t) => sum + t.amount, 0);
   }
 
   /**
-   * Get total expenses
+   * Get total expenses (monetary transactions only)
    * @returns {number} Sum of all expense transactions
    */
   getTotalExpenses() {
     return this.transactions
-      .filter(t => t.type === 'expense')
+      .filter(t => t.type === 'expense' && t.status === 'completed')
       .reduce((sum, t) => sum + t.amount, 0);
   }
 
@@ -248,7 +310,17 @@ let transactionManagerInstance = null;
 export function getTransactionManager(scenarioId) {
   if (!transactionManagerInstance) {
     transactionManagerInstance = new TransactionManager();
-    transactionManagerInstance.loadFromStorage(scenarioId);
+    // NOTE: localStorage persistence disabled until save system is implemented
+    // Each page reload starts with a fresh transaction history
+    // Clear any old localStorage data to prevent confusion
+    try {
+      const key = `transactions_${scenarioId}`;
+      localStorage.removeItem(key);
+      console.log('[TransactionManager] Cleared old transaction data from localStorage (no save system yet)');
+    } catch (error) {
+      console.error('[TransactionManager] Failed to clear localStorage:', error);
+    }
+    // transactionManagerInstance.loadFromStorage(scenarioId);
   }
   return transactionManagerInstance;
 }

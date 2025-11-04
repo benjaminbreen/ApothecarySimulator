@@ -1,7 +1,7 @@
 // CentralPanel/index.jsx
 // Main container for tabbed central interface
 
-import React from 'react';
+import React, { useState } from 'react';
 import { TabNavigation } from './TabNavigation';
 import { NarrativeTab } from './NarrativeTab';
 import { LogTab } from './LogTab';
@@ -100,17 +100,33 @@ export function CentralPanel({
   onEntityClick,
   playerPortrait,
 }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const handleHeaderClick = () => {
+    setIsCollapsed(prev => !prev);
+  };
+
   return (
     <>
-      <div className="h-full flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-2xl shadow-lg dark:shadow-dark-elevation-3 overflow-hidden border border-ink-100 dark:border-slate-700 transition-colors duration-300">
+      <div className="flex flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm rounded-2xl shadow-lg dark:shadow-dark-elevation-3 overflow-hidden border border-ink-100 dark:border-slate-700" style={{
+        flex: isCollapsed ? '0 0 auto' : '1 1 auto',
+        height: isCollapsed ? 'auto' : '100%',
+        transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+      }}>
         <TabNavigation
           activeTab={activeTab}
           onTabChange={onTabChange}
           hasActivePatient={!!activePatient}
           onOpenSettings={onOpenNarrationSettings}
+          onHeaderClick={handleHeaderClick}
         />
 
-        <div className="flex-1 overflow-hidden bg-white/90 dark:bg-slate-900/90 transition-colors duration-300">
+        <div className="overflow-hidden bg-white/90 dark:bg-slate-900/90" style={{
+          flex: isCollapsed ? '0 0 0' : '1 1 auto',
+          maxHeight: isCollapsed ? '0' : '100%',
+          opacity: isCollapsed ? 0 : 1,
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}>
           {activeTab === 'chronicle' && (
             <NarrativeTab
               conversationHistory={conversationHistory}
