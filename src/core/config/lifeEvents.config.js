@@ -168,7 +168,7 @@ export const LIFE_EVENTS = {
     indigenous: [
       "Entire family fell ill during epidemic",
       "Land taken by Spanish encomendero",
-      "Forced to relocate during congregation (reducción)",
+      "Forced to relocate during congregation (reducciÃ³n)",
       "Tribute burden doubled by corrupt official",
       "Traditional community lands seized",
       "Arrested for continuing pre-Christian practices",
@@ -255,7 +255,7 @@ export const LIFE_EVENTS = {
   religious: {
     all: [
       "Made pilgrimage to shrine of Our Lady of Guadalupe",
-      "Became member of religious confraternity (cofradía)",
+      "Became member of religious confraternity (cofradÃ­a)",
       "Donated to construction of new church",
       "Commissioned Mass for deceased family members",
       "Received Last Rites during serious illness, miraculously recovered",
@@ -285,10 +285,10 @@ export const LIFE_EVENTS = {
     },
     1665: {
       event: "Witnessed intensified Inquisition crackdown on conversos",
-      affects: ['criollo', 'peninsular', 'español']
+      affects: ['criollo', 'peninsular', 'espaÃ±ol']
     },
     1666: {
-      event: "Experienced aftermath of the auto-da-fé of July 1666",
+      event: "Experienced aftermath of the auto-da-fÃ© of July 1666",
       affects: ['all']
     },
     1671: {
@@ -312,7 +312,7 @@ export const LIFE_EVENTS = {
       "Brought before civil magistrate for debt",
       "Investigated for smuggling contraband",
       "Accused of assault in tavern brawl",
-      "Suspected of witchcraft (brujería)",
+      "Suspected of witchcraft (brujerÃ­a)",
       "Charged with blasphemy",
       "Accused of selling fraudulent goods"
     ],

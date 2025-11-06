@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
-export function EntityTooltip({ rect, description, entityName }) {
+export function EntityTooltip({ rect, description, entityName, icon = null }) {
   const isDark = document.documentElement.classList.contains('dark');
 
   if (!rect || !description) return null;
@@ -38,8 +38,25 @@ export function EntityTooltip({ rect, description, entityName }) {
           borderColor: isDark ? 'rgba(251, 191, 36, 0.3)' : 'rgba(16, 185, 129, 0.3)',
         }}
       >
-        <div className="text-xs font-sans text-ink-700 dark:text-parchment-200 leading-relaxed">
-          {description}
+        <div className="flex items-start gap-2">
+          {/* Icon for medical terms */}
+          {icon && (
+            <div className="flex-shrink-0 w-8 h-8 rounded bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center overflow-hidden border border-amber-200 dark:border-amber-800/50">
+              <img
+                src={icon}
+                alt={entityName}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback to book emoji if icon fails to load
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = '<span class="text-sm">📖</span>';
+                }}
+              />
+            </div>
+          )}
+          <div className="text-xs font-sans text-ink-700 dark:text-parchment-200 leading-relaxed flex-1">
+            {description}
+          </div>
         </div>
         {/* Arrow pointing down */}
         <div

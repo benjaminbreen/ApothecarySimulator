@@ -279,6 +279,53 @@ export const PatientEntity = {
     chronicConditions: []
   },
 
+  // Treatment tracking (for follow-up visits)
+  treatmentStatus: null,      // null, 'active', 'followup_scheduled', 'completed', 'abandoned'
+
+  // Follow-up scheduling
+  followUp: null,             // null or object with follow-up data
+  // When populated: {
+  //   scheduledDate: "August 28, 1680",
+  //   scheduledTurn: 45,
+  //   reason: "Check wound healing",
+  //   daysAfterTreatment: 3,
+  //   priority: "routine" | "urgent",
+  //   missedVisits: 0
+  // }
+
+  // Treatment progression tracking
+  treatmentProgress: null,    // null or object with progression data
+  // When populated: {
+  //   initialDiagnosis: "Infected wound on arm",
+  //   treatmentsGiven: ["Aloe salve", "Honey poultice"],
+  //   lastTreatmentDate: "August 25, 1680",
+  //   lastTreatmentTurn: 38,
+  //   outcomeStatus: "unknown" | "improving" | "stable" | "worsening" | "resolved",
+  //   symptomChanges: [{ symptom: "Pain", before: "severe", now: "moderate", date: "..." }]
+  // }
+
+  // Medical record with session tracking
+  medicalRecord: null,        // null or object with detailed medical records
+  // When populated: {
+  //   diagnoses: [{ diagnosis: "...", confidence: "medium", timestamp: "...", date: "...", evidence: [...] }],
+  //   treatments: [{ treatment: "...", date: "...", outcome: "..." }],
+  //   notes: ["..."],
+  //   sessions: [{
+  //     sessionNumber: 1,
+  //     date: "August 25, 1680",
+  //     turnNumber: 38,
+  //     type: "initial" | "followup",
+  //     prescriptions: ["Aloe salve"],
+  //     paymentReceived: 5,
+  //     outcome: "Treatment administered",
+  //     notes: "Applied salve, advised rest"
+  //   }]
+  // }
+
+  // Follow-up visit context (set when patient returns)
+  isFollowUpVisit: false,
+  followUpContext: null,      // null or { sessionNumber: 2, previousTreatments: [...], daysSinceLastVisit: 3 }
+
   // Quest/story hooks
   quest: {
     id: null,

@@ -8,6 +8,13 @@ import GamePage from './pages/GamePage';
 import ErrorBoundary from './components/ErrorBoundary';
 import reportWebVitals from './reportWebVitals';
 
+// Register medical terms as highlightable entities on app startup
+import { registerMedicalTerms } from './core/data/medicalTerms';
+
+// Initialize medical terms for narrative highlighting
+console.log('[App] Initializing medical term entities...');
+registerMedicalTerms();
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>

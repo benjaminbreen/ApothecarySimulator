@@ -43,44 +43,62 @@ export default function ExitConfirmationCard({
 
   return (
     <div
-      className="rounded-xl overflow-hidden animate-slide-in mb-4"
+      className="rounded-xl overflow-hidden animate-slide-in mb-4 shadow-lg"
       style={{
         background: useNightImage
-          ? 'linear-gradient(to bottom, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.7)), url(/ui/isometricboticanight.png)'
-          : 'linear-gradient(to bottom, rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.5)), url(/ui/isometricboticaday.png)',
+          ? 'linear-gradient(to bottom, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.65)), url(/ui/isometricboticanight.png)'
+          : 'linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.45)), url(/ui/isometricboticaday.png)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        backdropFilter: 'blur(8px) saturate(120%)',
-        WebkitBackdropFilter: 'blur(8px) saturate(120%)',
-        border: isDark ? '2px solid rgba(245, 158, 11, 0.4)' : '2px solid rgba(251, 191, 36, 0.5)',
+        border: isDark
+          ? '1px solid rgba(251, 191, 36, 0.3)'
+          : '1px solid rgba(45, 90, 74, 0.25)',
         boxShadow: isDark
-          ? '0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(251, 191, 36, 0.1)'
-          : '0 8px 32px rgba(245, 158, 11, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
+          ? '0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(251, 191, 36, 0.1) inset'
+          : '0 8px 32px rgba(45, 90, 74, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.2) inset',
       }}
     >
       {/* Header */}
       <div
-        className="px-4 py-3 border-b"
+        className="px-5 py-4 border-b backdrop-blur-sm"
         style={{
-          background: 'linear-gradient(to bottom, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.2))',
-          borderColor: 'rgba(251, 191, 36, 0.4)'
+          background: isDark
+            ? 'rgba(0, 0, 0, 0.4)'
+            : 'rgba(255, 255, 255, 0.15)',
+          borderColor: isDark
+            ? 'rgba(251, 191, 36, 0.2)'
+            : 'rgba(255, 255, 255, 0.2)'
         }}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="text-2xl">🚪</span>
-            <h3 className="text-sm font-bold uppercase tracking-wider font-sans text-amber-100">
+            <h3
+              className="text-lg font-serif font-semibold"
+              style={{
+                color: isDark ? '#fbbf24' : '#ffffff',
+                textShadow: isDark
+                  ? '0 2px 8px rgba(0, 0, 0, 0.5)'
+                  : '0 2px 12px rgba(0, 0, 0, 0.6)'
+              }}
+            >
               Leaving the {locationName || 'Building'}
             </h3>
           </div>
           {/* Close button */}
           <button
             onClick={onCancel}
-            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-md transition-all duration-200 hover:bg-white/20"
+            className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md transition-all duration-200"
+            style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              color: isDark ? '#fbbf24' : '#ffffff'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(255, 255, 255, 0.2)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0, 0, 0, 0.3)'}
             title="Cancel"
             aria-label="Close"
           >
-            <svg className="w-4 h-4 text-amber-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -88,75 +106,85 @@ export default function ExitConfirmationCard({
       </div>
 
       {/* Content */}
-      <div className="p-6 space-y-3">
+      <div className="p-6">
         {/* Main Question */}
-        <div className="text-center">
-          <p className="text-2xl font-serif font-bold text-white mb-3 drop-shadow-lg">
+        <div className="text-center mb-4">
+          <p
+            className="text-xl font-serif font-semibold mb-2"
+            style={{
+              color: isDark ? '#fcd34d' : '#ffffff',
+              textShadow: isDark
+                ? '0 2px 8px rgba(0, 0, 0, 0.6)'
+                : '0 2px 12px rgba(0, 0, 0, 0.7)'
+            }}
+          >
             Are you sure you want to leave this space?
           </p>
-          <p className="text-base font-sans text-amber-100 drop-shadow-md">
-            You will exit to the streets of {location || 'Mexico City'}
+          <p
+            className="text-sm font-sans"
+            style={{
+              color: isDark ? '#fde68a' : '#f3f4f6',
+              textShadow: '0 1px 4px rgba(0, 0, 0, 0.5)'
+            }}
+          >
+            You will exit to {location || 'the streets of Mexico City'}
           </p>
-        </div>
-
-        {/* Location Info */}
-        <div
-          className="rounded-lg p-4 space-y-2"
-          style={{
-            background: 'rgba(0, 0, 0, 0.4)',
-            border: '1px solid rgba(251, 191, 36, 0.3)'
-          }}
-        >
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-sans font-medium text-amber-200">Current Location:</span>
-            <span className="text-sm font-sans font-bold text-white">{locationName || 'Interior Space'}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-sans font-medium text-amber-200">Destination:</span>
-            <span className="text-sm font-sans font-bold text-white">{location || 'Mexico City'} Streets</span>
-          </div>
         </div>
       </div>
 
       {/* Action Buttons */}
       <div
-        className="px-4 py-3 border-t flex gap-3"
+        className="px-5 py-4 border-t flex gap-3 backdrop-blur-sm"
         style={{
-          background: 'rgba(0, 0, 0, 0.5)',
-          borderColor: 'rgba(251, 191, 36, 0.3)'
+          background: isDark
+            ? 'rgba(0, 0, 0, 0.5)'
+            : 'rgba(0, 0, 0, 0.3)',
+          borderColor: isDark
+            ? 'rgba(251, 191, 36, 0.2)'
+            : 'rgba(255, 255, 255, 0.2)'
         }}
       >
         <button
           onClick={onCancel}
-          className="flex-1 px-4 py-2.5 rounded-lg font-sans font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 hover:transform hover:scale-105"
+          className="flex-1 px-4 py-2.5 rounded-lg font-sans font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02]"
           style={{
             background: isDark
-              ? 'linear-gradient(135deg, rgba(71, 85, 105, 0.95), rgba(51, 65, 85, 0.9))'
-              : 'linear-gradient(135deg, rgba(148, 163, 184, 0.95), rgba(100, 116, 139, 0.9))',
-            color: '#ffffff',
-            border: '1px solid rgba(148, 163, 184, 0.3)',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+              ? 'rgba(71, 85, 105, 0.8)'
+              : 'rgba(248, 250, 252, 0.9)',
+            color: isDark ? '#e2e8f0' : '#334155',
+            border: isDark
+              ? '1px solid rgba(148, 163, 184, 0.3)'
+              : '1px solid rgba(203, 213, 225, 0.5)',
+            boxShadow: isDark
+              ? '0 2px 8px rgba(0, 0, 0, 0.3)'
+              : '0 2px 8px rgba(0, 0, 0, 0.15)'
           }}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
           Stay Here
         </button>
 
         <button
           onClick={onConfirm}
-          className="flex-1 px-4 py-2.5 rounded-lg font-sans font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 hover:transform hover:scale-105"
+          className="flex-1 px-4 py-2.5 rounded-lg font-sans font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 hover:scale-[1.02]"
           style={{
-            background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.95), rgba(245, 158, 11, 0.9))',
-            color: isDark ? '#1c1917' : '#78350f',
-            border: '1px solid rgba(251, 191, 36, 0.5)',
-            boxShadow: '0 2px 8px rgba(251, 191, 36, 0.4)'
+            background: isDark
+              ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.9), rgba(245, 158, 11, 0.85))'
+              : 'linear-gradient(135deg, #3d6b5a, #2d5a4a)',
+            color: isDark ? '#1c1917' : '#ffffff',
+            border: isDark
+              ? '1px solid rgba(251, 191, 36, 0.4)'
+              : '1px solid rgba(45, 90, 74, 0.3)',
+            boxShadow: isDark
+              ? '0 2px 12px rgba(251, 191, 36, 0.3)'
+              : '0 2px 12px rgba(45, 90, 74, 0.3)'
           }}
         >
           Leave the {locationName?.includes('Botica') ? 'Botica' : 'Building'}
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
         </button>
       </div>

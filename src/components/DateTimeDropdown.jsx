@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import InteractiveClock from './InteractiveClock';
 
 const DateTimeDropdown = ({
   time = '8:00 AM',
@@ -14,9 +15,12 @@ const DateTimeDropdown = ({
   showCondensedStats = false,
   health = 85,
   energy = 62,
-  wealth = 11
+  wealth = 11,
+  // Time control props
+  onTimeChange = null // Callback when time is changed via clock
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [mainView, setMainView] = useState('calendar'); // 'calendar' | 'clock'
   const [calendarView, setCalendarView] = useState('month'); // 'month' | 'week' | 'year'
   const [viewedMonth, setViewedMonth] = useState(null); // { month, year } for calendar navigation
   const [selectedDate, setSelectedDate] = useState(null); // Currently viewed date
@@ -353,15 +357,17 @@ const DateTimeDropdown = ({
       {isOpen && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed w-[600px] max-h-[400px] rounded-xl shadow-elevation-3 dark:shadow-dark-elevation-3 border border-parchment-300 dark:border-slate-600 overflow-hidden z-[9999] animate-fade-in"
+          className={`fixed rounded-xl shadow-elevation-3 dark:shadow-dark-elevation-3 border border-parchment-300 dark:border-slate-600 overflow-hidden z-[9999] animate-fade-in ${
+            mainView === 'clock' ? 'w-[600px] max-h-[700px]' : 'w-[900px] max-h-[650px]'
+          }`}
           style={{
             top: `${buttonPosition.top}px`,
             left: `${buttonPosition.left}px`,
             background: isDark
-              ? 'rgba(30, 41, 59, 0.92)'
-              : 'rgba(255, 255, 255, 0.92)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
+              ? 'rgba(30, 41, 59, 0.95)'
+              : 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
             animation: 'slideDown 300ms ease-out',
           }}
         >
@@ -376,97 +382,140 @@ const DateTimeDropdown = ({
             </svg>
           </button>
 
+          {/* Main View Toggle */}
+          <div className="flex items-center justify-center gap-2 p-3 border-b border-parchment-200 dark:border-slate-600">
+            <button
+              onClick={() => setMainView('calendar')}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                mainView === 'calendar'
+                  ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 shadow-md'
+                  : 'bg-white/60 dark:bg-slate-800/60 text-ink-600 dark:text-parchment-300 hover:bg-emerald-50 dark:hover:bg-amber-900/20 border border-parchment-300 dark:border-slate-600'
+              }`}
+            >
+              📅 Calendar
+            </button>
+            <button
+              onClick={() => setMainView('clock')}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                mainView === 'clock'
+                  ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 shadow-md'
+                  : 'bg-white/60 dark:bg-slate-800/60 text-ink-600 dark:text-parchment-300 hover:bg-emerald-50 dark:hover:bg-amber-900/20 border border-parchment-300 dark:border-slate-600'
+              }`}
+            >
+              🕐 Change Time
+            </button>
+          </div>
+
           {/* Calendar Section */}
-          <div className="flex gap-4 p-4 border-b border-parchment-200 dark:border-slate-600">
-            {/* Day View - Left Column */}
-            <div className="flex-shrink-0 w-48 space-y-3">
-              {/* Large Date Display */}
-              <div className="text-center">
-                <div className="font-display text-4xl font-bold text-ink-900 dark:text-amber-400 transition-colors duration-300">
-                  {selectedDateInfo.day}
+          {mainView === 'calendar' && (
+            <div className="flex gap-6 p-6 border-b border-parchment-200 dark:border-slate-600">
+              {/* Day View - Left Column */}
+              <div className="flex-shrink-0 w-64 space-y-4">
+                {/* Large Date Display */}
+                <div className="text-center bg-gradient-to-br from-parchment-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-2xl p-6 border-2 border-parchment-300 dark:border-amber-600/30 shadow-lg">
+                  <div className="font-display text-6xl font-bold text-ink-900 dark:text-amber-400 transition-colors duration-300 mb-2">
+                    {selectedDateInfo.day}
+                  </div>
+                  <div className="font-serif text-base italic text-ink-600 dark:text-parchment-300 transition-colors duration-300 mb-1">
+                    {getDayName(selectedDateInfo.day, selectedDateInfo.month, selectedDateInfo.year)}
+                  </div>
+                  <div className="font-serif text-lg font-semibold text-ink-700 dark:text-parchment-200 transition-colors duration-300">
+                    {getMonthName(selectedDateInfo.month)} {selectedDateInfo.year}
+                  </div>
                 </div>
-                <div className="font-serif text-sm italic text-ink-600 dark:text-parchment-300 transition-colors duration-300">
-                  {getDayName(selectedDateInfo.day, selectedDateInfo.month, selectedDateInfo.year)}
-                </div>
-                <div className="font-serif text-sm text-ink-600 dark:text-parchment-300 transition-colors duration-300">
-                  {getMonthName(selectedDateInfo.month)} {selectedDateInfo.year}
+
+                {/* Historical Event for Selected Date */}
+                {(() => {
+                  const event = getEventForDate(selectedDateInfo.year, selectedDateInfo.month, selectedDateInfo.day);
+                  return event ? (
+                    <div className="bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-700/40 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xl">{event.type === 'holiday' ? '⛪' : '📜'}</span>
+                        <span className="font-serif font-bold text-sm text-amber-900 dark:text-amber-300">
+                          {event.name}
+                        </span>
+                      </div>
+                      <p className="text-xs font-sans text-amber-800 dark:text-amber-200 leading-relaxed">
+                        {event.description}
+                      </p>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Notes Textarea */}
+                <div>
+                  <label className="block text-sm font-sans font-bold text-ink-700 dark:text-parchment-300 mb-2">
+                    📝 Notes for this Day
+                  </label>
+                  <textarea
+                    ref={noteInputRef}
+                    value={currentNote}
+                    onChange={(e) => setCurrentNote(e.target.value)}
+                    placeholder="Write your notes here..."
+                    className="w-full h-32 px-3 py-2 text-sm font-sans rounded-lg border-2 border-parchment-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-ink-800 dark:text-parchment-200 placeholder-ink-400 dark:placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-amber-500 focus:border-emerald-500 dark:focus:border-amber-500 transition-all duration-300"
+                  />
                 </div>
               </div>
 
-              {/* Notes Textarea */}
-              <div>
-                <label className="block text-xs font-sans font-semibold text-ink-700 dark:text-parchment-300 uppercase tracking-wide mb-1.5">
-                  Notes
-                </label>
-                <textarea
-                  ref={noteInputRef}
-                  value={currentNote}
-                  onChange={(e) => setCurrentNote(e.target.value)}
-                  placeholder="Add notes for this day..."
-                  className="w-full h-20 px-2 py-1.5 text-xs font-sans rounded-lg border border-parchment-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-ink-800 dark:text-parchment-200 placeholder-ink-400 dark:placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-amber-500 transition-colors duration-300"
-                />
-              </div>
-            </div>
-
-            {/* Calendar View - Right Column */}
-            <div className="flex-1 space-y-2">
+              {/* Calendar View - Right Column */}
+              <div className="flex-1 space-y-3">
               {/* View Toggle Buttons */}
-              <div className="flex items-center justify-between">
-                <div className="flex gap-1.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex gap-2">
                   <button
                     onClick={() => setCalendarView('month')}
-                    className={`text-[11px] px-2 py-0.5 rounded-md font-semibold font-sans border transition-colors duration-300 ${
+                    className={`text-sm px-4 py-2 rounded-lg font-semibold font-sans border-2 transition-all duration-300 ${
                       calendarView === 'month'
-                        ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700'
-                        : 'bg-white dark:bg-slate-800 text-ink-600 dark:text-parchment-300 border-parchment-200 dark:border-slate-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                        ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 border-emerald-600 dark:border-amber-600 shadow-md'
+                        : 'bg-white dark:bg-slate-800 text-ink-600 dark:text-parchment-300 border-parchment-300 dark:border-slate-600 hover:bg-emerald-50 dark:hover:bg-amber-900/20 hover:border-emerald-300 dark:hover:border-amber-700'
                     }`}
                   >
-                    Month
+                    📅 Month
                   </button>
                   <button
                     onClick={() => setCalendarView('week')}
-                    className={`text-[11px] px-2 py-0.5 rounded-md font-semibold font-sans border transition-colors duration-300 ${
+                    className={`text-sm px-4 py-2 rounded-lg font-semibold font-sans border-2 transition-all duration-300 ${
                       calendarView === 'week'
-                        ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700'
-                        : 'bg-white dark:bg-slate-800 text-ink-600 dark:text-parchment-300 border-parchment-200 dark:border-slate-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                        ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 border-emerald-600 dark:border-amber-600 shadow-md'
+                        : 'bg-white dark:bg-slate-800 text-ink-600 dark:text-parchment-300 border-parchment-300 dark:border-slate-600 hover:bg-emerald-50 dark:hover:bg-amber-900/20 hover:border-emerald-300 dark:hover:border-amber-700'
                     }`}
                   >
-                    Week
+                    📆 Week
                   </button>
                   <button
                     onClick={() => setCalendarView('year')}
-                    className={`text-[11px] px-2 py-0.5 rounded-md font-semibold font-sans border transition-colors duration-300 ${
+                    className={`text-sm px-4 py-2 rounded-lg font-semibold font-sans border-2 transition-all duration-300 ${
                       calendarView === 'year'
-                        ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700'
-                        : 'bg-white dark:bg-slate-800 text-ink-600 dark:text-parchment-300 border-parchment-200 dark:border-slate-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                        ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 border-emerald-600 dark:border-amber-600 shadow-md'
+                        : 'bg-white dark:bg-slate-800 text-ink-600 dark:text-parchment-300 border-parchment-300 dark:border-slate-600 hover:bg-emerald-50 dark:hover:bg-amber-900/20 hover:border-emerald-300 dark:hover:border-amber-700'
                     }`}
                   >
-                    Year
+                    🗓️ Year
                   </button>
                 </div>
 
                 {/* Navigation Arrows */}
                 {calendarView !== 'week' && viewedMonth && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={() => calendarView === 'year' ? navigateYear(-1) : navigateMonth(-1)}
-                      className="p-1 rounded-md hover:bg-gray-200/50 dark:hover:bg-slate-700/50 transition-colors"
+                      className="p-2 rounded-lg hover:bg-emerald-100 dark:hover:bg-amber-900/30 transition-all border border-transparent hover:border-emerald-300 dark:hover:border-amber-700"
                       aria-label="Previous"
                     >
-                      <svg className="w-4 h-4 text-ink-600 dark:text-parchment-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      <svg className="w-5 h-5 text-ink-700 dark:text-parchment-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                       </svg>
                     </button>
-                    <span className="text-xs font-sans font-semibold text-ink-700 dark:text-parchment-300 min-w-[100px] text-center">
+                    <span className="text-base font-serif font-bold text-ink-800 dark:text-amber-400 min-w-[160px] text-center">
                       {calendarView === 'year' ? viewedMonth.year : `${getMonthName(viewedMonth.month)} ${viewedMonth.year}`}
                     </span>
                     <button
                       onClick={() => calendarView === 'year' ? navigateYear(1) : navigateMonth(1)}
-                      className="p-1 rounded-md hover:bg-gray-200/50 dark:hover:bg-slate-700/50 transition-colors"
+                      className="p-2 rounded-lg hover:bg-emerald-100 dark:hover:bg-amber-900/30 transition-all border border-transparent hover:border-emerald-300 dark:hover:border-amber-700"
                       aria-label="Next"
                     >
-                      <svg className="w-4 h-4 text-ink-600 dark:text-parchment-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      <svg className="w-5 h-5 text-ink-700 dark:text-parchment-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                       </svg>
                     </button>
                   </div>
@@ -474,20 +523,20 @@ const DateTimeDropdown = ({
               </div>
 
               {/* Calendar Grid */}
-              <div className="bg-white/60 dark:bg-slate-800/60 rounded-lg p-2 border border-parchment-200 dark:border-slate-600">
+              <div className="bg-gradient-to-br from-white/80 to-parchment-50/80 dark:from-slate-800/80 dark:to-slate-900/80 rounded-xl p-4 border-2 border-parchment-200 dark:border-slate-600 shadow-inner">
                 {calendarView === 'month' && (
                   <div>
                     {/* Day Headers */}
-                    <div className="grid grid-cols-7 gap-1 mb-1">
-                      {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-                        <div key={day} className="text-center text-[10px] font-sans font-bold text-ink-500 dark:text-parchment-400 uppercase">
-                          {day}
+                    <div className="grid grid-cols-7 gap-2 mb-3">
+                      {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => (
+                        <div key={day} className="text-center text-xs font-sans font-bold text-ink-600 dark:text-amber-400 uppercase tracking-wider py-2">
+                          {day.slice(0, 3)}
                         </div>
                       ))}
                     </div>
                     {/* Date Grid */}
                     {generateMonthCalendar().map((week, weekIdx) => (
-                      <div key={weekIdx} className="grid grid-cols-7 gap-1">
+                      <div key={weekIdx} className="grid grid-cols-7 gap-2 mb-2">
                         {week.map((day, dayIdx) => {
                           const event = day && viewedMonth ? getEventForDate(viewedMonth.year, viewedMonth.month, day) : null;
                           return (
@@ -503,33 +552,30 @@ const DateTimeDropdown = ({
                               }}
                               onMouseLeave={() => setHoveredEvent(null)}
                               disabled={!day}
-                              className={`aspect-square flex flex-col items-center justify-center text-xs font-sans rounded-md transition-all duration-200 p-0.5 relative ${
+                              className={`aspect-square flex flex-col items-center justify-center text-base font-sans rounded-xl transition-all duration-200 p-2 relative shadow-sm hover:shadow-md ${
                                 !day
                                   ? 'invisible'
                                   : isCurrentDate(day)
-                                  ? 'bg-emerald-500 dark:bg-amber-500 text-white font-bold ring-2 ring-emerald-600 dark:ring-amber-600'
+                                  ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 dark:from-amber-500 dark:to-amber-600 text-white font-bold ring-4 ring-emerald-300 dark:ring-amber-300 scale-105 shadow-lg'
                                   : isSelectedDateDay(day)
-                                  ? 'bg-emerald-100 dark:bg-amber-900/40 text-emerald-900 dark:text-amber-300 font-semibold border-2 border-emerald-400 dark:border-amber-600'
+                                  ? 'bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-amber-900/50 dark:to-amber-900/30 text-emerald-900 dark:text-amber-300 font-bold border-3 border-emerald-500 dark:border-amber-500 scale-102'
                                   : event
-                                  ? 'bg-white dark:bg-slate-700 text-ink-700 dark:text-parchment-300 hover:bg-emerald-50 dark:hover:bg-slate-600 ring-1 ring-inset ' +
-                                    (event.color === 'gold' ? 'ring-amber-400/40' :
-                                     event.color === 'purple' ? 'ring-purple-400/40' :
-                                     event.color === 'red' ? 'ring-red-400/40' : 'ring-blue-400/40')
-                                  : 'bg-white dark:bg-slate-700 text-ink-700 dark:text-parchment-300 hover:bg-emerald-50 dark:hover:bg-slate-600'
+                                  ? 'bg-white dark:bg-slate-700 text-ink-800 dark:text-parchment-200 hover:bg-emerald-50 dark:hover:bg-slate-600 font-semibold ring-2 ring-inset hover:ring-emerald-300 dark:hover:ring-amber-500 ' +
+                                    (event.color === 'gold' ? 'ring-amber-400/60' :
+                                     event.color === 'purple' ? 'ring-purple-400/60' :
+                                     event.color === 'red' ? 'ring-red-400/60' : 'ring-blue-400/60')
+                                  : 'bg-white dark:bg-slate-700/50 text-ink-700 dark:text-parchment-300 hover:bg-emerald-50 dark:hover:bg-slate-600 hover:scale-105 font-medium'
                               }`}
                             >
-                              <span className={event ? 'font-semibold' : ''}>{day}</span>
+                              <span className={`${event ? 'font-bold' : ''} text-sm`}>{day}</span>
                               {event && (
-                                <span
-                                  className="text-[7px] leading-tight text-gray-500 dark:text-gray-400 font-sans mt-0.5 line-clamp-1 max-w-full overflow-hidden text-ellipsis whitespace-nowrap"
-                                  style={{
-                                    color: event.color === 'gold' ? '#d97706' :
-                                           event.color === 'purple' ? '#9333ea' :
-                                           event.color === 'red' ? '#dc2626' : '#3b82f6'
-                                  }}
-                                >
-                                  {event.name}
-                                </span>
+                                <div className="absolute top-1 right-1">
+                                  <div className={`w-2 h-2 rounded-full ${
+                                    event.color === 'gold' ? 'bg-amber-500' :
+                                    event.color === 'purple' ? 'bg-purple-500' :
+                                    event.color === 'red' ? 'bg-red-500' : 'bg-blue-500'
+                                  }`} />
+                                </div>
                               )}
                             </button>
                           );
@@ -612,10 +658,35 @@ const DateTimeDropdown = ({
                 )}
               </div>
             </div>
-          </div>
+            </div>
+          )}
 
-          {/* Weather Section */}
-          <div className="px-4 py-2.5 bg-gradient-to-r from-parchment-50/50 to-white/50 dark:from-slate-800/50 dark:to-slate-900/50">
+          {/* Clock Section */}
+          {mainView === 'clock' && (
+            <div className="p-4 border-b border-parchment-200 dark:border-slate-600 overflow-y-auto max-h-[600px]">
+              <InteractiveClock
+                currentTime={time}
+                onTimeChange={(newTime) => {
+                  console.log('[DateTimeDropdown] onTimeChange callback called with:', newTime);
+                  console.log('[DateTimeDropdown] onTimeChange prop:', onTimeChange);
+                  if (onTimeChange) {
+                    console.log('[DateTimeDropdown] Calling parent onTimeChange');
+                    onTimeChange(newTime);
+                    setIsOpen(false); // Close dropdown after setting time
+                  } else {
+                    console.error('[DateTimeDropdown] onTimeChange prop is not defined!');
+                  }
+                }}
+                onClose={() => {
+                  setMainView('calendar'); // Return to calendar view
+                }}
+              />
+            </div>
+          )}
+
+          {/* Weather Section - Only show in calendar mode */}
+          {mainView === 'calendar' && (
+            <div className="px-4 py-2.5 bg-gradient-to-r from-parchment-50/50 to-white/50 dark:from-slate-800/50 dark:to-slate-900/50">
             <div className="flex items-center justify-center gap-4 text-xs font-sans text-ink-700 dark:text-parchment-300">
               <div className="flex items-center gap-1.5">
                 <svg className="w-3.5 h-3.5 text-potion-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
@@ -646,6 +717,7 @@ const DateTimeDropdown = ({
               </div>
             </div>
           </div>
+          )}
         </div>,
         document.body
       )}

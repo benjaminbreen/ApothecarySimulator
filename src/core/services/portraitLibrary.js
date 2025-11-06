@@ -703,15 +703,6 @@ export const PORTRAIT_LIBRARY = {
     occupation: ['servant', 'maid', 'domestic worker', 'cook'],
     tags: ['criolla', 'working', 'servant', 'domestic', 'modest']
   },
-
-   'criollofemaleservantyoung.jpg': {
-    gender: 'female',
-    age: 'young',
-    casta: ['criollo'],
-    class: 'common',
-    occupation: ['servant', 'maid', 'domestic worker', 'young'],
-    tags: ['criolla', 'young', 'servant', 'domestic', 'modest']
-  },
     'criollofemalematron40s.jpg': {
     gender: 'female',
     age: 'adult',
@@ -880,14 +871,6 @@ export const PORTRAIT_LIBRARY = {
   },
 
   // Merchants & Vendors
-  'criollofemalemerchant.jpg': {
-    gender: 'female',
-    age: 'adult',
-    casta: 'criolla',
-    class: 'middling',
-    occupation: ['merchant', 'vendor', 'shopkeeper'],
-    tags: ['merchant', 'business', 'criollo']
-  },
   'countrysidemestizomalemerchant.jpg': {
     gender: 'male',
     age: 'adult',
@@ -964,14 +947,6 @@ export const PORTRAIT_LIBRARY = {
   },
 
   // Servants & Laborers
-  'elderlycriollomaleservant.jpg': {
-    gender: 'male',
-    age: 'elderly',
-    casta: 'criollo',
-    class: 'common',
-    occupation: ['servant', 'butler', 'domestic'],
-    tags: ['servant', 'domestic', 'elder']
-  },
   'africanomalelaborer.jpg': {
     gender: 'male',
     age: 'adult',
@@ -1280,6 +1255,135 @@ export const PORTRAIT_LIBRARY = {
     class: 'animal',
     occupation: ['donkey', 'pack animal', 'transport'],
     tags: ['animal', 'donkey', 'transport', 'working']
+  },
+  'goat.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['goat', 'farm animal', 'livestock'],
+    tags: ['animal', 'goat', 'farm', 'livestock']
+  },
+  'pablothegoat.jpg': {
+    name: 'Pablo',
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['goat', 'farm animal'],
+    tags: ['animal', 'goat', 'named character', 'Pablo']
+  },
+  'dog.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['dog', 'pet', 'companion'],
+    tags: ['animal', 'dog', 'pet', 'companion']
+  },
+  'cat.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['cat', 'pet', 'companion'],
+    tags: ['animal', 'cat', 'pet', 'companion']
+  },
+  'catday.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['cat', 'pet', 'companion'],
+    tags: ['animal', 'cat', 'pet', 'companion', 'daytime']
+  },
+  'horse.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['horse', 'transport', 'working animal'],
+    tags: ['animal', 'horse', 'transport', 'working']
+  },
+  'cow.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['cow', 'farm animal', 'livestock'],
+    tags: ['animal', 'cow', 'farm', 'livestock']
+  },
+  'pig.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['pig', 'farm animal', 'livestock'],
+    tags: ['animal', 'pig', 'farm', 'livestock']
+  },
+  'sheep.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['sheep', 'farm animal', 'livestock'],
+    tags: ['animal', 'sheep', 'farm', 'livestock']
+  },
+  'rabbit.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['rabbit', 'small animal'],
+    tags: ['animal', 'rabbit', 'wild', 'small']
+  },
+  'duck.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['duck', 'farm animal', 'bird'],
+    tags: ['animal', 'duck', 'bird', 'farm']
+  },
+  'rooster.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['rooster', 'farm animal', 'bird'],
+    tags: ['animal', 'rooster', 'bird', 'farm']
+  },
+  'owl.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['owl', 'wild bird'],
+    tags: ['animal', 'owl', 'bird', 'wild', 'nocturnal']
+  },
+  'lizard.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['lizard', 'reptile'],
+    tags: ['animal', 'lizard', 'reptile', 'wild']
+  },
+  'crab.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['crab', 'sea creature'],
+    tags: ['animal', 'crab', 'sea creature', 'crustacean']
+  },
+  'frog.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['frog', 'amphibian'],
+    tags: ['animal', 'frog', 'amphibian', 'wild']
   },
 
   // Auto-generated entries from sync script
@@ -1826,6 +1930,106 @@ export const PORTRAIT_LIBRARY = {
     class: 'common',
     occupation: 'unknown',
     tags: ['female', 'young']
+  },
+
+  // === ADDITIONAL CHARACTERS (Previously Unused) ===
+
+  // Artists & Musicians
+  'artist.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: ['criollo', 'español', 'mestizo'],
+    class: 'middling',
+    occupation: ['artist', 'painter', 'artisan'],
+    tags: ['artist', 'creative', 'middling', 'cultured']
+  },
+  'musicians.jpg': {
+    gender: 'multiple',
+    age: 'adult',
+    casta: ['criollo', 'mestizo', 'mulato'],
+    class: ['common', 'middling'],
+    occupation: ['musician', 'performer', 'entertainer'],
+    tags: ['musician', 'group', 'entertainment', 'performance']
+  },
+
+  // Criminals & Outlaws
+  'bandito.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: ['mestizo', 'criollo'],
+    class: 'poor',
+    occupation: ['bandit', 'outlaw', 'criminal'],
+    tags: ['bandit', 'outlaw', 'dangerous', 'criminal']
+  },
+
+  // Elite & Nobility
+  'caballero.jpg': {
+    gender: 'male',
+    age: 'adult',
+    casta: ['español', 'criollo'],
+    class: 'elite',
+    occupation: ['gentleman', 'noble', 'caballero'],
+    tags: ['elite', 'noble', 'gentleman', 'high-class']
+  },
+  'dona.jpg': {
+    gender: 'female',
+    age: ['adult', 'middle-aged'],
+    casta: ['española', 'criolla'],
+    class: 'elite',
+    occupation: ['noblewoman', 'lady', 'doña'],
+    tags: ['elite', 'noble', 'lady', 'high-class', 'female']
+  },
+  'dons.jpg': {
+    gender: 'male',
+    age: ['adult', 'middle-aged'],
+    casta: ['español', 'criollo'],
+    class: 'elite',
+    occupation: ['nobleman', 'don', 'elite'],
+    tags: ['elite', 'noble', 'group', 'high-class']
+  },
+  'spanishnoble.jpg': {
+    gender: 'male',
+    age: ['adult', 'middle-aged'],
+    casta: 'español',
+    class: 'elite',
+    occupation: ['noble', 'peninsular', 'aristocrat'],
+    tags: ['peninsular', 'noble', 'elite', 'spanish', 'aristocrat']
+  },
+  'viceroy.jpg': {
+    gender: 'male',
+    age: ['middle-aged', 'elderly'],
+    casta: 'español',
+    class: 'elite',
+    occupation: ['viceroy', 'official', 'governor'],
+    tags: ['viceroy', 'elite', 'official', 'authority', 'government']
+  },
+
+  // Legal Professionals
+  'lawyers.jpg': {
+    gender: 'male',
+    age: ['adult', 'middle-aged'],
+    casta: ['español', 'criollo'],
+    class: ['middling', 'elite'],
+    occupation: ['lawyer', 'legal professional', 'advocate'],
+    tags: ['lawyer', 'legal', 'professional', 'educated', 'group']
+  },
+
+  // Family Scenes (may be used as portraits in certain contexts)
+  'motherandchildrenday.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: ['mestiza', 'criolla'],
+    class: ['common', 'middling'],
+    occupation: ['mother', 'parent'],
+    tags: ['mother', 'family', 'children', 'domestic', 'daytime']
+  },
+  'motherandchildrentwilight.jpg': {
+    gender: 'female',
+    age: 'adult',
+    casta: ['mestiza', 'criolla'],
+    class: ['common', 'middling'],
+    occupation: ['mother', 'parent'],
+    tags: ['mother', 'family', 'children', 'domestic', 'evening']
   }
 };
 

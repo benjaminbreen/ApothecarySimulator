@@ -50,6 +50,16 @@ const NOTABLE_BUILDINGS = {
     name: "Botica de la Amargura",
     description: "Maria de Lima's apothecary shop, where healing and danger intertwine.",
     bounds: { x: 1028, y: 276, width: 30, height: 24 }
+  },
+  consulado: {
+    name: "El Consulado de Mercaderes",
+    description: "The merchant's guild headquarters, a two-story building with ground-floor arcades and a distinctive corner tower.",
+    bounds: { x: 273, y: 235, width: 65, height: 65 }
+  },
+  lamerced: {
+    name: "La Merced Market",
+    description: "The sprawling market complex centered on a baroque church with twin bell towers, flanked by covered market arcades.",
+    bounds: { x: 1090, y: 239, width: 60, height: 61 }
   }
 };
 
@@ -68,6 +78,7 @@ const HorizonLine = ({
   const [birds, setBirds] = useState([]);
   const [windowPeople, setWindowPeople] = useState([]);
   const [walkingFigures, setWalkingFigures] = useState([]);
+  const [horses, setHorses] = useState([]);
 
   // Building hover tooltip state
   const [hoveredBuilding, setHoveredBuilding] = useState(null);
@@ -233,7 +244,7 @@ const HorizonLine = ({
 
   // RAF update loop for organic bird movement
   useEffect(() => {
-    if (prefersReducedMotion || birds.length === 0) return;
+    if (prefersReducedMotion) return;
 
     let animationFrameId;
     let lastTimestamp = Date.now();
@@ -244,6 +255,11 @@ const HorizonLine = ({
       lastTimestamp = now;
 
       setBirds(prevBirds => {
+        // Skip update if no birds exist yet (but keep loop running)
+        if (prevBirds.length === 0) {
+          return prevBirds;
+        }
+
         // Cap at 100 birds for performance
         const activeBirds = prevBirds.slice(-100);
 
@@ -455,6 +471,65 @@ const HorizonLine = ({
     return () => clearInterval(interval);
   }, [prefersReducedMotion]);
 
+  // Horses and wagons at ground level - max 3 for performance
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const spawnHorse = () => {
+      // Don't spawn if already at max (performance limit)
+      if (horses.length >= 3) return;
+
+      // 30% chance to spawn a horse
+      if (Math.random() > 0.3) return;
+
+      const id = Date.now() + Math.random();
+      const startX = Math.random() > 0.5 ? -20 : 1220;
+      const endX = startX < 0 ? 1220 : -20;
+      const horseSpeed = 0.075 + Math.random() * 0.175; // More variance - 0.075-0.25 pixels per frame (some slow, some fast)
+      const groundY = 298; // Very bottom of the scene
+
+      // Random type: 40% rider, 30% simple wagon, 30% grand carriage
+      const rand = Math.random();
+      let type;
+      if (rand < 0.4) {
+        type = 'rider';
+      } else if (rand < 0.7) {
+        type = 'wagon';
+      } else {
+        type = 'carriage';
+      }
+
+      const newHorse = {
+        id,
+        x: startX,
+        y: groundY,
+        targetX: endX,
+        speed: horseSpeed,
+        direction: startX < 0 ? 1 : -1,
+        type // 'rider', 'wagon', or 'carriage'
+      };
+
+      setHorses(prev => [...prev, newHorse]);
+
+      // Calculate duration based on distance and speed
+      const distance = Math.abs(endX - startX);
+      const duration = (distance / horseSpeed) * 16; // ~16ms per frame
+
+      // Remove after crossing
+      setTimeout(() => {
+        setHorses(prev => prev.filter(h => h.id !== id));
+      }, duration);
+    };
+
+    // Check every 12 seconds (less frequent than people)
+    const interval = setInterval(spawnHorse, 12000);
+
+    // Spawn initial horse
+    setTimeout(spawnHorse, 5000);
+
+    return () => clearInterval(interval);
+  }, [prefersReducedMotion, horses.length]);
+
   // Building hover handlers
   const handleBuildingHover = (buildingId, event) => {
     // Don't show tooltips during zoom (too distracting)
@@ -494,7 +569,16 @@ const HorizonLine = ({
   const isDawn = timeOfDay === 'dawn' || timeOfDay === 'pre-dawn';
   const isDaytime = !isNight && !isDawn && !isDusk; // Clear daytime hours
 
-  const baseOpacity = isNight ? 0.3 : isDusk || isDawn ? 0.6 : 0.8;
+  // Check for poor visibility conditions (precipitation, overcast, low visibility)
+  const hasPoorVisibility = weather && (
+    weather.precipitation !== 'none' || // Any precipitation
+    weather.cloudCover > 0.7 || // Heavily overcast
+    weather.visibility < 0.5 // Low visibility
+  );
+
+  // At night, buildings should be MORE visible (darker silhouettes), not less
+  // During day, atmospheric haze reduces contrast
+  const baseOpacity = isNight ? 0.95 : isDusk || isDawn ? 0.75 : 0.7;
 
   // Determine which chimneys should have visible smoke (4-6 active at a time for lively scene)
   // Use a simple hash of the current hour to keep it stable but rotating
@@ -608,15 +692,23 @@ const HorizonLine = ({
               <stop offset="100%" style={{ stopColor: '#ffffff', stopOpacity: 0 }} />
             </radialGradient>
 
-            {/* Atmospheric scattering overlay - IMPROVED: stronger haze */}
+            {/* Atmospheric scattering overlay - IMPROVED: stronger haze with smooth fadeout */}
             <linearGradient id={`mountain-haze-far-${instanceId}`} x1="0%" y1="100%" x2="0%" y2="0%">
               <stop offset="0%" style={{
                 stopColor: isDawn ? 'rgba(220,210,235,0)' : (isDusk ? 'rgba(235,200,210,0)' : 'rgba(200,215,230,0)'),
                 stopOpacity: 0
               }} />
-              <stop offset="70%" style={{
+              <stop offset="30%" style={{
                 stopColor: isDawn ? 'rgba(220,210,235,0.22)' : (isDusk ? 'rgba(235,200,210,0.25)' : 'rgba(200,215,230,0.20)'),
-                stopOpacity: 1
+                stopOpacity: 0.3
+              }} />
+              <stop offset="60%" style={{
+                stopColor: isDawn ? 'rgba(220,210,235,0.10)' : (isDusk ? 'rgba(235,200,210,0.12)' : 'rgba(200,215,230,0.08)'),
+                stopOpacity: 0.15
+              }} />
+              <stop offset="100%" style={{
+                stopColor: isDawn ? 'rgba(220,210,235,0)' : (isDusk ? 'rgba(235,200,210,0)' : 'rgba(200,215,230,0)'),
+                stopOpacity: 0
               }} />
             </linearGradient>
 
@@ -664,6 +756,38 @@ const HorizonLine = ({
               <stop offset="100%" style={{ stopColor: 'rgba(255,255,255,0)', stopOpacity: 0 }} />
             </radialGradient>
 
+            {/* Organic distortion filter for realistic mountain texture */}
+            <filter id={`mountain-texture-distortion-${instanceId}`}>
+              <feTurbulence type="fractalNoise"
+                            baseFrequency="0.015 0.025"
+                            numOctaves="3"
+                            seed="42"
+                            result="noise" />
+              <feDisplacementMap in="SourceGraphic"
+                                 in2="noise"
+                                 scale="6"
+                                 xChannelSelector="R"
+                                 yChannelSelector="G"
+                                 result="displaced" />
+              <feGaussianBlur in="displaced" stdDeviation="1.5" />
+            </filter>
+
+            {/* Subtle noise overlay filter for surface texture */}
+            <filter id={`mountain-surface-noise-${instanceId}`}>
+              <feTurbulence type="fractalNoise"
+                            baseFrequency="0.08 0.12"
+                            numOctaves="4"
+                            seed="123"
+                            result="turbulence" />
+              <feColorMatrix in="turbulence"
+                             type="saturate"
+                             values="0"
+                             result="grayscale" />
+              <feComponentTransfer in="grayscale" result="contrast">
+                <feFuncA type="linear" slope="0.4" intercept="0" />
+              </feComponentTransfer>
+            </filter>
+
             {/* Clip path for far mountains - constrains overlays to mountain shape */}
             <clipPath id={`mountain-far-clip-${instanceId}`}>
               <path d="M0,300 L0,160 Q00,152 200,108 Q300,93 400,83 L480,55 L560,83 Q650,95 750,88 L850,78 L920,85 L980,88 Q1050,90 1100,95 L1150,100 Q1175,104 1200,106 L1200,300 Z" />
@@ -676,53 +800,93 @@ const HorizonLine = ({
             fill={`url(#mountain-far-${instanceId})`}
           />
 
-          {/* Mountain depth overlays - lighter, more varied angles for distant atmospheric quality */}
-          <g clipPath={`url(#mountain-far-clip-${instanceId})`}>
-            {/* Left section - more light, varied angles */}
+          {/* Mountain depth overlays - reduced count with organic distortion */}
+          <g clipPath={`url(#mountain-far-clip-${instanceId})`} filter={`url(#mountain-texture-distortion-${instanceId})`}>
+            {/* Left section - key highlight */}
             <ellipse cx="280" cy="108" rx="20" ry="120" fill={`url(#mountain-light-1-${instanceId})`}
               transform="rotate(-23 280 108)" />
-            <ellipse cx="320" cy="100" rx="18" ry="110" fill={`url(#mountain-light-2-${instanceId})`}
-              transform="rotate(18 320 100)" />
-            <ellipse cx="240" cy="115" rx="22" ry="115" fill={`url(#mountain-light-1-${instanceId})`}
-              transform="rotate(-8 240 115)" />
 
-            {/* Popocatépetl - luminous ridges with varied angles */}
+            {/* Popocatépetl - shadow and light for depth */}
             <ellipse cx="460" cy="78" rx="26" ry="135" fill={`url(#mountain-shadow-2-${instanceId})`}
               transform="rotate(14 460 78)" />
             <ellipse cx="500" cy="76" rx="23" ry="125" fill={`url(#mountain-light-1-${instanceId})`}
               transform="rotate(-19 500 76)" />
-            <ellipse cx="430" cy="85" rx="24" ry="128" fill={`url(#mountain-light-2-${instanceId})`}
-              transform="rotate(25 430 85)" />
-            <ellipse cx="520" cy="80" rx="20" ry="118" fill={`url(#mountain-light-1-${instanceId})`}
-              transform="rotate(-7 520 80)" />
 
-            {/* Central valley area - brighter with dramatic angles */}
+            {/* Central valley area - key highlights */}
             <ellipse cx="700" cy="90" rx="22" ry="122" fill={`url(#mountain-light-2-${instanceId})`}
               transform="rotate(21 700 90)" />
             <ellipse cx="750" cy="92" rx="24" ry="126" fill={`url(#mountain-light-1-${instanceId})`}
               transform="rotate(-15 750 92)" />
-            <ellipse cx="670" cy="95" rx="21" ry="115" fill={`url(#mountain-light-2-${instanceId})`}
-              transform="rotate(8 670 95)" />
 
-            {/* Iztaccíhuatl - predominantly light with one shadow for depth */}
+            {/* Iztaccíhuatl - shadow and light for depth */}
             <ellipse cx="900" cy="75" rx="28" ry="130" fill={`url(#mountain-shadow-1-${instanceId})`}
               transform="rotate(-26 900 75)" />
             <ellipse cx="940" cy="73" rx="25" ry="120" fill={`url(#mountain-light-1-${instanceId})`}
               transform="rotate(16 940 73)" />
-            <ellipse cx="870" cy="80" rx="23" ry="118" fill={`url(#mountain-light-2-${instanceId})`}
-              transform="rotate(-11 870 80)" />
 
-            {/* Right section - lighter overall with wild angles */}
+            {/* Right section - key highlight */}
             <ellipse cx="1080" cy="95" rx="24" ry="118" fill={`url(#mountain-light-1-${instanceId})`}
               transform="rotate(22 1080 95)" />
-            <ellipse cx="1110" cy="98" rx="21" ry="112" fill={`url(#mountain-light-2-${instanceId})`}
-              transform="rotate(-18 1110 98)" />
-            <ellipse cx="1050" cy="92" rx="22" ry="115" fill={`url(#mountain-light-1-${instanceId})`}
-              transform="rotate(12 1050 92)" />
+
+            {/* Organic canyon shapes - Popocatépetl erosion */}
+            <path d="M 440 90
+                     Q 445 80 450 75
+                     Q 455 70 460 72
+                     Q 465 75 470 82
+                     Q 475 90 480 100
+                     Q 485 110 490 120
+                     Q 492 125 490 130
+                     L 485 128
+                     Q 480 115 475 105
+                     Q 470 95 465 88
+                     Q 460 82 455 85
+                     Q 450 88 445 95
+                     Z"
+                  fill={`url(#mountain-shadow-1-${instanceId})`}
+                  opacity="0.4" />
+
+            <path d="M 510 85
+                     Q 515 75 520 70
+                     Q 523 68 526 70
+                     Q 530 73 535 80
+                     Q 540 88 544 98
+                     Q 547 108 548 118
+                     L 545 120
+                     Q 542 110 538 100
+                     Q 534 90 530 83
+                     Q 526 78 523 80
+                     Q 518 82 513 90
+                     Z"
+                  fill={`url(#mountain-shadow-2-${instanceId})`}
+                  opacity="0.35" />
+
+            {/* Valley depression - Iztaccíhuatl */}
+            <path d="M 870 88
+                     Q 875 80 880 76
+                     Q 885 73 890 75
+                     Q 895 78 900 85
+                     Q 905 93 910 103
+                     Q 912 110 911 118
+                     L 908 120
+                     Q 905 110 900 100
+                     Q 895 90 890 84
+                     Q 886 80 883 83
+                     Q 878 87 873 93
+                     Z"
+                  fill="rgba(0,0,0,0.25)"
+                  opacity="0.3" />
+
+            {/* Subtle noise texture overlay */}
+            <rect x="0" y="0" width="1200" height="300"
+                  fill="white"
+                  filter={`url(#mountain-surface-noise-${instanceId})`}
+                  opacity="0.08"
+                  style={{ mixBlendMode: 'overlay' }} />
           </g>
 
-          {/* Natural Snow cap - Popocatépetl (LEFT peak only) - Organic, integrated with mountain */}
-
+          {/* Natural Snow cap - Popocatépetl (LEFT peak only) - Organic, integrated with mountain - HIDDEN at night and during poor visibility */}
+          {!isNight && !hasPoorVisibility && (
+          <>
           {/* Main snow cap - irregular organic shape following mountain contour */}
           <path d="M 445 73
                    Q 452 60 458 63
@@ -760,8 +924,8 @@ const HorizonLine = ({
                    Q 453 73 448 77
                    Q 444 80 441 83
                    Z"
-                fill="rgba(255,255,255,0.65)"
-                opacity={0.75} />
+                fill="rgba(255,255,255,0.55)"
+                opacity={0.55} />
 
           {/* Right slope snow patch - irregular natural boundary */}
           <path d="M 520 80
@@ -771,20 +935,22 @@ const HorizonLine = ({
                    Q 507 73 512 77
                    Q 516 80 519 83
                    Z"
-                fill="rgba(255,255,255,0.62)"
-                opacity={0.72} />
+                fill="rgba(255,255,255,0.52)"
+                opacity={0.52} />
 
           {/* Subtle crevasse shadows for texture */}
-          <path d="M 470 57 Q 475 54 480 53"
-                stroke="rgba(210,225,240,0.3)"
-                strokeWidth="1"
+          <path d="M 490 73 Q 495 52 460 70"
+                stroke="rgba(210,225,240,0.7)"
+                strokeWidth="9"
                 fill="none"
-                opacity={0.6} />
+                opacity={0.8} />
           <path d="M 480 54 Q 485 56 490 59"
                 stroke="rgba(210,225,240,0.28)"
-                strokeWidth="0.9"
+                strokeWidth="200.9"
                 fill="none"
-                opacity={0.55} />
+                opacity={0.7} />
+          </>
+          )}
 
           {/* Atmospheric scattering overlay */}
           <rect x="0" y="0" width="1200" height="300" fill={`url(#mountain-haze-far-${instanceId})`} />
@@ -798,32 +964,52 @@ const HorizonLine = ({
           style={{ opacity: baseOpacity * 0.60 }}
         >
           <defs>
-            {/* Time-aware mid-mountain gradient */}
+            {/* Time-aware mid-mountain gradient - 5 stops for more realistic lighting */}
             <linearGradient id={`mountain-mid-${instanceId}`} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="46%" style={{
-                stopColor: isDawn ? '#6a5b7a' : (isDusk ? '#5a4a6a' : (isNight ? '#2a3a4c' : '#374151')),
+              {/* Sky-facing slopes */}
+              <stop offset="0%" style={{
+                stopColor: isDawn ? '#8a7b9a' : (isDusk ? '#7a6a8a' : (isNight ? '#3a4a5c' : '#577191')),
                 stopOpacity: 1
               }} />
-              <stop offset="60%" style={{
-                stopColor: isDawn ? '#4a3b5a' : (isDusk ? '#3d2f4a' : (isNight ? '#253545' : '#2d3845')),
+              {/* Upper slopes */}
+              <stop offset="30%" style={{
+                stopColor: isDawn ? '#7a6b8a' : (isDusk ? '#6a5a7a' : (isNight ? '#324252' : '#475d81')),
                 stopOpacity: 1
               }} />
-              <stop offset="80%" style={{
-                stopColor: isDawn ? '#342838' : (isDusk ? '#2a1f35' : (isNight ? '#1a2535' : '#222c38')),
+              {/* Mid slopes - transition zone */}
+              <stop offset="55%" style={{
+                stopColor: isDawn ? '#5a4b6a' : (isDusk ? '#4d3d5a' : (isNight ? '#283848' : '#374d71')),
                 stopOpacity: 1
               }} />
+              {/* Lower slopes - more shadow */}
+              <stop offset="75%" style={{
+                stopColor: isDawn ? '#3a2b4a' : (isDusk ? '#332536' : (isNight ? '#1f2d3d' : '#273d61')),
+                stopOpacity: 1
+              }} />
+              {/* Base - darkest */}
               <stop offset="100%" style={{
-                stopColor: isDawn ? '#2a2232' : (isDusk ? '#221a2d' : (isNight ? '#1a232e' : '#1f2832')),
+                stopColor: isDawn ? '#2a1b3a' : (isDusk ? '#231a2d' : (isNight ? '#1a232e' : '#1f2d51')),
                 stopOpacity: 1
               }} />
             </linearGradient>
 
-            {/* Atmospheric scattering for mid-mountains - minimal to preserve bottom gradient */}
+            {/* Atmospheric scattering for mid-mountains - enhanced depth */}
             <linearGradient id={`mountain-haze-mid-${instanceId}`} x1="0%" y1="100%" x2="0%" y2="0%">
-              <stop offset="0%" style={{ stopColor: 'rgba(200,210,220,0)', stopOpacity: 0 }} />
-              <stop offset="50%" style={{ stopColor: 'rgba(200,210,220,0)', stopOpacity: 0 }} />
+              {/* No haze at base */}
+              <stop offset="0%" style={{ stopColor: 'rgba(0,0,0,0)', stopOpacity: 0 }} />
+              {/* Slight haze begins */}
+              <stop offset="35%" style={{
+                stopColor: isDawn ? 'rgba(240,220,200,0.02)' : (isDusk ? 'rgba(230,200,180,0.025)' : 'rgba(200,210,220,0.015)'),
+                stopOpacity: 1
+              }} />
+              {/* Moderate haze */}
+              <stop offset="65%" style={{
+                stopColor: isDawn ? 'rgba(245,230,215,0.045)' : (isDusk ? 'rgba(240,210,190,0.05)' : 'rgba(200,215,230,0.03)'),
+                stopOpacity: 1
+              }} />
+              {/* Peak haze */}
               <stop offset="100%" style={{
-                stopColor: isDawn ? 'rgba(210,200,220,0.04)' : (isDusk ? 'rgba(220,200,210,0.05)' : 'rgba(190,205,220,0.03)'),
+                stopColor: isDawn ? 'rgba(250,240,230,0.08)' : (isDusk ? 'rgba(250,220,200,0.09)' : 'rgba(200,220,240,0.055)'),
                 stopOpacity: 1
               }} />
             </linearGradient>
@@ -872,63 +1058,184 @@ const HorizonLine = ({
               <stop offset="100%" style={{ stopColor: 'rgba(255,255,255,0)', stopOpacity: 0 }} />
             </radialGradient>
 
+            {/* Organic distortion filter for realistic mountain texture */}
+            <filter id={`mountain-mid-texture-distortion-${instanceId}`}>
+              <feTurbulence type="fractalNoise"
+                            baseFrequency="0.018 0.03"
+                            numOctaves="3"
+                            seed="84"
+                            result="noise" />
+              <feDisplacementMap in="SourceGraphic"
+                                 in2="noise"
+                                 scale="8"
+                                 xChannelSelector="R"
+                                 yChannelSelector="G"
+                                 result="displaced" />
+              <feGaussianBlur in="displaced" stdDeviation="2" />
+            </filter>
+
+            {/* Subtle noise overlay filter for surface texture */}
+            <filter id={`mountain-mid-surface-noise-${instanceId}`}>
+              <feTurbulence type="fractalNoise"
+                            baseFrequency="0.1 0.15"
+                            numOctaves="4"
+                            seed="456"
+                            result="turbulence" />
+              <feColorMatrix in="turbulence"
+                             type="saturate"
+                             values="0"
+                             result="grayscale" />
+              <feComponentTransfer in="grayscale" result="contrast">
+                <feFuncA type="linear" slope="0.5" intercept="0" />
+              </feComponentTransfer>
+            </filter>
+
             {/* Clip path for mid mountains - constrains overlays to mountain shape */}
             <clipPath id={`mountain-mid-clip-${instanceId}`}>
-              <path d="M0,300 L0,172 Q80,158 150,148 L200,138 L260,146 Q320,153 380,160 L450,166 Q520,163 590,156 L650,143 Q730,136 810,150 L880,160 Q930,165 980,158 L1030,150 L1080,145 Q1130,140 1180,138 L1200,136 L1200,300 Z" />
+              <path d="M0,300 L0,172
+                       Q40,165 80,158
+                       Q110,152 150,148
+                       Q175,143 200,138
+                       Q230,140 260,146
+                       Q290,151 320,153
+                       Q350,157 380,160
+                       Q415,163 450,166
+                       Q485,165 520,163
+                       Q555,160 590,156
+                       Q620,150 650,143
+                       Q690,140 730,136
+                       Q770,141 810,150
+                       Q845,155 880,160
+                       Q905,163 930,165
+                       Q955,162 980,158
+                       Q1005,154 1030,150
+                       Q1055,148 1080,145
+                       Q1105,142 1130,140
+                       Q1165,139 1180,138
+                       Q1190,137 1200,136
+                       L1200,300 Z" />
             </clipPath>
           </defs>
 
-          {/* Mid-distance peaks with dramatic variation */}
+          {/* Mid-distance peaks with organic curves */}
           <path
-            d="M0,300 L0,172 Q80,158 150,148 L200,138 L260,146 Q320,153 380,160 L450,166 Q520,163 590,156 L650,143 Q730,136 810,150 L880,160 Q930,165 980,158 L1030,150 L1080,145 Q1130,140 1180,138 L1200,136 L1200,300 Z"
+            d="M0,300 L0,172
+               Q40,165 80,158
+               Q110,152 150,148
+               Q175,143 200,138
+               Q230,140 260,146
+               Q290,151 320,153
+               Q350,157 380,160
+               Q415,163 450,166
+               Q485,165 520,163
+               Q555,160 590,156
+               Q620,150 650,143
+               Q690,140 730,136
+               Q770,141 810,150
+               Q845,155 880,160
+               Q905,163 930,165
+               Q955,162 980,158
+               Q1005,154 1030,150
+               Q1055,148 1080,145
+               Q1105,142 1130,140
+               Q1165,139 1180,138
+               Q1190,137 1200,136
+               L1200,300 Z"
             fill={`url(#mountain-mid-${instanceId})`}
           />
 
-          {/* Mid-mountain depth overlays - long angled ridges for enhanced realism */}
-          <g clipPath={`url(#mountain-mid-clip-${instanceId})`}>
-            {/* Left section - closer mountains with bolder shadows */}
+          {/* Mid-mountain depth overlays - reduced count with organic distortion */}
+          <g clipPath={`url(#mountain-mid-clip-${instanceId})`} filter={`url(#mountain-mid-texture-distortion-${instanceId})`}>
+            {/* Left section - key shadow */}
             <ellipse cx="175" cy="155" rx="28" ry="105" fill={`url(#mountain-mid-shadow-1-${instanceId})`}
               transform="rotate(-14 175 155)" />
-            <ellipse cx="215" cy="148" rx="26" ry="98" fill={`url(#mountain-mid-light-2-${instanceId})`}
-              transform="rotate(-7 215 148)" />
-            <ellipse cx="145" cy="162" rx="27" ry="102" fill={`url(#mountain-mid-shadow-2-${instanceId})`}
-              transform="rotate(-18 145 162)" />
 
-            {/* Central-left - prominent ridgelines */}
+            {/* Central-left - shadow and light for depth */}
             <ellipse cx="330" cy="160" rx="30" ry="108" fill={`url(#mountain-mid-shadow-2-${instanceId})`}
               transform="rotate(9 330 160)" />
             <ellipse cx="380" cy="164" rx="27" ry="103" fill={`url(#mountain-mid-light-1-${instanceId})`}
               transform="rotate(15 380 164)" />
-            <ellipse cx="300" cy="165" rx="29" ry="106" fill={`url(#mountain-mid-shadow-1-${instanceId})`}
-              transform="rotate(-11 300 165)" />
-            <ellipse cx="410" cy="166" rx="26" ry="100" fill={`url(#mountain-mid-light-2-${instanceId})`}
-              transform="rotate(18 410 166)" />
 
             {/* Center valley - deep erosion patterns */}
             <ellipse cx="620" cy="156" rx="29" ry="107" fill={`url(#mountain-mid-shadow-1-${instanceId})`}
               transform="rotate(-10 620 156)" />
             <ellipse cx="660" cy="148" rx="28" ry="104" fill={`url(#mountain-mid-light-2-${instanceId})`}
               transform="rotate(8 660 148)" />
-            <ellipse cx="590" cy="159" rx="30" ry="109" fill={`url(#mountain-mid-shadow-2-${instanceId})`}
-              transform="rotate(-16 590 159)" />
 
-            {/* Central-right - varied textures */}
+            {/* Central-right - shadow and light for depth */}
             <ellipse cx="750" cy="142" rx="30" ry="106" fill={`url(#mountain-mid-shadow-2-${instanceId})`}
               transform="rotate(12 750 142)" />
             <ellipse cx="810" cy="154" rx="27" ry="102" fill={`url(#mountain-mid-light-1-${instanceId})`}
               transform="rotate(19 810 154)" />
-            <ellipse cx="720" cy="149" rx="28" ry="105" fill={`url(#mountain-mid-shadow-1-${instanceId})`}
-              transform="rotate(-6 720 149)" />
 
-            {/* Right section - complex formations */}
+            {/* Right section - shadow and light for depth */}
             <ellipse cx="1010" cy="158" rx="29" ry="104" fill={`url(#mountain-mid-shadow-1-${instanceId})`}
               transform="rotate(-13 1010 158)" />
             <ellipse cx="1060" cy="150" rx="27" ry="100" fill={`url(#mountain-mid-light-2-${instanceId})`}
               transform="rotate(10 1060 150)" />
-            <ellipse cx="980" cy="160" rx="28" ry="103" fill={`url(#mountain-mid-shadow-2-${instanceId})`}
-              transform="rotate(-20 980 160)" />
-            <ellipse cx="1100" cy="147" rx="26" ry="98" fill={`url(#mountain-mid-light-1-${instanceId})`}
-              transform="rotate(14 1100 147)" />
+
+            {/* Subtle ridge highlights - top edges catch more light */}
+            <path
+              d="M0,172 Q40,165 80,158 Q110,152 150,148 Q175,143 200,138 Q230,140 260,146 Q290,151 320,153 Q350,157 380,160 Q415,163 450,166 Q485,165 520,163 Q555,160 590,156 Q620,150 650,143 Q690,140 730,136 Q770,141 810,150 Q845,155 880,160 Q905,163 930,165 Q955,162 980,158 Q1005,154 1030,150 Q1055,148 1080,145 Q1105,142 1130,140 Q1165,139 1180,138 Q1190,137 1200,136"
+              stroke={isDawn ? 'rgba(255,240,220,0.3)' : (isDusk ? 'rgba(255,220,200,0.35)' : (isNight ? 'rgba(120,140,160,0.2)' : 'rgba(230,240,255,0.25)'))}
+              strokeWidth="1.5"
+              fill="none"
+              strokeLinecap="round"
+              opacity="0.4"
+            />
+
+            {/* Organic valley/canyon shapes - deep erosion patterns */}
+            <path d="M 430 175
+                     Q 435 168 440 164
+                     Q 445 160 450 162
+                     Q 455 165 460 172
+                     Q 465 180 470 190
+                     Q 472 198 471 206
+                     L 468 208
+                     Q 465 198 460 188
+                     Q 455 178 450 172
+                     Q 446 168 443 172
+                     Q 438 176 433 182
+                     Z"
+                  fill="rgba(0,0,0,0.35)"
+                  opacity="0.4" />
+
+            <path d="M 600 168
+                     Q 605 160 610 155
+                     Q 615 152 620 154
+                     Q 625 157 630 165
+                     Q 635 174 638 185
+                     Q 640 193 639 201
+                     L 636 203
+                     Q 633 193 628 183
+                     Q 623 173 618 166
+                     Q 614 161 611 164
+                     Q 606 168 601 175
+                     Z"
+                  fill={`url(#mountain-mid-shadow-1-${instanceId})`}
+                  opacity="0.35" />
+
+            <path d="M 1010 162
+                     Q 1015 155 1020 151
+                     Q 1024 149 1028 151
+                     Q 1032 154 1036 161
+                     Q 1040 169 1043 179
+                     Q 1045 187 1044 195
+                     L 1041 197
+                     Q 1038 187 1033 177
+                     Q 1028 167 1023 160
+                     Q 1019 156 1016 159
+                     Q 1012 163 1008 169
+                     Z"
+                  fill="rgba(0,0,0,0.3)"
+                  opacity="0.35" />
+
+            {/* Subtle noise texture overlay */}
+            <rect x="0" y="0" width="1200" height="300"
+                  fill="white"
+                  filter={`url(#mountain-mid-surface-noise-${instanceId})`}
+                  opacity="0.1"
+                  style={{ mixBlendMode: 'overlay' }} />
           </g>
         </svg>
 
@@ -938,7 +1245,7 @@ const HorizonLine = ({
           viewBox="0 0 1350 312"
           preserveAspectRatio="xMidYMax slice"
           style={{
-            opacity: 0.6,
+            opacity: isNight ? baseOpacity * 0.65 : 0.6, // More visible at night for atmospheric depth
             filter: 'blur(0.5px)'
           }}
         >
@@ -961,10 +1268,7 @@ const HorizonLine = ({
           </defs>
 
           {/* Simplified background buildings */}
-          <rect x="85" y="255" width="70" height="35" fill={`url(#buildings-bg-${instanceId})`} />
-          <rect x="95" y="235" width="12" height="20" fill={`url(#buildings-bg-${instanceId})`} />
-          <polygon points="95,235 101,220 107,235" fill={`url(#buildings-bg-${instanceId})`} />
-
+       
           <rect x="210" y="265" width="32" height="35" fill={`url(#buildings-bg-${instanceId})`} />
           <rect x="221" y="245" width="10" height="20" fill={`url(#buildings-bg-${instanceId})`} />
           <polygon points="221,245 226,230 231,245" fill={`url(#buildings-bg-${instanceId})`} />
@@ -972,12 +1276,10 @@ const HorizonLine = ({
           <rect x="265" y="278" width="45" height="22" fill={`url(#buildings-bg-${instanceId})`} />
           <rect x="330" y="280" width="38" height="20" fill={`url(#buildings-bg-${instanceId})`} />
 
-          <rect x="390" y="268" width="30" height="32" fill={`url(#buildings-bg-${instanceId})`} />
-          <polygon points="396,268 405,252 414,268" fill={`url(#buildings-bg-${instanceId})`} />
+     
+          <rect x="410" y="280" width="45" height="22" fill={`url(#buildings-bg-${instanceId})`} />
 
-          <rect x="440" y="278" width="75" height="22" fill={`url(#buildings-bg-${instanceId})`} />
-
-          <rect x="555" y="270" width="42" height="30" fill={`url(#buildings-bg-${instanceId})`} />
+          <rect x="555" y="270" width="42" height="40" fill={`url(#buildings-bg-${instanceId})`} />
           <path d="M 555 270 Q 576 254 597 270" fill={`url(#buildings-bg-${instanceId})`} />
 
           <rect x="620" y="279" width="40" height="21" fill={`url(#buildings-bg-${instanceId})`} />
@@ -1000,24 +1302,7 @@ const HorizonLine = ({
           <polygon points="1151,275 1159,264 1167,275" fill={`url(#buildings-bg-${instanceId})`} />
         </svg>
 
-        {/* Atmospheric haze overlay - Background buildings layer - DISABLED at night to prevent visible horizontal line */}
-        {!isNight && (
-          <div
-            className="absolute bottom-0 left-0 right-0"
-            style={{
-              height: '42%',
-              background: isDawn || isDusk
-                ? `linear-gradient(to top,
-                    ${isDawn ? 'rgba(255,240,230,0.15)' : 'rgba(255,200,180,0.18)'} 0%,
-                    ${isDawn ? 'rgba(230,220,240,0.12)' : 'rgba(240,180,160,0.14)'} 35%,
-                    ${isDawn ? 'rgba(200,210,235,0.08)' : 'rgba(220,160,140,0.10)'} 65%,
-                    transparent 100%)`
-                : `linear-gradient(to top, rgba(180,200,220,0.18) 0%, rgba(160,180,210,0.12) 40%, rgba(140,160,200,0.06) 70%, transparent 100%)`,
-              pointerEvents: 'none',
-              mixBlendMode: 'normal'
-            }}
-          />
-        )}
+      
 
         {/* Morning mist layer (dawn 5-8 AM) - Lake Texcoco effect */}
         {isDawn && (
@@ -1066,9 +1351,18 @@ const HorizonLine = ({
 
             {/* Center buildings - neutral - SOLID */}
             <linearGradient id={`buildings-fg-center-${instanceId}`} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style={{ stopColor: 'var(--sky-mountain-near, #1a202c)', stopOpacity: 0.8 }} />
-              <stop offset="50%" style={{ stopColor: 'var(--sky-mountain-near, #1a202c)', stopOpacity: 0.9 }} />
-              <stop offset="100%" style={{ stopColor: 'var(--sky-mountain-near, #1a202c)', stopOpacity: 0.6}} />
+              <stop offset="0%" style={{
+                stopColor: 'var(--sky-mountain-near, #1a202c)',
+                stopOpacity: isNight ? 1.0 : 0.8
+              }} />
+              <stop offset="50%" style={{
+                stopColor: 'var(--sky-mountain-near, #1a202c)',
+                stopOpacity: isNight ? 1.0 : 0.9
+              }} />
+              <stop offset="100%" style={{
+                stopColor: 'var(--sky-mountain-near, #1a202c)',
+                stopOpacity: isNight ? 1.0 : 0.6
+              }} />
             </linearGradient>
 
             {/* Right/East buildings - warmer tint - SOLID */}
@@ -1077,19 +1371,19 @@ const HorizonLine = ({
                 stopColor: isDawn || isDusk
                   ? (isDusk ? '#2d2628' : '#322a2d')
                   : (isNight ? '#1c181c' : '#1e1c20'),
-                stopOpacity: 0.9
+                stopOpacity: isNight ? 1.0 : 0.9
               }} />
               <stop offset="80%" style={{
                 stopColor: isDawn || isDusk
                   ? (isDusk ? '#30282a' : '#34282f')
                   : (isNight ? '#1e1a1e' : '#201e22'),
-                stopOpacity: 0.7
+                stopOpacity: isNight ? 1.0 : 0.7
               }} />
               <stop offset="100%" style={{
                 stopColor: isDawn || isDusk
                   ? (isDusk ? '#372d30' : '#3a3033')
                   : (isNight ? '#221e22' : '#242226'),
-                stopOpacity: 0.6
+                stopOpacity: isNight ? 1.0 : 0.6
               }} />
             </linearGradient>
 
@@ -1417,16 +1711,14 @@ const HorizonLine = ({
           <rect x="168.3" y="179" width="1.4" height="5.5" fill={`url(#buildings-fg-left-${instanceId})`} />
           <rect x="166.5" y="181.5" width="5" height="1.4" fill={`url(#buildings-fg-left-${instanceId})`} />
           {/* Large rose window - center of facade - shows sky through it */}
-          <circle cx="139" cy="255" r="8" fill={isDawn ? 'rgba(255, 200, 150, 0.25)' : (isDusk ? 'rgba(255, 150, 100, 0.25)' : (isNight ? 'rgba(50, 60, 80, 0.3)' : 'rgba(150, 180, 210, 0.25)'))} />
+          <circle cx="140" cy="250" r="8" fill={isDawn ? 'rgba(255, 200, 150, 0.25)' : (isDusk ? 'rgba(255, 150, 100, 0.25)' : (isNight ? 'rgba(50, 60, 80, 0.3)' : 'rgba(150, 180, 210, 0.25)'))} />
           {/* Rose window tracery - decorative stone divisions */}
-          <line x1="139" y1="247" x2="139" y2="263" stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" />
-          <line x1="131" y1="255" x2="147" y2="255" stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" />
-          <line x1="133.5" y1="249.5" x2="144.5" y2="260.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.6" />
-          <line x1="144.5" y1="249.5" x2="133.5" y2="260.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.6" />
-          <circle cx="139" cy="255" r="4" fill="none" stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" />
-          <circle cx="139" cy="255" r="2" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="0.5" />
+        
+          
+          <circle cx="140" cy="250" r="4" fill="none" stroke="rgba(0,0,0,0.4)" strokeWidth="0.8" />
+          <circle cx="140" cy="250" r="2" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="0.5" />
           {/* Outer frame */}
-          <circle cx="139" cy="255" r="8" fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+          <circle cx="140" cy="250" r="8" fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
           {/* Side windows */}
           <rect x="107" y="250" width="5" height="8" fill="rgba(255,255,255,0.04)" />
           <rect x="145" y="250" width="5" height="8" fill="rgba(255,255,255,0.04)" />
@@ -1628,33 +1920,86 @@ const HorizonLine = ({
           <rect x="225" y="225" width="42" height="75" fill="transparent" style={{ pointerEvents: 'auto' }} />
           </g>
 
-          {/* Residential buildings - MID LEFT with varied heights */}
-          <rect x="273" y="283" width="15" height="17" fill={`url(#buildings-fg-left-${instanceId})`} />
-          <rect x="288" y="279" width="17" height="21" fill={`url(#buildings-fg-left-${instanceId})`} />
-          {/* Roof tiles */}
-          <rect x="273" y="281" width="15" height="2" fill={`url(#buildings-fg-left-${instanceId})`} />
-          <rect x="288" y="277" width="17" height="2" fill={`url(#buildings-fg-left-${instanceId})`} />
-          {/* Balcony on taller building */}
-          <rect x="291" y="284" width="11" height="1" fill="rgba(255,255,255,0.08)" />
-          <line x1="291" y1="285" x2="291" y2="287" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
-          <line x1="295" y1="285" x2="295" y2="287" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
-          <line x1="299" y1="285" x2="299" y2="287" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
-          {/* Windows */}
-          <rect x="278" y="287" width="3" height="4" fill="rgba(255,255,255,0.05)" />
-          <rect x="293" y="289" width="3" height="4" fill="rgba(255,255,255,0.05)" />
-          {/* Cornice */}
-          <rect x="273" y="290" width="32" height="1" fill="rgba(255,255,255,0.12)" />
-          <rect x="301" y="274" width="4" height="5" fill={`url(#buildings-fg-left-${instanceId})`} id="chimney-3" />
+          {/* EL CONSULADO DE MERCADERES - Merchant's guild headquarters */}
+          <g
+            style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+            onMouseEnter={(e) => handleBuildingHover('consulado', e)}
+            onMouseLeave={handleBuildingLeave}
+          >
+          <g style={{ pointerEvents: 'none' }}>
+          {/* Main building body - 2 stories */}
+          <rect x="273" y="258" width="60" height="42" fill={`url(#buildings-fg-left-${instanceId})`} />
+          {/* Daytime roof highlight - sun-facing edge */}
+          {!isNight && (
+            <line x1="273" y1="258" x2="273" y2="300" stroke="rgba(255,255,255,0.35)" strokeWidth="1.5" />
+          )}
 
-          {/* Another residential with balcony */}
-          <rect x="310" y="286" width="24" height="14" fill={`url(#buildings-fg-left-${instanceId})`} />
-          {/* Balcony */}
-          <rect x="313" y="290" width="9" height="1" fill="rgba(255,255,255,0.08)" />
-          <line x1="313" y1="291" x2="313" y2="293" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
-          <line x1="318" y1="291" x2="318" y2="293" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
-          <rect x="316" y="294" width="3" height="4" fill="rgba(255,255,255,0.05)" />
-          <rect x="325" y="294" width="3" height="4" fill="rgba(255,255,255,0.05)" />
-          <rect x="320" y="291" width="4" height="9" fill="rgba(0,0,0,0.15)" />
+          {/* GROUND FLOOR ARCADE - Series of arches */}
+          <path d="M 278 285 Q 283 280 288 285 L 288 300 L 278 300 Z" fill="rgba(0,0,0,0.2)" />
+          <path d="M 278 285 Q 283 280 288 285" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
+
+          <path d="M 291 285 Q 296 280 301 285 L 301 300 L 291 300 Z" fill="rgba(0,0,0,0.2)" />
+          <path d="M 291 285 Q 296 280 301 285" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
+
+          <path d="M 304 285 Q 309 280 314 285 L 314 300 L 304 300 Z" fill="rgba(0,0,0,0.2)" />
+          <path d="M 304 285 Q 309 280 314 285" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
+
+          <path d="M 317 285 Q 322 280 327 285 L 327 300 L 317 300 Z" fill="rgba(0,0,0,0.2)" />
+          <path d="M 317 285 Q 322 280 327 285" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="0.8" />
+
+          {/* SECOND FLOOR - Balconied windows */}
+          {/* Left window with balcony */}
+          <rect x="280" y="266" width="8" height="10" fill="rgba(0,0,0,0.12)" />
+          <path d="M 280 266 Q 284 264 288 266" fill="rgba(0,0,0,0.08)" />
+          <rect x="280" y="275" width="8" height="1.5" fill="rgba(255,255,255,0.1)" />
+          <line x1="280" y1="276.5" x2="280" y2="278" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+          <line x1="284" y1="276.5" x2="284" y2="278" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+          <line x1="288" y1="276.5" x2="288" y2="278" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+
+          {/* Center window with balcony */}
+          <rect x="298" y="266" width="8" height="10" fill="rgba(0,0,0,0.12)" />
+          <path d="M 298 266 Q 302 264 306 266" fill="rgba(0,0,0,0.08)" />
+          <rect x="298" y="275" width="8" height="1.5" fill="rgba(255,255,255,0.1)" />
+          <line x1="298" y1="276.5" x2="298" y2="278" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+          <line x1="302" y1="276.5" x2="302" y2="278" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+          <line x1="306" y1="276.5" x2="306" y2="278" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+
+          {/* Right window with balcony */}
+          <rect x="316" y="266" width="8" height="10" fill="rgba(0,0,0,0.12)" />
+          <path d="M 316 266 Q 320 264 324 266" fill="rgba(0,0,0,0.08)" />
+          <rect x="316" y="275" width="8" height="1.5" fill="rgba(255,255,255,0.1)" />
+          <line x1="316" y1="276.5" x2="316" y2="278" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+          <line x1="320" y1="276.5" x2="320" y2="278" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+          <line x1="324" y1="276.5" x2="324" y2="278" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" />
+
+          {/* CORNER TOWER - Right side landmark */}
+          <rect x="328" y="245" width="10" height="55" fill={`url(#buildings-fg-left-${instanceId})`} />
+          {/* Tower window */}
+          <rect x="330" y="260" width="6" height="8" fill="rgba(0,0,0,0.12)" />
+          <path d="M 330 260 Q 333 258 336 260" fill="rgba(0,0,0,0.08)" />
+          {/* Tower cupola */}
+          <path d="M 328 245 Q 333 238 338 245" fill={`url(#buildings-fg-left-${instanceId})`} />
+          <circle cx="333" cy="237" r="1.2" fill="rgba(0,0,0,0.4)" />
+          <rect x="332.5" y="235" width="1" height="2.5" fill="rgba(0,0,0,0.5)" />
+
+          {/* STONE QUOINS on left corner */}
+          <rect x="273" y="260" width="2" height="4" fill="rgba(0,0,0,0.2)" />
+          <rect x="273" y="264" width="2" height="3" fill="rgba(0,0,0,0.15)" />
+          <rect x="273" y="267" width="2" height="4" fill="rgba(0,0,0,0.2)" />
+          <rect x="273" y="271" width="2" height="3" fill="rgba(0,0,0,0.15)" />
+          <rect x="273" y="274" width="2" height="4" fill="rgba(0,0,0,0.2)" />
+          <rect x="273" y="278" width="2" height="3" fill="rgba(0,0,0,0.15)" />
+
+          {/* Cornice at roofline */}
+          <rect x="273" y="256" width="60" height="2" fill="rgba(255,255,255,0.12)" />
+
+          {/* Chimney on main building */}
+          <rect x="290" y="252" width="4" height="6" fill={`url(#buildings-fg-left-${instanceId})`} id="chimney-3" />
+          </g>
+          {/* Invisible hover area covering entire building */}
+          <rect x="273" y="235" width="65" height="65" fill="transparent" style={{ pointerEvents: 'auto' }} />
+          </g>
+
 
           {/* ADMINISTRATIVE BUILDING - Viceregal Palace */}
           <g
@@ -1702,12 +2047,12 @@ const HorizonLine = ({
 
           {/* SPANISH FLAG - Wind-responsive animation - DARKER & SMALLER */}
           {/* Taller flagpole */}
-          <line x1="360" y1="268" x2="360" y2="242" stroke="rgba(0,0,0,0.6)" strokeWidth="0.7" />
+          <line x1="360" y1="268" x2="360" y2="242" stroke="rgba(0,0,0,0.8)" strokeWidth="0.7" />
           <circle cx="360" cy="241" r="0.7" fill="rgba(0,0,0,0.5)" />
 
           {/* Flag - even darker and smaller for silhouette effect */}
           {/* Top red stripe */}
-          <path d={`M 360 245 Q ${360 + windDriftX * 0.25} ${244.5 + Math.abs(Math.sin(Date.now() / 800) * 0.6)} ${360 + 6 + windDriftX * 0.5} ${245 + Math.abs(Math.sin(Date.now() / 800) * 0.9)} L ${360 + 6 + windDriftX * 0.5} ${246.5 + Math.abs(Math.sin(Date.now() / 800) * 0.9)} Q ${360 + windDriftX * 0.25} ${246 + Math.abs(Math.sin(Date.now() / 800) * 0.6)} 360 246.5 Z`}
+          <path d={`M 360 245 Q ${360 + windDriftX * 0.25} ${244.5 + Math.abs(Math.sin(Date.now() / 800) * 0.6)} ${360 + 6 + windDriftX * 0.9} ${245 + Math.abs(Math.sin(Date.now() / 800) * 0.9)} L ${360 + 6 + windDriftX * 0.5} ${246.5 + Math.abs(Math.sin(Date.now() / 800) * 0.9)} Q ${360 + windDriftX * 0.25} ${246 + Math.abs(Math.sin(Date.now() / 800) * 0.6)} 360 246.5 Z`}
                 fill="rgba(70,10,10,0.7)">
             <animate attributeName="d"
               values={`M 360 245 Q ${360 + windDriftX * 0.25} 244.5 ${360 + 6 + windDriftX * 0.5} 245 L ${360 + 6 + windDriftX * 0.5} 246.5 Q ${360 + windDriftX * 0.25} 246 360 246.5 Z;
@@ -1748,29 +2093,29 @@ const HorizonLine = ({
 
           {/* BAROQUE CORNER TURRETS - Small cylindrical towers */}
           {/* Left turret */}
-          <rect x="337" y="262" width="5" height="6" fill={`url(#buildings-fg-left-${instanceId})`} />
-          <ellipse cx="339.5" cy="262" rx="2.5" ry="1.5" fill={`url(#buildings-fg-left-${instanceId})`} />
-          <circle cx="339.5" cy="260" r="1.2" fill="rgba(0,0,0,0.4)" />
-          <rect x="339" y="258" width="1" height="2.5" fill="rgba(0,0,0,0.5)" />
+          <rect x="338.5" y="262" width="5" height="6" fill={`url(#buildings-fg-left-${instanceId})`} />
+          <ellipse cx="341" cy="262" rx="2.5" ry="1.5" fill={`url(#buildings-fg-left-${instanceId})`} />
+          <circle cx="341" cy="260" r="1.2" fill="rgba(0,0,0,0.4)" />
+          <rect x="340.5" y="258" width="1" height="2.5" fill="rgba(0,0,0,0.5)" />
 
           {/* Right turret */}
-          <rect x="403" y="262" width="5" height="6" fill={`url(#buildings-fg-left-${instanceId})`} />
-          <ellipse cx="405.5" cy="262" rx="2.5" ry="1.5" fill={`url(#buildings-fg-left-${instanceId})`} />
-          <circle cx="405.5" cy="260" r="1.2" fill="rgba(0,0,0,0.4)" />
-          <rect x="405" y="258" width="1" height="2.5" fill="rgba(0,0,0,0.5)" />
+          <rect x="402" y="262" width="5" height="6" fill={`url(#buildings-fg-left-${instanceId})`} />
+          <ellipse cx="404.5" cy="262" rx="2.5" ry="1.5" fill={`url(#buildings-fg-left-${instanceId})`} />
+          <circle cx="404.5" cy="260" r="1.2" fill="rgba(0,0,0,0.4)" />
+          <rect x="404" y="258" width="1" height="2.5" fill="rgba(0,0,0,0.5)" />
 
           {/* PATROLLING SOLDIER - Fixed position on roof */}
           <g>
             {/* Head - ON roof level */}
-            <ellipse cx="385" cy="265" rx="0.8" ry="1" fill="rgba(0,0,0,0.7)">
+            <ellipse cx="385" cy="265" rx="0.8" ry="1" fill="rgba(0,0,0,0.9)">
               <animate attributeName="cx" values="345;365;385;395;385;365;345" dur="40s" repeatCount="indefinite" />
             </ellipse>
             {/* Body */}
-            <rect x="384.3" y="266" width="1.4" height="2.5" fill="rgba(0,0,0,0.7)">
+            <rect x="384.3" y="266" width="1.4" height="2.5" fill="rgba(0,0,0,0.9)">
               <animate attributeName="x" values="344.3;364.3;384.3;394.3;384.3;364.3;344.3" dur="40s" repeatCount="indefinite" />
             </rect>
             {/* Legs extending down to roof */}
-            <line x1="384.7" y1="268.5" x2="384.7" y2="268" stroke="rgba(0,0,0,0.7)" strokeWidth="0.6">
+            <line x1="384.7" y1="268.5" x2="384.7" y2="268" stroke="rgba(0,0,0,0.9)" strokeWidth="0.6">
               <animate attributeName="x1" values="344.7;364.7;384.7;394.7;384.7;364.7;344.7" dur="40s" repeatCount="indefinite" />
               <animate attributeName="x2" values="344.7;364.7;384.7;394.7;384.7;364.7;344.7" dur="40s" repeatCount="indefinite" />
             </line>
@@ -1779,7 +2124,7 @@ const HorizonLine = ({
               <animate attributeName="x2" values="345.3;365.3;385.3;395.3;385.3;365.3;345.3" dur="40s" repeatCount="indefinite" />
             </line>
             {/* Pike/musket - angled upward, shorter length */}
-            <line x1="385.5" y1="266.5" x2="387" y2="261" stroke="rgba(0,0,0,0.85)" strokeWidth="0.9">
+            <line x1="385.5" y1="266.5" x2="387" y2="261" stroke="rgba(0,0,0,0.95)" strokeWidth="0.4">
               <animate attributeName="x1" values="345.5;365.5;385.5;395.5;385.5;365.5;345.5" dur="40s" repeatCount="indefinite" />
               <animate attributeName="x2" values="347;367;387;397;387;367;347" dur="40s" repeatCount="indefinite" />
             </line>
@@ -1805,44 +2150,18 @@ const HorizonLine = ({
 
           {/* Right guard */}
           <g>
-            <ellipse cx="375" cy="298.5" rx="0.5" ry="0.7" fill="rgba(0,0,0,0.75)" />
+            <ellipse cx="355" cy="288.5" rx="0.5" ry="0.7" fill="rgba(0,0,0,0.75)" />
             <rect x="374.7" y="299.2" width="0.6" height="1.5" fill="rgba(0,0,0,0.75)" />
             {/* Pike - vertical at attention */}
-            <line x1="374.7" y1="298.5" x2="374.7" y2="295" stroke="rgba(0,0,0,0.8)" strokeWidth="0.5" />
-            <polygon points="374.7,295 375.1,294.2 374.3,294.2" fill="rgba(0,0,0,0.85)" />
+            <line x1="374.7" y1="288.5" x2="374.7" y2="295" stroke="rgba(0,0,0,0.8)" strokeWidth="0.5" />
+            <polygon points="374.7,285 375.1,294.2 374.3,294.2" fill="rgba(0,0,0,0.85)" />
             {/* Subtle stance shift animation - every 50 seconds, offset timing */}
             <animateTransform attributeName="transform" type="translate"
               values="0,0; -0.3,0; 0,0; 0.3,0; 0,0"
               dur="50s" begin="5s" repeatCount="indefinite" />
           </g>
 
-          {/* OUTER ENTRANCE GUARDS - Additional soldiers flanking the entrance */}
-          {/* Far left guard with pike */}
-          <g>
-            <ellipse cx="358" cy="298.5" rx="0.6" ry="0.8" fill="rgba(0,0,0,0.7)" />
-            <rect x="357.6" y="299.3" width="0.8" height="2" fill="rgba(0,0,0,0.7)" />
-            {/* Pike - angled slightly outward for defensive stance */}
-            <line x1="357.5" y1="298.5" x2="356.5" y2="293.5" stroke="rgba(0,0,0,0.75)" strokeWidth="0.6" />
-            <polygon points="356.5,293.5 357,292.8 356,292.9" fill="rgba(0,0,0,0.8)" />
-            {/* Subtle movement - slower, more rigid stance */}
-            <animateTransform attributeName="transform" type="translate"
-              values="0,0; 0.2,0; 0,0; -0.2,0; 0,0"
-              dur="45s" begin="2s" repeatCount="indefinite" />
-          </g>
-
-          {/* Far right guard with pike */}
-          <g>
-            <ellipse cx="382" cy="298.5" rx="0.6" ry="0.8" fill="rgba(0,0,0,0.7)" />
-            <rect x="381.6" y="299.3" width="0.8" height="2" fill="rgba(0,0,0,0.7)" />
-            {/* Pike - angled slightly outward for defensive stance */}
-            <line x1="382.5" y1="298.5" x2="383.5" y2="293.5" stroke="rgba(0,0,0,0.75)" strokeWidth="0.6" />
-            <polygon points="383.5,293.5 383,292.8 384,292.9" fill="rgba(0,0,0,0.8)" />
-            {/* Subtle movement - slower, more rigid stance */}
-            <animateTransform attributeName="transform" type="translate"
-              values="0,0; -0.2,0; 0,0; 0.2,0; 0,0"
-              dur="48s" begin="7s" repeatCount="indefinite" />
-          </g>
-
+   
           {/* HANGING STREET LAMP - Palace entrance */}
           <g>
             {/* Wrought iron bracket */}
@@ -1855,8 +2174,8 @@ const HorizonLine = ({
               {/* Night glow effect */}
               {isNight && (
                 <>
-                  <rect x="370" y="283.5" width="2" height="3" fill="rgba(255,210,120,0.6)" />
-                  <ellipse cx="371" cy="285" rx="3" ry="3" fill="rgba(255,210,120,0.15)" opacity="0.8" />
+                  <rect x="370" y="283.5" width="3" height="4" fill="rgba(255,210,120,0.9)" />
+                  <ellipse cx="371" cy="285" rx="6" ry="5" fill="rgba(255,210,120,0.15)" opacity="0.8" />
                 </>
               )}
               {/* Wind sway animation - offset timing */}
@@ -2309,18 +2628,66 @@ const HorizonLine = ({
           <rect x="1078" y="288" width="3" height="4" fill="rgba(255,255,255,0.05)" />
           <rect x="1073" y="291" width="4" height="9" fill="rgba(0,0,0,0.15)" />
 
-          {/* FINAL CHURCH - Gabled roof with simple cross */}
-          <rect x="1100" y="272" width="36" height="28" fill={`url(#buildings-fg-right-${instanceId})`} />
-          {/* Gabled roof */}
-          <polygon points="1108,272 1118,260 1128,272" fill={`url(#buildings-fg-right-${instanceId})`} />
-          {/* Stone plinth at roof peak */}
-          <rect x="1116" y="258" width="4" height="3" fill={`url(#buildings-fg-right-${instanceId})`} />
-          {/* Cross - thicker and more prominent */}
-          <rect x="1117" y="251" width="2.5" height="8" fill={`url(#buildings-fg-right-${instanceId})`} />
-          <rect x="1114.5" y="254" width="7.5" height="2.5" fill={`url(#buildings-fg-right-${instanceId})`} />
-          {/* Arched entrance */}
-          <rect x="1113" y="280" width="6" height="8" fill="rgba(0,0,0,0.1)" />
-          <path d="M 1113 280 Q 1116 278 1119 280" fill="rgba(0,0,0,0.08)" />
+          {/* LA MERCED MARKET COMPLEX - Church and market arcades */}
+          <g
+            style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+            onMouseEnter={(e) => handleBuildingHover('lamerced', e)}
+            onMouseLeave={handleBuildingLeave}
+          >
+          <g style={{ pointerEvents: 'none' }}>
+          {/* CENTRAL BAROQUE CHURCH */}
+          <rect x="1100" y="260" width="40" height="40" fill={`url(#buildings-fg-right-${instanceId})`} />
+          {/* Daytime highlight */}
+          {!isNight && (
+            <line x1="1100" y1="260" x2="1100" y2="300" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+          )}
+
+          {/* LEFT BELL TOWER */}
+          <rect x="1103" y="245" width="8" height="15" fill={`url(#buildings-fg-right-${instanceId})`} />
+          {/* Bell opening */}
+          <rect x="1105" y="250" width="4" height="5" fill="rgba(0,0,0,0.3)" />
+          {/* Cupola dome */}
+          <ellipse cx="1107" cy="243" rx="5" ry="2.5" fill={`url(#buildings-fg-right-${instanceId})`} />
+          <circle cx="1107" cy="241" r="1" fill="rgba(0,0,0,0.4)" />
+          <rect x="1106.5" y="239" width="1" height="2.5" fill="rgba(0,0,0,0.5)" />
+
+          {/* RIGHT BELL TOWER */}
+          <rect x="1129" y="245" width="8" height="15" fill={`url(#buildings-fg-right-${instanceId})`} />
+          {/* Bell opening */}
+          <rect x="1131" y="250" width="4" height="5" fill="rgba(0,0,0,0.3)" />
+          {/* Cupola dome */}
+          <ellipse cx="1133" cy="243" rx="5" ry="2.5" fill={`url(#buildings-fg-right-${instanceId})`} />
+          <circle cx="1133" cy="241" r="1" fill="rgba(0,0,0,0.4)" />
+          <rect x="1132.5" y="239" width="1" height="2.5" fill="rgba(0,0,0,0.5)" />
+
+          {/* BAROQUE FACADE - Central section between towers */}
+          <rect x="1111" y="255" width="18" height="5" fill={`url(#buildings-fg-right-${instanceId})`} />
+          {/* Decorative pediment */}
+          <path d="M 1111 255 Q 1120 250 1129 255" fill={`url(#buildings-fg-right-${instanceId})`} />
+          <circle cx="1120" cy="251" r="1.5" fill="rgba(0,0,0,0.3)" />
+
+          {/* ROSE WINDOW - Circular ornate window */}
+          <circle cx="1120" cy="268" r="4" fill="rgba(0,0,0,0.15)" />
+          <line x1="1120" y1="264" x2="1120" y2="272" stroke="rgba(0,0,0,0.2)" strokeWidth="0.5" />
+          <line x1="1116" y1="268" x2="1124" y2="268" stroke="rgba(0,0,0,0.2)" strokeWidth="0.5" />
+
+          {/* MAIN ARCHED ENTRANCE */}
+          <path d="M 1112 280 Q 1120 273 1128 280 L 1128 300 L 1112 300 Z" fill="rgba(0,0,0,0.2)" />
+          <path d="M 1112 280 Q 1120 273 1128 280" fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="1" />
+
+          {/* LEFT MARKET ARCADE - Lower building with arches */}
+          <rect x="1090" y="275" width="10" height="25" fill={`url(#buildings-fg-right-${instanceId})`} />
+          <path d="M 1091 285 Q 1095 282 1099 285 L 1099 300 L 1091 300 Z" fill="rgba(0,0,0,0.18)" />
+          <path d="M 1091 285 Q 1095 282 1099 285" fill="none" stroke="rgba(0,0,0,0.25)" strokeWidth="0.6" />
+
+          {/* RIGHT MARKET ARCADE - Lower building with arches */}
+          <rect x="1140" y="275" width="10" height="25" fill={`url(#buildings-fg-right-${instanceId})`} />
+          <path d="M 1141 285 Q 1145 282 1149 285 L 1149 300 L 1141 300 Z" fill="rgba(0,0,0,0.18)" />
+          <path d="M 1141 285 Q 1145 282 1149 285" fill="none" stroke="rgba(0,0,0,0.25)" strokeWidth="0.6" />
+          </g>
+          {/* Invisible hover area covering entire complex */}
+          <rect x="1090" y="239" width="60" height="61" fill="transparent" style={{ pointerEvents: 'auto' }} />
+          </g>
 
           {/* Final residential */}
           <rect x="1145" y="283" width="28" height="17" fill={`url(#buildings-fg-right-${instanceId})`} />
@@ -2358,8 +2725,8 @@ const HorizonLine = ({
           <line x1="0" y1="298" x2="1200" y2="298" stroke="rgba(0,0,0,0.25)" strokeWidth="0.5" />
         </svg>
 
-        {/* CHIMNEY SMOKE - Wind-responsive animated smoke plumes */}
-        {!prefersReducedMotion && (
+        {/* CHIMNEY SMOKE - Wind-responsive animated smoke plumes - HIDDEN at night */}
+        {!prefersReducedMotion && !isNight && (
         <svg
           className="absolute bottom-0 left-0 w-full h-full"
           viewBox="0 0 1200 300"
@@ -2727,14 +3094,14 @@ const HorizonLine = ({
               <animate attributeName="opacity" values="0.7;0.8;0.65;0.85;0.7" dur="5.5s" repeatCount="indefinite" />
             </rect>
 
-            {/* Building 2 - Multiple windows */}
+            {/* Building 2 - Multiple windows - FIXED ALIGNMENT */}
             <rect x="53" y="279" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
               <animate attributeName="opacity" values="0.65;0.9;0.7;0.8;0.7" dur="5.8s" repeatCount="indefinite" />
             </rect>
-            <rect x="61" y="279" width="3" height="4" fill="rgba(255,200,100,0.85)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="67" y="279" width="3" height="4" fill="rgba(255,200,100,0.85)" filter={`url(#window-glow-${instanceId})`}>
               <animate attributeName="opacity" values="0.75;0.85;0.8;0.9;0.75" dur="6.2s" repeatCount="indefinite" />
             </rect>
-            <rect x="69" y="279" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="75" y="279" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
               <animate attributeName="opacity" values="0.6;0.75;0.7;0.85;0.65" dur="5.3s" repeatCount="indefinite" />
             </rect>
             <rect x="53" y="287" width="3" height="5" fill="rgba(255,200,100,0.7)" filter={`url(#window-glow-${instanceId})`}>
@@ -2758,6 +3125,17 @@ const HorizonLine = ({
             </rect>
             <rect x="208" y="288" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="6.1s" repeatCount="indefinite" />
+            </rect>
+
+            {/* El Consulado de Mercaderes - NEW merchant guild windows */}
+            <rect x="280" y="266" width="8" height="10" fill="rgba(255,210,120,0.75)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="6.1s" repeatCount="indefinite" />
+            </rect>
+            <rect x="298" y="266" width="8" height="10" fill="rgba(255,210,120,0.8)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.75;0.9;0.8;0.95;0.75" dur="5.8s" repeatCount="indefinite" />
+            </rect>
+            <rect x="316" y="266" width="8" height="10" fill="rgba(255,210,120,0.75)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="6.3s" repeatCount="indefinite" />
             </rect>
 
             {/* Church windows */}
@@ -2794,11 +3172,31 @@ const HorizonLine = ({
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.9s" repeatCount="indefinite" />
             </rect>
 
-            <rect x="637" y="277" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            {/* Mid-right residential cluster - FIXED to match actual windows */}
+            <rect x="601" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
               <animate attributeName="opacity" values="0.6;0.8;0.7;0.85;0.6" dur="6.4s" repeatCount="indefinite" />
             </rect>
-            <rect x="646" y="277" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="611" y="287" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.7s" repeatCount="indefinite" />
+            </rect>
+
+            {/* Mid-center residential - NEW glows for existing windows */}
+            <rect x="761" y="289" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="6.3s" repeatCount="indefinite" />
+            </rect>
+            <rect x="774" y="292" width="3" height="4" fill="rgba(255,200,100,0.7)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.6;0.75;0.7;0.8;0.6" dur="5.8s" repeatCount="indefinite" />
+            </rect>
+
+            {/* Larger residential with balconies - NEW glows */}
+            <rect x="796" y="282" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="6.1s" repeatCount="indefinite" />
+            </rect>
+            <rect x="812" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="5.9s" repeatCount="indefinite" />
+            </rect>
+            <rect x="796" y="293" width="3" height="4" fill="rgba(255,200,100,0.7)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.6;0.75;0.65;0.8;0.6" dur="6.4s" repeatCount="indefinite" />
             </rect>
 
             <rect x="876" y="286" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
@@ -2808,10 +3206,11 @@ const HorizonLine = ({
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.8s" repeatCount="indefinite" />
             </rect>
 
-            <rect x="908" y="284" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            {/* Far-right residential - FIXED ALIGNMENT */}
+            <rect x="908" y="286" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
               <animate attributeName="opacity" values="0.6;0.8;0.7;0.85;0.6" dur="6.2s" repeatCount="indefinite" />
             </rect>
-            <rect x="920" y="284" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="922" y="290" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.9s" repeatCount="indefinite" />
             </rect>
 
@@ -2836,10 +3235,19 @@ const HorizonLine = ({
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.8s" repeatCount="indefinite" />
             </rect>
 
-            {/* Final church windows */}
-            <rect x="1113" y="280" width="6" height="8" fill="rgba(255,220,150,0.55)" filter={`url(#window-glow-${instanceId})`}>
-              <animate attributeName="opacity" values="0.48;0.54;0.5;0.56;0.48" dur="8.8s" repeatCount="indefinite" />
+            {/* La Merced Market complex - NEW church and bell tower windows */}
+            {/* Left bell tower */}
+            <rect x="1105" y="250" width="4" height="5" fill="rgba(255,220,150,0.55)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.48;0.54;0.5;0.56;0.48" dur="8.5s" repeatCount="indefinite" />
             </rect>
+            {/* Right bell tower */}
+            <rect x="1131" y="250" width="4" height="5" fill="rgba(255,220,150,0.55)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.5;0.56;0.52;0.58;0.5" dur="8.8s" repeatCount="indefinite" />
+            </rect>
+            {/* Rose window - central church */}
+            <circle cx="1120" cy="268" r="4" fill="rgba(255,220,150,0.6)" filter={`url(#window-glow-${instanceId})`}>
+              <animate attributeName="opacity" values="0.52;0.58;0.54;0.6;0.52" dur="9.2s" repeatCount="indefinite" />
+            </circle>
 
             <rect x="1151" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
               <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="6.2s" repeatCount="indefinite" />
@@ -3315,9 +3723,9 @@ const HorizonLine = ({
                 cx={bird.x}
                 cy={bird.y}
                 r="0.5"
-                fill="rgba(0, 0, 0, 0.8)"
+                fill="rgba(0, 0, 0, 0.9)"
                 style={{
-                  animation: prefersReducedMotion ? 'none' : 'bird-pulse 0.3s ease-in-out infinite alternate'
+                  animation: prefersReducedMotion ? 'none' : 'bird-pulse 1.3s ease-in-out infinite alternate'
                 }}
               />
             ))}
@@ -3532,48 +3940,401 @@ const HorizonLine = ({
           </svg>
         )}
 
-        {/* Sunrise/Sunset rim lighting on building edges */}
-        {(isDawn || isDusk) && (
+        {/* Horses and wagons at ground level */}
+        {horses.length > 0 && (
           <svg
             className="absolute bottom-0 left-0 w-full h-full"
             viewBox="0 0 1200 300"
             preserveAspectRatio="xMidYMax slice"
-            style={{
-              opacity: baseOpacity * 0.7,
-              pointerEvents: 'none',
-              mixBlendMode: 'screen',
-              zIndex: 8
-            }}
+            style={{ opacity: baseOpacity * 0.9, pointerEvents: 'none', zIndex: 9 }}
           >
-            {/* Dawn: Light eastern (right) edges | Dusk: Light western (left) edges */}
-            {/* Cathedral spires */}
-            <line x1={isDawn ? "118" : "100"} y1="195" x2={isDawn ? "118" : "100"} y2="238" stroke={isDawn ? "rgba(255,220,180,0.6)" : "rgba(255,180,100,0.7)"} strokeWidth="1.5" />
-            <line x1={isDawn ? "177" : "159"} y1="195" x2={isDawn ? "177" : "159"} y2="238" stroke={isDawn ? "rgba(255,220,180,0.6)" : "rgba(255,180,100,0.7)"} strokeWidth="1.5" />
+            {horses.map(horse => {
+              const moveDuration = `${Math.abs(horse.targetX - horse.x) / horse.speed / 60}s`;
+              const gaitSpeed = "0.6s"; // Faster leg cycle for trotting horses
 
-            {/* Church spire */}
-            <line x1={isDawn ? "252" : "240"} y1="207" x2={isDawn ? "252" : "240"} y2="252" stroke={isDawn ? "rgba(255,220,180,0.65)" : "rgba(255,180,100,0.75)"} strokeWidth="1.2" />
+              return (
+                <g key={horse.id}>
+                  {/* Horse body */}
+                  <ellipse
+                    cx={horse.x}
+                    cy={horse.y - 4.55}
+                    rx="4.16"
+                    ry="2.21"
+                    fill="rgba(60, 40, 20, 0.8)"
+                  >
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      from="0 0"
+                      to={`${horse.targetX - horse.x} 0`}
+                      dur={moveDuration}
+                      repeatCount="1"
+                    />
+                  </ellipse>
 
-            {/* Palace top edge */}
-            <line x1="340" y1="268" x2="405" y2="268" stroke={isDawn ? "rgba(255,230,190,0.5)" : "rgba(255,190,110,0.6)"} strokeWidth="1" />
+                  {/* Horse neck */}
+                  <line
+                    x1={horse.direction > 0 ? horse.x + 3 : horse.x - 3}
+                    y1={horse.y - 5.46}
+                    x2={horse.direction > 0 ? horse.x + 3.9 : horse.x - 3.9}
+                    y2={horse.y - 7.8}
+                    stroke="rgba(60, 40, 20, 0.8)"
+                    strokeWidth="0.91"
+                  >
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      from="0 0"
+                      to={`${horse.targetX - horse.x} 0`}
+                      dur={moveDuration}
+                      repeatCount="1"
+                    />
+                  </line>
 
-            {/* Church needle spire */}
-            <line x1={isDawn ? "439" : "429"} y1="220" x2={isDawn ? "439" : "429"} y2="260" stroke={isDawn ? "rgba(255,220,180,0.7)" : "rgba(255,180,100,0.8)"} strokeWidth="1.3" />
+                  {/* Horse head */}
+                  <circle
+                    cx={horse.direction > 0 ? horse.x + 4.16 : horse.x - 4.16}
+                    cy={horse.y - 8.45}
+                    r="1.17"
+                    fill="rgba(60, 40, 20, 0.8)"
+                  >
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      from="0 0"
+                      to={`${horse.targetX - horse.x} 0`}
+                      dur={moveDuration}
+                      repeatCount="1"
+                    />
+                  </circle>
 
-            {/* Baroque dome highlight */}
-            <path d={isDawn ? "M 588 258 Q 588 240 574 240" : "M 530 258 Q 530 240 544 240"} stroke={isDawn ? "rgba(255,230,190,0.55)" : "rgba(255,190,120,0.65)"} strokeWidth="1.5" fill="none" />
+                  {/* Front left leg */}
+                  <line
+                    x1={horse.x + 1.3}
+                    y1={horse.y - 2.6}
+                    x2={horse.x + 1.3}
+                    y2={horse.y}
+                    stroke="rgba(60, 40, 20, 0.8)"
+                    strokeWidth="0.65"
+                  >
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      from="0 0"
+                      to={`${horse.targetX - horse.x} 0`}
+                      dur={moveDuration}
+                      repeatCount="1"
+                    />
+                    <animate
+                      attributeName="x2"
+                      values={`${horse.x + 1.3 + (horse.direction * 1.04)};${horse.x + 1.3 - (horse.direction * 1.04)};${horse.x + 1.3 + (horse.direction * 1.04)}`}
+                      dur={gaitSpeed}
+                      repeatCount="indefinite"
+                    />
+                  </line>
 
-            {/* Tall gothic church */}
-            <line x1={isDawn ? "728" : "716"} y1="198" x2={isDawn ? "728" : "716"} y2="245" stroke={isDawn ? "rgba(255,220,180,0.65)" : "rgba(255,180,100,0.75)"} strokeWidth="1.4" />
-            <line x1={isDawn ? "746" : "698"} y1="245" x2={isDawn ? "746" : "698"} y2="300" stroke={isDawn ? "rgba(255,230,190,0.4)" : "rgba(255,190,110,0.5)"} strokeWidth="1" />
+                  {/* Front right leg */}
+                  <line
+                    x1={horse.x + 1.95}
+                    y1={horse.y - 2.6}
+                    x2={horse.x + 1.95}
+                    y2={horse.y}
+                    stroke="rgba(60, 40, 20, 0.8)"
+                    strokeWidth="0.65"
+                  >
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      from="0 0"
+                      to={`${horse.targetX - horse.x} 0`}
+                      dur={moveDuration}
+                      repeatCount="1"
+                    />
+                    <animate
+                      attributeName="x2"
+                      values={`${horse.x + 1.95 - (horse.direction * 1.04)};${horse.x + 1.95 + (horse.direction * 1.04)};${horse.x + 1.95 - (horse.direction * 1.04)}`}
+                      dur={gaitSpeed}
+                      repeatCount="indefinite"
+                    />
+                  </line>
 
-            {/* Chapel */}
-            <line x1={isDawn ? "856" : "838"} y1="266" x2={isDawn ? "856" : "838"} y2="276" stroke={isDawn ? "rgba(255,220,180,0.6)" : "rgba(255,180,100,0.7)"} strokeWidth="1.1" />
+                  {/* Rear left leg */}
+                  <line
+                    x1={horse.x - 1.3}
+                    y1={horse.y - 2.6}
+                    x2={horse.x - 1.3}
+                    y2={horse.y}
+                    stroke="rgba(60, 40, 20, 0.8)"
+                    strokeWidth="0.65"
+                  >
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      from="0 0"
+                      to={`${horse.targetX - horse.x} 0`}
+                      dur={moveDuration}
+                      repeatCount="1"
+                    />
+                    <animate
+                      attributeName="x2"
+                      values={`${horse.x - 1.3 + (horse.direction * 1.04)};${horse.x - 1.3 - (horse.direction * 1.04)};${horse.x - 1.3 + (horse.direction * 1.04)}`}
+                      dur={gaitSpeed}
+                      repeatCount="indefinite"
+                    />
+                  </line>
 
-            {/* Church steeple */}
-            <line x1={isDawn ? "970" : "960"} y1="230" x2={isDawn ? "970" : "960"} y2="265" stroke={isDawn ? "rgba(255,220,180,0.7)" : "rgba(255,180,100,0.8)"} strokeWidth="1.3" />
+                  {/* Rear right leg */}
+                  <line
+                    x1={horse.x - 1.95}
+                    y1={horse.y - 2.6}
+                    x2={horse.x - 1.95}
+                    y2={horse.y}
+                    stroke="rgba(60, 40, 20, 0.8)"
+                    strokeWidth="0.65"
+                  >
+                    <animateTransform
+                      attributeName="transform"
+                      type="translate"
+                      from="0 0"
+                      to={`${horse.targetX - horse.x} 0`}
+                      dur={moveDuration}
+                      repeatCount="1"
+                    />
+                    <animate
+                      attributeName="x2"
+                      values={`${horse.x - 1.95 - (horse.direction * 1.04)};${horse.x - 1.95 + (horse.direction * 1.04)};${horse.x - 1.95 - (horse.direction * 1.04)}`}
+                      dur={gaitSpeed}
+                      repeatCount="indefinite"
+                    />
+                  </line>
 
-            {/* Final church spire */}
-            <line x1={isDawn ? "1128" : "1108"} y1="260" x2={isDawn ? "1128" : "1108"} y2="272" stroke={isDawn ? "rgba(255,220,180,0.65)" : "rgba(255,180,100,0.75)"} strokeWidth="1.2" />
+                  {/* Rider (if type is 'rider') */}
+                  {horse.type === 'rider' && (
+                    <>
+                      {/* Rider body */}
+                      <rect
+                        x={horse.x - 0.65}
+                        y={horse.y - 7.15}
+                        width="1.3"
+                        height="2.34"
+                        fill="rgba(0, 0, 0, 0.75)"
+                        rx="0.26"
+                      >
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          from="0 0"
+                          to={`${horse.targetX - horse.x} 0`}
+                          dur={moveDuration}
+                          repeatCount="1"
+                        />
+                      </rect>
+
+                      {/* Rider head */}
+                      <circle
+                        cx={horse.x}
+                        cy={horse.y - 8.45}
+                        r="0.78"
+                        fill="rgba(0, 0, 0, 0.75)"
+                      >
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          from="0 0"
+                          to={`${horse.targetX - horse.x} 0`}
+                          dur={moveDuration}
+                          repeatCount="1"
+                        />
+                      </circle>
+                    </>
+                  )}
+
+                  {/* Wagon (if type is 'wagon') */}
+                  {horse.type === 'wagon' && (
+                    <>
+                      {/* Connection line from horse to wagon */}
+                      <line
+                        x1={horse.direction > 0 ? horse.x - 3.25 : horse.x + 3.25}
+                        y1={horse.y - 2.6}
+                        x2={horse.direction > 0 ? horse.x - 5.2 : horse.x + 5.2}
+                        y2={horse.y - 2.6}
+                        stroke="rgba(80, 60, 40, 0.7)"
+                        strokeWidth="0.52"
+                      >
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          from="0 0"
+                          to={`${horse.targetX - horse.x} 0`}
+                          dur={moveDuration}
+                          repeatCount="1"
+                        />
+                      </line>
+
+                      {/* Wagon bed */}
+                      <rect
+                        x={horse.direction > 0 ? horse.x - 13 : horse.x + 5.2}
+                        y={horse.y - 6.5}
+                        width="7.8"
+                        height="3.9"
+                        fill="rgba(100, 70, 40, 0.8)"
+                        rx="0.52"
+                      >
+                        <animateTransform
+                          attributeName="transform"
+                          type="translate"
+                          from="0 0"
+                          to={`${horse.targetX - horse.x} 0`}
+                          dur={moveDuration}
+                          repeatCount="1"
+                        />
+                      </rect>
+
+                      {/* Wheel spokes (4 spokes per wheel) - rotating */}
+                      <g>
+                        {/* Front wheel spokes */}
+                        <line
+                          x1={horse.direction > 0 ? horse.x - 7.8 : horse.x + 5.2}
+                          y1={horse.y - 1.95}
+                          x2={horse.direction > 0 ? horse.x - 7.8 : horse.x + 5.2}
+                          y2={horse.y + 0.65}
+                          stroke="rgba(80, 60, 40, 0.6)"
+                          strokeWidth="0.39"
+                        >
+                          <animateTransform
+                            attributeName="transform"
+                            type="translate"
+                            from="0 0"
+                            to={`${horse.targetX - horse.x} 0`}
+                            dur={moveDuration}
+                            repeatCount="1"
+                          />
+                          <animateTransform
+                            attributeName="transform"
+                            type="rotate"
+                            from={`0 ${horse.direction > 0 ? horse.x - 7.8 : horse.x + 5.2} ${horse.y - 0.65}`}
+                            to={`${horse.direction > 0 ? "360" : "-360"} ${horse.direction > 0 ? horse.x - 7.8 : horse.x + 5.2} ${horse.y - 0.65}`}
+                            dur="2s"
+                            repeatCount="indefinite"
+                            additive="sum"
+                          />
+                        </line>
+                        <line
+                          x1={horse.direction > 0 ? horse.x - 9.1 : horse.x + 3.9}
+                          y1={horse.y - 0.65}
+                          x2={horse.direction > 0 ? horse.x - 6.5 : horse.x + 6.5}
+                          y2={horse.y - 0.65}
+                          stroke="rgba(80, 60, 40, 0.6)"
+                          strokeWidth="0.39"
+                        >
+                          <animateTransform
+                            attributeName="transform"
+                            type="translate"
+                            from="0 0"
+                            to={`${horse.targetX - horse.x} 0`}
+                            dur={moveDuration}
+                            repeatCount="1"
+                          />
+                          <animateTransform
+                            attributeName="transform"
+                            type="rotate"
+                            from={`0 ${horse.direction > 0 ? horse.x - 7.8 : horse.x + 5.2} ${horse.y - 0.65}`}
+                            to={`${horse.direction > 0 ? "360" : "-360"} ${horse.direction > 0 ? horse.x - 7.8 : horse.x + 5.2} ${horse.y - 0.65}`}
+                            dur="2s"
+                            repeatCount="indefinite"
+                            additive="sum"
+                          />
+                        </line>
+
+                        {/* Rear wheel spokes */}
+                        <line
+                          x1={horse.direction > 0 ? horse.x - 5.2 : horse.x + 7.8}
+                          y1={horse.y - 1.95}
+                          x2={horse.direction > 0 ? horse.x - 5.2 : horse.x + 7.8}
+                          y2={horse.y + 0.65}
+                          stroke="rgba(80, 60, 40, 0.6)"
+                          strokeWidth="0.39"
+                        >
+                          <animateTransform
+                            attributeName="transform"
+                            type="translate"
+                            from="0 0"
+                            to={`${horse.targetX - horse.x} 0`}
+                            dur={moveDuration}
+                            repeatCount="1"
+                          />
+                          <animateTransform
+                            attributeName="transform"
+                            type="rotate"
+                            from={`0 ${horse.direction > 0 ? horse.x - 5.2 : horse.x + 7.8} ${horse.y - 0.65}`}
+                            to={`${horse.direction > 0 ? "360" : "-360"} ${horse.direction > 0 ? horse.x - 5.2 : horse.x + 7.8} ${horse.y - 0.65}`}
+                            dur="2s"
+                            repeatCount="indefinite"
+                            additive="sum"
+                          />
+                        </line>
+                        <line
+                          x1={horse.direction > 0 ? horse.x - 6.5 : horse.x + 6.5}
+                          y1={horse.y - 0.65}
+                          x2={horse.direction > 0 ? horse.x - 3.9 : horse.x + 9.1}
+                          y2={horse.y - 0.65}
+                          stroke="rgba(80, 60, 40, 0.6)"
+                          strokeWidth="0.39"
+                        >
+                          <animateTransform
+                            attributeName="transform"
+                            type="translate"
+                            from="0 0"
+                            to={`${horse.targetX - horse.x} 0`}
+                            dur={moveDuration}
+                            repeatCount="1"
+                          />
+                          <animateTransform
+                            attributeName="transform"
+                            type="rotate"
+                            from={`0 ${horse.direction > 0 ? horse.x - 5.2 : horse.x + 7.8} ${horse.y - 0.65}`}
+                            to={`${horse.direction > 0 ? "360" : "-360"} ${horse.direction > 0 ? horse.x - 5.2 : horse.x + 7.8} ${horse.y - 0.65}`}
+                            dur="2s"
+                            repeatCount="indefinite"
+                            additive="sum"
+                          />
+                        </line>
+                      </g>
+                    </>
+                  )}
+
+                  {/* Grand Carriage (if type is 'carriage') - 2 horses in tandem */}
+                  {horse.type === 'carriage' && (
+                    <>
+                      {/* SECOND HORSE (lead horse) */}
+                      <ellipse cx={horse.direction > 0 ? horse.x + 6.5 : horse.x - 6.5} cy={horse.y - 3.9} rx="3.25" ry="1.69" fill="rgba(40, 25, 15, 0.8)"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /></ellipse>
+                      <line x1={horse.direction > 0 ? horse.x + 8.84 : horse.x - 8.84} y1={horse.y - 4.55} x2={horse.direction > 0 ? horse.x + 9.49 : horse.x - 9.49} y2={horse.y - 6.5} stroke="rgba(40, 25, 15, 0.8)" strokeWidth="0.78"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /></line>
+                      <circle cx={horse.direction > 0 ? horse.x + 9.75 : horse.x - 9.75} cy={horse.y - 7.15} r="0.91" fill="rgba(40, 25, 15, 0.8)"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /></circle>
+                      <line x1={horse.direction > 0 ? horse.x + 7.8 : horse.x - 7.8} y1={horse.y - 2.6} x2={horse.direction > 0 ? horse.x + 7.8 : horse.x - 7.8} y2={horse.y} stroke="rgba(40, 25, 15, 0.8)" strokeWidth="0.65"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /><animate attributeName="x2" values={`${(horse.direction > 0 ? horse.x + 7.8 : horse.x - 7.8) + (horse.direction * 1.04)};${(horse.direction > 0 ? horse.x + 7.8 : horse.x - 7.8) - (horse.direction * 1.04)};${(horse.direction > 0 ? horse.x + 7.8 : horse.x - 7.8) + (horse.direction * 1.04)}`} dur={gaitSpeed} repeatCount="indefinite" /></line>
+                      <line x1={horse.direction > 0 ? horse.x + 8.45 : horse.x - 8.45} y1={horse.y - 2.6} x2={horse.direction > 0 ? horse.x + 8.45 : horse.x - 8.45} y2={horse.y} stroke="rgba(40, 25, 15, 0.8)" strokeWidth="0.65"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /><animate attributeName="x2" values={`${(horse.direction > 0 ? horse.x + 8.45 : horse.x - 8.45) - (horse.direction * 1.04)};${(horse.direction > 0 ? horse.x + 8.45 : horse.x - 8.45) + (horse.direction * 1.04)};${(horse.direction > 0 ? horse.x + 8.45 : horse.x - 8.45) - (horse.direction * 1.04)}`} dur={gaitSpeed} repeatCount="indefinite" /></line>
+                      <line x1={horse.direction > 0 ? horse.x + 5.2 : horse.x - 5.2} y1={horse.y - 2.6} x2={horse.direction > 0 ? horse.x + 5.2 : horse.x - 5.2} y2={horse.y} stroke="rgba(40, 25, 15, 0.8)" strokeWidth="0.65"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /><animate attributeName="x2" values={`${(horse.direction > 0 ? horse.x + 5.2 : horse.x - 5.2) + (horse.direction * 1.04)};${(horse.direction > 0 ? horse.x + 5.2 : horse.x - 5.2) - (horse.direction * 1.04)};${(horse.direction > 0 ? horse.x + 5.2 : horse.x - 5.2) + (horse.direction * 1.04)}`} dur={gaitSpeed} repeatCount="indefinite" /></line>
+                      <line x1={horse.direction > 0 ? horse.x + 5.85 : horse.x - 5.85} y1={horse.y - 2.6} x2={horse.direction > 0 ? horse.x + 5.85 : horse.x - 5.85} y2={horse.y} stroke="rgba(40, 25, 15, 0.8)" strokeWidth="0.65"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /><animate attributeName="x2" values={`${(horse.direction > 0 ? horse.x + 5.85 : horse.x - 5.85) - (horse.direction * 1.04)};${(horse.direction > 0 ? horse.x + 5.85 : horse.x - 5.85) + (horse.direction * 1.04)};${(horse.direction > 0 ? horse.x + 5.85 : horse.x - 5.85) - (horse.direction * 1.04)}`} dur={gaitSpeed} repeatCount="indefinite" /></line>
+                      <line x1={horse.direction > 0 ? horse.x - 3.25 : horse.x + 3.25} y1={horse.y - 3.25} x2={horse.direction > 0 ? horse.x - 6.5 : horse.x + 6.5} y2={horse.y - 3.9} stroke="rgba(80, 60, 40, 0.7)" strokeWidth="0.65"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /></line>
+
+                      {/* Carriage body */}
+                      <rect x={horse.direction > 0 ? horse.x - 18.85 : horse.x + 7.15} y={horse.y - 9.1} width="11.7" height="5.85" fill="rgba(80, 50, 30, 0.9)" rx="0.78"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /></rect>
+                      <ellipse cx={horse.direction > 0 ? horse.x - 13 : horse.x + 13} cy={horse.y - 9.1} rx="5.85" ry="1.3" fill="rgba(60, 40, 25, 0.9)"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /></ellipse>
+                      <rect x={horse.direction > 0 ? horse.x - 16.9 : horse.x + 9.1} y={horse.y - 7.8} width="2.34" height="2.86" fill="rgba(40, 30, 20, 0.6)" rx="0.52"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /></rect>
+                      <rect x={horse.direction > 0 ? horse.x - 11.7 : horse.x + 14.56} y={horse.y - 7.8} width="2.34" height="2.86" fill="rgba(40, 30, 20, 0.6)" rx="0.52"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /></rect>
+                      <circle cx={horse.direction > 0 ? horse.x - 19.24 : horse.x + 19.24} cy={horse.y - 7.15} r="0.65" fill="rgba(255, 200, 100, 0.7)"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /></circle>
+
+                      {/* Carriage wheel spokes - rotating */}
+                      <g>
+                        <line x1={horse.direction > 0 ? horse.x - 15.6 : horse.x + 10.4} y1={horse.y - 3.64} x2={horse.direction > 0 ? horse.x - 15.6 : horse.x + 10.4} y2={horse.y + 1.04} stroke="rgba(60, 45, 30, 0.7)" strokeWidth="0.52"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /><animateTransform attributeName="transform" type="rotate" from={`0 ${horse.direction > 0 ? horse.x - 15.6 : horse.x + 10.4} ${horse.y - 1.3}`} to={`${horse.direction > 0 ? "360" : "-360"} ${horse.direction > 0 ? horse.x - 15.6 : horse.x + 10.4} ${horse.y - 1.3}`} dur="1.8s" repeatCount="indefinite" additive="sum" /></line>
+                        <line x1={horse.direction > 0 ? horse.x - 17.94 : horse.x + 8.06} y1={horse.y - 1.3} x2={horse.direction > 0 ? horse.x - 13.26 : horse.x + 12.74} y2={horse.y - 1.3} stroke="rgba(60, 45, 30, 0.7)" strokeWidth="0.52"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /><animateTransform attributeName="transform" type="rotate" from={`0 ${horse.direction > 0 ? horse.x - 15.6 : horse.x + 10.4} ${horse.y - 1.3}`} to={`${horse.direction > 0 ? "360" : "-360"} ${horse.direction > 0 ? horse.x - 15.6 : horse.x + 10.4} ${horse.y - 1.3}`} dur="1.8s" repeatCount="indefinite" additive="sum" /></line>
+                        <line x1={horse.direction > 0 ? horse.x - 10.4 : horse.x + 15.6} y1={horse.y - 3.64} x2={horse.direction > 0 ? horse.x - 10.4 : horse.x + 15.6} y2={horse.y + 1.04} stroke="rgba(60, 45, 30, 0.7)" strokeWidth="0.52"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /><animateTransform attributeName="transform" type="rotate" from={`0 ${horse.direction > 0 ? horse.x - 10.4 : horse.x + 15.6} ${horse.y - 1.3}`} to={`${horse.direction > 0 ? "360" : "-360"} ${horse.direction > 0 ? horse.x - 10.4 : horse.x + 15.6} ${horse.y - 1.3}`} dur="1.8s" repeatCount="indefinite" additive="sum" /></line>
+                        <line x1={horse.direction > 0 ? horse.x - 12.74 : horse.x + 13.26} y1={horse.y - 1.3} x2={horse.direction > 0 ? horse.x - 8.06 : horse.x + 17.94} y2={horse.y - 1.3} stroke="rgba(60, 45, 30, 0.7)" strokeWidth="0.52"><animateTransform attributeName="transform" type="translate" from="0 0" to={`${horse.targetX - horse.x} 0`} dur={moveDuration} repeatCount="1" /><animateTransform attributeName="transform" type="rotate" from={`0 ${horse.direction > 0 ? horse.x - 10.4 : horse.x + 15.6} ${horse.y - 1.3}`} to={`${horse.direction > 0 ? "360" : "-360"} ${horse.direction > 0 ? horse.x - 10.4 : horse.x + 15.6} ${horse.y - 1.3}`} dur="1.8s" repeatCount="indefinite" additive="sum" /></line>
+                      </g>
+                    </>
+                  )}
+                </g>
+              );
+            })}
           </svg>
         )}
 
@@ -3582,51 +4343,26 @@ const HorizonLine = ({
           className="absolute bottom-0 left-0 right-0"
           style={{
             height: '2px',
-            background: 'linear-gradient(to right, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.4) 100%)',
+            background: 'linear-gradient(to right, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.4) 100%)',
             boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
           }}
         />
 
-        {/* Atmospheric scattering - Radial gradient from horizon creating atmospheric glow */}
-        <div
-          className="absolute bottom-0 left-0 right-0"
-          style={{
-            height: '50%',
-            background: 'radial-gradient(ellipse 120% 60% at 50% 100%, rgba(255, 250, 245, 0.12) 0%, rgba(240, 235, 230, 0.08) 30%, transparent 65%)',
-            pointerEvents: 'none',
-            mixBlendMode: 'soft-light'
-          }}
-        />
-
-        {/* Base haze/fog layer - Cream-colored haze at the bottom obscuring mountain bases */}
-        {/* Extended beyond container (60% vs 35%) to prevent visible horizontal line at boundary */}
-        <div
-          className="absolute bottom-0 left-0 right-0"
-          style={{
-            height: '60%',
-            background: 'linear-gradient(to top, rgba(245, 240, 235, 0.3) 0%, rgba(245, 240, 235, 0.15) 30%, rgba(245, 240, 235, 0.05) 50%, transparent 75%)',
-            pointerEvents: 'none',
-            mixBlendMode: 'normal'
-          }}
-        />
-
-        {/* Atmospheric haze overlay - Foreground buildings layer - DISABLED at night to prevent visible horizontal line */}
+        {/* Atmospheric scattering - Radial gradient from horizon creating atmospheric glow - DISABLED at night */}
         {!isNight && (
           <div
             className="absolute bottom-0 left-0 right-0"
             style={{
-              height: '32%',
-              background: isDawn || isDusk
-                ? `linear-gradient(to top,
-                    ${isDawn ? 'rgba(255,245,235,009)' : 'rgba(255,210,190,0.10)'} 0%,
-                    ${isDawn ? 'rgba(240,230,250,0.05)' : 'rgba(250,190,170,0.06)'} 25%,
-                    transparent 60%)`
-                : `linear-gradient(to top, rgba(200,220,240,0.08) 0%, rgba(180,200,230,0.04) 35%, transparent 65%)`,
+              height: '50%',
+              background: 'radial-gradient(ellipse 120% 60% at 50% 100%, rgba(255, 250, 245, 0.12) 0%, rgba(240, 235, 230, 0.08) 30%, transparent 65%)',
               pointerEvents: 'none',
-              mixBlendMode: 'normal'
+              mixBlendMode: 'soft-light'
             }}
           />
         )}
+
+ 
+
         {/* Building hover tooltip - Rendered via portal to escape parent clipping */}
         {hoveredBuilding && NOTABLE_BUILDINGS[hoveredBuilding] && createPortal(
           <div
@@ -3662,6 +4398,7 @@ const HorizonLine = ({
       </div>
 
       {/* Volcanic smoke layer - OUTSIDE horizon container for unclipped rising smoke */}
+      {/* Z-INDEX 1 = Behind clouds (clouds are z-index 2) */}
       {!prefersReducedMotion && (
         <svg
           className="absolute bottom-0 left-0 w-full pointer-events-none"
@@ -3669,10 +4406,10 @@ const HorizonLine = ({
           preserveAspectRatio="xMidYMax meet"
           style={{
             height: '100%',
-            opacity: baseOpacity * 0.75,
+            opacity: baseOpacity * 0.5, // Reduced from 0.75 - more subtle
             pointerEvents: 'none',
             mixBlendMode: 'normal',
-            zIndex: 2
+            zIndex: 1 // BEHIND clouds (clouds are z-index 2)
           }}
         >
           <defs>
@@ -3684,73 +4421,67 @@ const HorizonLine = ({
             </radialGradient>
           </defs>
 
-          {/* Volcanic smoke plume rising from Popocatépetl */}
+          {/* Volcanic smoke plume - THIN WISPS rising from Popocatépetl */}
           <g className="volcanic-smoke">
-            {/* Crater base - steady emanation at peak (cy=48) */}
-            <ellipse cx="480" cy="48" rx="3.5" ry="6" fill="rgba(165,170,175,0.8)">
-              <animate attributeName="ry" values="6;7;6" dur="3s" repeatCount="indefinite" />
-              <animate attributeName="rx" values="3.5;4.5;3.5" dur="3s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.8;0.9;0.8" dur="3s" repeatCount="indefinite" />
+            {/* Crater base - very narrow steady emanation at peak (cy=48) */}
+            <ellipse cx="480" cy="48" rx="1.5" ry="5" fill="rgba(165,170,175,0.6)">
+              <animate attributeName="ry" values="5;6;5" dur="3s" repeatCount="indefinite" />
+              <animate attributeName="rx" values="1.5;2;1.5" dur="3s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.6;0.7;0.6" dur="3s" repeatCount="indefinite" />
             </ellipse>
 
-            {/* Lower section - emerging from crater */}
-            <ellipse cx="480" cy="46" rx="4" ry="10" fill="rgba(175,180,185,0.75)" opacity="0.9">
+            {/* Thin wisp 1 - very narrow, tall */}
+            <ellipse cx="480" cy="46" rx="1.2" ry="18" fill="rgba(175,180,185,0.4)" opacity="0.6">
               <animate attributeName="cy" values="46;14;-18;-50" dur="18s" repeatCount="indefinite" />
               <animate attributeName="cx" values={`480;${480 + windDriftX * 0.5};${480 + windDriftX * 1.5};${480 + windDriftX * 3}`} dur="18s" repeatCount="indefinite" />
-              <animate attributeName="rx" values="4;6;9;13" dur="18s" repeatCount="indefinite" />
-              <animate attributeName="ry" values="10;12;14;16" dur="18s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.9;0.75;0.5;0" dur="18s" repeatCount="indefinite" />
+              <animate attributeName="rx" values="1.2;1.8;2.5;3.5" dur="18s" repeatCount="indefinite" />
+              <animate attributeName="ry" values="18;22;26;30" dur="18s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.6;0.5;0.3;0" dur="18s" repeatCount="indefinite" />
             </ellipse>
 
-            {/* Mid section - rising trail */}
-            <ellipse cx="480" cy="44" rx="3.5" ry="12" fill="rgba(185,190,195,0.7)" opacity="0.85">
+            {/* Thin wisp 2 - slightly offset */}
+            <ellipse cx="479" cy="44" rx="1" ry="20" fill="rgba(185,190,195,0.35)" opacity="0.55">
               <animate attributeName="cy" values="44;10;-24;-58" dur="19s" begin="0.8s" repeatCount="indefinite" />
-              <animate attributeName="cx" values={`480;${480 + windDriftX * 0.6};${480 + windDriftX * 1.8};${480 + windDriftX * 3.5}`} dur="19s" begin="0.8s" repeatCount="indefinite" />
-              <animate attributeName="rx" values="3.5;6;10;14" dur="19s" begin="0.8s" repeatCount="indefinite" />
-              <animate attributeName="ry" values="12;14;16;18" dur="19s" begin="0.8s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.85;0.7;0.45;0" dur="19s" begin="0.8s" repeatCount="indefinite" />
+              <animate attributeName="cx" values={`479;${479 + windDriftX * 0.6};${479 + windDriftX * 1.8};${479 + windDriftX * 3.5}`} dur="19s" begin="0.8s" repeatCount="indefinite" />
+              <animate attributeName="rx" values="1;1.6;2.3;3.2" dur="19s" begin="0.8s" repeatCount="indefinite" />
+              <animate attributeName="ry" values="20;24;28;32" dur="19s" begin="0.8s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.55;0.45;0.25;0" dur="19s" begin="0.8s" repeatCount="indefinite" />
             </ellipse>
 
-            {/* Upper section - dispersing high */}
-            <ellipse cx="480" cy="42" rx="3" ry="14" fill="rgba(195,200,205,0.65)" opacity="0.8">
+            {/* Thin wisp 3 - very delicate */}
+            <ellipse cx="481" cy="42" rx="0.8" ry="22" fill="rgba(195,200,205,0.3)" opacity="0.5">
               <animate attributeName="cy" values="42;5;-30;-65" dur="20s" begin="1.6s" repeatCount="indefinite" />
-              <animate attributeName="cx" values={`480;${480 + windDriftX * 0.7};${480 + windDriftX * 2.2};${480 + windDriftX * 4}`} dur="20s" begin="1.6s" repeatCount="indefinite" />
-              <animate attributeName="rx" values="3;7;12;16" dur="20s" begin="1.6s" repeatCount="indefinite" />
-              <animate attributeName="ry" values="14;16;18;20" dur="20s" begin="1.6s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.8;0.65;0.4;0" dur="20s" begin="1.6s" repeatCount="indefinite" />
+              <animate attributeName="cx" values={`481;${481 + windDriftX * 0.7};${481 + windDriftX * 2.2};${481 + windDriftX * 4}`} dur="20s" begin="1.6s" repeatCount="indefinite" />
+              <animate attributeName="rx" values="0.8;1.4;2;2.8" dur="20s" begin="1.6s" repeatCount="indefinite" />
+              <animate attributeName="ry" values="22;26;30;34" dur="20s" begin="1.6s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.5;0.4;0.2;0" dur="20s" begin="1.6s" repeatCount="indefinite" />
             </ellipse>
 
-            {/* Wispy top - reaches into upper atmosphere */}
-            <ellipse cx="480" cy="40" rx="2.5" ry="16" fill="rgba(205,210,215,0.6)" opacity="0.75">
+            {/* Thin wisp 4 - reaching high */}
+            <ellipse cx="480" cy="40" rx="0.6" ry="25" fill="rgba(205,210,215,0.25)" opacity="0.45">
               <animate attributeName="cy" values="40;0;-40;-80" dur="21s" begin="2.4s" repeatCount="indefinite" />
               <animate attributeName="cx" values={`480;${480 + windDriftX * 0.8};${480 + windDriftX * 2.6};${480 + windDriftX * 4.5}`} dur="21s" begin="2.4s" repeatCount="indefinite" />
-              <animate attributeName="rx" values="2.5;7;13;18" dur="21s" begin="2.4s" repeatCount="indefinite" />
-              <animate attributeName="ry" values="16;18;20;22" dur="21s" begin="2.4s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.75;0.6;0.35;0" dur="21s" begin="2.4s" repeatCount="indefinite" />
+              <animate attributeName="rx" values="0.6;1.2;1.8;2.5" dur="21s" begin="2.4s" repeatCount="indefinite" />
+              <animate attributeName="ry" values="25;30;35;40" dur="21s" begin="2.4s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.45;0.35;0.15;0" dur="21s" begin="2.4s" repeatCount="indefinite" />
             </ellipse>
 
-            {/* Steam puffs - larger billowing effect */}
-            <ellipse cx={480 + windDriftX * 0.3} cy="49" rx="10" ry="8" fill={`url(#volcanic-smoke-${instanceId})`}>
-              <animate attributeName="cy" values="49;17;-17;-51" dur="8s" repeatCount="indefinite" />
-              <animate attributeName="rx" values="10;13;17;22" dur="8s" repeatCount="indefinite" />
-              <animate attributeName="ry" values="8;10;13;16" dur="8s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.85;0.65;0.4;0" dur="8s" repeatCount="indefinite" />
+            {/* Very thin wisp 5 - barely visible */}
+            <ellipse cx="479.5" cy="48" rx="0.5" ry="15" fill="rgba(205,210,215,0.2)" opacity="0.4">
+              <animate attributeName="cy" values="48;18;-15;-48" dur="17s" begin="3.2s" repeatCount="indefinite" />
+              <animate attributeName="cx" values={`479.5;${479.5 + windDriftX * 0.4};${479.5 + windDriftX * 1.2};${479.5 + windDriftX * 2.5}`} dur="17s" begin="3.2s" repeatCount="indefinite" />
+              <animate attributeName="rx" values="0.5;1;1.5;2" dur="17s" begin="3.2s" repeatCount="indefinite" />
+              <animate attributeName="ry" values="15;20;25;30" dur="17s" begin="3.2s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.4;0.3;0.15;0" dur="17s" begin="3.2s" repeatCount="indefinite" />
             </ellipse>
 
-            <ellipse cx={480 + windDriftX * 0.4} cy="46" rx="11" ry="9" fill={`url(#volcanic-smoke-${instanceId})`}>
-              <animate attributeName="cy" values="46;12;-22;-56" dur="9s" repeatCount="indefinite" />
-              <animate attributeName="cx" values={`${480 + windDriftX * 0.4};${480 + windDriftX * 0.7};${480 + windDriftX * 1.1};${480 + windDriftX * 1.5}`} dur="9s" repeatCount="indefinite" />
-              <animate attributeName="rx" values="11;15;20;25" dur="9s" repeatCount="indefinite" />
-              <animate attributeName="ry" values="9;11;15;18" dur="9s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.8;0.6;0.35;0" dur="9s" repeatCount="indefinite" />
-            </ellipse>
-
-            <ellipse cx={480 + windDriftX * 0.5} cy="44" rx="9" ry="8" fill={`url(#volcanic-smoke-${instanceId})`}>
-              <animate attributeName="cy" values="44;8;-28;-64" dur="10s" repeatCount="indefinite" />
-              <animate attributeName="cx" values={`${480 + windDriftX * 0.5};${480 + windDriftX * 0.9};${480 + windDriftX * 1.4};${480 + windDriftX * 2}`} dur="10s" repeatCount="indefinite" />
-              <animate attributeName="rx" values="9;14;19;24" dur="10s" repeatCount="indefinite" />
-              <animate attributeName="ry" values="8;12;16;20" dur="10s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.75;0.55;0.3;0" dur="10s" repeatCount="indefinite" />
+            {/* Very thin wisp 6 - alternate side */}
+            <ellipse cx="480.5" cy="47" rx="0.5" ry="16" fill="rgba(195,200,205,0.2)" opacity="0.4">
+              <animate attributeName="cy" values="47;15;-20;-55" dur="18.5s" begin="4s" repeatCount="indefinite" />
+              <animate attributeName="cx" values={`480.5;${480.5 + windDriftX * 0.45};${480.5 + windDriftX * 1.4};${480.5 + windDriftX * 2.8}`} dur="18.5s" begin="4s" repeatCount="indefinite" />
+              <animate attributeName="rx" values="0.5;1.1;1.6;2.2" dur="18.5s" begin="4s" repeatCount="indefinite" />
+              <animate attributeName="ry" values="16;21;26;31" dur="18.5s" begin="4s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.4;0.3;0.15;0" dur="18.5s" begin="4s" repeatCount="indefinite" />
             </ellipse>
           </g>
         </svg>
@@ -3911,5 +4642,27 @@ const HorizonLine = ({
 
   return null;
 };
+
+/**
+ * Calculate zoom targetX from building ID for background zoom effects
+ * @param {string} buildingId - Key from NOTABLE_BUILDINGS
+ * @returns {number} targetX percentage (0-100)
+ */
+export function getZoomTargetForBuilding(buildingId) {
+  const building = NOTABLE_BUILDINGS[buildingId];
+  if (!building) {
+    console.warn(`[HorizonLine] Building not found: ${buildingId}`);
+    return 50; // Default center
+  }
+
+  const centerX = building.bounds.x + (building.bounds.width / 2);
+  const targetX = (centerX / 1200) * 100;
+
+  console.log(`[HorizonLine] Zoom target for ${buildingId}:`, { centerX, targetX });
+  return targetX;
+}
+
+// Export building constants for external use
+export { NOTABLE_BUILDINGS };
 
 export default HorizonLine;

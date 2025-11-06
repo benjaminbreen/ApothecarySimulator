@@ -9,6 +9,8 @@
  * - Treatment outcomes
  */
 
+import { resolvePortrait } from '../services/portraitResolver';
+
 export class MedicalRecordsManager {
   /**
    * Add or update a patient session in medical records
@@ -33,12 +35,24 @@ export class MedicalRecordsManager {
 
     // Initialize patient record if doesn't exist
     if (!updatedRecords[patientId]) {
+      // BUG FIX #3: Resolve portrait before storing in medical records
+      // This ensures PatientRosterModal can display portraits correctly
+      let resolvedPortrait = null;
+      if (patient.portrait) {
+        // Portrait is already resolved
+        resolvedPortrait = patient.portrait;
+      } else if (patient.primaryNPC && typeof patient.primaryNPC === 'object') {
+        // Portrait needs resolution from primaryNPC object
+        resolvedPortrait = resolvePortrait(patient.primaryNPC);
+        console.log(`[MedicalRecords] Resolved portrait for ${patient.name}: ${resolvedPortrait}`);
+      }
+
       updatedRecords[patientId] = {
         patientId,
         patientName: patient.name,
         age: patient.age || patient.appearance?.age || 'Unknown',
         occupation: patient.occupation || patient.social?.occupation || 'Unknown',
-        portrait: patient.portrait || null,
+        portrait: resolvedPortrait,
         firstSeen: sessionData.date,
         lastSeen: sessionData.date,
         sessions: []
@@ -46,6 +60,16 @@ export class MedicalRecordsManager {
     } else {
       // Update last seen date
       updatedRecords[patientId].lastSeen = sessionData.date;
+
+      // BUG FIX #7: Also resolve portrait on subsequent visits if it's still missing
+      if (!updatedRecords[patientId].portrait && patient.primaryNPC && typeof patient.primaryNPC === 'object') {
+        const resolvedPortrait = resolvePortrait(patient.primaryNPC);
+        updatedRecords[patientId].portrait = resolvedPortrait;
+        console.log(`[MedicalRecords] Resolved missing portrait for returning patient ${patient.name}: ${resolvedPortrait}`);
+      } else if (!updatedRecords[patientId].portrait && patient.portrait) {
+        updatedRecords[patientId].portrait = patient.portrait;
+        console.log(`[MedicalRecords] Updated missing portrait for returning patient ${patient.name}: ${patient.portrait}`);
+      }
     }
 
     // Add new session
@@ -145,6 +169,10 @@ export class MedicalRecordsManager {
    */
   static getActivePatients(medicalRecords) {
     return Object.values(medicalRecords || {}).filter(record => {
+      // BUG FIX #10: Check if sessions array exists before accessing
+      if (!record.sessions || !Array.isArray(record.sessions) || record.sessions.length === 0) {
+        return false;
+      }
       const latestSession = record.sessions[record.sessions.length - 1];
       return latestSession && latestSession.outcome === 'In progress';
     });
@@ -176,7 +204,8 @@ export class MedicalRecordsManager {
    */
   static getTotalSessionsCount(medicalRecords) {
     return Object.values(medicalRecords || {}).reduce((total, record) => {
-      return total + record.sessions.length;
+      // BUG FIX #11: Check if sessions array exists before accessing length
+      return total + (record.sessions?.length || 0);
     }, 0);
   }
 }

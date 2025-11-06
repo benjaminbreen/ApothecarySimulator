@@ -244,15 +244,18 @@ const WeatherBackground = ({
 
     const progress = travelZoom.progress / 100; // 0 to 1
 
-    // Zoom: 1.0 → 2.0 (double size at end)
-    const scale = 1.0 + (progress * 1.0);
+    // Zoom: 1.0 → 1.6 (less aggressive zoom to keep street visible)
+    const scale = 1.0 + (progress * 0.6);
 
-    // Pan UP to focus on houses (bottom of horizon)
-    // Negative translateY moves content UP, revealing bottom section where houses are
-    const translateY = progress * -50; // 0% → -50% (pan up to show houses at Y: 270-300)
+    // Pan UP to focus on buildings (not street level)
+    // Negative translateY moves content UP, revealing building layer
+    const translateY = progress * -25; // 0% → -25% (gentle pan to building level, not street)
 
     // Pan to specific building location
-    const translateX = (travelZoom.targetX - 50) * progress * 0.5; // Subtle horizontal pan
+    // To center a building: if it's LEFT of center (targetX < 50), translate RIGHT (positive)
+    // if it's RIGHT of center (targetX > 50), translate LEFT (negative)
+    // Reduced multiplier to prevent showing edges beyond the horizon SVG
+    const translateX = (50 - travelZoom.targetX) * progress * 0.25; // Gentle horizontal pan
 
     return {
       transform: `scale(${scale}) translateY(${translateY}%) translateX(${translateX}%)`,

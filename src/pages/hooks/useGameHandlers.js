@@ -47,8 +47,7 @@ import { isDocumentItem, getDocumentType, extractDocumentMetadata, shouldAutoOpe
 import { getHouseCallData } from '../../features/medical/services/houseSelector';
 import { getTransactionManager, TRANSACTION_CATEGORIES } from '../../core/systems/transactionManager';
 import { MedicalRecordsManager } from '../../core/systems/medicalRecordsManager';
-import { interpolatePrompt } from '../../core/config/listTypes.config';
-import { formatNPCsAsTable } from '../../core/services/locationContextService';
+import { interpolatePrompt, getListTypeById } from '../../core/config/listTypes.config';
 import { checkAndTriggerConsequences } from '../../systems/consequenceSystem';
 
 // PHASE 2.1: Specialized navigation handlers hook
@@ -70,6 +69,23 @@ import { useUIHandlers } from './useUIHandlers';
 import { useItemHandlers } from './useItemHandlers';
 
 const DOOR_COMMAND_REGEX = /^(?:\s*(?:go|walk|move|step|head)\s+(?:to|toward|towards)\s+(?:the\s+)?door\s*|see\s+who\s+is\s+there\s*|answer\s+the\s+door\s*|open\s+the\s+door\s*)$/i;
+
+function parseDateTimeToMillis(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return null;
+  const combined = `${dateStr} ${timeStr}`;
+  let value = Date.parse(combined);
+  if (Number.isNaN(value)) {
+    value = Date.parse(`${combined} GMT`);
+  }
+  return Number.isNaN(value) ? null : value;
+}
+
+function computeMinutesBetween(prevDate, prevTime, nextDate, nextTime) {
+  const start = parseDateTimeToMillis(prevDate, prevTime);
+  const end = parseDateTimeToMillis(nextDate, nextTime);
+  if (start === null || end === null) return 0;
+  return Math.abs(Math.round((end - start) / 60000));
+}
 
 const sanitizePortraitFilename = (filename) => {
   if (!filename) return null;
@@ -183,6 +199,7 @@ export function useGameHandlers({
   health,
   currentWealth,
   consecutiveLowEnergyTurns,
+  activeEffects, // Body effects from PlayerContext
   toast,
   turnNumber,
   gameState,
@@ -224,6 +241,7 @@ export function useGameHandlers({
   removeTradeOpportunity, // Trade system
   addTradeTransaction, // Trade system
   cleanupExpiredOpportunities, // Trade system
+  removeScheduledFollowUp, // Follow-up system - remove follow-up after patient appears
 
   // Document library system
   addDocument,
@@ -261,6 +279,12 @@ export function useGameHandlers({
 
   // PHASE 2: Track recent portrait filename for consistency across turns
   const recentPortraitRef = useRef(null);
+
+  const previousContextRef = useRef({
+    location: gameState.location,
+    time: gameState.time,
+    date: gameState.date
+  });
 
   // Track if NPC departed last turn (for continuation detection)
   const npcDepartedLastTurnRef = useRef(false);
@@ -490,6 +514,7 @@ export function useGameHandlers({
     currentWealth,
     npcPositions,
     playerSkills,
+    activeEffects, // Body effects from PlayerContext
     journal,
     scenarioId,
     // Phase 3B: House call arrival
@@ -626,13 +651,11 @@ export function useGameHandlers({
   // LIST REQUEST HANDLER
   // Handles generation of reference lists (people, sensory details, objects, ingredients)
   const handleListRequest = useCallback(async (listType) => {
-    console.log('🔵 [handleListRequest] CALLED with listType:', listType);
-    console.log('🔵 [handleListRequest] gameState available?', !!gameState);
-    console.log('🔵 [handleListRequest] gameState.location:', gameState?.location);
+    console.log('[handleListRequest] Called with listType:', listType.id);
 
     // Safety check
     if (!gameState) {
-      console.error('🔴 [handleListRequest] gameState is undefined!');
+      console.error('[handleListRequest] gameState is undefined');
       return;
     }
 
@@ -645,49 +668,49 @@ export function useGameHandlers({
     setIsLoading(true);
 
     try {
-      // FAST PATH: Use cached location NPCs for "people" list type
-      if (listType.id === 'people' && gameState.currentLocationNPCs) {
-        console.log('[handleListRequest] Using cached location NPCs for "people" list');
-
-        const userPrompt = `List all ${listType.label.toLowerCase()}.`;
-        const tableMarkdown = formatNPCsAsTable(gameState.currentLocationNPCs);
-
-        // Add the special list marker that triggers table rendering
-        const markdown = `[LIST_RESPONSE:people]\n${tableMarkdown}`;
-
-        // Add to conversation history
-        addToHistory({ role: 'user', content: userPrompt });
-        addToHistory({ role: 'assistant', content: markdown });
-
-        // Display the table
-        setHistoryOutput(markdown);
-
-        // Clear user input
-        setUserInput('');
-
-        setIsLoading(false);
-        return;
-      }
-
-      // SLOW PATH: LLM-generated list for other types or dynamic locations
-      console.log('[handleListRequest] Using LLM for list generation (no cached NPCs)');
+      // Always use LLM to generate list - it can read conversation history and figure out who's present
+      console.log('[handleListRequest] Using LLM for list generation');
 
       // Build the user prompt - simple request for the list
       const userPrompt = `List all ${listType.label.toLowerCase()}.`;
 
-      // Get interpolated system prompt with game state
-      const systemPromptAddition = interpolatePrompt(listType, gameState);
+      // Build merchant context for "people" list
+      let merchantContext = '';
+      if (listType.id === 'people' && gameState.location) {
+        // Import entityManager
+        const { entityManager } = await import('../../core/entities/EntityManager');
 
-      console.log('🔵 [handleListRequest] Calling orchestrator with list request');
-      console.log('🔵 [handleListRequest] User prompt:', userPrompt);
-      console.log('🔵 [handleListRequest] System prompt length:', systemPromptAddition.length);
+        // Get NPCs at current location who are merchants
+        const locationMerchants = entityManager.getAll()
+          .filter(e =>
+            e.entityType === 'npc' &&
+            e.merchantShop === true &&
+            e.location === gameState.location
+          );
+
+        if (locationMerchants.length > 0) {
+          merchantContext = '**MERCHANTS AT THIS LOCATION:**\n' +
+            locationMerchants.map(m =>
+              `- ${m.name} operates "${m.shopName}" (${m.merchantType}) - ADD 🛒 AFTER THIS NAME`
+            ).join('\n');
+          console.log('[handleListRequest] Found merchants at location:', locationMerchants.map(m => m.name));
+        } else {
+          merchantContext = '**MERCHANTS AT THIS LOCATION:** None';
+        }
+      }
+
+      // Get interpolated system prompt with game state and merchant context
+      const systemPromptAddition = interpolatePrompt(listType, gameState, { merchantContext });
 
       // Call orchestrator with special flag for list requests
       const result = await orchestrateTurn({
         scenarioId: gameState.scenarioId || scenarioId || '1680-mexico-city',
         playerAction: userPrompt,
         conversationHistory,
-        gameState,
+        gameState: {
+          ...gameState,
+          activeEffects: activeEffects // Include body effects for narrative context
+        },
         turnNumber,
         recentNPCs: npcTracker.getRecentNPCs(),
         reputation: reputation,
@@ -703,10 +726,10 @@ export function useGameHandlers({
         npcDepartedLastTurn: npcDepartedLastTurnRef.current,
         conversationLock: conversationLockRef.current,
         weather: currentWeather, // PHASE 1: Weather state for narrative integration
+        scheduledFollowUps: gameState.scheduledFollowUps || [], // NEW: Pass scheduled follow-ups
+        removeScheduledFollowUp, // NEW: Callback to remove follow-up after patient appears
         options: { isListRequest: true, listType: listType.id, listSystemPrompt: systemPromptAddition }
       });
-
-      console.log('[handleListRequest] Received result:', result);
 
       // Add the list response to conversation history
       addToHistory({ role: 'user', content: userPrompt });
@@ -717,12 +740,6 @@ export function useGameHandlers({
 
       // Clear user input
       setUserInput('');
-
-      // Parse for dynamic chips (though lists typically won't have choices)
-      const parsedChips = parseNarrativeChoices(result.narrative);
-      if (parsedChips) {
-        setDynamicChips(parsedChips);
-      }
 
     } catch (error) {
       console.error('[handleListRequest] Error generating list:', error);
@@ -739,7 +756,8 @@ export function useGameHandlers({
       } else if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
         errorMessage = `*API rate limit reached. Please wait a moment before trying again.*`;
       } else {
-        errorMessage = `*Unable to generate ${listType.label.toLowerCase()} at this time. ${error.message || 'Please try again.'}*`;
+        // Don't expose technical error details to player
+        errorMessage = `*Unable to generate ${listType.label.toLowerCase()} at this time. Please try again.*`;
       }
 
       addToHistory({ role: 'assistant', content: errorMessage });
@@ -764,6 +782,9 @@ export function useGameHandlers({
     playerSkills,
     journal,
     activePatient,
+    activeEffects,
+    currentWeather,
+    removeScheduledFollowUp,
     recentPortraitRef,
     npcDepartedLastTurnRef,
     conversationLockRef,
@@ -1332,7 +1353,8 @@ export function useGameHandlers({
         gameState: {
           ...gameState,
           position: playerPosition,
-          currentMap: currentMapId
+          currentMap: currentMapId,
+          activeEffects: activeEffects // Include body effects for narrative context
         },
         turnNumber,
         recentNPCs: npcTracker.getRecentNPCs(),
@@ -1349,7 +1371,9 @@ export function useGameHandlers({
         npcDepartedLastTurn: npcDepartedLastTurnRef.current, // Pass departure status from last turn
         conversationLock: conversationLockRef.current,
         weather: currentWeather, // PHASE 1: Weather state for narrative integration
-        signJustHung: options.signJustHung || false // TRIGGER: Force patient spawn when sign just hung
+        signJustHung: options.signJustHung || false, // TRIGGER: Force patient spawn when sign just hung
+        scheduledFollowUps: gameState.scheduledFollowUps || [], // NEW: Pass scheduled follow-ups
+        removeScheduledFollowUp // NEW: Callback to remove follow-up after patient appears
       });
 
       if (!result.success) {
@@ -1357,6 +1381,37 @@ export function useGameHandlers({
         setIsLoading(false);
         return;
       }
+
+      const companions = Array.isArray(result.companions) ? result.companions : [];
+      const nextLocation = result.gameState?.location || gameState.location;
+      const nextTime = result.gameState?.time || gameState.time;
+      const nextDate = result.gameState?.date || gameState.date;
+
+      const previousContext = previousContextRef.current || {};
+      const locationChanged = Boolean(previousContext.location && nextLocation && previousContext.location !== nextLocation);
+      const timeJumpMinutes = computeMinutesBetween(previousContext.date, previousContext.time, nextDate, nextTime);
+      const majorContextShift = locationChanged || timeJumpMinutes >= 30;
+
+      if (majorContextShift) {
+        const companionNames = companions.map(companion => companion?.name).filter(Boolean);
+        const lockedName = conversationLockRef.current?.name || null;
+        const keepLock = lockedName && companionNames.includes(lockedName);
+
+        if (!keepLock) {
+          clearConversationLock();
+          npcTracker.clear();
+          npcDepartedLastTurnRef.current = false;
+          setPrimaryPortraitFile(null);
+          recentPortraitRef.current = null;
+          previousPortraitEntityRef.current = null;
+        }
+      }
+
+      companions.forEach(companion => {
+        if (companion?.name && !npcTracker.wasRecentlySeen(companion.name)) {
+          npcTracker.addNPC(companion.name);
+        }
+      });
 
       // NEW: Handle LLM-provided primary NPC profile (Phase 1)
       if (result.primaryNPC) {
@@ -1878,10 +1933,28 @@ export function useGameHandlers({
               mapId: locationMatch.mapId,
               position: { x: spawnX, y: spawnY, gridX, gridY }
             });
+
+            // Auto-trigger "people present" list after location change
+            setTimeout(() => {
+              const peopleListType = getListTypeById('people');
+              if (peopleListType) {
+                console.log('[Location Change] Auto-triggering people list');
+                handleListRequest(peopleListType);
+              }
+            }, 800); // Small delay to let location update propagate
           } else {
             // No match - just update text, keep current position
             console.log('[Location Change] No registry match, updating text only');
             updateLocation(result.gameState.location);
+
+            // Auto-trigger "people present" list after location change
+            setTimeout(() => {
+              const peopleListType = getListTypeById('people');
+              if (peopleListType) {
+                console.log('[Location Change] Auto-triggering people list');
+                handleListRequest(peopleListType);
+              }
+            }, 800); // Small delay to let location update propagate
           }
         } else if (result.gameState.location) {
           // Location same as before, no change needed
@@ -2778,6 +2851,12 @@ export function useGameHandlers({
         console.log('[Time] Default narrative turn: +5 minutes');
       }
 
+      previousContextRef.current = {
+        location: nextLocation,
+        time: nextTime,
+        date: nextDate
+      };
+
       resourceHandlers.applyResourceChanges(actionType);
 
     } catch (error) {
@@ -3097,6 +3176,136 @@ export function useGameHandlers({
 
   }, [setShowPOIModal, setSelectedPOIEntity, toast]);
 
+  /**
+   * Handle time change from interactive clock
+   * Triggers narration agent as if user entered "wait until [time]"
+   */
+  const handleTimeChange = useCallback(async (newTime) => {
+    console.log('[TimeChange] Changing time from', gameState.time, 'to', newTime);
+
+    try {
+      setIsLoading(true);
+
+      // Calculate time difference
+      const parseTime = (timeStr) => {
+        const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!match) return { hours: 0, minutes: 0 };
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const period = match[3].toUpperCase();
+        if (period === 'PM' && hours !== 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        return { hours, minutes };
+      };
+
+      const currentParsed = parseTime(gameState.time);
+      const newParsed = parseTime(newTime);
+
+      const currentTotalMinutes = currentParsed.hours * 60 + currentParsed.minutes;
+      const newTotalMinutes = newParsed.hours * 60 + newParsed.minutes;
+      let minutesDiff = newTotalMinutes - currentTotalMinutes;
+
+      // Handle day wraparound
+      if (minutesDiff < 0) {
+        minutesDiff += 24 * 60; // Add a full day
+      }
+
+      // Update game time first
+      advanceTime({ time: newTime, date: gameState.date });
+
+      // Create wait message for LLM
+      const hoursWaited = Math.floor(minutesDiff / 60);
+      const minutesWaited = minutesDiff % 60;
+      let waitDescription = '';
+
+      if (hoursWaited > 0 && minutesWaited > 0) {
+        waitDescription = `${hoursWaited} ${hoursWaited === 1 ? 'hour' : 'hours'} and ${minutesWaited} ${minutesWaited === 1 ? 'minute' : 'minutes'}`;
+      } else if (hoursWaited > 0) {
+        waitDescription = `${hoursWaited} ${hoursWaited === 1 ? 'hour' : 'hours'}`;
+      } else {
+        waitDescription = `${minutesWaited} ${minutesWaited === 1 ? 'minute' : 'minutes'}`;
+      }
+
+      const waitMessage = `Maria waits ${waitDescription} until ${newTime} on ${gameState.date} in ${gameState.location}. Please briefly describe what happens during this time - what Maria does, any sounds or sights, her thoughts. Then present a numbered list of 3 possible next steps. End with: "**Time passes. Maria waits until ${newTime}. Time: ${newTime}, ${gameState.date}, 1680.**"`;
+
+      // Build system prompt
+      const systemPrompt = buildSystemPrompt(scenarioId, gameState);
+
+      // Create messages array from conversation history
+      const recentHistory = conversationHistory.slice(-10); // Last 10 turns for context
+      const messages = [
+        ...recentHistory,
+        { role: 'user', content: waitMessage }
+      ];
+
+      // Call LLM
+      const response = await createChatCompletion(systemPrompt, messages, { temperature: 0.7 });
+      const narrativeOutput = response.choices[0].message.content;
+
+      // Add to conversation history
+      addToHistory(
+        { role: 'user', content: `[Maria waits until ${newTime}]` },
+        { role: 'assistant', content: narrativeOutput }
+      );
+
+      // Update history output
+      setHistoryOutput(narrativeOutput);
+
+      // Add journal entry
+      addJournalEntry(`⏰ Maria waited until ${newTime} on ${gameState.date} in ${gameState.location}.`);
+
+      // Advance turn number
+      setTurnNumber(prev => prev + 1);
+
+      // Apply resource changes (waiting costs some energy)
+      if (minutesDiff >= 60) {
+        // Waiting more than an hour costs 5 energy
+        const energyCost = Math.min(Math.floor(minutesDiff / 60) * 5, 30); // Max 30 energy cost
+        const newEnergy = Math.max(0, gameState.energy - energyCost);
+        setEnergy(newEnergy);
+        console.log(`[TimeChange] Energy cost for waiting: -${energyCost}`);
+      }
+
+      // Award XP for time management (+1 XP)
+      if (typeof awardXP === 'function') {
+        awardXP(1, 'time-management');
+        console.log('[XP] Awarded 1 XP for time management');
+      }
+
+      // Success toast
+      if (toast) {
+        toast.success(`Time advanced to ${newTime}`, { duration: 3000 });
+      }
+
+    } catch (error) {
+      console.error('[TimeChange] Error:', error);
+
+      // Show error message
+      const errorMessage = '*An error occurred while advancing time. Please try again.*';
+      addToHistory({ role: 'assistant', content: errorMessage });
+      setHistoryOutput(errorMessage);
+
+      if (toast) {
+        toast.error('Failed to change time', { duration: 3000 });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    gameState,
+    conversationHistory,
+    scenarioId,
+    advanceTime,
+    addToHistory,
+    setHistoryOutput,
+    addJournalEntry,
+    setTurnNumber,
+    setEnergy,
+    awardXP,
+    toast,
+    setIsLoading
+  ]);
+
   // ============================================================================
   // SECTION 6: RETURN STATEMENT
   // Export all handlers (orchestrator + 6 specialized hooks)
@@ -3113,6 +3322,7 @@ export function useGameHandlers({
     handleEntityClick,
     handleRandomEventChoice,
     handleFurnitureClick,
+    handleTimeChange, // Interactive clock time change handler
     // PHASE 2.1: Navigation handlers from useNavigationHandlers
     ...navigationHandlers,
     // PHASE 2.2: Medical handlers from useMedicalHandlers

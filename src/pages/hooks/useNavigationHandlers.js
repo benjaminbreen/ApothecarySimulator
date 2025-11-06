@@ -13,6 +13,9 @@ import { determinePatientPosition, getPlacementNarrative } from '../../features/
 import { getLocationNPCs } from '../../core/services/locationContextService'; // Location NPC system
 import { resolvePortrait } from '../../core/services/portraitResolver'; // Phase 2: Portrait resolution
 import { entityManager } from '../../core/entities/EntityManager'; // For enriching patient entities
+import { getZoomTargetForBuilding } from '../../components/HorizonLine'; // Zoom target calculation
+import { animateBackgroundZoom, animateBackgroundZoomOut, maintainZoom } from '../../utils/zoomAnimation'; // Zoom animation utilities
+import { getLocationName } from '../../features/map/services/reverseGeocoder'; // Phase 1-2: Reverse geocoding for location names
 
 const BOTICA_MAIN_DOOR = { x: 400, y: 700 };
 const WALK_STEP_DELAY_MS = 70;
@@ -57,6 +60,7 @@ const WALK_STEP_DELAY_MS = 70;
  * @param {Function} params.updateReputation - Update reputation function (Phase 3D)
  * @param {Function} params.setTravelAnimationState - Set travel animation state for map overlay
  * @param {Function} params.setBackgroundMode - Set background mode for immersive UI
+ * @param {Function} params.setTravelZoomState - Set travel zoom state for background zoom effects
  *
  * @returns {Object} Navigation handlers
  */
@@ -86,6 +90,7 @@ export function useNavigationHandlers({
   currentWealth,
   npcPositions,
   playerSkills,
+  activeEffects, // Body effects from PlayerContext
   journal,
   scenarioId,
   // Phase 3B: House call arrival
@@ -101,6 +106,7 @@ export function useNavigationHandlers({
   setTravelAnimationState,
   openLongDistanceTravelCard,
   setBackgroundMode, // Immersive background mode
+  setTravelZoomState, // Background zoom effects
 }) {
   // Context hooks
   const { updateLocation, advanceTime, updateInventory, setGameState, setEnergy } = useGameState();
@@ -166,11 +172,17 @@ export function useNavigationHandlers({
       if (distanceToExit <= exitZoneRadius) {
         console.log('[Exit] Player near main entrance, moving south - showing exit confirmation');
 
+        // Get specific location name from reverse geocoder
+        const exitPosition = { x: 1350, y: 930, gridX: 67, gridY: 46 };
+        const exitLocationName = getLocationName(exitPosition.x, exitPosition.y);
+
+        console.log('[Exit] Reverse geocoder result:', exitLocationName);
+
         const exitData = {
-          location: 'Mexico City',
+          location: exitLocationName, // Use reverse geocoder instead of hardcoded "Mexico City"
           mapId: 'mexico-city-center',
-          position: { x: 1350, y: 930, gridX: 67, gridY: 46 },
-          exitMessage: "You step outside into the bustling streets of Mexico City.",
+          position: exitPosition,
+          exitMessage: `You step outside onto ${exitLocationName}.`,
           locationName: "Botica de la Amargura",
           gameTime: gameState.time
         };
@@ -335,7 +347,8 @@ export function useNavigationHandlers({
           position: newPosition, // Use new position
           currentMap: currentMapId,
           time: newTime, // Use incremented time
-          date: newDate
+          date: newDate,
+          activeEffects: activeEffects // Include body effects for narrative context
         },
         turnNumber,
         recentNPCs: npcTracker.getRecentNPCs(),
@@ -621,11 +634,17 @@ export function useNavigationHandlers({
 
     // Create exit data
     const buildingName = building ? (building.name || 'the building') : 'the building';
+
+    // Get specific location name from reverse geocoder
+    const exitLocationName = getLocationName(exitPosition.x, exitPosition.y);
+
+    console.log('[Exit] Building click - Reverse geocoder result:', exitLocationName);
+
     const exitData = {
-      location: 'Mexico City',
+      location: exitLocationName, // Use reverse geocoder instead of hardcoded "Mexico City"
       mapId: 'mexico-city-center',
       position: exitPosition,
-      exitMessage: "You step outside into the bustling streets of Mexico City.",
+      exitMessage: `You step outside onto ${exitLocationName}.`,
       locationName: buildingName,
       gameTime: gameState.time
     };
@@ -655,7 +674,7 @@ export function useNavigationHandlers({
 
   /**
    * Handle fast travel command (#fast_travel Location Name)
-   * Quick travel to key locations without narrative processing
+   * Quick travel to key locations with zoom effects
    */
   const handleFastTravel = useCallback((locationName) => {
     console.log('[HandleFastTravel] Fast travel to:', locationName);
@@ -674,11 +693,28 @@ export function useNavigationHandlers({
       'El Consulado de Mercaderes': 'consulado-interior'
     };
 
+    // Map location names to building IDs for zoom
+    const locationZoomMap = {
+      'Botica de la Amargura': 'botica',
+      'Metropolitan Cathedral': 'cathedral',
+      'La Merced Market': 'lamerced',
+      'El Consulado de Mercaderes': 'consulado',
+      // Other locations don't have visible buildings on horizon yet
+    };
+
     const mapId = locationMap[locationName];
     console.log('[HandleFastTravel] Location mapping:', { locationName, mapId, availableLocations: Object.keys(locationMap) });
 
-    if (mapId) {
-      console.log('[HandleFastTravel] Traveling to:', locationName, 'mapId:', mapId);
+    if (!mapId) {
+      console.error('[HandleFastTravel] Location not found in map:', locationName);
+      setUserInput('');
+      setIsLoading(false);
+      return;
+    }
+
+    // Complete travel logic (updates state, NPCs, journal, etc.)
+    const completeTravel = () => {
+      console.log('[HandleFastTravel] Completing travel to:', locationName);
 
       // Generate location NPCs
       const locationNPCs = getLocationNPCs(mapId, gameState.time, gameState.date);
@@ -688,7 +724,7 @@ export function useNavigationHandlers({
       setGameState(prev => ({
         ...prev,
         location: locationName,
-        currentLocationNPCs: locationNPCs // Store NPCs for this location
+        currentLocationNPCs: locationNPCs
       }));
 
       // Set the map
@@ -713,12 +749,95 @@ export function useNavigationHandlers({
         ...prev,
         { role: 'assistant', content: travelNarrative }
       ]);
-    } else {
-      console.error('[HandleFastTravel] Location not found in map:', locationName);
-    }
 
-    setUserInput('');
-    setIsLoading(false);
+      setUserInput('');
+      setIsLoading(false);
+    };
+
+    // Determine zoom logic
+    const currentLocationBuildingId = locationZoomMap[gameState.location];
+    const arrivalBuildingId = locationZoomMap[locationName];
+    const isCurrentlyZoomed = currentLocationBuildingId && setTravelZoomState && setBackgroundMode;
+    const shouldZoomToArrival = arrivalBuildingId && setTravelZoomState && setBackgroundMode;
+
+    console.log('[HandleFastTravel] Zoom logic:', {
+      currentLocation: gameState.location,
+      destination: locationName,
+      currentLocationBuildingId,
+      arrivalBuildingId,
+      isCurrentlyZoomed,
+      shouldZoomToArrival
+    });
+
+    const ZOOM_DURATION = 2500; // Slower, smoother zoom (was 1500ms)
+
+    // Case 1: Currently zoomed in, need to zoom out first
+    if (isCurrentlyZoomed) {
+      const currentTarget = getZoomTargetForBuilding(currentLocationBuildingId);
+      console.log('[HandleFastTravel] Zooming OUT from current location:', currentLocationBuildingId);
+
+      setBackgroundMode('travel');
+
+      // Zoom OUT from current location
+      animateBackgroundZoomOut(setTravelZoomState, 100, currentTarget, ZOOM_DURATION, () => {
+        console.log('[HandleFastTravel] Zoom out complete');
+
+        // Case 1a: Destination also has zoom - zoom IN to it
+        if (shouldZoomToArrival) {
+          const arrivalTarget = getZoomTargetForBuilding(arrivalBuildingId);
+          console.log('[HandleFastTravel] Zooming IN to arrival:', arrivalBuildingId);
+
+          // Zoom IN to destination
+          animateBackgroundZoom(setTravelZoomState, arrivalTarget, ZOOM_DURATION, () => {
+            console.log('[HandleFastTravel] Arrival zoom complete, maintaining zoom');
+            completeTravel();
+            // KEEP zoom active at destination
+            maintainZoom(setTravelZoomState, arrivalTarget);
+            setBackgroundMode('normal');
+          });
+        } else {
+          // Case 1b: No arrival zoom, just complete at normal view
+          console.log('[HandleFastTravel] No arrival zoom, completing travel');
+          completeTravel();
+          setBackgroundMode('normal');
+        }
+      });
+    }
+    // Case 2: Not currently zoomed, but destination has zoom
+    else if (shouldZoomToArrival) {
+      const arrivalTarget = getZoomTargetForBuilding(arrivalBuildingId);
+      console.log('[HandleFastTravel] Zooming IN to arrival (no departure zoom):', arrivalBuildingId);
+
+      setBackgroundMode('travel');
+
+      // Zoom IN to destination
+      animateBackgroundZoom(setTravelZoomState, arrivalTarget, ZOOM_DURATION, () => {
+        console.log('[HandleFastTravel] Arrival zoom complete, maintaining zoom');
+        completeTravel();
+        // KEEP zoom active at destination
+        maintainZoom(setTravelZoomState, arrivalTarget);
+        setBackgroundMode('normal');
+      });
+    }
+    // Case 3: No zoom effects - clear any existing zoom
+    else {
+      console.log('[HandleFastTravel] No zoom effects, instant travel');
+
+      // If currently zoomed, zoom out first
+      if (isCurrentlyZoomed) {
+        const currentTarget = getZoomTargetForBuilding(currentLocationBuildingId);
+        console.log('[HandleFastTravel] Clearing zoom before instant travel');
+
+        setBackgroundMode('travel');
+        animateBackgroundZoomOut(setTravelZoomState, 100, currentTarget, ZOOM_DURATION, () => {
+          completeTravel();
+          setBackgroundMode('normal');
+        });
+      } else {
+        // Not zoomed, just travel
+        completeTravel();
+      }
+    }
   }, [
     setGameState,
     setCurrentMapId,
@@ -728,6 +847,10 @@ export function useNavigationHandlers({
     setConversationHistory,
     setUserInput,
     setIsLoading,
+    setTravelZoomState,
+    setBackgroundMode,
+    setPendingHouseCall,
+    gameState.location,
     gameState.time,
     gameState.date,
     turnNumber

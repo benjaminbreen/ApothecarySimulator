@@ -13,17 +13,17 @@ export const BIRTHPLACES = {
     elite: {
       cities: [
         { name: "Mexico City", weight: 0.4, neighborhoods: ["Traza central", "Near Cathedral", "Plaza Mayor district", "Near Alameda"] },
-        { name: "Puebla de los ¡ngeles", weight: 0.25, neighborhoods: ["Cathedral district", "Barrio de Analco"] },
+        { name: "Puebla de los √Ångeles", weight: 0.25, neighborhoods: ["Cathedral district", "Barrio de Analco"] },
         { name: "Guadalajara", weight: 0.1, neighborhoods: ["City center", "Near cathedral"] },
-        { name: "QuerÈtaro", weight: 0.08, neighborhoods: ["Villa district"] },
+        { name: "Quer√©taro", weight: 0.08, neighborhoods: ["Villa district"] },
         { name: "Valladolid (Morelia)", weight: 0.07, neighborhoods: ["Cathedral district"] },
-        { name: "Oaxaca de Ju·rez", weight: 0.05, neighborhoods: ["City center"] },
+        { name: "Oaxaca de Ju√°rez", weight: 0.05, neighborhoods: ["City center"] },
         { name: "Guanajuato", weight: 0.05, neighborhoods: ["Mining district"] }
       ]
     },
     middling: {
       cities: [
-        { name: "Mexico City", weight: 0.3, neighborhoods: ["San Juan", "Santa MarÌa", "Santiago", "Outskirts of traza"] },
+        { name: "Mexico City", weight: 0.3, neighborhoods: ["San Juan", "Santa Mar√≠a", "Santiago", "Outskirts of traza"] },
         { name: "Puebla", weight: 0.2, neighborhoods: ["Barrio del Alto", "San Francisco"] },
         { name: "Tlaxcala", weight: 0.15, neighborhoods: ["Spanish quarter"] },
         { name: "Cholula", weight: 0.1, neighborhoods: ["Spanish settlement"] },
@@ -51,9 +51,9 @@ export const BIRTHPLACES = {
       cities: [
         { name: "Seville", weight: 0.3, region: "Andalusia" },
         { name: "Madrid", weight: 0.15, region: "Castile" },
-        { name: "C·diz", weight: 0.12, region: "Andalusia" },
+        { name: "C√°diz", weight: 0.12, region: "Andalusia" },
         { name: "Barcelona", weight: 0.1, region: "Catalonia" },
-        { name: "Salamanca", weight: 0.08, region: "LeÛn" },
+        { name: "Salamanca", weight: 0.08, region: "Le√≥n" },
         { name: "Toledo", weight: 0.07, region: "Castile" },
         { name: "Valladolid", weight: 0.06, region: "Castile" },
         { name: "Granada", weight: 0.06, region: "Andalusia" },
@@ -65,10 +65,10 @@ export const BIRTHPLACES = {
     middling: {
       cities: [
         { name: "Seville", weight: 0.25, region: "Andalusia" },
-        { name: "CÛrdoba", weight: 0.15, region: "Andalusia" },
+        { name: "C√≥rdoba", weight: 0.15, region: "Andalusia" },
         { name: "Extremadura region", weight: 0.15, region: "Extremadura" },
         { name: "Galicia", weight: 0.1, region: "Galicia" },
-        { name: "LeÛn", weight: 0.1, region: "LeÛn" },
+        { name: "Le√≥n", weight: 0.1, region: "Le√≥n" },
         { name: "Asturias", weight: 0.08, region: "Asturias" },
         { name: "Basque Country", weight: 0.07, region: "Basque" },
         { name: "Canary Islands", weight: 0.1, region: "Canaries" }
@@ -81,16 +81,16 @@ export const BIRTHPLACES = {
   indigenous: {
     common: {
       altepetl: [
-        { name: "Tenochtitlan", weight: 0.25, barrios: ["San Juan", "Santiago", "San Pablo", "Santa MarÌa la Redonda"] },
+        { name: "Tenochtitlan", weight: 0.25, barrios: ["San Juan", "Santiago", "San Pablo", "Santa Mar√≠a la Redonda"] },
         { name: "Tlatelolco", weight: 0.15, barrios: ["Santiago", "San Juan Moyotlan"] },
         { name: "Xochimilco", weight: 0.12, barrios: ["San Bernardino", "Santa Cruz"] },
-        { name: "Coyoac·n", weight: 0.1, barrios: ["San Juan Bautista", "Santa Catarina"] },
+        { name: "Coyoac√°n", weight: 0.1, barrios: ["San Juan Bautista", "Santa Catarina"] },
         { name: "Texcoco", weight: 0.08, barrios: ["Cathedral barrio"] },
         { name: "Chalco", weight: 0.08, barrios: ["San Juan", "Santiago"] },
         { name: "Tlaxcala", weight: 0.07, barrios: ["Ocotelulco", "Quiahuiztlan", "Tepeticpac"] },
-        { name: "Cholula", weight: 0.07, barrios: ["San Pedro", "San AndrÈs"] },
-        { name: "Azcapotzalco", weight: 0.05, barrios: ["San Sebasti·n"] },
-        { name: "Tacuba", weight: 0.03, barrios: ["Santa MarÌa"] }
+        { name: "Cholula", weight: 0.07, barrios: ["San Pedro", "San Andr√©s"] },
+        { name: "Azcapotzalco", weight: 0.05, barrios: ["San Sebasti√°n"] },
+        { name: "Tacuba", weight: 0.03, barrios: ["Santa Mar√≠a"] }
       ]
     }
   },
@@ -195,7 +195,7 @@ export const BIRTHPLACES = {
       cities: [
         { name: "Mexico City", weight: 0.3, neighborhoods: ["Mixed Spanish neighborhoods"] },
         { name: "Puebla", weight: 0.2, neighborhoods: ["Spanish quarter"] },
-        { name: "QuerÈtaro", weight: 0.12, neighborhoods: ["Town center"] },
+        { name: "Quer√©taro", weight: 0.12, neighborhoods: ["Town center"] },
         { name: "Guadalajara", weight: 0.1, neighborhoods: ["Spanish district"] },
         { name: "Tlaxcala", weight: 0.1, neighborhoods: ["Spanish settlement"] },
         { name: "Cholula", weight: 0.08, neighborhoods: [] },
@@ -226,7 +226,7 @@ export function getBirthplace(casta, socialClass, rng) {
   }
 
   // Special handling for peninsulares
-  if (castaNormalized === 'peninsular' || castaNormalized === 'espaÒol') {
+  if (castaNormalized === 'peninsular' || castaNormalized === 'espa√±ol') {
     return getPeninsularBirthplace(classData, rng);
   }
 

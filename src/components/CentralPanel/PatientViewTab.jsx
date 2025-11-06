@@ -35,7 +35,8 @@ export function PatientViewTab({
   onOpenInventoryTab,
   onOpenMixing, // New prop for mixing modal
   onPrescriptionPending, // Callback when prescription is being processed
-  onPrescriptionComplete // Callback when prescription outcome is accepted
+  onPrescriptionComplete, // Callback when prescription outcome is accepted
+  toast // Toast notification function
 }) {
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [isAsking, setIsAsking] = useState(false);
@@ -1447,6 +1448,7 @@ export function PatientViewTab({
               TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
               onPrescriptionPending={onPrescriptionPending}
               onPrescriptionComplete={onPrescriptionComplete}
+              toast={toast}
             />
           </div>
           {/* End Prescribe Mode */}

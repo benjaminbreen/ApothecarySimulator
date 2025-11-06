@@ -17,7 +17,7 @@ import { generateFamilyMemberName, extractSurname, generateFamilyOccupation } fr
 const MORTALITY_RATES = {
   // Chance parent is deceased based on NPC's age
   parent: {
-    npcAge_20_30: 0.15,  // Young NPC ’ 15% chance parent died
+    npcAge_20_30: 0.15,  // Young NPC ï¿½ 15% chance parent died
     npcAge_30_40: 0.25,
     npcAge_40_50: 0.40,
     npcAge_50_60: 0.60,
@@ -105,12 +105,12 @@ export function generateParents(npc, rng) {
     occupation: fatherOccupation,
     casta: fatherCasta,
     living: fatherAlive,
-    yearsDeceased: fatherAlive ? null : rng.nextInt(1, Math.max(1, npcAge - 20))
+    yearsDeceased: fatherAlive ? null : rng.nextInt(1, Math.max(5, Math.floor(npcAge * 0.7)))
   });
 
   // Mother (elite families more likely to record mother's name)
   if (isElite || rng.chance(0.7)) {
-    const motherSurname = rng.choice(['de León', 'Cortés', 'Mendoza', 'García', 'López', 'Hernández', 'Ramírez']);
+    const motherSurname = rng.choice(['de Leï¿½n', 'Cortï¿½s', 'Mendoza', 'Garcï¿½a', 'Lï¿½pez', 'Hernï¿½ndez', 'Ramï¿½rez']);
     const motherName = generateFamilyMemberName(motherCasta, 'female', 'parent', motherSurname, rng, isElite);
     const motherOccupation = isElite ? 'Noblewoman' : generateFamilyOccupation(null, casta, 'female', rng);
 
@@ -122,7 +122,7 @@ export function generateParents(npc, rng) {
       occupation: motherOccupation,
       casta: motherCasta,
       living: motherAlive,
-      yearsDeceased: motherAlive ? null : rng.nextInt(1, Math.max(1, npcAge - 18))
+      yearsDeceased: motherAlive ? null : rng.nextInt(1, Math.max(5, Math.floor(npcAge * 0.7)))
     });
   }
 
@@ -143,24 +143,24 @@ function determineParentCastas(npcCasta, rng) {
     case 'mestizo':
       // Spanish + Indigenous
       return rng.chance(0.5)
-        ? { fatherCasta: 'español', motherCasta: 'indigenous' }
-        : { fatherCasta: 'indigenous', motherCasta: 'español' };
+        ? { fatherCasta: 'espaï¿½ol', motherCasta: 'indigenous' }
+        : { fatherCasta: 'indigenous', motherCasta: 'espaï¿½ol' };
 
     case 'castizo':
       // Spanish + Mestizo
       return rng.chance(0.6)
-        ? { fatherCasta: 'español', motherCasta: 'mestizo' }
-        : { fatherCasta: 'mestizo', motherCasta: 'español' };
+        ? { fatherCasta: 'espaï¿½ol', motherCasta: 'mestizo' }
+        : { fatherCasta: 'mestizo', motherCasta: 'espaï¿½ol' };
 
     case 'mulato':
       // Spanish + African
       return rng.chance(0.5)
-        ? { fatherCasta: 'español', motherCasta: 'negro' }
-        : { fatherCasta: 'negro', motherCasta: 'español' };
+        ? { fatherCasta: 'espaï¿½ol', motherCasta: 'negro' }
+        : { fatherCasta: 'negro', motherCasta: 'espaï¿½ol' };
 
     case 'morisco':
       // Spanish + Mulato
-      return { fatherCasta: 'español', motherCasta: 'mulato' };
+      return { fatherCasta: 'espaï¿½ol', motherCasta: 'mulato' };
 
     case 'zambo':
       // Indigenous + African
@@ -174,9 +174,9 @@ function determineParentCastas(npcCasta, rng) {
 
     // Pure castas (both parents same)
     case 'criollo':
-    case 'español':
+    case 'espaï¿½ol':
     case 'peninsular':
-      return { fatherCasta: 'español', motherCasta: 'español' };
+      return { fatherCasta: 'espaï¿½ol', motherCasta: 'espaï¿½ol' };
 
     case 'indigenous':
     case 'indio':
@@ -291,7 +291,7 @@ export function generateSpouse(npc, rng) {
   // Spouse details
   const spouseGender = gender === 'male' ? 'female' : 'male';
   const spouseAge = gender === 'male'
-    ? npcAge - rng.nextInt(2, 8)  // Wives typically younger
+    ? Math.max(16, npcAge - rng.nextInt(2, 8))  // Wives typically younger (minimum age 16)
     : npcAge + rng.nextInt(2, 8); // Husbands typically older
 
   // Age when married
@@ -318,7 +318,7 @@ export function generateSpouse(npc, rng) {
   // Spouse name (different surname if female married male)
   const spouseSurname = spouseGender === 'female' && gender === 'male'
     ? extractSurname(npc.name)
-    : rng.choice(['García', 'López', 'Hernández', 'Ramírez', 'Torres', 'Cortés', 'Mendoza']);
+    : rng.choice(['Garcï¿½a', 'Lï¿½pez', 'Hernï¿½ndez', 'Ramï¿½rez', 'Torres', 'Cortï¿½s', 'Mendoza']);
 
   const spouseName = generateFamilyMemberName(spouseCasta, spouseGender, 'spouse', spouseSurname, rng, isElite);
 
@@ -349,7 +349,7 @@ function getMixedMarriageOptions(casta) {
 
   switch (castaNormalized) {
     case 'criollo':
-    case 'español':
+    case 'espaï¿½ol':
       return ['criollo', 'castizo', 'peninsular'];
     case 'mestizo':
       return ['mestizo', 'castizo', 'indigenous'];
@@ -459,17 +459,17 @@ function determineChildCasta(parent1Casta, parent2Casta, rng) {
   const p1 = parent1Casta.toLowerCase();
   const p2 = parent2Casta.toLowerCase();
 
-  // Same casta parents ’ same casta child
+  // Same casta parents ï¿½ same casta child
   if (p1 === p2) return parent1Casta;
 
   // Mixed heritage logic (simplified colonial casta system)
   const pair = [p1, p2].sort().join('_');
 
   const castaRules = {
-    'español_indigenous': 'mestizo',
-    'español_mestizo': 'castizo',
-    'español_negro': 'mulato',
-    'español_mulato': 'morisco',
+    'espaï¿½ol_indigenous': 'mestizo',
+    'espaï¿½ol_mestizo': 'castizo',
+    'espaï¿½ol_negro': 'mulato',
+    'espaï¿½ol_mulato': 'morisco',
     'indigenous_negro': 'zambo',
     'indigenous_mestizo': 'mestizo',
     'mestizo_mulato': 'pardo',

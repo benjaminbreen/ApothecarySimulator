@@ -22,6 +22,7 @@ const TimeAwareBackground = ({
   climate = null
 }) => {
   const [backgroundStyle, setBackgroundStyle] = useState({});
+  const [shootingStars, setShootingStars] = useState([]);
 
   // Extract weather values to prevent infinite re-renders (object reference changes)
   const weatherCloudCover = weather?.cloudCover ?? 0;
@@ -35,9 +36,9 @@ const TimeAwareBackground = ({
     BLUE_HOUR_EVENING: ['#0a1628', '#1e3a5f', '#4a6fa5', '#7090c0'], // Civil twilight - deep saturated blues
     BLUE_HOUR_MORNING: ['#0e1a2e', '#2a4562', '#506a95', '#7a9bc5'], // Pre-dawn civil twilight - cooler blues
     TWILIGHT: ['#0a0e1a', '#1a1e2a', '#2a2e3a'], // Deeper twilight after blue hour
-    NIGHT: ['#000205', '#020410', '#050820'], // Very dark midnight blue-black
-    MIDNIGHT: ['#000000', '#000308', '#00050f'], // Almost pure black → deep space blue
-    PRE_DAWN: ['#080814', '#12152a', '#1a1e38'], // Very gradual lightening from deep night
+    NIGHT: ['#000308', '#00061a', '#000d2a', '#001440'], // Rich deep midnight blue
+    MIDNIGHT: ['#000105', '#000312', '#00051f', '#000a35'], // Nearly black with deep blue gradient
+    PRE_DAWN: ['#000510', '#0a0e20', '#101830'], // Very gradual lightening from deep night
   }), []);
 
   // Interior gradient (neutral dark)
@@ -214,11 +215,11 @@ const TimeAwareBackground = ({
       const isDawn = gameTimeHours >= 4 && gameTimeHours < 7;
 
       if (isNight) {
-        // Cloudy night: very dark cool blue-gray
-        const grayLevel = Math.floor(20 - weatherCloudCover * 8);
-        finalTopColor = `rgb(${grayLevel}, ${grayLevel + 5}, ${grayLevel + 15})`;
-        finalBottomColor = `rgb(${grayLevel + 12}, ${grayLevel + 18}, ${grayLevel + 28})`;
-        finalMidColor1 = `rgb(${grayLevel + 6}, ${grayLevel + 11}, ${grayLevel + 21})`;
+        // Cloudy night: VERY dark cool blue-gray (almost black)
+        const grayLevel = Math.floor(8 - weatherCloudCover * 5);
+        finalTopColor = `rgb(${grayLevel}, ${grayLevel + 2}, ${grayLevel + 8})`;
+        finalBottomColor = `rgb(${grayLevel + 6}, ${grayLevel + 10}, ${grayLevel + 18})`;
+        finalMidColor1 = `rgb(${grayLevel + 3}, ${grayLevel + 5}, ${grayLevel + 12})`;
         finalMidColor2 = null;
       } else if (isDusk || isDawn) {
         // Twilight clouds: darker with warmer purple/orange tint
@@ -272,10 +273,10 @@ const TimeAwareBackground = ({
     }
 
     // CSS variables for horizon components
-    // IMPROVED: Time-aware haze blending - much less white at night for richer, darker skies
+    // IMPROVED: Time-aware haze blending - virtually NO white at night for rich, dark skies
     const isNightTime = gameTimeHours >= 20 || gameTimeHours < 6;
-    const hazeWhiteBlend = isNightTime ? 0.05 : 0.25; // Night: 5% white, Day: 25% white
-    const hazeLightBlend = isNightTime ? 0.08 : 0.45; // Night: 8% white, Day: 45% white
+    const hazeWhiteBlend = isNightTime ? 0.0 : 0.25; // Night: 0% white, Day: 25% white
+    const hazeLightBlend = isNightTime ? 0.0 : 0.45; // Night: 0% white, Day: 45% white
 
     const cssVars = {
       '--sky-top': finalTopColor,
@@ -379,6 +380,46 @@ const TimeAwareBackground = ({
   const moonOpacity = getMoonOpacity();
   const moonPhase = getMoonPhase();
 
+  // Shooting star effect - random meteors every 2-5 minutes during night
+  useEffect(() => {
+    const currentTime = gameTimeHours + gameTimeMinutes / 60;
+    const isNight = currentTime >= 20 || currentTime < 6;
+
+    if (!isNight || starOpacity < 0.5) {
+      return;
+    }
+
+    // Schedule next shooting star
+    const scheduleShootingStar = () => {
+      const delay = (120 + Math.random() * 180) * 1000; // 2-5 minutes in ms
+
+      return setTimeout(() => {
+        const newStar = {
+          id: Date.now(),
+          startX: Math.random() * 100, // % from left
+          startY: Math.random() * 50, // % from top (upper half of sky)
+          angle: 30 + Math.random() * 60, // degrees (30-90)
+          duration: 1 + Math.random() * 2, // 1-3 seconds
+          brightness: 0.7 + Math.random() * 0.3 // 0.7-1.0
+        };
+
+        setShootingStars(prev => [...prev, newStar]);
+
+        // Remove after animation completes
+        setTimeout(() => {
+          setShootingStars(prev => prev.filter(s => s.id !== newStar.id));
+        }, newStar.duration * 1000 + 100);
+
+        // Schedule next one
+        scheduleShootingStar();
+      }, delay);
+    };
+
+    const timeout = scheduleShootingStar();
+
+    return () => clearTimeout(timeout);
+  }, [gameTimeHours, gameTimeMinutes, starOpacity]);
+
   return (
     <div className="absolute inset-0 -z-10 overflow-hidden" style={backgroundStyle}>
       {/* Starfield layers */}
@@ -423,12 +464,12 @@ const TimeAwareBackground = ({
             }}
           />
 
-          {/* Randomized colored stars */}
+          {/* Randomized colored stars with beautiful twinkling */}
           <div className="absolute inset-0 w-full h-full">
             {coloredStars.map((star, index) => (
               <div
                 key={index}
-                className="absolute animate-pulse"
+                className="absolute"
                 style={{
                   left: `${star.x}px`,
                   top: `${star.y}px`,
@@ -437,28 +478,87 @@ const TimeAwareBackground = ({
                   backgroundColor: star.color,
                   borderRadius: '50%',
                   opacity: star.opacity * starOpacity,
-                  boxShadow: `0 0 ${star.size * 4}px ${star.color}`,
-                  animationDuration: `${2 + (index % 3)}s`,
-                  animationDelay: `${index * 0.2}s`
+                  boxShadow: `0 0 ${star.size * 4}px ${star.color}, 0 0 ${star.size * 8}px ${star.color}`,
+                  animation: `twinkle-${index % 4} ${2.5 + (index % 5) * 0.5}s ease-in-out ${index * 0.3}s infinite`,
+                  willChange: 'opacity'
                 }}
               />
             ))}
           </div>
 
-          {/* Shooting stars during peak night */}
-          {starOpacity > 0.8 && (gameTimeHours + gameTimeMinutes / 60) % 1 < 0.1 && (
-            <div className="absolute inset-0 w-full h-full overflow-hidden">
+          {/* Milky Way band - subtle galactic glow during deep night */}
+          {starOpacity > 0.7 && (
+            <div
+              className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none"
+              style={{
+                opacity: starOpacity * (weather && weather.cloudCover > 0.5 ? 0.2 : 0.6),
+                transition: 'opacity 6s ease-in-out'
+              }}
+            >
               <div
-                className="absolute w-1 h-1 bg-white rounded-full"
+                className="absolute w-full h-full"
                 style={{
-                  top: '20%',
-                  left: '80%',
-                  animation: 'shooting-star 3s ease-out',
-                  boxShadow: '0 0 4px #ffffff, 0 0 8px #ffffff'
+                  background: `radial-gradient(
+                    ellipse 200% 40% at 50% 30%,
+                    rgba(200, 210, 255, 0.08) 0%,
+                    rgba(180, 190, 240, 0.12) 20%,
+                    rgba(160, 170, 220, 0.06) 40%,
+                    transparent 60%
+                  )`,
+                  transform: 'rotate(-25deg)',
+                  transformOrigin: 'center center'
+                }}
+              >
+                {/* Enhanced star density in Milky Way band */}
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: `transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='80'%3E%3Cg fill='%23ffffff' fill-opacity='0.15'%3E%3Ccircle cx='23' cy='17' r='0.3'/%3E%3Ccircle cx='67' cy='34' r='0.2'/%3E%3Ccircle cx='45' cy='56' r='0.4'/%3E%3Ccircle cx='89' cy='23' r='0.2'/%3E%3Ccircle cx='34' cy='67' r='0.3'/%3E%3Ccircle cx='78' cy='71' r='0.2'/%3E%3Ccircle cx='56' cy='12' r='0.3'/%3E%3Ccircle cx='98' cy='45' r='0.2'/%3E%3Ccircle cx='12' cy='44' r='0.3'/%3E%3Ccircle cx='101' cy='68' r='0.2'/%3E%3C/g%3E%3C/svg%3E") repeat`,
+                    mixBlendMode: 'screen'
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Dynamic shooting stars - random meteors every 2-5 minutes */}
+          {shootingStars.map(star => (
+            <div
+              key={star.id}
+              className="absolute pointer-events-none"
+              style={{
+                left: `${star.startX}%`,
+                top: `${star.startY}%`,
+                width: '2px',
+                height: '2px'
+              }}
+            >
+              <div
+                className="absolute w-full h-full bg-white rounded-full"
+                style={{
+                  animation: `shooting-star-travel ${star.duration}s ease-out forwards`,
+                  opacity: star.brightness,
+                  boxShadow: `
+                    0 0 2px rgba(255, 255, 255, ${star.brightness}),
+                    0 0 4px rgba(255, 255, 255, ${star.brightness * 0.8}),
+                    0 0 8px rgba(200, 220, 255, ${star.brightness * 0.6})
+                  `,
+                  transform: `rotate(${star.angle}deg)`,
+                  '--shoot-distance': '150px'
+                }}
+              />
+              {/* Meteor trail */}
+              <div
+                className="absolute w-0.5 h-16 bg-gradient-to-b from-white to-transparent opacity-60"
+                style={{
+                  animation: `shooting-star-travel ${star.duration}s ease-out forwards`,
+                  transform: `rotate(${star.angle}deg)`,
+                  transformOrigin: 'top center',
+                  '--shoot-distance': '150px'
                 }}
               />
             </div>
-          )}
+          ))}
         </div>
       )}
 
@@ -553,16 +653,7 @@ const TimeAwareBackground = ({
 
       {/* Atmospheric overlays */}
       <div className="absolute inset-0 pointer-events-none">
-        {/* Night atmospheric glow */}
-        {starOpacity > 0.5 && (
-          <div
-            className="absolute inset-0 transition-opacity duration-[4000ms]"
-            style={{
-              opacity: starOpacity * 0.4,
-              background: 'radial-gradient(ellipse at center top, rgba(25, 39, 62, 0.2) 0%, transparent 70%)'
-            }}
-          />
-        )}
+        {/* Night atmospheric glow - REMOVED to preserve deep dark sky */}
 
         {/* Pre-dawn atmospheric lightening */}
         {gameTimeHours >= 4 && gameTimeHours < 6 && (
@@ -651,6 +742,219 @@ const TimeAwareBackground = ({
             />
           </>
         )}
+
+        {/* PRE-STORM DARKENING - Eerie atmospheric effect before storms */}
+        {weather && (
+          (weather.cloudCover > 0.6 && weather.precipitation !== 'none') ||
+          (weather.cloudCover > 0.7 && weather.windSpeed > 15)
+        ) && (gameTimeHours >= 6 && gameTimeHours < 20) && (
+          <div
+            className="absolute inset-0 pointer-events-none transition-opacity duration-[5000ms]"
+            style={{
+              opacity: (() => {
+                // Stronger effect with higher cloud cover and heavier precipitation
+                const stormIntensity = weather.cloudCover * (weather.intensity || 0.5);
+                const baseOpacity = 0.3 + (stormIntensity * 0.4); // 0.3 to 0.7
+
+                // Special intensity for thunderstorms
+                const isThunderstorm = weather.special === 'thunderstorm';
+                return isThunderstorm ? Math.min(baseOpacity * 1.3, 0.85) : baseOpacity;
+              })(),
+              background: (() => {
+                const isThunderstorm = weather.special === 'thunderstorm';
+
+                // Eerie yellow-green tint for severe storms (meteorologically accurate)
+                if (isThunderstorm || weather.intensity > 0.7) {
+                  return `radial-gradient(ellipse at center,
+                    rgba(75, 85, 60, 0.4) 0%,
+                    rgba(60, 70, 55, 0.5) 30%,
+                    rgba(45, 50, 45, 0.6) 60%,
+                    rgba(30, 35, 30, 0.7) 100%)`;
+                }
+
+                // Dark blue-gray for regular rain
+                return `radial-gradient(ellipse at center,
+                  rgba(70, 80, 95, 0.25) 0%,
+                  rgba(55, 65, 80, 0.35) 40%,
+                  rgba(40, 50, 65, 0.45) 70%,
+                  rgba(25, 35, 50, 0.55) 100%)`;
+              })(),
+              mixBlendMode: 'multiply',
+              zIndex: 3
+            }}
+          >
+            {/* Additional atmospheric haze for heavy storms */}
+            {weather.intensity > 0.6 && (
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: 'linear-gradient(to bottom, transparent 0%, rgba(20, 25, 30, 0.3) 50%, rgba(10, 15, 20, 0.4) 100%)',
+                  mixBlendMode: 'multiply'
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* CREPUSCULAR RAYS (God Rays) - Dawn and Dusk */}
+        {((gameTimeHours >= 5.5 && gameTimeHours < 8.5) || (gameTimeHours >= 17.5 && gameTimeHours < 20)) &&
+         weatherCloudCover > 0.2 && weatherCloudCover < 0.8 && (
+          <div
+            className="absolute inset-0 overflow-hidden pointer-events-none transition-opacity duration-[3000ms]"
+            style={{
+              opacity: (() => {
+                // Peak visibility at optimal cloud cover (30-60%)
+                const cloudOptimal = weatherCloudCover > 0.3 && weatherCloudCover < 0.6 ? 1 : 0.6;
+
+                // Fade in/out based on time of day
+                const currentTime = gameTimeHours + gameTimeMinutes / 60;
+                let timeOpacity = 1;
+
+                // Dawn fade in: 5:30 AM - 6:30 AM
+                if (currentTime >= 5.5 && currentTime < 6.5) {
+                  timeOpacity = (currentTime - 5.5) / 1.0; // 0 to 1
+                }
+                // Dawn peak: 6:30 AM - 7:30 AM
+                else if (currentTime >= 6.5 && currentTime < 7.5) {
+                  timeOpacity = 1;
+                }
+                // Dawn fade out: 7:30 AM - 8:30 AM
+                else if (currentTime >= 7.5 && currentTime < 8.5) {
+                  timeOpacity = 1 - ((currentTime - 7.5) / 1.0); // 1 to 0
+                }
+                // Dusk fade in: 5:30 PM - 6:30 PM
+                else if (currentTime >= 17.5 && currentTime < 18.5) {
+                  timeOpacity = (currentTime - 17.5) / 1.0; // 0 to 1
+                }
+                // Dusk peak: 6:30 PM - 7:00 PM
+                else if (currentTime >= 18.5 && currentTime < 19) {
+                  timeOpacity = 1;
+                }
+                // Dusk fade out: 7:00 PM - 8:00 PM
+                else if (currentTime >= 19 && currentTime < 20) {
+                  timeOpacity = 1 - ((currentTime - 19) / 1.0); // 1 to 0
+                }
+
+                return cloudOptimal * timeOpacity * 0.5; // Middle ground: visible but subtle
+              })()
+            }}
+          >
+            {/* SVG for crisp, scalable rays */}
+            <svg
+              className="absolute inset-0 w-full h-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="xMidYMax slice"
+              style={{
+                mixBlendMode: 'screen',
+                filter: 'blur(4px)' // Moderate blur for soft glow without losing definition
+              }}
+            >
+              <defs>
+                {/* Gradient for rays - balanced visibility */}
+                <linearGradient id="ray-gradient-dawn" x1="0%" y1="100%" x2="0%" y2="0%">
+                  <stop offset="0%" style={{
+                    stopColor: gameTimeHours >= 17.5 ? '#FF9955' : '#FFD580',
+                    stopOpacity: 0.25 // Middle ground
+                  }} />
+                  <stop offset="25%" style={{
+                    stopColor: gameTimeHours >= 17.5 ? '#FFB870' : '#FFE8B0',
+                    stopOpacity: 0.15 // Middle ground
+                  }} />
+                  <stop offset="50%" style={{
+                    stopColor: gameTimeHours >= 17.5 ? '#FFD0A0' : '#FFF5D0',
+                    stopOpacity: 0.08 // Middle ground
+                  }} />
+                  <stop offset="75%" style={{
+                    stopColor: '#FFFFFF',
+                    stopOpacity: 0.04 // Gentle fade
+                  }} />
+                  <stop offset="100%" style={{ stopColor: '#FFFFFF', stopOpacity: 0 }} />
+                </linearGradient>
+              </defs>
+
+              {/* Individual light rays emanating from horizon center */}
+              {/* Ray positions and widths create realistic scattered light effect */}
+
+              {/* Central rays - brightest and widest */}
+              <polygon
+                points="48,100 42,0 46,0"
+                fill="url(#ray-gradient-dawn)"
+                style={{ animation: 'ray-drift-1 8s ease-in-out infinite' }}
+              />
+              <polygon
+                points="52,100 54,0 58,0"
+                fill="url(#ray-gradient-dawn)"
+                style={{ animation: 'ray-drift-2 9s ease-in-out infinite' }}
+              />
+
+              {/* Left rays - balanced visibility */}
+              <polygon
+                points="38,100 28,0 32,0"
+                fill="url(#ray-gradient-dawn)"
+                opacity="0.6"
+                style={{ animation: 'ray-drift-3 10s ease-in-out infinite' }}
+              />
+              <polygon
+                points="30,100 16,0 20,0"
+                fill="url(#ray-gradient-dawn)"
+                opacity="0.45"
+                style={{ animation: 'ray-drift-4 11s ease-in-out infinite' }}
+              />
+              <polygon
+                points="20,100 4,0 8,0"
+                fill="url(#ray-gradient-dawn)"
+                opacity="0.25"
+                style={{ animation: 'ray-drift-1 12s ease-in-out infinite' }}
+              />
+
+              {/* Right rays - balanced visibility */}
+              <polygon
+                points="62,100 68,0 72,0"
+                fill="url(#ray-gradient-dawn)"
+                opacity="0.6"
+                style={{ animation: 'ray-drift-2 9.5s ease-in-out infinite' }}
+              />
+              <polygon
+                points="72,100 80,0 84,0"
+                fill="url(#ray-gradient-dawn)"
+                opacity="0.45"
+                style={{ animation: 'ray-drift-3 10.5s ease-in-out infinite' }}
+              />
+              <polygon
+                points="82,100 92,0 96,0"
+                fill="url(#ray-gradient-dawn)"
+                opacity="0.25"
+                style={{ animation: 'ray-drift-4 11.5s ease-in-out infinite' }}
+              />
+
+              {/* Subtle extra rays for depth */}
+              <polygon
+                points="44,100 36,0 38,0"
+                fill="url(#ray-gradient-dawn)"
+                opacity="0.35"
+                style={{ animation: 'ray-drift-2 8.5s ease-in-out infinite' }}
+              />
+              <polygon
+                points="56,100 62,0 64,0"
+                fill="url(#ray-gradient-dawn)"
+                opacity="0.35"
+                style={{ animation: 'ray-drift-1 9.2s ease-in-out infinite' }}
+              />
+            </svg>
+
+            {/* Additional atmospheric scatter glow at horizon where rays originate - balanced */}
+            <div
+              className="absolute bottom-0 left-0 right-0 h-2/5"
+              style={{
+                background: gameTimeHours >= 17.5
+                  ? 'radial-gradient(ellipse 100% 60% at 50% 100%, rgba(255, 180, 100, 0.12) 0%, transparent 70%)'
+                  : 'radial-gradient(ellipse 100% 60% at 50% 100%, rgba(255, 230, 150, 0.15) 0%, transparent 70%)',
+                mixBlendMode: 'screen',
+                filter: 'blur(8px)' // Moderate blur
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* CSS animations for stars */}
@@ -669,6 +973,52 @@ const TimeAwareBackground = ({
             transform: translate(-300px, 200px);
             opacity: 0;
           }
+        }
+
+        /* Beautiful varied twinkling animations */
+        @keyframes twinkle-0 {
+          0%, 100% { opacity: 0.3; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        @keyframes twinkle-1 {
+          0%, 100% { opacity: 0.4; transform: scale(0.9); }
+          30% { opacity: 0.8; transform: scale(1.1); }
+          70% { opacity: 1; transform: scale(1.3); }
+        }
+
+        @keyframes twinkle-2 {
+          0%, 100% { opacity: 0.5; transform: scale(1); }
+          25% { opacity: 0.7; transform: scale(1.15); }
+          50% { opacity: 0.9; transform: scale(1.25); }
+          75% { opacity: 0.6; transform: scale(1.1); }
+        }
+
+        @keyframes twinkle-3 {
+          0%, 100% { opacity: 0.35; transform: scale(0.85); }
+          40% { opacity: 0.9; transform: scale(1.2); }
+          80% { opacity: 0.7; transform: scale(1.05); }
+        }
+
+        /* Crepuscular ray animations - gentle drift as clouds move */
+        @keyframes ray-drift-1 {
+          0%, 100% { opacity: 0.9; transform: translateX(0) scaleY(1); }
+          50% { opacity: 1; transform: translateX(1%) scaleY(1.05); }
+        }
+
+        @keyframes ray-drift-2 {
+          0%, 100% { opacity: 1; transform: translateX(0) scaleY(1); }
+          50% { opacity: 0.85; transform: translateX(-0.8%) scaleY(0.98); }
+        }
+
+        @keyframes ray-drift-3 {
+          0%, 100% { opacity: 0.85; transform: translateX(0) scaleY(1.02); }
+          50% { opacity: 1; transform: translateX(0.6%) scaleY(1); }
+        }
+
+        @keyframes ray-drift-4 {
+          0%, 100% { opacity: 0.9; transform: translateX(0) scaleY(0.98); }
+          50% { opacity: 0.8; transform: translateX(-0.5%) scaleY(1.03); }
         }
       `}</style>
     </div>

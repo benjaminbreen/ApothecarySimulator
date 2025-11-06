@@ -76,8 +76,11 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       health: 85,
       energy: 62,
       status: 'calm', // Emotional state from StateAgent (default: calm)
+      activeEffects: [], // Body effects (hallucinating, poisoned, blessed, etc.)
       // Medical records system - tracks all patients Maria has actually treated
       medicalRecords: {}, // { [patientId]: { patientInfo, sessions: [...] } }
+      // Scheduled follow-up visits - tracks patients who should return
+      scheduledFollowUps: [], // [{ patientId, patientName, scheduledTurn, priority }]
       // NPC Commerce system - tracks trade opportunities and history
       tradeOpportunities: [], // Active trade opportunities from narrative
       tradeHistory: {}, // { [npcId]: [transactions...] }
@@ -141,8 +144,11 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       health: 85,
       energy: 62,
       status: 'calm', // Emotional state from StateAgent (default: calm)
+      activeEffects: [], // Body effects (hallucinating, poisoned, blessed, etc.)
       // Medical records system - tracks all patients Maria has actually treated
       medicalRecords: {}, // { [patientId]: { patientInfo, sessions: [...] } }
+      // Scheduled follow-up visits - tracks patients who should return
+      scheduledFollowUps: [], // [{ patientId, patientName, scheduledTurn, priority }]
       // NPC Commerce system - tracks trade opportunities and history
       tradeOpportunities: [], // Active trade opportunities from narrative
       tradeHistory: {}, // { [npcId]: [transactions...] }
@@ -978,6 +984,87 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
     return (gameState.documents || []).filter(doc => !doc.read).length;
   }, [gameState.documents]);
 
+  // ============================================
+  // FOLLOW-UP VISIT MANAGEMENT
+  // ============================================
+
+  /**
+   * Add a scheduled follow-up visit
+   * @param {Object} followUp - Follow-up data { patientId, patientName, scheduledTurn, priority }
+   */
+  const addScheduledFollowUp = useCallback((followUp) => {
+    setGameState((prev) => {
+      // BUG FIX #6: Add null check for scheduledFollowUps (backwards compatibility with old saves)
+      const existingFollowUps = prev.scheduledFollowUps || [];
+
+      // Check if already scheduled (prevent duplicates)
+      const alreadyScheduled = existingFollowUps.some(
+        f => f.patientId === followUp.patientId
+      );
+
+      if (alreadyScheduled) {
+        console.log(`[FollowUps] Patient ${followUp.patientName} already has a follow-up scheduled`);
+        return prev;
+      }
+
+      console.log(`[FollowUps] Adding follow-up for ${followUp.patientName} at turn ${followUp.scheduledTurn}`);
+      return {
+        ...prev,
+        scheduledFollowUps: [...existingFollowUps, followUp]
+      };
+    });
+  }, []);
+
+  /**
+   * Remove a scheduled follow-up visit
+   * @param {string} patientId - Patient ID to remove
+   */
+  const removeScheduledFollowUp = useCallback((patientId) => {
+    setGameState((prev) => ({
+      ...prev,
+      // BUG FIX #6: Add null check for scheduledFollowUps (backwards compatibility with old saves)
+      scheduledFollowUps: (prev.scheduledFollowUps || []).filter(
+        f => f.patientId !== patientId
+      )
+    }));
+    console.log(`[FollowUps] Removed follow-up for patient: ${patientId}`);
+  }, []);
+
+  /**
+   * Update a scheduled follow-up visit
+   * @param {string} patientId - Patient ID
+   * @param {Object} updates - Updates to apply
+   */
+  const updateScheduledFollowUp = useCallback((patientId, updates) => {
+    setGameState((prev) => ({
+      ...prev,
+      // BUG FIX #6: Add null check for scheduledFollowUps (backwards compatibility with old saves)
+      scheduledFollowUps: (prev.scheduledFollowUps || []).map(f =>
+        f.patientId === patientId ? { ...f, ...updates } : f
+      )
+    }));
+    console.log(`[FollowUps] Updated follow-up for patient: ${patientId}`);
+  }, []);
+
+  /**
+   * Get all scheduled follow-ups
+   * @returns {Array} Scheduled follow-ups
+   */
+  const getScheduledFollowUps = useCallback(() => {
+    return gameState.scheduledFollowUps || [];
+  }, [gameState.scheduledFollowUps]);
+
+  /**
+   * Get scheduled follow-ups that are due now
+   * @param {number} currentTurn - Current turn number
+   * @returns {Array} Due follow-ups
+   */
+  const getDueFollowUps = useCallback((currentTurn) => {
+    return (gameState.scheduledFollowUps || []).filter(
+      f => f.scheduledTurn <= currentTurn
+    );
+  }, [gameState.scheduledFollowUps]);
+
   return {
     gameState,
     updateInventory,
@@ -1037,5 +1124,12 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
     markDocumentAsRead,
     getDocuments,
     getUnreadDocumentsCount,
+
+    // Follow-up visit system
+    addScheduledFollowUp,
+    removeScheduledFollowUp,
+    updateScheduledFollowUp,
+    getScheduledFollowUps,
+    getDueFollowUps,
   };
 };

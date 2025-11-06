@@ -376,7 +376,7 @@ const ViewportPanel = ({
                 </div>
                 <h3 className="font-serif text-xl font-bold text-ink-900 dark:text-amber-400 uppercase tracking-wide mb-1 transition-colors duration-300">{npcName}</h3>
                 <p className="text-sm text-ink-400 dark:text-parchment-300 font-sans italic transition-colors duration-300">
-                  {primaryPortraitFile === 'ui/boticaentrance.png' ? 'At the Door' : 'In Conversation'}
+                  {pendingHouseCall ? 'House Call' : (primaryPortraitFile === 'ui/boticaentrance.png' ? 'At the Door' : 'In Conversation')}
                 </p>
                 {npcData && (
                   <p className="text-xs font-sans mt-0.5 transition-colors duration-300 tracking-wide" style={{

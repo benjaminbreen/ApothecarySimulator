@@ -130,7 +130,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
     };
   }
 
-  // Overcast - flat stratus layer
+  // Overcast - flat stratus layer (INCREASED OPACITY)
   if (cloudCover >= 0.6 && precipitation === 'none') {
     return {
       enabled: true,
@@ -148,7 +148,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
         {
           type: 'stratus',
           count: Math.min(6, MAX_CLOUDS_PER_LAYER),
-          opacity: 0.85,
+          opacity: 0.94, // Increased from 0.85 - more opaque overcast
           speed: Math.max(1.5, windSpeed * 0.3),
           altitude: 'low',
           color: '#cbd5e1',
@@ -157,7 +157,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
         {
           type: 'stratocumulus',
           count: Math.min(4, MAX_CLOUDS_PER_LAYER),
-          opacity: 0.88,
+          opacity: 0.96, // Increased from 0.88
           speed: Math.max(2, windSpeed * 0.35),
           altitude: 'low',
           color: '#94a3b8',
@@ -167,7 +167,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
     };
   }
 
-  // Light rain/drizzle - nimbostratus
+  // Light rain/drizzle - nimbostratus (INCREASED OPACITY)
   if (precipitation === 'drizzle' || (precipitation === 'rain' && intensity < 0.5)) {
     return {
       enabled: true,
@@ -185,7 +185,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
         {
           type: 'nimbostratus',
           count: Math.min(5, MAX_CLOUDS_PER_LAYER),
-          opacity: 0.9,
+          opacity: 0.96, // Increased from 0.9 - more opaque
           speed: Math.max(2.5, windSpeed * 0.4),
           altitude: 'low',
           color: '#64748b',
@@ -194,7 +194,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
         {
           type: 'stratus',
           count: Math.min(4, MAX_CLOUDS_PER_LAYER),
-          opacity: 0.7,
+          opacity: 0.88, // Increased from 0.7
           speed: Math.max(2, windSpeed * 0.5),
           altitude: 'medium',
           color: '#475569',
@@ -204,7 +204,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
     };
   }
 
-  // Heavy rain/thunderstorms - cumulonimbus
+  // Heavy rain/thunderstorms - cumulonimbus (VERY OPAQUE - block volcanic smoke)
   if (precipitation === 'rain' && intensity >= 0.5) {
     return {
       enabled: true,
@@ -213,7 +213,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
         {
           type: 'cumulonimbus',
           count: Math.min(3, MAX_CLOUDS_PER_LAYER),
-          opacity: 0.95,
+          opacity: 1.0, // Maximum opacity - fully blocks background
           speed: Math.max(4, windSpeed * 0.6),
           altitude: 'high',
           color: '#334155',
@@ -223,7 +223,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
         {
           type: 'nimbostratus',
           count: Math.min(4, MAX_CLOUDS_PER_LAYER),
-          opacity: 0.86,
+          opacity: 0.98, // Near-opaque
           speed: Math.max(3, windSpeed * 0.5),
           altitude: 'medium',
           color: '#475569',
@@ -232,7 +232,7 @@ export const generateCloudConfig = (weather, seed = 0) => {
         {
           type: 'stratus',
           count: Math.min(3, MAX_CLOUDS_PER_LAYER),
-          opacity: 0.6,
+          opacity: 0.92, // Increased from 0.6
           speed: Math.max(2, windSpeed * 0.45),
           altitude: 'low',
           color: '#4b5566',

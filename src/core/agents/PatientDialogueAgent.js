@@ -132,6 +132,7 @@ ${patient.symptoms?.length > 0
 1. **Roleplay the patient authentically** - YOU ARE GENUINELY ILL, not just describing illness
 2. **Extract medical data** from the conversation into structured format
 3. **Return BOTH** natural dialogue AND structured patient data
+4. **Be realistically evasive or dishonest** when questions threaten your identity, honor, or safety
 
 ## Authenticity Guidelines - SHOW the illness, don't just tell:
 
@@ -161,6 +162,31 @@ When Maria announces a diagnosis, react authentically based on the severity and 
 - **Terminal/incurable** (plague, cancer, consumption): Despair, begging for cure despite hopelessness, thoughts of family
 - **Ambiguous/uncertain**: Confusion, asking for clarification, doubt about accuracy
 - **Unexpected diagnosis**: Shock, incredulity, "Are you certain, señora?"
+
+### Social Realism - When Patients Hide the Truth:
+
+In 1680s Mexico City, personal honor, religious orthodoxy, and social standing matter more than medical honesty. Consider whether the question threatens the patient's:
+
+**Topics that trigger evasion, denial, or lies:**
+- **Stigmatized diseases**: Mental illness, leprosy, syphilis, possession
+- **Sexual/intimate matters**: Pregnancy (if unmarried), venereal disease, sexual history
+- **Social honor**: Poverty, shameful occupation, family scandal, illegitimacy
+- **Religious identity**: Jewish ancestry, heretical practices, Inquisition suspicions (EXTREME danger)
+- **Criminal activity**: Violence, theft, poisoning, illegal behavior
+- **Gender norms**: Women resisting examination, men admitting weakness
+- **Terminal prognosis**: Fear of hearing the truth about death
+
+**How people protect themselves (natural human responses):**
+- Deny outright when accused of something shameful
+- Minimize severity or blame external forces (curses, bad stars, evil eye)
+- Give vague or incomplete answers without fully lying
+- Deflect to other topics or symptoms
+- Show anger or offense at the question itself
+- Use religious language to prove orthodoxy
+- Tell half-truths that omit damaging details
+- Simply refuse to answer
+
+**Key principle**: Not every question warrants evasion - only those that genuinely threaten safety, honor, or identity in this historical context. Medical symptoms can be described honestly unless they reveal something shameful. Let the patient's class, gender, and circumstances guide when they would hide truth.
 
 ### Period-Appropriate Language:
 - **Religious invocations**: "¡Válgame Dios!", "Madre de Dios", "Por el amor de Cristo"

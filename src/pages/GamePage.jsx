@@ -74,9 +74,9 @@ import { generateJournalEntry } from '../journalAgent';
 import imageMap from '../imageMap';
 
 import { createChatCompletion } from '../core/services/llmService';
-import { evaluateConsumptionEffects } from '../core/services/consumptionService';
 import { buildSystemPrompt, buildContextSummary, buildEntityContext } from '../prompts/promptModules';
 import { orchestrateTurn } from '../core/agents/AgentOrchestrator';
+import { getEffectFromItem, applyEffect, updateEffectDurations } from '../systems/bodyEffects';
 import { NPCTracker } from '../core/agents/EntityAgent';
 import { entityManager } from '../core/entities/EntityManager';
 import { useNPCPositions } from '../features/map/hooks/useNPCPositions';
@@ -786,11 +786,22 @@ const GameContent = () => {
     const clockInterval = setInterval(() => {
       advanceTime({ minutes: 10 });
       console.log('[Real-Time Clock] Advanced game time by 10 minutes');
-    }, 60000); // 60,000 ms = 1 minute
+
+      // Update body effects durations (10 game minutes passed)
+      // Note: Effects use game time, not real time. Every 60 real seconds = 10 game minutes.
+      // This means effects pause when the game is closed/paused.
+      if (activeEffects && activeEffects.length > 0) {
+        const updatedEffects = updateEffectDurations(activeEffects, 10);
+        if (updatedEffects.length !== activeEffects.length) {
+          console.log(`[BodyEffects] ${activeEffects.length - updatedEffects.length} effect(s) expired`);
+        }
+        setActiveEffects(updatedEffects);
+      }
+    }, 60000); // 60,000 ms = 1 real minute
 
     // Cleanup interval on unmount
     return () => clearInterval(clockInterval);
-  }, [advanceTime]);
+  }, [advanceTime, activeEffects, setActiveEffects]);
 
   // Opening animation - mark as complete after animation finishes
   useEffect(() => {
@@ -1054,6 +1065,7 @@ const GameContent = () => {
     triggerGameOver,
     setCrisisState,
     setBackgroundMode, // Immersive background mode (fade UI for travel/events)
+    setTravelZoomState, // Background zoom effects for travel
 
     // State values
     isLoading, // CRITICAL FIX: Pass loading state for double-click guard
@@ -1061,6 +1073,7 @@ const GameContent = () => {
     health: gameState.health,  // From gameState
     currentWealth: gameState.wealth,  // From gameState
     consecutiveLowEnergyTurns,
+    activeEffects, // Body effects from PlayerContext
     toast,
     turnNumber,
     gameState,
@@ -1321,8 +1334,8 @@ const GameContent = () => {
     // Close modal first
     setIsConsumptionModalOpen(false);
 
-    // Show brief info toast while evaluating
-    toast.info('Evaluating effects...', 1000);
+    // Show brief info toast while processing
+    toast.info('Maria consumes the item...', 1000);
 
     try {
       // Check if item exists in inventory
@@ -1333,59 +1346,157 @@ const GameContent = () => {
         return;
       }
 
-      // Remove one from inventory
+      // Remove one from inventory BEFORE calling narrative agent
       updateInventory(itemToConsume.name, -1, 'consumed');
 
-      // Use LLM to evaluate realistic effects
-      const scenario = `Maria de Lima is a converso apothecary in 1680 Mexico City. Current health: ${gameState.health}/100, Energy: ${gameState.energy}/100.`;
+      // Set loading state
+      setIsLoading(true);
 
-      const effects = await evaluateConsumptionEffects(
-        itemToConsume.name,
-        inventoryItem.properties || {},
-        scenario
-      );
+      // Build player action for narrative agent
+      const playerAction = `I consume the ${itemToConsume.name}.`;
 
-      // Show appropriate toast based on severity
-      const { healthChange, energyChange, message, severity } = effects;
+      // Add consumption action to conversation history
+      const consumptionContext = {
+        role: 'user',
+        content: playerAction
+      };
+      setConversationHistory(prev => [...prev, consumptionContext]);
 
-      // Check for lethal consequences
-      if (severity === 'lethal' || healthChange <= -100) {
-        setCauseOfDeath(message);
-        toast.error(message, 6000);
-      } else if (severity === 'severe') {
-        toast.error(message, 5000);
-      } else if (severity === 'beneficial') {
-        toast.success(message, 4000);
-      } else if (healthChange < 0 || energyChange < 0) {
-        toast.warning(message, 4000);
-      } else {
-        toast.info(message, 4000);
-      }
-
-      // Apply resource changes
-      applyResourceChanges('consume_item', {
-        energyBonus: energyChange,
-        healthBonus: healthChange
+      // Call narrative agent to dynamically simulate consumption outcome
+      const result = await orchestrateTurn({
+        scenarioId: gameState.scenarioId || '1680-mexico-city',
+        playerAction: playerAction,
+        conversationHistory: [...conversationHistory, consumptionContext],
+        gameState: {
+          ...gameState,
+          position: playerPosition,
+          currentMap: currentMapId,
+          activeEffects: activeEffects // Include body effects for narrative context
+        },
+        turnNumber,
+        recentNPCs: npcTracker.getRecentNPCs(),
+        reputation: reputation,
+        wealth: gameState.wealth,
+        mapData: currentMapData,
+        playerPosition: playerPosition,
+        playerFacing: playerFacing,
+        currentMapId: currentMapId,
+        playerSkills: playerSkills,
+        journal: journal,
+        activePatient: activePatient,
+        recentPortrait: null, // Not needed for consumption (no NPC interaction)
+        npcDepartedLastTurn: false, // Not needed for consumption
+        conversationLock: null, // Not needed for consumption
+        weather: currentWeather,
+        options: {
+          isConsumptionAction: true,
+          itemConsumed: itemToConsume.name,
+          itemProperties: inventoryItem.properties || {}
+        }
       });
 
-      // Add to conversation history
-      setConversationHistory(prev => [...prev, { role: 'system', content: `*${message}*` }]);
+      if (!result.success) {
+        setHistoryOutput(result.narrative || 'An error occurred while consuming the item.');
+        setIsLoading(false);
+        // Refund the item since consumption failed
+        updateInventory(itemToConsume.name, 1, 'refunded');
+        setItemToConsume(null);
+        return;
+      }
+
+      // Display narrative response
+      setHistoryOutput(result.narrative);
+
+      // Add narrative response to conversation history
+      setConversationHistory(prev => [...prev, {
+        role: 'assistant',
+        content: result.narrative
+      }]);
+
+      // Apply state changes extracted by StateAgent
+      const { energyChange, healthChange } = result.gameState || {};
+      const inventoryChanges = result.inventoryChanges || [];
+
+      // Apply health changes
+      if (healthChange !== undefined && healthChange !== 0) {
+        const newHealth = Math.max(0, Math.min(100, gameState.health + healthChange));
+        setHealth(newHealth);
+
+        console.log(`[Consumption] Health change: ${healthChange}, new health: ${newHealth}`);
+
+        // Check for death
+        if (newHealth === 0) {
+          setCauseOfDeath(`Maria died after consuming ${itemToConsume.name}.`);
+          toast.error(`Maria has died from consuming ${itemToConsume.name}!`, 8000);
+        } else if (healthChange < 0) {
+          toast.error(`Maria's health decreased by ${Math.abs(healthChange)}`, 4000);
+        } else if (healthChange > 0) {
+          toast.success(`Maria's health increased by ${healthChange}`, 4000);
+        }
+      }
+
+      // Apply energy changes
+      if (energyChange !== undefined && energyChange !== 0) {
+        const newEnergy = Math.max(0, Math.min(100, gameState.energy + energyChange));
+        setEnergy(newEnergy);
+
+        console.log(`[Consumption] Energy change: ${energyChange}, new energy: ${newEnergy}`);
+
+        if (energyChange < 0) {
+          toast.warning(`Maria's energy decreased by ${Math.abs(energyChange)}`, 3000);
+        } else if (energyChange > 0) {
+          toast.success(`Maria's energy increased by ${energyChange}`, 3000);
+        }
+      }
+
+      // Apply inventory changes (if any side effects produced items)
+      if (inventoryChanges.length > 0) {
+        console.log(`[Consumption] Applying ${inventoryChanges.length} inventory changes`);
+        inventoryChanges.forEach(change => {
+          updateInventory(change.item, change.quantity, change.action || 'consumption effect');
+        });
+      }
+
+      // Check for body effects from consumed item
+      const effectData = getEffectFromItem(itemToConsume.name);
+      if (effectData && Math.random() < effectData.chance) {
+        console.log(`[Consumption] Applying body effect: ${effectData.effect} (${effectData.duration} min)`);
+
+        const updatedEffects = applyEffect(
+          activeEffects || [],
+          effectData.effect,
+          effectData.duration,
+          `Consumed ${itemToConsume.name}`,
+          { time: gameState.time, date: gameState.date } // Use game time, not real time
+        );
+
+        // Update PlayerContext with new effects
+        setActiveEffects(updatedEffects);
+
+        // Show toast notification for effect
+        const effectType = effectData.effect.charAt(0).toUpperCase() + effectData.effect.slice(1);
+        toast.info(`Effect gained: ${effectType}`, { duration: 3000 });
+      }
+
+      // Increment turn number
+      setTurnNumber(prev => prev + 1);
 
       // Add journal entry
       addJournalEntry({
-        turnNumber,
+        turnNumber: turnNumber + 1,
         date: gameState.date,
-        entry: `Consumed ${itemToConsume.name}. Energy: ${energyChange > 0 ? '+' : ''}${energyChange}, Health: ${healthChange > 0 ? '+' : ''}${healthChange}.`
+        entry: `Consumed ${itemToConsume.name}. ${result.narrative?.split('.')[0] || 'Outcome unclear'}.`
       });
 
     } catch (error) {
-      console.error('[Consumption] Error evaluating effects:', error);
-      toast.error('Failed to evaluate effects. Item not consumed.');
+      console.error('[Consumption] Error processing consumption:', error);
+      toast.error('Failed to process consumption. Item refunded.');
       // Refund the item since consumption failed
       updateInventory(itemToConsume.name, 1, 'refunded');
+    } finally {
+      setIsLoading(false);
+      setItemToConsume(null);
     }
-
-    setItemToConsume(null);
   };
 
   const handleCancelConsumption = () => {
@@ -1980,7 +2091,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                   setWeatherDescription(description);
                   setCurrentWeather(weatherState); // Store full weather state for narrative agent
                 }}
-                travelZoom={backgroundMode === 'housecall' ? travelZoomState : null}
+                travelZoom={travelZoomState.isActive ? travelZoomState : null}
                 isWeatherViewActive={backgroundMode === 'weather'}
               />
             ) : (
@@ -1994,7 +2105,30 @@ Be historically accurate, immersive, and concise. Write in third person past ten
 
             {/* Main UI Content (z-index: auto, glass effects allow weather to show through) */}
             <div
-              className={`relative z-10 h-screen flex flex-col overflow-hidden bg-gradient-to-br from-parchment-100/70 via-parchment-50/40 to-parchment-50/50 dark:from-slate-950/70 dark:via-slate-900/60 dark:to-slate-950/70 transition-colors duration-500 ${narrationDarkMode ? 'dark' : ''}`}
+              className={`relative z-10 h-screen flex flex-col overflow-hidden bg-gradient-to-br transition-colors duration-500 ${
+                (() => {
+                  // Parse time to check if it's night
+                  const timeMatch = gameState.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                  let hours = 12;
+                  if (timeMatch) {
+                    hours = parseInt(timeMatch[1]);
+                    const period = timeMatch[3].toUpperCase();
+                    if (period === 'PM' && hours !== 12) hours += 12;
+                    if (period === 'AM' && hours === 12) hours = 0;
+                  }
+
+                  // Night time (8 PM to 6 AM) - use dark overlay even in light mode for proper night sky
+                  const isNightTime = hours >= 20 || hours < 6;
+
+                  if (isNightTime) {
+                    // Minimal dark overlay at night to let stars and buildings show through clearly
+                    return 'from-slate-950/15 via-slate-900/10 to-slate-950/15';
+                  } else {
+                    // Day time - respect light/dark mode
+                    return 'from-parchment-100/70 via-parchment-50/40 to-parchment-50/50 dark:from-slate-950/70 dark:via-slate-900/60 dark:to-slate-950/70';
+                  }
+                })()
+              } ${narrationDarkMode ? 'dark' : ''}`}
               style={{ pointerEvents: isUIFaded ? 'none' : 'auto' }}
             >
 
@@ -2014,27 +2148,31 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           health={gameState.health}
           energy={gameState.energy}
           wealth={gameState.wealth}
+          onTimeChange={handlers.handleTimeChange}
         />
 
         {/* Fading content wrapper - everything below Header */}
         <div className={`flex-1 flex flex-col overflow-hidden transition-opacity duration-500 ${isUIFaded ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-          {/* House Call Active Indicator */}
+          {/* House Call Active Indicator - Auto-fades after 5s */}
           {activePatient && (currentMapId === 'humble-house-interior' || currentMapId === 'middling-house-interior') && (
-            <div style={{
-              position: 'fixed',
-              top: '80px',
-              right: '20px',
-              zIndex: 1000,
-              backgroundColor: '#059669',
-              color: 'white',
-              padding: '12px 20px',
-              borderRadius: '8px',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-              maxWidth: '280px'
-            }}>
+            <div
+              key={`house-call-${activePatient.name}-${currentMapId}`}
+              style={{
+                position: 'fixed',
+                top: '80px',
+                right: '20px',
+                zIndex: 1000,
+                backgroundColor: '#059669',
+                color: 'white',
+                padding: '12px 20px',
+                borderRadius: '8px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                maxWidth: '280px',
+                animation: 'houseCallToastFade 5.5s ease-in-out forwards'
+              }}>
               <div style={{ fontWeight: 'bold', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '18px' }}>🏥</span>
                 House Call Active
@@ -2045,6 +2183,13 @@ Be historically accurate, immersive, and concise. Write in third person past ten
               <div style={{ fontSize: '11px', opacity: 0.8 }}>
                 Type "return to botica" when finished
               </div>
+              <style>{`
+                @keyframes houseCallToastFade {
+                  0% { opacity: 1; }
+                  85% { opacity: 1; }
+                  100% { opacity: 0; }
+                }
+              `}</style>
             </div>
           )}
 
@@ -2187,6 +2332,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 onCloseNarrationSettings={() => setIsNarrationSettingsOpen(false)}
                 onOpenLLMView={() => setIsLLMViewOpen(true)}
                 onCloseLLMView={() => setIsLLMViewOpen(false)}
+                toast={toast}
               />
 
               {/* Input Area - fixed at bottom (only shown on Chronicle tab) */}
@@ -2521,6 +2667,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           onAcceptTreatment={handleAcceptTreatment}
           onAcceptSale={handleAcceptSale}
           onDecline={handleDeclineContract}
+          onContinueAfterDecline={handleSubmit} // Generate narrative after declining
           inventory={gameState.inventory}
           theme={narrationDarkMode ? 'dark' : 'light'}
           conversationHistory={conversationHistory}

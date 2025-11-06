@@ -16,6 +16,7 @@ import { relationshipGraph } from '../../core/entities/RelationshipGraph';
 import RelationshipBar from '../character/components/RelationshipBar';
 import { getCastaInfo } from '../../core/config/castaInfo.config';
 import { getBiography } from '../../core/entities/procedural/biographyGenerator';
+import { getEventIcon, getEventColor } from '../../core/entities/procedural/timelineGenerator';
 import {
   FaUser,
   FaTheaterMasks,
@@ -36,7 +37,8 @@ import {
   FaMeh,
   FaFrown,
   FaHandshake,
-  FaUserFriends
+  FaUserFriends,
+  FaHistory
 } from 'react-icons/fa';
 
 export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = null, conversationHistory = [] }) {
@@ -52,7 +54,12 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
     bigFive: false,
     traits: true,
     biography: true,
-    events: true
+    events: true,
+    family: true,
+    siblings: true,
+    spouse: true,
+    children: true,
+    timeline: true  // Default to expanded for timeline
   });
 
   // Handle smooth close with exit animation
@@ -89,8 +96,21 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
 
   // Extract dialogue from conversation history
   const npcDialogue = useMemo(() => {
-    if (!conversationHistory || !adaptedNpc?.name) return [];
-    return extractNPCDialogue(conversationHistory, adaptedNpc.name);
+    if (!conversationHistory || !adaptedNpc?.name) {
+      console.log('[NPCModal] No conversation history or NPC name:', {
+        hasHistory: !!conversationHistory,
+        historyLength: conversationHistory?.length,
+        npcName: adaptedNpc?.name
+      });
+      return [];
+    }
+    const dialogue = extractNPCDialogue(conversationHistory, adaptedNpc.name);
+    console.log('[NPCModal] Extracted dialogue for', adaptedNpc.name, ':', {
+      totalTurns: conversationHistory.length,
+      dialogueFound: dialogue.length,
+      sample: dialogue.slice(0, 2)
+    });
+    return dialogue;
   }, [conversationHistory, adaptedNpc?.name]);
 
   // Group dialogue into conversation sessions
@@ -135,10 +155,15 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
   const generatedBiography = useMemo(() => {
     if (!adaptedNpc) return null;
     try {
-      return getBiography(adaptedNpc, 1680);
+      const biography = getBiography(adaptedNpc, 1680);
+      // getBiography returns null on invalid input (validation failed)
+      if (!biography) {
+        return { error: true, message: 'Unable to generate biography - invalid NPC data' };
+      }
+      return biography;
     } catch (error) {
       console.error('[NPCModal] Biography generation error:', error);
-      return null;
+      return { error: true, message: error.message || 'Failed to generate biography' };
     }
   }, [adaptedNpc]);
 
@@ -433,9 +458,9 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                           color: isDark ? '#a78bfa' : '#7c3aed',
                           letterSpacing: '0.12em'
                         }}>
-                        ✨ First Impression
+                       First Impression
                       </h3>
-                      <p className="text-lg text-ink-700 dark:text-slate-300 leading-relaxed font-serif transition-colors duration-300">
+                      <p className="text-xl text-ink-700 dark:text-slate-300 leading-relaxed font-serif transition-colors duration-300">
                         {adaptedNpc.description}
                       </p>
                     </div>
@@ -454,7 +479,7 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                 >
                   {/* LLM-generated appearance (string) - prioritize this */}
                   {typeof appearance === 'string' && appearance && (
-                    <p className="text-lg text-ink-800 dark:text-slate-200 font-serif leading-relaxed mb-4 transition-colors duration-300">
+                    <p className="text-lg text-ink-800 dark:text-slate-200 font leading-relaxed mb-4 transition-colors duration-300">
                       {appearance}
                     </p>
                   )}
@@ -630,7 +655,7 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                       </div>
 
                       {/* Description */}
-                      <p className="text-base leading-relaxed text-ink-700 dark:text-slate-300 font-serif transition-colors duration-300">
+                      <p className="text-base leading-relaxed text-ink-700 dark:text-slate-300 font transition-colors duration-300">
                         {castaInfo.description}
                       </p>
 
@@ -662,9 +687,7 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
               <h2 className="text-4xl font-bold text-ink-900 dark:text-parchment-100 mb-2 font-serif transition-colors duration-300">
                 Personality Profile
               </h2>
-              <p className="text-base text-ink-600 dark:text-slate-400 mb-8 font-sans leading-relaxed transition-colors duration-300">
-                Understanding the character and temperament of {adaptedNpc.name}.
-              </p>
+            
 
               {/* Current Mood Indicator */}
               <div className="p-6 rounded-xl transition-colors duration-300 flex items-center gap-4"
@@ -674,13 +697,13 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                     : 'linear-gradient(135deg, rgba(199, 210, 254, 0.6), rgba(165, 180, 252, 0.4))',
                   border: isDark ? '2px solid rgba(99, 102, 241, 0.3)' : '2px solid rgba(99, 102, 241, 0.3)'
                 }}>
-                <div className="text-5xl">{currentMood.emoji}</div>
+        
                 <div className="flex-1">
                   <div className="text-sm font-bold uppercase tracking-wider mb-1 transition-colors duration-300"
                     style={{ color: currentMood.color }}>
                     Current Mood
                   </div>
-                  <div className="text-2xl font-bold text-ink-900 dark:text-parchment-100 transition-colors duration-300">
+                  <div className="text-xl font-bold text-ink-900 dark:text-parchment-100 transition-colors duration-300">
                     {currentMood.mood}
                   </div>
                 </div>
@@ -753,11 +776,8 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                     {/* Neutral Traits */}
                     {categorizedTraits.neutral.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <FaMeh className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                          <h4 className="text-sm font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                            Other Traits
-                          </h4>
+                        <div className="flex items-center gap-2 mb-0">
+                        
                         </div>
                         <div className="flex flex-wrap gap-3">
                           {categorizedTraits.neutral.map((trait, idx) => (
@@ -789,21 +809,21 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                   onToggle={() => toggleSection('humors')}
                   isDark={isDark}
                 >
-                  <div className="space-y-8">
+                  <div className="space-y-6">
                     {/* Primary/Secondary Display */}
                     {temperament.primary && (
-                      <div className="text-center p-6 rounded-xl transition-colors duration-300"
+                      <div className="text-center p-3 rounded-xl transition-colors duration-300"
                         style={{
                           background: isDark
                             ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.1))'
                             : 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.05))',
                           border: isDark ? '2px solid rgba(139, 92, 246, 0.3)' : '2px solid rgba(139, 92, 246, 0.2)'
                         }}>
-                        <p className="text-3xl font-bold text-ink-900 dark:text-parchment-100 capitalize mb-2 transition-colors duration-300">
+                        <p className="text-2xl font-bold text-ink-900 dark:text-parchment-100 capitalize mb-2 transition-colors duration-300">
                           {temperament.primary}
                         </p>
                         {temperament.secondary && (
-                          <p className="text-xl text-ink-600 dark:text-slate-400 font-medium capitalize transition-colors duration-300">
+                          <p className="text-md text-ink-600 dark:text-slate-400 font-medium capitalize transition-colors duration-300">
                             with {temperament.secondary} tendencies
                           </p>
                         )}
@@ -1067,7 +1087,23 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
               )}
 
               {/* Procedurally Generated Biography */}
-              {generatedBiography && (
+              {generatedBiography?.error ? (
+                <div className="p-6 rounded-xl border-2 transition-colors duration-300"
+                  style={{
+                    background: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(254, 226, 226, 0.8)',
+                    borderColor: isDark ? 'rgba(239, 68, 68, 0.3)' : 'rgba(239, 68, 68, 0.4)'
+                  }}>
+                  <p className="text-base font-bold text-red-700 dark:text-red-400 mb-2 transition-colors duration-300">
+                    ⚠️ Biography Generation Failed
+                  </p>
+                  <p className="text-sm text-red-600 dark:text-red-300 transition-colors duration-300">
+                    {generatedBiography.message}
+                  </p>
+                  <p className="text-xs text-red-500 dark:text-red-400 mt-2 transition-colors duration-300">
+                    Try closing and reopening the modal, or contact support if this persists.
+                  </p>
+                </div>
+              ) : generatedBiography && (
                 <>
                   {/* Birthplace & Age */}
                   <SectionCard
@@ -1244,23 +1280,144 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                       <span className="text-gray-600 dark:text-gray-400">Deceased: {generatedBiography.family.summary.deceasedMembers}</span>
                     </div>
                   </div>
+
+                  {/* Life Event Timeline */}
+                  {generatedBiography.timeline && generatedBiography.timeline.length > 0 && (
+                    <SectionCard
+                      title={`Life Timeline (${generatedBiography.timeline.length} events)`}
+                      icon={FaHistory}
+                      expanded={expandedSections.timeline}
+                      onToggle={() => toggleSection('timeline')}
+                      isDark={isDark}
+                    >
+                      <div className="relative">
+                        {/* Vertical timeline line */}
+                        <div
+                          className="absolute left-16 top-0 bottom-0 w-0.5 transition-colors duration-300"
+                          style={{
+                            background: isDark
+                              ? 'linear-gradient(to bottom, rgba(251, 191, 36, 0.3), rgba(251, 191, 36, 0.1))'
+                              : 'linear-gradient(to bottom, rgba(217, 119, 6, 0.3), rgba(217, 119, 6, 0.1))'
+                          }}
+                        />
+
+                        {/* Timeline events */}
+                        <div className="space-y-6">
+                          {generatedBiography.timeline.map((event, idx) => {
+                            const colors = getEventColor(event.category);
+                            const icon = getEventIcon(event.category);
+                            const isImportant = event.importance >= 3;
+
+                            return (
+                              <div key={idx} className="relative flex items-start gap-4">
+                                {/* Year label */}
+                                <div className="w-12 flex-shrink-0 text-right">
+                                  <span className={`text-sm font-bold transition-colors duration-300 ${
+                                    isImportant
+                                      ? 'text-amber-700 dark:text-amber-400'
+                                      : 'text-ink-600 dark:text-slate-400'
+                                  }`}>
+                                    {event.year}
+                                  </span>
+                                  <div className="text-xs text-ink-500 dark:text-slate-500 transition-colors duration-300">
+                                    Age {event.age}
+                                  </div>
+                                </div>
+
+                                {/* Event marker */}
+                                <div
+                                  className={`w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-300 ${
+                                    isImportant ? 'ring-4 ring-amber-500/30 dark:ring-amber-400/30' : ''
+                                  }`}
+                                  style={{
+                                    background: isDark
+                                      ? `linear-gradient(135deg, ${colors.dark}, ${colors.light})`
+                                      : `linear-gradient(135deg, ${colors.light}, ${colors.dark})`,
+                                    border: isDark
+                                      ? `2px solid ${colors.dark.replace('0.2', '0.5')}`
+                                      : `2px solid ${colors.light.replace('0.1', '0.3')}`
+                                  }}
+                                >
+                                  <span className="text-sm">{icon}</span>
+                                </div>
+
+                                {/* Event content */}
+                                <div
+                                  className={`flex-1 p-4 rounded-lg transition-all duration-300 ${
+                                    isImportant ? 'shadow-lg' : ''
+                                  }`}
+                                  style={{
+                                    background: isDark ? colors.dark : colors.light,
+                                    border: isDark
+                                      ? `1px solid ${colors.dark.replace('0.2', '0.4')}`
+                                      : `1px solid ${colors.light.replace('0.1', '0.2')}`
+                                  }}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <p className={`text-sm leading-relaxed transition-colors duration-300 ${
+                                      isImportant
+                                        ? 'font-semibold text-ink-900 dark:text-parchment-50'
+                                        : 'text-ink-800 dark:text-slate-200'
+                                    }`}>
+                                      {event.description}
+                                    </p>
+                                    <span
+                                      className={`px-2 py-1 rounded text-xs font-bold uppercase whitespace-nowrap transition-colors duration-300 ${colors.text}`}
+                                      style={{
+                                        background: isDark
+                                          ? colors.dark.replace('0.2', '0.3')
+                                          : colors.light.replace('0.1', '0.2')
+                                      }}
+                                    >
+                                      {event.category}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </SectionCard>
+                  )}
+
+                  {/* Empty state for timeline */}
+                  {generatedBiography.timeline && generatedBiography.timeline.length === 0 && (
+                    <div className="p-8 rounded-xl text-center transition-colors duration-300"
+                      style={{
+                        background: isDark ? 'rgba(107, 114, 128, 0.1)' : 'rgba(243, 244, 246, 0.8)',
+                        border: isDark ? '1px solid rgba(107, 114, 128, 0.2)' : '1px solid rgba(209, 213, 219, 0.4)'
+                      }}>
+                      <FaHistory className="mx-auto mb-3 text-3xl text-gray-500 dark:text-gray-400 transition-colors duration-300" />
+                      <p className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-1 transition-colors duration-300">
+                        No Life Events Recorded
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">
+                        This character's life timeline is not yet available.
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
 
-              {/* Historical Context Note */}
-              <div className="p-6 rounded-xl transition-colors duration-300"
-                style={{
-                  background: isDark ? 'rgba(59, 130, 246, 0.12)' : 'rgba(239, 246, 255, 0.7)',
-                  border: isDark ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(59, 130, 246, 0.3)'
-                }}>
-                <p className="text-sm font-bold mb-3 uppercase tracking-wider text-blue-700 dark:text-blue-400 transition-colors duration-300">
-                  📚 Historical Context
-                </p>
-                <p className="text-base text-blue-800 dark:text-blue-200 leading-relaxed transition-colors duration-300">
-                  This character exists within the complex social hierarchy of 1680 Mexico City, where casta, class, and occupation
-                  determined nearly every aspect of daily life.
-                </p>
-              </div>
+              {/* Empty state when no biography at all */}
+              {!generatedBiography && (
+                <div className="p-8 rounded-xl text-center transition-colors duration-300"
+                  style={{
+                    background: isDark ? 'rgba(107, 114, 128, 0.1)' : 'rgba(243, 244, 246, 0.8)',
+                    border: isDark ? '1px solid rgba(107, 114, 128, 0.2)' : '1px solid rgba(209, 213, 219, 0.4)'
+                  }}>
+                  <FaUser className="mx-auto mb-3 text-3xl text-gray-500 dark:text-gray-400 transition-colors duration-300" />
+                  <p className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-1 transition-colors duration-300">
+                    Biography Not Available
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 transition-colors duration-300">
+                    Biographical information for this character has not been generated.
+                  </p>
+                </div>
+              )}
+
+           
 
             </div>
           )}
@@ -1757,15 +1914,15 @@ function SectionCard({ title, icon: Icon, children, expanded, onToggle, isDark }
       }}>
       <button
         onClick={onToggle}
-        className="w-full px-6 py-5 flex items-center justify-between transition-all duration-200 hover:brightness-105"
+        className="w-full px-6 py-4 flex items-center justify-between transition-all duration-200 hover:brightness-105"
       >
         <div className="flex items-center gap-4">
-          <Icon className="text-2xl" style={{
+          <Icon className="text-xl" style={{
             color: isDark ? '#a78bfa' : '#16a34a'
           }} />
-          <h3 className="text-xl font-bold uppercase tracking-wide" style={{
+          <h3 className="text-sm font-semibold font-sans uppercase" style={{
             color: isDark ? '#e2e8f0' : '#3d2817',
-            letterSpacing: '0.08em'
+            letterSpacing: '0.05em'
           }}>
             {title}
           </h3>

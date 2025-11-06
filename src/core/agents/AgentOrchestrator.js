@@ -33,6 +33,7 @@ import { isFeatureEnabled } from '../config/featureFlags';
  * @param {Array} [params.journal] - Journal entries for history compression
  * @param {Object|null} [params.activePatient] - Currently active patient being treated
  * @param {string|null} [params.recentPortrait] - Portrait file from previous turn (for consistency)
+ * @param {Function|null} [params.removeScheduledFollowUp] - Callback to remove follow-up after patient appears
  * @returns {Promise<Object>}
  */
 export async function orchestrateTurn({
@@ -56,6 +57,8 @@ export async function orchestrateTurn({
   conversationLock = null,
   weather = null, // PHASE 1: Weather state for narrative integration
   signJustHung = false, // TRIGGER: Force patient spawn when sign just hung
+  scheduledFollowUps = [], // NEW: Scheduled follow-up visits for patient tracking
+  removeScheduledFollowUp = null, // NEW: Callback to remove follow-up after patient appears
   options = {} // NEW: Options for special request types (e.g., list requests)
 }) {
   try {
@@ -78,7 +81,8 @@ export async function orchestrateTurn({
         shopSign: gameState.shopSign || {}, // Pass shop sign status for patient flow
         activePatient, // Pass active patient to prevent duplicate selections
         conversationLock,
-        signJustHung // TRIGGER: Force patient spawn
+        signJustHung, // TRIGGER: Force patient spawn
+        scheduledFollowUps // NEW: Pass scheduled follow-ups for patient return tracking
       });
     } else {
       console.log('[AgentOrchestrator] List request - skipping entity selection');
@@ -86,6 +90,20 @@ export async function orchestrateTurn({
 
     if (selectedEntity) {
       console.log(`[Turn ${turnNumber}] Selected entity: ${selectedEntity.name} (${selectedEntity.entityType || selectedEntity.type})`);
+
+      // BUG FIX #2: Remove follow-up from queue after patient appears
+      if (selectedEntity.isFollowUpVisit && removeScheduledFollowUp && typeof removeScheduledFollowUp === 'function') {
+        console.log(`[AgentOrchestrator] Removing follow-up for patient ${selectedEntity.name} (ID: ${selectedEntity.id}) from scheduled queue`);
+        removeScheduledFollowUp(selectedEntity.id);
+      }
+
+      // BUG FIX #4: Remove abandoned follow-ups from queue (patients who missed 3+ visits)
+      if (selectedEntity.shouldRemoveFromQueue && removeScheduledFollowUp && typeof removeScheduledFollowUp === 'function') {
+        console.log(`[AgentOrchestrator] Removing abandoned follow-up for patient ${selectedEntity.name} (ID: ${selectedEntity.id}) from scheduled queue`);
+        removeScheduledFollowUp(selectedEntity.id);
+        // Clear the marker flag
+        delete selectedEntity.shouldRemoveFromQueue;
+      }
     } else {
       console.log(`[Turn ${turnNumber}] No entity selected this turn`);
     }
@@ -257,6 +275,7 @@ export async function orchestrateTurn({
         primaryNPC: narrativeResult.primaryNPC,
         showPortraitFor: narrativeResult.showPortraitFor,
         requestNewPatient: false,
+        companions: Array.isArray(narrativeResult.companions) ? narrativeResult.companions : [],
         allNewEntities: []
       };
     }
@@ -313,9 +332,11 @@ export async function orchestrateTurn({
       requestNewPatient: narrativeResult.requestNewPatient || false, // LLM controls patient flow
       patientContext: narrativeResult.patientContext || null, // Reason for patient arrival
       npcDeparted: narrativeResult.npcDeparted || false, // NPC has left the scene
+      companions: Array.isArray(narrativeResult.companions) ? narrativeResult.companions : [], // NPCs still accompanying Maria
       gameState: validatedState,
       inventoryChanges: stateResult.inventoryChanges || [],
       relationshipChanges: stateResult.relationshipChanges || [], // NPC relationship changes
+      reputationEvents: stateResult.reputationEvents || [], // Faction reputation changes
       contractOffer: stateResult.contractOffer || null, // Treatment/sale contract offers
       actionPrompt: stateResult.actionPrompt || null, // Action prompts (give/sell/prescribe requests)
       journalEntry: stateResult.journalEntry || '',

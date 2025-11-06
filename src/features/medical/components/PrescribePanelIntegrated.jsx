@@ -12,11 +12,64 @@ import PrescriptionOutcomeModal from './PrescriptionOutcomeModal';
 import { useGameState } from '../../../contexts/GameStateContext';
 import { MedicalRecordsManager } from '../../../core/systems/medicalRecordsManager';
 import { entityManager } from '../../../core/entities/EntityManager';
+import { generateFollowUpSchedule } from '../utils/followUpUtils';
 
 import oralImage from '../../../assets/oral.jpg';
 import inhaledImage from '../../../assets/inhaled.jpg';
 import topicalImage from '../../../assets/topical.jpg';
 import enemaImage from '../../../assets/enema.jpg';
+
+/**
+ * Extract outcome status from LLM-generated narrative for follow-up scheduling
+ * @param {string} narrative - Full outcome text
+ * @returns {string} 'success' | 'failure' | 'complication' | 'death' | null
+ */
+function extractOutcomeStatus(narrative) {
+  if (!narrative) return null;
+
+  const lowerNarrative = narrative.toLowerCase();
+
+  // Death takes highest priority
+  if (lowerNarrative.includes('💀') ||
+      lowerNarrative.includes('died') ||
+      lowerNarrative.includes('death') ||
+      lowerNarrative.includes('fatal') ||
+      lowerNarrative.includes('passed away')) {
+    return 'death';
+  }
+
+  // Complications
+  if (lowerNarrative.includes('complication') ||
+      lowerNarrative.includes('severe reaction') ||
+      lowerNarrative.includes('worsened') ||
+      lowerNarrative.includes('worse') ||
+      lowerNarrative.includes('seizure') ||
+      lowerNarrative.includes('unconscious') ||
+      lowerNarrative.includes('collapsed')) {
+    return 'complication';
+  }
+
+  // Failure/ineffective
+  if (lowerNarrative.includes('ineffective') ||
+      lowerNarrative.includes('no effect') ||
+      lowerNarrative.includes('failed') ||
+      lowerNarrative.includes('disappointed') ||
+      lowerNarrative.includes('frustrated')) {
+    return 'failure';
+  }
+
+  // Success indicators
+  if (lowerNarrative.includes('successful') ||
+      lowerNarrative.includes('improved') ||
+      lowerNarrative.includes('better') ||
+      lowerNarrative.includes('effective') ||
+      lowerNarrative.includes('relief') ||
+      lowerNarrative.includes('cured')) {
+    return 'success';
+  }
+
+  return null; // Uncertain
+}
 
 function PrescribePanelIntegrated({
   gameState = {},
@@ -36,10 +89,16 @@ function PrescribePanelIntegrated({
   advanceTime,
   theme = 'light',
   transactionManager,
-  TRANSACTION_CATEGORIES
+  TRANSACTION_CATEGORIES,
+  toast // Toast notification function (optional)
 }) {
   const { inventory = [] } = gameState;
-  const { setGameState, setCrisisState } = useGameState(); // For updating medical records and crisis state
+  const {
+    setGameState,
+    setCrisisState,
+    addScheduledFollowUp, // NEW: Helper for adding follow-ups
+    removeScheduledFollowUp // NEW: Helper for removing follow-ups
+  } = useGameState(); // For updating medical records, crisis state, and follow-ups
   const [selectedItem, setSelectedItem] = useState(null);
   const [amount, setAmount] = useState(1);
   const [price, setPrice] = useState(0);
@@ -502,6 +561,7 @@ function PrescribePanelIntegrated({
           const updatedPatient = {
             ...currentPatient,
             isDead: true,
+            treatmentStatus: 'deceased', // Consistent with prescriptionOutcomeHandler
             deathDate: gameState.date,
             deathTurnNumber: gameState.turnNumber,
             causeOfDeath: 'Treatment complications',
@@ -552,7 +612,7 @@ function PrescribePanelIntegrated({
         }
       }
     } else {
-      // Non-fatal outcome: still update medical records with actual outcome
+      // Non-fatal outcome: update medical records with actual outcome
       if (currentPatient && currentPatient.id) {
         setGameState(prev => ({
           ...prev,
@@ -562,6 +622,90 @@ function PrescribePanelIntegrated({
             { outcome: outcomeText }
           )
         }));
+      }
+
+      // Schedule follow-up visit for non-fatal outcomes
+      console.log('[PrescribePanelIntegrated] Scheduling follow-up visit for', currentPatient?.name);
+
+      try {
+        // Extract outcome status from narrative
+        const outcomeStatus = extractOutcomeStatus(outcomeText);
+
+        // Generate follow-up schedule with outcome data for urgency detection
+        const followUpData = generateFollowUpSchedule(
+          currentPatient,
+          {
+            substanceName: prescriptionData?.item?.name || 'Unknown medicine',
+            amount: prescriptionData?.amount || 1,
+            route: prescriptionData?.route || 'Unknown route'
+          },
+          gameState.date,
+          gameState.turnNumber,
+          {
+            outcomeNarrative: outcomeText,
+            treatmentOutcome: outcomeStatus
+          }
+        );
+
+        if (followUpData) {
+          // Update patient entity with follow-up data
+          const updatedPatient = {
+            ...currentPatient,
+            treatmentStatus: 'followup_scheduled',
+            followUp: followUpData,
+            treatmentProgress: {
+              initialDiagnosis: currentPatient.diagnosis || currentPatient.medical?.diagnosis || 'Unknown condition',
+              treatmentsGiven: [prescriptionData?.item?.name || 'Unknown medicine'],
+              lastTreatmentDate: gameState.date,
+              lastTreatmentTurn: gameState.turnNumber,
+              outcomeStatus: outcomeStatus || 'unknown',
+              symptomChanges: []
+            }
+          };
+
+          // Update EntityManager
+          entityManager.update(currentPatient.id, updatedPatient);
+
+          // Add to game state scheduled follow-ups using new helper
+          addScheduledFollowUp({
+            patientId: currentPatient.id,
+            patientName: currentPatient.name,
+            scheduledTurn: followUpData.scheduledTurn,
+            priority: followUpData.priority
+          });
+
+          // Show toast notification for follow-up scheduling
+          if (toast && typeof toast === 'function') {
+            const timeLabel = followUpData.hoursAfterTreatment
+              ? `in ${followUpData.hoursAfterTreatment} hours`
+              : `in ${followUpData.daysAfterTreatment} day${followUpData.daysAfterTreatment > 1 ? 's' : ''}`;
+
+            const urgencyIcon = followUpData.priority === 'urgent' ? '🚨 ' : '📅 ';
+
+            toast.info(`${urgencyIcon}Follow-up scheduled for ${currentPatient.name} ${timeLabel}`, {
+              duration: 4000
+            });
+          }
+
+          // Add journal entry
+          const urgencyNote = followUpData.hoursAfterTreatment
+            ? ` (URGENT: ${followUpData.hoursAfterTreatment} hours)`
+            : '';
+
+          if (addJournalEntry && typeof addJournalEntry === 'function') {
+            addJournalEntry({
+              turnNumber: gameState.turnNumber,
+              date: gameState.date,
+              entry: `Follow-up scheduled for ${currentPatient.name} on ${followUpData.scheduledDate}${urgencyNote} (${followUpData.reason})`
+            });
+          }
+
+          console.log(`[PrescribePanelIntegrated] ✓ Follow-up scheduled: ${currentPatient.name} - ${followUpData.scheduledDate} (turn ${followUpData.scheduledTurn}, ${followUpData.priority} priority)`);
+        } else {
+          console.log('[PrescribePanelIntegrated] No follow-up scheduled (outcome indicates death or no return needed)');
+        }
+      } catch (error) {
+        console.error('[PrescribePanelIntegrated] Failed to schedule follow-up:', error);
       }
     }
 

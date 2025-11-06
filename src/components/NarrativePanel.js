@@ -300,9 +300,14 @@ function highlightEntitiesInText(text, sortedNPCs) {
             className = 'item-name';
           } else if (entityType === 'location') {
             className = 'location-name';
+          } else if (entityType === 'medical_term') {
+            className = 'medical-term';
           }
 
           const description = npcData?.description || 'No additional information available.';
+
+          // Get icon for medical terms
+          const icon = entityType === 'medical_term' ? npcData?.icon : null;
 
           // Use running counter for truly unique keys
           newParts.push(
@@ -311,6 +316,7 @@ function highlightEntitiesInText(text, sortedNPCs) {
               className={className}
               data-npc-name={segment}
               data-description={description}
+              data-icon={icon || ''}
             >
               {segment}
             </span>
@@ -330,12 +336,12 @@ function highlightEntitiesInText(text, sortedNPCs) {
  * even when text is inside bold, italic, or other formatting
  */
 function createEntityHighlightingComponents(recentNPCs = []) {
-  // Get all entities from EntityManager, filter to NPCs, patients, locations, and items
-  // Items are now included to support POI furniture (Drug Cabinet, Sales Counter, etc.)
+  // Get all entities from EntityManager, filter to NPCs, patients, locations, items, and medical terms
+  // Medical terms enable clickable references to the Reference Tab
   const allEntities = entityManager.getAll();
   const highlightableEntities = allEntities.filter(entity => {
     const type = entity.entityType || entity.type;
-    return type === 'npc' || type === 'patient' || type === 'location' || type === 'item';
+    return type === 'npc' || type === 'patient' || type === 'location' || type === 'item' || type === 'medical_term';
   });
   const highlightableNames = highlightableEntities.map(entity => entity.name);
 
@@ -458,6 +464,7 @@ const NarrativeEntry = React.memo(({
   onRandomEventChoice,
   onConfirmExit,
   onCancelExit,
+  onOpenPrescriptionDetails, // BUG FIX #9: Added missing prop
   gameState,
   isDarkMode
 }) => {
@@ -810,7 +817,7 @@ const NarrativeEntry = React.memo(({
                 components={entityComponents}
                 className="text-sm text-purple-600 dark:text-purple-400 font-sans leading-relaxed italic transition-colors duration-300"
               >
-                {content}
+                {styleSystemLabels(content)}
               </ReactMarkdown>
             </div>
           ) : (
@@ -1258,6 +1265,23 @@ const NarrativePanel = ({
 
     const entityType = entityData.entityType || entityData.type;
 
+    // If it's a medical term, dispatch event to open Reference Tab
+    if (entityType === 'medical_term') {
+      const referenceId = entityData.referenceId || entityData.id.replace('medical-term-', '');
+
+      // Dispatch custom event with smooth tab transition
+      window.dispatchEvent(new CustomEvent('openReferenceEntry', {
+        detail: {
+          entryId: referenceId,
+          sourceName: npcName,
+          clickPosition: clickEvent ? { x: clickEvent.clientX, y: clickEvent.clientY } : null
+        }
+      }));
+
+      console.log('[NarrativePanel] Opening reference for medical term:', npcName, '→', referenceId);
+      return;
+    }
+
     // If it's a patient, open full patient modal
     if (entityType === 'patient') {
       setSelectedPatient(entityData);
@@ -1314,11 +1338,12 @@ const NarrativePanel = ({
         return;
       }
 
-      // Handle entity clicks (NPCs, patients, items, locations)
+      // Handle entity clicks (NPCs, patients, items, locations, medical terms)
       if (e.target.classList.contains('npc-name') ||
           e.target.classList.contains('patient-name') ||
           e.target.classList.contains('item-name') ||
-          e.target.classList.contains('location-name')) {
+          e.target.classList.contains('location-name') ||
+          e.target.classList.contains('medical-term')) {
         const npcName = e.target.getAttribute('data-npc-name');
         handleNPCClick(npcName, e);
       }
@@ -1328,7 +1353,8 @@ const NarrativePanel = ({
       if (e.target.classList.contains('npc-name') ||
           e.target.classList.contains('patient-name') ||
           e.target.classList.contains('item-name') ||
-          e.target.classList.contains('location-name')) {
+          e.target.classList.contains('location-name') ||
+          e.target.classList.contains('medical-term')) {
         // Clear any existing timeout
         if (hoverTimeoutRef.current) {
           clearTimeout(hoverTimeoutRef.current);
@@ -1337,6 +1363,7 @@ const NarrativePanel = ({
         // Capture data IMMEDIATELY before element can be replaced by React
         const npcName = e.target.getAttribute('data-npc-name');
         const description = e.target.getAttribute('data-description');
+        const icon = e.target.getAttribute('data-icon');
         const rect = e.target.getBoundingClientRect();
 
         // Debounce state update to prevent rapid re-renders
@@ -1345,6 +1372,7 @@ const NarrativePanel = ({
           setHoveredEntity({
             name: npcName,
             description,
+            icon: icon || null, // Include icon for medical terms
             rect: {
               top: rect.top,
               left: rect.left,
@@ -1360,7 +1388,8 @@ const NarrativePanel = ({
       if (e.target.classList.contains('npc-name') ||
           e.target.classList.contains('patient-name') ||
           e.target.classList.contains('item-name') ||
-          e.target.classList.contains('location-name')) {
+          e.target.classList.contains('location-name') ||
+          e.target.classList.contains('medical-term')) {
         // Clear any pending hover state updates
         if (hoverTimeoutRef.current) {
           clearTimeout(hoverTimeoutRef.current);
@@ -1427,6 +1456,7 @@ const NarrativePanel = ({
                   onRandomEventChoice={onRandomEventChoice}
                   onConfirmExit={onConfirmExit}
                   onCancelExit={onCancelExit}
+                  onOpenPrescriptionDetails={onOpenPrescriptionDetails}
                   gameState={gameState}
                   isDarkMode={isDarkMode}
                 />
@@ -1854,6 +1884,7 @@ const NarrativePanel = ({
           rect={hoveredEntity.rect}
           description={hoveredEntity.description}
           entityName={hoveredEntity.name}
+          icon={hoveredEntity.icon}
         />
       )}
 

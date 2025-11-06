@@ -3319,6 +3319,292 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   interactionFrequency: "rare" // Exclusive, high-value encounters
 },
 
+// ============================================
+// MERCHANT NPCS - Permanent shops with inventories
+// ============================================
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Xochitl",
+  age: 65,
+  birthplace: "Tlatelolco, New Spain",
+  currentResidence: "Tlatelolco Market, Mexico City",
+  casta: "Indigenous (Nahua)",
+  class: "Working class",
+  occupation: "Indigenous herbalist",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "herbalist",
+  shopName: "Xochitl's Herb Stall",
+  location: "Tlatelolco Market",
+
+  inventory: {
+    categories: ['herb', 'indigenous', 'food'],
+    size: [15, 25],
+    priceVariation: 0.20,
+    refreshDaily: true
+  },
+
+  description: "Xochitl is an elderly Nahua herbalist who has been selling medicinal plants at Tlatelolco Market for decades. She knows the indigenous names and properties of countless herbs, passed down through generations. Her stall is piled high with dried plants, fresh roots, and bundles of aromatic leaves.",
+
+  appearance: {
+    age: "elder",
+    gender: "female"
+  },
+
+  social: {
+    occupation: "Indigenous herbalist",
+    casta: "indígena",
+    class: "common",
+    faction: "indigenous"
+  },
+
+  dialogue: {
+    greeting: "Tlazohcamati, señora. Fresh herbs today from the chinampas.",
+    farewell: "Cualli tonalli. May these plants bring healing."
+  },
+
+  secret: "Xochitl knows the locations of rare medicinal plants in the mountains outside Mexico City, including some that were sacred to the Aztecs. She only shares this knowledge with those she trusts deeply."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Don Lorenzo Medina",
+  age: 48,
+  birthplace: "Puebla, New Spain",
+  currentResidence: "Plaza Mayor, Mexico City",
+  casta: "Criollo",
+  class: "Middling",
+  occupation: "Licensed apothecary",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "apothecary",
+  shopName: "Botica de San Felipe",
+  location: "Plaza Mayor",
+
+  inventory: {
+    categories: ['alchemical', 'animal', 'imported', 'mineral'],
+    size: [12, 18],
+    priceVariation: 0.15,
+    refreshDaily: true
+  },
+
+  description: "Don Lorenzo operates one of the most respected apothecaries in Mexico City, licensed by the Royal Protomedicato. His shop near Plaza Mayor carries imported substances, alchemical preparations, and rare animal derivatives. He maintains exacting standards and views unlicensed healers with suspicion.",
+
+  appearance: {
+    age: "middle-aged",
+    gender: "male"
+  },
+
+  social: {
+    occupation: "Licensed apothecary",
+    casta: "criollo",
+    class: "middling",
+    faction: "guild"
+  },
+
+  dialogue: {
+    greeting: "Welcome to Botica de San Felipe. I stock only the finest pharmaceutical preparations in New Spain.",
+    farewell: "May these compounds serve your purposes. Good day."
+  },
+
+  secret: "Don Lorenzo is deeply in debt to merchant creditors. He inflates his prices to cover interest payments, and occasionally waters down expensive tinctures to stretch his inventory."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Isabel Téllez",
+  age: 26,
+  birthplace: "Mexico City, New Spain",
+  currentResidence: "Plaza Mayor, Mexico City",
+  casta: "Mestiza",
+  class: "Middling",
+  occupation: "Seamstress and clothier",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "clothier",
+  shopName: "Casa de Telas",
+  location: "Plaza Mayor",
+
+  inventory: {
+    categories: ['clothing', 'textiles'],
+    size: [10, 15],
+    priceVariation: 0.10,
+    refreshDaily: false // Clothing stock changes weekly
+  },
+
+  description: "Isabel runs a small but well-regarded tailoring shop where she creates and sells clothing for middling and common folk. Her work is known for its quality stitching and reasonable prices. She employs two apprentices and dreams of one day supplying the elite households.",
+
+  appearance: {
+    age: "young adult",
+    gender: "female"
+  },
+
+  social: {
+    occupation: "Seamstress and clothier",
+    casta: "mestiza",
+    class: "middling",
+    faction: "guild"
+  },
+
+  dialogue: {
+    greeting: "Buenos días. Looking for new garments? Everything is made by hand here.",
+    farewell: "May you wear them in good health, señora."
+  },
+
+  secret: "Isabel is secretly saving money to open a second shop in the wealthy Alameda district. She sometimes accepts commissions from elite clients through intermediaries, bypassing the guild restrictions on mestiza artisans serving the nobility."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Diego Ruiz",
+  age: 42,
+  birthplace: "Mexico City, New Spain",
+  currentResidence: "La Merced, Mexico City",
+  casta: "Criollo",
+  class: "Working class",
+  occupation: "Market vendor",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "general_goods",
+  shopName: "Diego's Market Stall",
+  location: "La Merced Market",
+
+  inventory: {
+    categories: ['food', 'dietary', 'common', 'tool'],
+    size: [20, 30],
+    priceVariation: 0.10,
+    refreshDaily: true
+  },
+
+  description: "Diego operates a busy general goods stall at La Merced Market, selling everything from fresh tortillas and beans to simple tools and household items. He's a fixture at the market, known for his booming voice and willingness to haggle. His stall serves the working people of Mexico City with affordable, everyday necessities.",
+
+  appearance: {
+    age: "middle-aged",
+    gender: "male"
+  },
+
+  social: {
+    occupation: "Market vendor",
+    casta: "criollo",
+    class: "common",
+    faction: "commonFolk"
+  },
+
+  dialogue: {
+    greeting: "¡Órale! Fresh goods today, señora. Best prices at La Merced!",
+    farewell: "Come back soon. I'll have something new for you."
+  },
+
+  secret: "Diego supplements his income by acting as an information broker, quietly noting who buys what at the market and selling gossip to interested parties. He keeps mental records of suspicious purchases that might interest the Inquisition."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Ahmad al-Gharbi",
+  age: 55,
+  birthplace: "Tangier, Morocco",
+  currentResidence: "Merchants Quarter, Mexico City",
+  casta: "Moro (Moorish)",
+  class: "Middling",
+  occupation: "Spice merchant",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "spice_trader",
+  shopName: "House of Oriental Spices",
+  location: "Merchants Quarter",
+
+  inventory: {
+    categories: ['imported', 'exotic', 'spice'],
+    size: [8, 12],
+    priceVariation: 0.25,
+    refreshDaily: true
+  },
+
+  description: "Ahmad is a Moorish spice merchant who imports rare substances via the Manila galleon trade and Mediterranean networks. His shop carries exotic goods: Chinese ginger, Malaccan pepper, Arabian frankincense, and Persian saffron. He speaks Spanish with a lilting accent and maintains connections across three continents.",
+
+  appearance: {
+    age: "middle-aged",
+    gender: "male"
+  },
+
+  social: {
+    occupation: "Spice merchant",
+    casta: "moro",
+    class: "middling",
+    faction: "merchants"
+  },
+
+  dialogue: {
+    greeting: "As-salamu alaykum, señora. I have just received a shipment from Manila. Very fine quality.",
+    farewell: "Ma'a salama. May your remedies be as potent as my spices."
+  },
+
+  secret: "Ahmad is part of an underground network helping conversos and moriscos flee New Spain to safer territories. He uses his merchant ships and trading connections to smuggle people and forbidden texts out of the Spanish Empire."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Carmen Flores",
+  age: 38,
+  birthplace: "Xochimilco, New Spain",
+  currentResidence: "Tlatelolco Market, Mexico City",
+  casta: "Mestiza",
+  class: "Working class",
+  occupation: "Food vendor",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "food_vendor",
+  shopName: "Carmen's Food Stall",
+  location: "Tlatelolco Market",
+
+  inventory: {
+    categories: ['food', 'dietary'],
+    size: [12, 18],
+    priceVariation: 0.15,
+    refreshDaily: true
+  },
+
+  description: "Carmen sells fresh food from her family's chinampas in Xochimilco: fish from the lake, fresh vegetables, tamales, and pulque. She arrives at the market before dawn with her canoe loaded with goods. Her warm personality and fair prices make her stall popular with both indigenous and Spanish customers.",
+
+  appearance: {
+    age: "middle-aged",
+    gender: "female"
+  },
+
+  social: {
+    occupation: "Food vendor",
+    casta: "mestiza",
+    class: "common",
+    faction: "commonFolk"
+  },
+
+  dialogue: {
+    greeting: "¡Buenos días! Fresh from Xochimilco this morning. The fish are still jumping!",
+    farewell: "¡Que le vaya bien! Come tomorrow for fresh tamales."
+  },
+
+  secret: "Carmen's family still practices some pre-Hispanic rituals at their chinampa, making offerings to Chalchiuhtlicue, the goddess of water. She fears discovery by the Church authorities but believes these rituals ensure good harvests."
+},
+
 ];
 
 

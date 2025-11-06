@@ -7,7 +7,10 @@
 
 /**
  * Extract all dialogue utterances from a narrative text
- * Looks for patterns like: **"Some dialogue text"** or **"Text,"** or **"Text!"**
+ * Looks for multiple patterns:
+ * - **"Some dialogue text"** (bold quotes)
+ * - "Some dialogue text" (regular quotes)
+ * - 'Some dialogue text' (single quotes)
  *
  * @param {string} text - Narrative text to parse
  * @returns {Array<string>} Array of dialogue strings (without formatting)
@@ -15,16 +18,33 @@
 function extractDialogueFromText(text) {
   if (!text || typeof text !== 'string') return [];
 
-  // Pattern: **"dialogue text"** (with optional punctuation before closing quote)
-  // Matches: **"Hello"**, **"Hello!"**, **"Hello,"**, **"Hello?"**
-  const dialoguePattern = /\*\*"([^"]+)"\*\*/g;
-
   const dialogues = [];
-  let match;
 
-  while ((match = dialoguePattern.exec(text)) !== null) {
+  // Pattern 1: **"dialogue text"** (bold double quotes - most common)
+  const boldDoublePattern = /\*\*"([^"]+)"\*\*/g;
+  let match;
+  while ((match = boldDoublePattern.exec(text)) !== null) {
     const dialogue = match[1].trim();
-    if (dialogue) {
+    if (dialogue && dialogue.length > 2) { // Filter out very short matches
+      dialogues.push(dialogue);
+    }
+  }
+
+  // Pattern 2: Regular "dialogue text" (without bold)
+  const regularDoublePattern = /(?<!\*)"([^"]{10,})"/g; // At least 10 chars to avoid false positives
+  while ((match = regularDoublePattern.exec(text)) !== null) {
+    const dialogue = match[1].trim();
+    // Check if this isn't already captured by bold pattern
+    if (dialogue && !dialogues.includes(dialogue)) {
+      dialogues.push(dialogue);
+    }
+  }
+
+  // Pattern 3: 'Single quoted dialogue'
+  const singleQuotePattern = /'([^']{10,})'/g;
+  while ((match = singleQuotePattern.exec(text)) !== null) {
+    const dialogue = match[1].trim();
+    if (dialogue && !dialogues.includes(dialogue)) {
       dialogues.push(dialogue);
     }
   }
@@ -76,7 +96,7 @@ function extractSpeakerName(text) {
 function textContainsNPCDialogue(text, npcName) {
   if (!text || !npcName) return false;
 
-  // Check if NPC name appears near dialogue
+  // Check if dialogue exists
   const dialogues = extractDialogueFromText(text);
   if (dialogues.length === 0) return false;
 
@@ -84,7 +104,10 @@ function textContainsNPCDialogue(text, npcName) {
   const textLower = text.toLowerCase();
   const nameLower = npcName.toLowerCase();
 
-  return textLower.includes(nameLower);
+  // Also check for first name only (e.g., "Isabel" from "Isabel Valdés")
+  const firstName = npcName.split(' ')[0].toLowerCase();
+
+  return textLower.includes(nameLower) || textLower.includes(firstName);
 }
 
 /**
@@ -123,17 +146,24 @@ export function extractNPCDialogue(conversationHistory, npcName) {
 
     // For each dialogue utterance, try to determine if it's from our NPC
     dialogues.forEach((dialogue) => {
-      // Get surrounding context (look for NPC name near the dialogue)
-      const dialogueIndex = content.indexOf(`**"${dialogue}"`);
-      if (dialogueIndex === -1) return;
+      // Try to find the dialogue in the content (with various quote formats)
+      let dialogueIndex = content.indexOf(`**"${dialogue}"`);
+      if (dialogueIndex === -1) dialogueIndex = content.indexOf(`"${dialogue}"`);
+      if (dialogueIndex === -1) dialogueIndex = content.indexOf(`'${dialogue}'`);
+      if (dialogueIndex === -1) return; // Couldn't find this dialogue
 
-      // Get text around the dialogue to find speaker attribution
-      const contextStart = Math.max(0, dialogueIndex - 100);
-      const contextEnd = Math.min(content.length, dialogueIndex + dialogue.length + 100);
+      // Get text around the dialogue to find speaker attribution (expanded to ±200 chars)
+      const contextStart = Math.max(0, dialogueIndex - 200);
+      const contextEnd = Math.min(content.length, dialogueIndex + dialogue.length + 200);
       const context = content.substring(contextStart, contextEnd);
 
-      // Check if NPC name appears in context
-      if (!context.toLowerCase().includes(npcName.toLowerCase())) return;
+      // Check if NPC name (full or first name) appears in context
+      const firstName = npcName.split(' ')[0].toLowerCase();
+      const contextLower = context.toLowerCase();
+      const nameInContext = contextLower.includes(npcName.toLowerCase()) || contextLower.includes(firstName);
+
+      // If name not in immediate context, check full narrative (might be at start/end)
+      if (!nameInContext && !content.toLowerCase().includes(firstName)) return;
 
       // Add to exchanges
       dialogueExchanges.push({

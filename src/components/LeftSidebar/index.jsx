@@ -58,6 +58,7 @@ export function LeftSidebar({
         characterTitle={characterTitle}
         characterLevel={characterLevel}
         chosenProfession={chosenProfession}
+        activeEffects={activeEffects}
         portraitImage={portraitImage}
         onOpenCharacterModal={() => setShowCharacterModal(true)}
         onItemDropOnPlayer={onItemDropOnPlayer}

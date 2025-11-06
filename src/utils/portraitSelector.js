@@ -171,7 +171,6 @@ export function getPortraitFromStatus(status) {
     // SLIGHTLY TIRED → mariaslightlytired.jpg
     'slightlytired': '/maria/mariaslightlytired.jpg',
     'alittletired': '/maria/mariaslightlytired.jpg',
-    'weary': '/maria/mariaslightlytired.jpg',
 
     // TIRED STATES → mariatired.jpg
     'tired': '/maria/mariatired.jpg',

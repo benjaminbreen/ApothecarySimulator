@@ -51,20 +51,26 @@ export default function PatientRosterModal({
     const treatedPatients = MedicalRecordsManager.getTreatedPatients(medicalRecords);
 
     // Convert medical record format to patient entity format for compatibility
-    return treatedPatients.map(record => ({
-      id: record.patientId,
-      name: record.patientName,
-      age: record.age,
-      occupation: record.occupation,
-      portrait: record.portrait,
-      diagnosis: record.sessions[record.sessions.length - 1]?.diagnosis || 'No diagnosis',
-      symptoms: record.sessions[record.sessions.length - 1]?.symptoms || [],
-      memory: {
-        interactions: record.sessions
-      },
-      // Add medical record reference for easy access
-      medicalRecord: record
-    }));
+    return treatedPatients.map(record => {
+      // BUG FIX #12: Safely access sessions array with defensive checks
+      const sessions = record.sessions || [];
+      const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
+
+      return {
+        id: record.patientId,
+        name: record.patientName,
+        age: record.age,
+        occupation: record.occupation,
+        portrait: record.portrait,
+        diagnosis: lastSession?.diagnosis || 'No diagnosis',
+        symptoms: lastSession?.symptoms || [],
+        memory: {
+          interactions: sessions
+        },
+        // Add medical record reference for easy access
+        medicalRecord: record
+      };
+    });
   }, [medicalRecords, isOpen]); // Re-compute when medical records change or modal opens
 
   // Filter patients based on search query
@@ -89,10 +95,25 @@ export default function PatientRosterModal({
       // Patients with recent interactions (last 10 turns)
       const hasRecentInteraction = patient.memory?.interactions?.length > 0;
 
-      // Active patients (currently ill or being treated)
-      const isActive = patient.diagnosis && !patient.diagnosis.toLowerCase().includes('cured');
+      // Check if patient is deceased (from any session outcome)
+      const isDead = patient.medicalRecord?.sessions?.some(session => {
+        const outcome = session.outcome?.toLowerCase() || '';
+        return outcome.includes('death') ||
+               outcome.includes('died') ||
+               outcome.includes('fatal') ||
+               outcome.includes('deceased') ||
+               outcome.includes('passed away') ||
+               outcome.includes('succumbed');
+      }) || false;
 
-      if (isActive && hasRecentInteraction) {
+      // Active patients (currently ill or being treated, and NOT deceased)
+      const isActive = patient.diagnosis &&
+                      !patient.diagnosis.toLowerCase().includes('cured') &&
+                      !isDead;
+
+      // BUG FIX #5: Active patients should appear in Active tab regardless of recent interaction
+      // Priority: Active > Recent > Historical
+      if (isActive) {
         active.push(patient);
       } else if (hasRecentInteraction) {
         recent.push(patient);
@@ -378,8 +399,19 @@ function PatientCard({ patient, onClick, isDark }) {
     ? latestSession.ailment
     : diagnosis.split('.')[0];
 
+  // Check if patient is deceased
+  const isDead = patient.medicalRecord?.sessions?.some(session => {
+    const outcome = session.outcome?.toLowerCase() || '';
+    return outcome.includes('death') ||
+           outcome.includes('died') ||
+           outcome.includes('fatal') ||
+           outcome.includes('deceased') ||
+           outcome.includes('passed away') ||
+           outcome.includes('succumbed');
+  }) || false;
+
   // Determine patient status
-  const isActive = diagnosis && !diagnosis.toLowerCase().includes('cured');
+  const isActive = diagnosis && !diagnosis.toLowerCase().includes('cured') && !isDead;
   const hasRecentInteraction = patient.memory?.interactions?.length > 0;
 
   return (
@@ -413,14 +445,28 @@ function PatientCard({ patient, onClick, isDark }) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-6xl opacity-40">
-            {isActive ? '🤒' : '👤'}
+            {isDead ? '💀' : isActive ? '🤒' : '👤'}
           </div>
         )}
 
         {/* Status Badges */}
         <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+          {/* Death Badge - Highest Priority */}
+          {isDead && (
+            <div
+              className="px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide"
+              style={{
+                background: 'linear-gradient(135deg, #dc2626, #991b1b)',
+                color: '#fff',
+                boxShadow: '0 2px 6px rgba(220, 38, 38, 0.4)'
+              }}
+            >
+              💀 Deceased
+            </div>
+          )}
+
           {/* Active Badge */}
-          {isActive && (
+          {isActive && !isDead && (
             <div
               className="px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide"
               style={{

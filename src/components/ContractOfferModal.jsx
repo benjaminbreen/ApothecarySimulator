@@ -19,6 +19,7 @@ function ContractOfferModal({
   onAcceptSale,
   onDecline,
   onNegotiate,
+  onContinueAfterDecline, // NEW: Generate narrative after declining
   inventory = [],
   theme = 'light',
   scenarioId = '1680-mexico-city',
@@ -30,6 +31,22 @@ function ContractOfferModal({
   const [counterOffer, setCounterOffer] = useState('');
   const [negotiationResponse, setNegotiationResponse] = useState(null);
   const [isProcessingNegotiation, setIsProcessingNegotiation] = useState(false);
+
+  // Handler that calls decline, closes modal, then continues narrative
+  const handleDeclineAndContinue = () => {
+    onDecline(); // Clear contract state
+    onClose(); // Close modal
+
+    // Generate narrative continuation about what happens next
+    if (onContinueAfterDecline) {
+      setTimeout(() => {
+        onContinueAfterDecline('decline the offer', {
+          narrativeText: 'Maria politely declines the offer.',
+          skipUserMessage: true // Don't show user's action in chronicle
+        });
+      }, 300); // Small delay to let modal close
+    }
+  };
 
   if (!isOpen || !offer) return null;
 
@@ -594,7 +611,7 @@ ${isTreatment
                   Negotiate
                 </button>
                 <button
-                  onClick={() => { onDecline(); onClose(); }}
+                  onClick={handleDeclineAndContinue}
                   className="px-4 py-2.5 rounded-lg font-medium text-sm"
                   style={{
                     background: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
@@ -621,7 +638,7 @@ ${isTreatment
                   Propose
                 </button>
                 <button
-                  onClick={() => { onDecline(); onClose(); }}
+                  onClick={handleDeclineAndContinue}
                   className="px-4 py-2.5 rounded-lg font-medium text-sm"
                   style={{
                     background: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',
@@ -675,7 +692,7 @@ ${isTreatment
                   </button>
                 )}
                 <button
-                  onClick={() => { onDecline(); onClose(); }}
+                  onClick={handleDeclineAndContinue}
                   className="px-4 py-2.5 rounded-lg font-medium text-sm"
                   style={{
                     background: isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)',

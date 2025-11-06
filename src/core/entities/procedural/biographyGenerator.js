@@ -11,14 +11,32 @@ import { createRNGFromNPC } from '../../../utils/seededRandom';
 import { getNumericAge, calculateBirthYear } from '../../../utils/ageUtils';
 import { getBirthplace } from '../../config/birthplaces.config';
 import { generateFamily } from './familyGenerator';
+import { generateTimeline } from './timelineGenerator';
 
 /**
  * Generate complete biography for NPC
  * @param {Object} npc - NPC entity
  * @param {number} currentYear - Current game year (default: 1680)
- * @returns {Object} Complete biography data
+ * @returns {Object|null} Complete biography data or null if invalid input
  */
 export function generateBiography(npc, currentYear = 1680) {
+  // Input validation
+  if (!npc) {
+    console.warn('[BiographyGenerator] Invalid NPC data: null or undefined');
+    return null;
+  }
+
+  if (!npc.name || typeof npc.name !== 'string') {
+    console.warn('[BiographyGenerator] NPC missing valid name:', npc);
+    return null;
+  }
+
+  // Validate current year
+  if (typeof currentYear !== 'number' || currentYear < 1500 || currentYear > 2000) {
+    console.warn('[BiographyGenerator] Invalid current year:', currentYear);
+    currentYear = 1680; // Use default
+  }
+
   // Create seeded RNG for deterministic results
   const rng = createRNGFromNPC(npc);
 
@@ -29,9 +47,18 @@ export function generateBiography(npc, currentYear = 1680) {
   const gender = npc.gender || npc.appearance?.gender || 'male';
 
   // Calculate numeric age and birth year
-  const numericAge = typeof ageDescriptor === 'number'
-    ? ageDescriptor
-    : getNumericAge(ageDescriptor, rng);
+  let numericAge;
+  if (typeof ageDescriptor === 'number') {
+    // Validate numeric age
+    if (ageDescriptor < 0 || ageDescriptor > 100) {
+      console.warn('[BiographyGenerator] Invalid numeric age:', ageDescriptor, '- using default');
+      numericAge = 45; // Default to middle-aged
+    } else {
+      numericAge = ageDescriptor;
+    }
+  } else {
+    numericAge = getNumericAge(ageDescriptor, rng);
+  }
 
   const birthYear = calculateBirthYear(numericAge, currentYear);
 
@@ -55,13 +82,21 @@ export function generateBiography(npc, currentYear = 1680) {
       : birthplace.city;
   }
 
-  return {
+  // Create biography object (needed for timeline generation)
+  const biography = {
     birthYear,
     birthplace: birthplaceString,
     birthplaceData: birthplace,
     age: numericAge,
-    family,
-    timeline: [], // Phase 4 will populate this
+    family
+  };
+
+  // Generate life event timeline
+  const timeline = generateTimeline(biography, npc, rng, currentYear);
+
+  return {
+    ...biography,
+    timeline,
     secrets: [], // Phase 5 will populate this
     narrative: null // Phase 6 will generate prose
   };
@@ -71,9 +106,15 @@ export function generateBiography(npc, currentYear = 1680) {
  * Get or generate biography for NPC (with caching)
  * @param {Object} npc - NPC entity
  * @param {number} currentYear - Current game year
- * @returns {Object} Biography data
+ * @returns {Object|null} Biography data or null if invalid input
  */
 export function getBiography(npc, currentYear = 1680) {
+  // Validate input
+  if (!npc) {
+    console.warn('[BiographyGenerator] Cannot get biography for null/undefined NPC');
+    return null;
+  }
+
   // Check if NPC already has biography
   if (npc.biography && npc.biography.birthYear) {
     return npc.biography;

@@ -15,32 +15,32 @@ export const FAMILY_NAMES = {
   criollo: {
     male: {
       first: [
-        "Juan", "Diego", "Antonio", "Francisco", "JosÈ", "Pedro",
+        "Juan", "Diego", "Antonio", "Francisco", "Jos√©", "Pedro",
         "Carlos", "Miguel", "Fernando", "Luis", "Alonso", "Rodrigo",
-        "Sebasti·n", "Tom·s", "AndrÈs", "MartÌn", "Manuel", "CristÛbal",
+        "Sebasti√°n", "Tom√°s", "Andr√©s", "Mart√≠n", "Manuel", "Crist√≥bal",
         "Gabriel", "Rafael", "Domingo", "Ignacio", "Felipe", "Lorenzo",
-        "Bernardo", "Mateo", "Nicol·s", "AgustÌn", "Vicente", "Baltasar"
+        "Bernardo", "Mateo", "Nicol√°s", "Agust√≠n", "Vicente", "Baltasar"
       ],
       titles: ["Don"] // For elite
     },
     female: {
       first: [
-        "MarÌa", "Isabel", "Catalina", "Ana", "Juana", "Teresa",
-        "Francisca", "Beatriz", "InÈs", "Margarita", "Leonor", "Antonia",
+        "Mar√≠a", "Isabel", "Catalina", "Ana", "Juana", "Teresa",
+        "Francisca", "Beatriz", "In√©s", "Margarita", "Leonor", "Antonia",
         "Clara", "Luisa", "Elena", "Rosa", "Magdalena", "Josefa",
-        "Paula", "B·rbara", "LucÌa", "Petronila", "⁄rsula", "Gertrudis",
-        "Manuela", "Sebastiana", "Micaela", "¡ngela", "Victoria"
+        "Paula", "B√°rbara", "Luc√≠a", "Petronila", "√örsula", "Gertrudis",
+        "Manuela", "Sebastiana", "Micaela", "√Ångela", "Victoria"
       ],
-      titles: ["DoÒa"] // For elite
+      titles: ["Do√±a"] // For elite
     },
     surnames: [
       // Elite surnames
-      "de LeÛn", "CortÈs", "ValdÈs", "Mendoza", "Guzm·n", "de la Cruz",
-      "Vel·zquez", "RamÌrez", "Gonz·lez", "Hern·ndez", "LÛpez", "GarcÌa",
-      "RodrÌguez", "MartÌnez", "PÈrez", "S·nchez", "Ruiz", "Torres",
-      "DÌaz", "Morales", "JimÈnez", "¡lvarez", "Romero", "Navarro",
+      "de Le√≥n", "Cort√©s", "Vald√©s", "Mendoza", "Guzm√°n", "de la Cruz",
+      "Vel√°zquez", "Ram√≠rez", "Gonz√°lez", "Hern√°ndez", "L√≥pez", "Garc√≠a",
+      "Rodr√≠guez", "Mart√≠nez", "P√©rez", "S√°nchez", "Ruiz", "Torres",
+      "D√≠az", "Morales", "Jim√©nez", "√Ålvarez", "Romero", "Navarro",
       "de Alvarado", "de Cervantes", "de Castilla", "de Toledo",
-      "de Sandoval", "de Saavedra", "de Zamora", "de CÛrdoba"
+      "de Sandoval", "de Saavedra", "de Zamora", "de C√≥rdoba"
     ]
   },
 
@@ -50,36 +50,36 @@ export const FAMILY_NAMES = {
       first: [
         // Christian names adopted post-conquest
         "Juan", "Diego", "Antonio", "Francisco", "Pedro", "Miguel",
-        "Pablo", "Mateo", "Lucas", "Marcos", "Tom·s", "AndrÈs",
+        "Pablo", "Mateo", "Lucas", "Marcos", "Tom√°s", "Andr√©s",
         // Common Hispanized Nahuatl combinations
-        "Juan Mateo", "Diego Hern·ndez", "Antonio Tlacaelel",
-        "Francisco CuauhtÈmoc", "Pedro NezahualcÛyotl"
+        "Juan Mateo", "Diego Hern√°ndez", "Antonio Tlacaelel",
+        "Francisco Cuauht√©moc", "Pedro Nezahualc√≥yotl"
       ],
       nahuatlComponents: [
-        "Tlacaelel", "CuauhtÈmoc", "Moctezuma", "IxtlilxÛchitl",
-        "NezahualcÛyotl", "Tlahuicole", "XicohtÈncatl", "Cacama"
+        "Tlacaelel", "Cuauht√©moc", "Moctezuma", "Ixtlilx√≥chitl",
+        "Nezahualc√≥yotl", "Tlahuicole", "Xicoht√©ncatl", "Cacama"
       ]
     },
     female: {
       first: [
         // Christian names
-        "MarÌa", "Isabel", "Catalina", "Ana", "Juana", "Francisca",
-        "Magdalena", "LucÌa", "B·rbara", "Petrona", "Agustina",
+        "Mar√≠a", "Isabel", "Catalina", "Ana", "Juana", "Francisca",
+        "Magdalena", "Luc√≠a", "B√°rbara", "Petrona", "Agustina",
         // Hispanized Nahuatl combinations
-        "MarÌa XÛchitl", "Isabel Citlali", "Ana Itzel", "Juana Nenetl"
+        "Mar√≠a X√≥chitl", "Isabel Citlali", "Ana Itzel", "Juana Nenetl"
       ],
       nahuatlComponents: [
-        "XÛchitl", "Citlali", "Itzel", "Nenetl", "Quetzali", "Yaretzi",
+        "X√≥chitl", "Citlali", "Itzel", "Nenetl", "Quetzali", "Yaretzi",
         "Tonantzin", "Izel", "Zyanya", "Tlalli"
       ]
     },
     surnames: [
       // Patronymics and place names
-      "de San Juan", "de Santiago", "de Santa MarÌa", "de la Cruz",
-      "Hern·ndez", "LÛpez", "PÈrez", "GarcÌa", "RodrÌguez", "MartÌnez",
+      "de San Juan", "de Santiago", "de Santa Mar√≠a", "de la Cruz",
+      "Hern√°ndez", "L√≥pez", "P√©rez", "Garc√≠a", "Rodr√≠guez", "Mart√≠nez",
       // Nahuatl surnames (Hispanized)
-      "TlacaÈlel", "Moctezuma", "CuauhtÈmoc", "NezahualcÛyotl",
-      "XicohtÈncatl", "Chimalpahin", "TezozÛmoc"
+      "Tlaca√©lel", "Moctezuma", "Cuauht√©moc", "Nezahualc√≥yotl",
+      "Xicoht√©ncatl", "Chimalpahin", "Tezoz√≥moc"
     ]
   },
 
@@ -88,21 +88,21 @@ export const FAMILY_NAMES = {
     male: {
       first: [
         "Juan", "Diego", "Antonio", "Miguel", "Francisco", "Pedro",
-        "JosÈ", "Pablo", "Mateo", "AndrÈs", "Tom·s", "Felipe",
+        "Jos√©", "Pablo", "Mateo", "Andr√©s", "Tom√°s", "Felipe",
         "Manuel", "Rafael", "Gabriel", "Domingo", "Vicente", "Lorenzo"
       ]
     },
     female: {
       first: [
-        "MarÌa", "Isabel", "Catalina", "Ana", "Juana", "Teresa",
-        "Francisca", "Magdalena", "LucÌa", "Rosa", "Antonia", "Josefa",
-        "Clara", "Manuela", "B·rbara", "Gertrudis", "Paula"
+        "Mar√≠a", "Isabel", "Catalina", "Ana", "Juana", "Teresa",
+        "Francisca", "Magdalena", "Luc√≠a", "Rosa", "Antonia", "Josefa",
+        "Clara", "Manuela", "B√°rbara", "Gertrudis", "Paula"
       ]
     },
     surnames: [
-      "Hern·ndez", "LÛpez", "PÈrez", "GarcÌa", "RodrÌguez", "MartÌnez",
-      "Gonz·lez", "S·nchez", "RamÌrez", "Torres", "DÌaz", "Morales",
-      "JimÈnez", "Ruiz", "¡lvarez", "Romero", "de la Cruz", "Castillo"
+      "Hern√°ndez", "L√≥pez", "P√©rez", "Garc√≠a", "Rodr√≠guez", "Mart√≠nez",
+      "Gonz√°lez", "S√°nchez", "Ram√≠rez", "Torres", "D√≠az", "Morales",
+      "Jim√©nez", "Ruiz", "√Ålvarez", "Romero", "de la Cruz", "Castillo"
     ]
   },
 
@@ -110,22 +110,22 @@ export const FAMILY_NAMES = {
   afrodescendant: {
     male: {
       first: [
-        "Juan", "Francisco", "Antonio", "Miguel", "JosÈ", "Pedro",
-        "Diego", "Manuel", "Domingo", "Sebasti·n", "Mateo", "Pablo",
-        "AndrÈs", "Lorenzo", "Nicol·s", "CristÛbal", "Tom·s"
+        "Juan", "Francisco", "Antonio", "Miguel", "Jos√©", "Pedro",
+        "Diego", "Manuel", "Domingo", "Sebasti√°n", "Mateo", "Pablo",
+        "Andr√©s", "Lorenzo", "Nicol√°s", "Crist√≥bal", "Tom√°s"
       ]
     },
     female: {
       first: [
-        "MarÌa", "Isabel", "Catalina", "Juana", "Ana", "Francisca",
-        "Magdalena", "LucÌa", "Teresa", "Rosa", "Antonia", "Clara",
-        "B·rbara", "Josefa", "Paula", "Petrona", "Manuela"
+        "Mar√≠a", "Isabel", "Catalina", "Juana", "Ana", "Francisca",
+        "Magdalena", "Luc√≠a", "Teresa", "Rosa", "Antonia", "Clara",
+        "B√°rbara", "Josefa", "Paula", "Petrona", "Manuela"
       ]
     },
     surnames: [
       // Often patronymics or place names
-      "de la Cruz", "Hern·ndez", "GarcÌa", "LÛpez", "PÈrez", "MartÌnez",
-      "RodrÌguez", "Gonz·lez", "S·nchez", "Torres", "Morales", "DÌaz",
+      "de la Cruz", "Hern√°ndez", "Garc√≠a", "L√≥pez", "P√©rez", "Mart√≠nez",
+      "Rodr√≠guez", "Gonz√°lez", "S√°nchez", "Torres", "Morales", "D√≠az",
       // Sometimes lack surnames or use descriptor
       "sin apellido", "de color", "libre" // (free)
     ]
@@ -147,7 +147,7 @@ export function generateFamilyMemberName(casta, gender, role, surname, rng, isEl
 
   // Map castas to name pools
   let namePool;
-  if (castaNormalized === 'criollo' || castaNormalized === 'peninsular' || castaNormalized === 'espaÒol' || castaNormalized === 'castizo') {
+  if (castaNormalized === 'criollo' || castaNormalized === 'peninsular' || castaNormalized === 'espa√±ol' || castaNormalized === 'castizo') {
     namePool = FAMILY_NAMES.criollo;
   } else if (castaNormalized === 'indigenous' || castaNormalized === 'indio') {
     namePool = FAMILY_NAMES.indigenous;
@@ -164,8 +164,8 @@ export function generateFamilyMemberName(casta, gender, role, surname, rng, isEl
 
   // Add title for elite Spanish families
   let fullName = firstName;
-  if (isElite && (castaNormalized === 'criollo' || castaNormalized === 'peninsular' || castaNormalized === 'espaÒol')) {
-    const title = gender === 'male' ? 'Don' : 'DoÒa';
+  if (isElite && (castaNormalized === 'criollo' || castaNormalized === 'peninsular' || castaNormalized === 'espa√±ol')) {
+    const title = gender === 'male' ? 'Don' : 'Do√±a';
     // Parents and older siblings get titles
     if (role === 'parent' || (role === 'sibling' && rng.chance(0.5))) {
       fullName = `${title} ${firstName}`;
@@ -201,7 +201,7 @@ export function extractSurname(fullName) {
   if (!fullName) return '';
 
   // Remove titles
-  const withoutTitle = fullName.replace(/^(Don|DoÒa|Fray|Sor|Sister|Father|Padre)\s+/i, '');
+  const withoutTitle = fullName.replace(/^(Don|Do√±a|Fray|Sor|Sister|Father|Padre)\s+/i, '');
 
   // Split and get last part
   const parts = withoutTitle.trim().split(' ');
@@ -264,7 +264,7 @@ export function generateFamilyOccupation(parentOccupation, casta, gender, rng) {
     return rng.choice(['Housewife', 'Seamstress', 'Weaver', 'Market vendor', 'Midwife']);
   } else {
     const castaLower = casta ? casta.toLowerCase() : '';
-    if (castaLower === 'criollo' || castaLower === 'espaÒol') {
+    if (castaLower === 'criollo' || castaLower === 'espa√±ol') {
       return rng.choice(['Merchant', 'Artisan', 'Clerk', 'Official']);
     } else if (castaLower === 'indigenous' || castaLower === 'indio') {
       return rng.choice(['Laborer', 'Farmer', 'Artisan', 'Market vendor']);

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useDrop } from 'react-dnd';
 import { getProfessionName, getProfessionIcon, PROFESSIONS } from '../../core/systems/levelingSystem';
 import { RippleIconButton } from '../RippleButton';
+import { formatDuration } from '../../systems/bodyEffects';
 
 /**
  * Get profession color theme for badges
@@ -68,6 +69,7 @@ export function CharacterCard({
   onItemDropOnPlayer, // New prop for handling item drops
   onCollapseChange, // Callback when collapse state changes
   onOpenProfessionModal, // New prop: opens profession choice modal
+  activeEffects = [], // Body effects (hallucinating, poisoned, etc.)
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -499,6 +501,18 @@ export function CharacterCard({
         .profession-badge-glow {
           animation: professionBadgeGlow 2s ease-in-out infinite;
         }
+
+        /* Body effects badge pulse animation */
+        @keyframes badge-pulse {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.03);
+            opacity: 0.95;
+          }
+        }
       `}</style>
     <div className="group rounded-2xl p-4 shadow-lg dark:shadow-dark-elevation-2 mb-4 flex-shrink-0 transition-all duration-300 hover:shadow-2xl dark:hover:shadow-dark-elevation-3 relative overflow-hidden bg-gradient-to-br from-parchment-50/50 via-white/90 to-parchment-50/70 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 backdrop-blur-lg border border-parchment-300/30 hover:border-parchment-400/50 dark:border-slate-600/30 dark:hover:border-amber-500/40"
     >
@@ -686,6 +700,47 @@ export function CharacterCard({
               {status}
             </span>
           </div>
+
+          {/* Body Effects Badges (cap at 2 visible) */}
+          {activeEffects.length > 0 && (
+            <div className="flex items-center justify-center gap-1.5 flex-wrap mt-2">
+              {activeEffects.slice(0, 2).map((effect) => (
+                <div
+                  key={effect.id}
+                  className="group/effect relative flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold font-sans border transition-all duration-300 hover:scale-105 cursor-help"
+                  style={{
+                    background: effect.color,
+                    borderColor: effect.glowColor,
+                    boxShadow: `0 2px 6px ${effect.glowColor}`,
+                    animation: 'badge-pulse 2s ease-in-out infinite'
+                  }}
+                  title={`${effect.description}\nRemaining: ${formatDuration(effect.remainingMinutes)}\nSource: ${effect.source}`}
+                >
+                  <span className="text-sm">{effect.emoji}</span>
+                  <span className="text-white dark:text-white font-bold text-[10px] tracking-wide uppercase">
+                    {effect.shortName}
+                  </span>
+                  {/* Tooltip on hover */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover/effect:opacity-100 pointer-events-none transition-opacity duration-200 z-50 whitespace-nowrap">
+                    <div className="bg-ink-900 dark:bg-slate-800 text-white px-3 py-2 rounded-lg shadow-2xl text-xs border border-slate-700">
+                      <div className="font-bold mb-1">{effect.name}</div>
+                      <div className="text-ink-200 dark:text-parchment-300 mb-1">{effect.description}</div>
+                      <div className="text-amber-400 text-[10px]">⏱️ {formatDuration(effect.remainingMinutes)} remaining</div>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-ink-900 dark:border-t-slate-800"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {activeEffects.length > 2 && (
+                <div
+                  className="px-2 py-1 rounded-md text-xs font-semibold font-sans bg-ink-200 dark:bg-slate-700 text-ink-700 dark:text-parchment-300 border border-ink-300 dark:border-slate-600"
+                  title={`${activeEffects.length - 2} more effects active`}
+                >
+                  +{activeEffects.length - 2}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

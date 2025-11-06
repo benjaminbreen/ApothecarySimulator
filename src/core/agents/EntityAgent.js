@@ -7,6 +7,7 @@ import { mapNPCFactionToSystemFaction, FACTIONS, meetsAllReputationRequirements 
 import { generateNameForTemplate, isTemplateName } from '../entities/procedural/nameGenerator';
 import { checkNPCConditions, getCriticalNPC, filterAvailableNPCs } from '../systems/npcConditions';
 import { calculatePatientFlow } from '../systems/patientFlow';
+import { calculateDaysBetween } from '../../features/medical/utils/followUpUtils';
 
 /**
  * Context-aware entity selection
@@ -49,6 +50,78 @@ export function selectContextAwareEntity(context) {
   ];
 
   console.log(`[EntityAgent] Selecting from ${allNPCs.length} total entities (static + dynamic + LLM-generated)`);
+
+  // PRIORITY CHECK: Scheduled Follow-Up Visits (before conversation lock)
+  // Patients with scheduled follow-ups get highest priority for selection
+  const scheduledFollowUps = context.scheduledFollowUps || [];
+  const dueFollowUps = scheduledFollowUps.filter(
+    followUp => followUp.scheduledTurn <= turnNumber
+  );
+
+  if (dueFollowUps.length > 0) {
+    console.log(`[EntityAgent] Found ${dueFollowUps.length} due follow-up(s)`);
+
+    // Sort by priority (urgent first) and scheduled turn (earliest first)
+    dueFollowUps.sort((a, b) => {
+      if (a.priority === 'urgent' && b.priority !== 'urgent') return -1;
+      if (a.priority !== 'urgent' && b.priority === 'urgent') return 1;
+      return a.scheduledTurn - b.scheduledTurn;
+    });
+
+    const duePatient = dueFollowUps[0]; // Take highest priority patient
+    const patientEntity = entityManager.getById(duePatient.patientId);
+
+    if (patientEntity) {
+      // Check if conditions support patient encounter (business hours, location, etc.)
+      const isPatientEncounterValid = checkPatientEncounterConditions(context);
+
+      if (isPatientEncounterValid) {
+        console.log(`[EntityAgent] ✓ FOLLOW-UP VISIT: ${patientEntity.name} (scheduled turn ${duePatient.scheduledTurn}, current turn ${turnNumber})`);
+
+        // Mark as follow-up visit and add context
+        patientEntity.isFollowUpVisit = true;
+        patientEntity.followUpContext = {
+          sessionNumber: (patientEntity.medicalRecord?.sessions?.length || 0) + 1,
+          previousTreatments: patientEntity.treatmentProgress?.treatmentsGiven || [],
+          daysSinceLastVisit: calculateDaysBetween(
+            patientEntity.treatmentProgress?.lastTreatmentDate || context.date,
+            context.date
+          ),
+          scheduledReason: patientEntity.followUp?.reason || 'Follow-up examination'
+        };
+
+        console.log(`[EntityAgent] Follow-up context:`, patientEntity.followUpContext);
+
+        return patientEntity;
+      } else {
+        // Patient can't show up right now (wrong time/location/conditions)
+        console.log(`[EntityAgent] ⚠ Patient ${patientEntity.name} missed follow-up (invalid conditions: time=${time}, location=${location})`);
+
+        // Increment missed visits counter
+        if (!patientEntity.followUp) patientEntity.followUp = {};
+        patientEntity.followUp.missedVisits = (patientEntity.followUp.missedVisits || 0) + 1;
+        entityManager.update(patientEntity.id, patientEntity);
+
+        // BUG FIX #4: If patient has missed 3+ visits, remove from queue (they gave up)
+        if (patientEntity.followUp.missedVisits >= 3) {
+          console.log(`[EntityAgent] ⚠ Patient ${patientEntity.name} has missed ${patientEntity.followUp.missedVisits} visits - removing from follow-up queue (patient gave up)`);
+
+          // Mark patient as abandoned treatment
+          patientEntity.treatmentStatus = 'abandoned';
+          patientEntity.followUp = null;
+          entityManager.update(patientEntity.id, patientEntity);
+
+          // Remove from scheduled follow-ups queue
+          // NOTE: We need to filter the queue to remove this patient
+          // This is handled by returning a special marker that AgentOrchestrator will process
+          patientEntity.shouldRemoveFromQueue = true;
+          return patientEntity;
+        }
+      }
+    } else {
+      console.warn(`[EntityAgent] Follow-up patient not found in EntityManager: ${duePatient.patientId}`);
+    }
+  }
 
   // CHECK: Conversation Lock System (highest priority)
   // If a conversation is locked, check for release/travel patterns before allowing continuation
@@ -180,21 +253,8 @@ export function selectContextAwareEntity(context) {
     }
   }
 
-  if (conversationLock && conversationLock.active !== false) {
-    const actionLower = playerAction.toLowerCase();
-    const releasePattern = /(dismiss|send\s+(him|her|them)\s+away|tell\s+(him|her|them)\s+to\s+leave|close\s+the\s+door|shut\s+the\s+door|go\s+away|leave\s+me\s+alone)/i;
-    const travelPattern = /(go\s+to|travel\s+to|head\s+to|visit\s+the|walk\s+to|journey\s+to|make\s+my\s+way\s+to|head\s+for)/i;
-
-    if (!npcDepartedLastTurn && !releasePattern.test(actionLower)) {
-      if (travelPattern.test(actionLower)) {
-        console.log('[EntityAgent] Conversation lock retained during travel — continuing conversation.');
-        return null;
-      }
-
-      console.log(`[EntityAgent] Conversation lock active (${conversationLock.name || 'unknown'}) - continuing existing interaction.`);
-      return null;
-    }
-  }
+  // NOTE: Conversation lock check already performed at line 115-130 above
+  // (Removed duplicate check here)
 
   // CONTEXTUAL GUARDS: Filter out patients when conditions don't support them
   // This prevents patients from appearing during inappropriate times/locations
@@ -431,6 +491,38 @@ export function selectContextAwareEntity(context) {
   }
 
   return null;
+}
+
+/**
+ * Check if conditions are valid for a patient encounter
+ * Used for both normal patients and follow-up visits
+ * @param {Object} context - Game context
+ * @returns {boolean} True if patient can appear now
+ */
+function checkPatientEncounterConditions(context) {
+  const { time, location, activePatient, shopSign } = context;
+
+  // Parse time to check business hours
+  const timeParts = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  let hour = 12; // Default to noon if parsing fails
+  if (timeParts) {
+    hour = parseInt(timeParts[1]);
+    const period = timeParts[3].toUpperCase();
+    // Convert to 24-hour format
+    if (period === 'PM' && hour !== 12) hour += 12;
+    if (period === 'AM' && hour === 12) hour = 0;
+  }
+
+  const isBusinessHours = hour >= 8 && hour < 18; // 8 AM to 6 PM
+  const isAtWorkplace = location && location.toLowerCase().includes('botica');
+  const signIsHung = !shopSign || shopSign.hung !== false; // If no shopSign system, assume open
+
+  // Check all conditions
+  const conditionsMet = isBusinessHours && isAtWorkplace && !activePatient && signIsHung;
+
+  console.log(`[EntityAgent] Patient encounter conditions: business_hours=${isBusinessHours}, workplace=${isAtWorkplace}, no_active_patient=${!activePatient}, sign_hung=${signIsHung} → ${conditionsMet ? 'VALID' : 'INVALID'}`);
+
+  return conditionsMet;
 }
 
 /**

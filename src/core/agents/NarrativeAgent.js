@@ -11,6 +11,7 @@ import { resolvePortrait } from '../services/portraitResolver';
 import { isValidPortrait, getFilteredPortraitList } from '../config/portraits.config';
 import { buildNPCContext } from '../services/locationContextService'; // Location NPC system
 import { isFeatureEnabled } from '../config/featureFlags';
+import { getNarrativeFlags, formatDuration } from '../../systems/bodyEffects';
 
 /**
  * Normalize portrait filenames so downstream UI always receives a consistent shape.
@@ -159,6 +160,51 @@ function buildWeatherContext(weather, gameState) {
       parts.push('- HISTORICAL NOTE: Afternoon thunderstorms are typical in Mexico City summer (wet season)');
     }
   }
+
+  return parts.join('\n');
+}
+
+/**
+ * Build active body effects context for narrative
+ * @param {Array} activeEffects - Active body effects array
+ * @returns {string} Effects context for narrative
+ */
+function buildEffectsContext(activeEffects = []) {
+  if (!activeEffects || activeEffects.length === 0) return '';
+
+  const parts = [];
+  parts.push('### Active Body Effects');
+  parts.push('Maria is currently experiencing the following conditions:\n');
+
+  activeEffects.forEach(effect => {
+    const remaining = formatDuration(effect.remainingMinutes);
+    parts.push(`- **${effect.emoji} ${effect.name}**: ${effect.description} (${remaining} remaining)`);
+
+    // Add narrative flags as hints
+    if (effect.narrativeFlags && effect.narrativeFlags.length > 0) {
+      parts.push(`  * Narrative hints: ${effect.narrativeFlags.join(', ')}`);
+    }
+  });
+
+  parts.push('\n**Narrative Instructions for Effects**:');
+  parts.push('- **Weave effects naturally** into descriptions (NOT every turn, but when contextually relevant)');
+  parts.push('- **Hallucinations/Visions**: Describe distorted perceptions, vivid colors, spiritual insights, altered reality');
+  parts.push('- **Poisoned**: Show physical suffering - nausea, weakness, pale complexion, vomiting, trembling');
+  parts.push('- **Intoxicated**: Slurred speech, impaired judgment, uninhibited behavior, swaying');
+  parts.push('- **Sedated**: Drowsiness, slow reactions, heavy eyelids, difficulty focusing');
+  parts.push('- **Stimulated**: Jittery energy, rapid speech, restlessness, heightened alertness');
+  parts.push('- **Wounded/Infected**: Pain, visible injuries, bloodstains, difficulty moving');
+  parts.push('- **Blessed/Vigorous**: Confidence, strength, ease of movement, positive outlook');
+  parts.push('');
+  parts.push('**CRITICAL - Social Consequences of Visible Effects**:');
+  parts.push('- **NPCs MUST react realistically** to Maria\'s condition - don\'t ignore obvious impairment!');
+  parts.push('- **Intoxicated/Hallucinating**: NPCs express shock, offense, concern, or fear. Clergy especially scandalized. May refuse service, gossip spreads (reputation -5 to -20 depending on witness).');
+  parts.push('- **Poisoned/Wounded**: NPCs show concern, offer help, or become suspicious (was she attacked? is she dangerous?). Close friends/family especially worried (relationship +5 for compassion).');
+  parts.push('- **Elite/Religious NPCs**: MORE judgmental of intoxication, impropriety, suspicious behavior. May report to authorities, refuse to associate (reputation -10 to -30).');
+  parts.push('- **Common Folk**: More sympathetic to suffering, but still gossip about scandalous behavior (reputation -5 to -10).');
+  parts.push('- **Mechanical impacts**: Drunk/impaired Maria may be denied entry to churches, elite establishments. NPCs may cut conversations short, demand she leave.');
+  parts.push('- **Use relationshipChanges and reputationEvents** in StateAgent output to mechanically track these social consequences!');
+  parts.push('- **Avoid repetition**: Mention effects when they\'d realistically be noticeable, not constantly');
 
   return parts.join('\n');
 }
@@ -353,6 +399,7 @@ Return strict JSON (no markdown fencing, no prose outside the object).
   "requestNewPatient": true|false,
   "patientContext": { "reason": "string", "urgency": "low|moderate|high|critical" } or null,
   "npcDeparted": true|false,
+  "companions": [{"name": "string", "role": "string"}],
   "entities": [{ "text": "...", "entityType": "npc|patient|animal|item|location", "tier": "story-critical|recurring|background", "occupation": "string", "description": "string", "wikipediaQuery": "string|null", "demographics": { "gender": "...", "age": "...", "casta": "...", "class": "..." } }],
   "interactionIntent": "medical_diagnosis|medical_followup|medical_purchase|house_call|nonmedical_request|vendor_offer|social|none"
 }`;
@@ -364,31 +411,24 @@ Ask: *What is the NPC asking Maria to DO right now?*
 - medical_followup → The same patient returns (or an emissary reports back) about an ongoing treatment Maria already manages. No new contract/fee—continue the conversation.
 - medical_purchase → The visitor wants Maria to PROVIDE medicine or a prepared remedy so they can take it away. Maria stays in the shop, selects/dispenses the remedy, accepts payment. Think "Please give me something for…".
 - house_call → **STRICTLY MEDICAL ONLY**. A messenger asks Maria to travel to EXAMINE/TREAT a SICK or INJURED patient. NOT for errands, harvesting, deliveries, or non-medical favors.
-  **Key indicators (ALL must be present):**
-  * Messenger/intermediary arrives (not the patient themselves)
-  * Patient is SICK, INJURED, or SUFFERING from a medical condition
-  * Messenger explicitly asks Maria to examine/treat/see the patient
-  * Phrases like "he's fallen ill", "she's bedridden", "needs a physician", "can you examine", "please treat"
-  * Location mentioned or implied: "at the church", "at his estate", "in her chambers"
+  **Key indicators:** Messenger/intermediary arrives (not patient), patient is sick/injured, messenger asks Maria to examine/treat, location mentioned/implied.
   **Examples:**
-  * ✓ "Sister Ines: 'Father Anselmo has taken ill. Please come to the monastery!'" → house_call (medical: illness)
-  * ✓ "Servant: 'Don Luis cannot leave his bed. He requests your attendance.'" → house_call (medical: bedridden)
-  * ✗ "An elderly man enters coughing. 'Please help me, señora.'" → medical_diagnosis (patient is here)
-  * ✗ "Wife: 'My husband is sick. Can you give me something?'" → medical_purchase (wants medicine to take away)
-  * ✗ "Procurator's Clerk: 'The Bishop has terrible flux. Do you have gum mastic?'" → medical_purchase (buying medicine, NOT vendor_offer!)
-  * ✗ "Boy: 'My mother needs help harvesting herbs safely. Can you come show her?'" → nonmedical_request (NOT treating a patient)
-  * ✗ "Messenger: 'Don Luis requests you visit to discuss a business matter.'" → social (NOT medical)
+  * ✓ "Sister: 'Father Anselmo is ill. Come to monastery!'" → house_call
+  * ✓ "Servant: 'Don Luis cannot leave bed. He requests you.'" → house_call
+  * ✗ "Man enters coughing. 'Help me, señora.'" → medical_diagnosis (patient here)
+  * ✗ "Wife: 'My husband is sick. Can I buy medicine?'" → medical_purchase
 
 - nonmedical_request → Any favour, investigation, or errand unrelated to medicine. No remedy discussion, no diagnosis. Includes: harvesting help, deliveries, social visits, errands.
 - vendor_offer → The NPC is selling NON-MEDICAL goods/services TO Maria (direction NPC → Maria). Maria is the buyer. **NEVER use for medicine requests - those are medical_purchase!**
 - social → Pure conversation, warnings, gossip, or relationship scenes with no actionable request.
 - none → No clear request or action this turn.`;
-
+ 
   const modeSection = `### Mode Selection
 - Movement commands ONLY (actual directional travel) -> responseType "movement". 3-4 sentences, describe a single step, second person, minimal dialogue.
   - VALID: "go north", "walk east", "head south", "move west", "go outside", "go upstairs", "go downstairs", "leave building"
   - INVALID: "go to the door" (use narration), "let's move on" (use narration), "go see who's there" (use narration), "move forward with the conversation" (use narration)
   - Rule: Use "movement" ONLY if action is LITERAL spatial movement with compass direction OR explicit exit/entrance (outside/upstairs/downstairs). Otherwise use "narration".
+  - Destination commands ("go to the bakery", "walk to the convent", "go for a walk in the countryside") are full travel scenes: depict leaving the current space, traversing the city or roads, and arriving; advance time realistically and set the new location so downstream systems can update.
 - All other inputs -> responseType "narration". Stay under 150 words, second person. CRITICAL: When NPCs speak, embed their words directly in the narrative using quotation marks. Example: He frowns. "I need medicine for my wife," he says urgently.
 - Always honour player input exactly—no detours or invented lines for Maria.`;
 
@@ -433,11 +473,7 @@ Ask: *What is the NPC asking Maria to DO right now?*
 - Vary the amount of speech: some NPCs ramble or argue, others mutter a word or two. Some suffer from diseases like syphilis which make them mad or ashamed.
 - Remember how humans ACTUALLY talk. This is not a fantasy novel or historical fiction. It's real life.
 - Dialogue pulls things forward - always advance the plot powerfully.
-- DOOR ANSWERING RULE: When a knock/visitor is mentioned in recent context AND player performs any door-related action ("see who is there", "open the door", "go to the door", "approach the door", "answer the door", "check the door"), immediately complete the full encounter in a single response:
-  1. Maria opens/peers through the door
-  2. Describe who's standing outside (use selectedEntity/primaryNPC data)
-  3. Have them speak first with their opening line
-  Do NOT stop at Maria reaching for the latch or approaching the door - complete the reveal and greeting in one response.`;
+- DOOR ACTIONS: When player opens/approaches/answers door after a knock, complete full encounter in ONE response (reveal visitor + their greeting). Don't stop at "reaching for latch."`;
 
   const animalSection = `### Animals & Non-Human Actors
 - Animals do not speak or reason like humans. Describe their behaviour through body language only.
@@ -486,6 +522,12 @@ Ask: *What is the NPC asking Maria to DO right now?*
 - primaryNPC/primaryPortrait must describe the person physically present with Maria; set to null if no primary NPCs are present.
 - Maintain portrait/name continuity when conversations continue, but also allow NPCs to leave as appropriate.`;
 
+  const companionsSection = `### Companions & Departures
+- Use the "companions" array to list NPCs who remain physically with Maria after this turn (traveling together, keeping watch, etc.). Include their name and a short role (e.g., "porter", "friend", "guard").
+- If an NPC leaves, set npcDeparted to true and omit them from companions.
+- Never keep casual vendors or brief visitors as companions unless the narrative explicitly has them accompany Maria.
+- If no one remains, return an empty array (not null).`;
+
   const patientSection = `### Patient Flow
 - You control patient arrivals: requestNewPatient true only when context supports it (shop open, no active consultation).
 - When an emissary only wants to buy or collect medicine, keep them in the shop and use interactionIntent "medical_purchase".
@@ -526,6 +568,7 @@ ${narrative.pacing}` : '';
     crisisResolutionSection,
     portraitDescriptorSection,
     entitySection,
+    companionsSection,
     patientSection,
     commandsSection,
     historySection,
@@ -669,6 +712,60 @@ export async function generateNarrative({
 
     const entityContext = selectedEntity ? buildEntityContext(selectedEntity, playerAction) : '';
 
+    // Build follow-up visit context (if applicable)
+    let followUpContext = '';
+    if (selectedEntity && selectedEntity.isFollowUpVisit) {
+      const followUpData = selectedEntity.followUpContext || {};
+      const sessionNum = followUpData.sessionNumber || 2;
+      const previousTreatments = followUpData.previousTreatments || [];
+      const daysSince = followUpData.daysSinceLastVisit || 3;
+      const reason = followUpData.scheduledReason || 'follow-up examination';
+
+      followUpContext = `
+### FOLLOW-UP VISIT CONTEXT
+
+**THIS IS A SCHEDULED FOLLOW-UP VISIT** - ${selectedEntity.name} was previously treated by Maria and is returning as scheduled.
+
+**Previous Treatment Summary**:
+- Initial diagnosis: ${selectedEntity.treatmentProgress?.initialDiagnosis || 'Not recorded'}
+- Treatments given: ${previousTreatments.join(', ') || 'Unknown'}
+- Days since last visit: ${daysSince}
+- Session number: ${sessionNum}
+- Reason for return: ${reason}
+
+**Your Task**:
+1. Generate a narrative showing ${selectedEntity.name} returning to the shop
+2. The patient should reference their previous visit and report on their condition
+3. Determine treatment outcome based on the treatment given and natural progression:
+   - **improving**: Condition is getting better, symptoms reduced
+   - **stable**: No change, symptoms persist at same level
+   - **worsening**: Condition deteriorated, new symptoms or complications
+   - **resolved**: Fully recovered, no remaining symptoms
+4. Be realistic about medical progression:
+   - Wounds heal over days (3-7 days typical)
+   - Infections either resolve or worsen (antibiotics didn't exist)
+   - Fevers break after 2-3 days if treatment works
+   - Pain management is temporary, underlying causes persist
+5. Patient mood should match outcome: grateful if better, worried if worse
+
+**CRITICAL**: Include "outcomeStatus" field in your response with one of: improving, stable, worsening, resolved
+**CRITICAL**: Include "symptomChanges" array showing before/after for each symptom
+**CRITICAL**: Include "needsFurtherTreatment" boolean
+
+**Example Response Structure**:
+{
+  "narrative": "Isabel returns to the shop, walking more easily than before. She smiles as she shows you her arm where the wound was...",
+  "outcomeStatus": "improving",
+  "symptomChanges": [
+    {"symptom": "Pain", "before": "severe", "now": "mild"},
+    {"symptom": "Redness", "before": "moderate", "now": "minimal"}
+  ],
+  "patientMood": "grateful",
+  "needsFurtherTreatment": true
+}
+`;
+    }
+
     // Build simple interaction context (if applicable)
     let simpleInteractionContext = '';
     if (selectedEntity?.simpleInteractionType) {
@@ -776,6 +873,9 @@ Generate a BRIEF, VARIED encounter. Don't reuse exact dialogue from previous tur
 
     // Build skills context
     const skillsContext = playerSkills ? buildSkillsContext(playerSkills) : '';
+
+    // Build active effects context
+    const effectsContext = gameState.activeEffects ? buildEffectsContext(gameState.activeEffects) : '';
 
     // PHASE 3: Build conversation continuation context
     let continuationContext = '';
@@ -885,7 +985,7 @@ This will NOT affect the game - it's for testing.
       console.log('[NarrativeAgent] Location NPC context added for:', gameState.location);
     }
 
-    const userPrompt = `Context:
+    let userPrompt = `Context:
 ${contextSummary}
 
 Recent Conversation:
@@ -893,6 +993,7 @@ ${recentHistory}
 
 ${locationNPCContext ? `\n${locationNPCContext}\n` : ''}
 ${entityContext ? `\n${entityContext}\n` : ''}
+${followUpContext ? `\n${followUpContext}\n` : ''}
 ${simpleInteractionContext ? `\n${simpleInteractionContext}\n` : ''}
 ${continuationContext}
 ${noEncounterContext}
@@ -902,6 +1003,8 @@ ${weatherContext ? `\n${weatherContext}\n` : ''}
 
 ${skillsContext ? `\n${skillsContext}\n` : ''}
 
+${effectsContext ? `\n${effectsContext}\n` : ''}
+
 ${experimentalPortraitSection ? `\n${experimentalPortraitSection}\n` : ''}
 
 Player Action: ${playerAction}
@@ -909,6 +1012,85 @@ Player Action: ${playerAction}
 Turn: ${turnNumber + 1}
 
 Generate narrative response. Remember: JSON format, concise, historically accurate, vivid details.`;
+
+    // Handle consumption actions (special mode for item consumption with dynamic effects)
+    if (options.isConsumptionAction) {
+      console.log('[NarrativeAgent] Consumption action detected for item:', options.itemConsumed);
+
+      // Add consumption-specific instructions to user prompt
+      const consumptionInstructions = `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ SPECIAL CONSUMPTION EVENT: Dynamically simulate realistic effects
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**CONTEXT**: Maria has just consumed: **${options.itemConsumed}**
+Item properties: ${JSON.stringify(options.itemProperties || {}, null, 2)}
+
+**YOUR TASK**: Generate a vivid, realistic narrative describing what happens after Maria consumes this item. Then extract appropriate health and energy changes.
+
+**OUTCOME GUIDELINES** (be realistic based on item nature):
+
+**Food Items** (bread, honey, fruits, tortillas):
+- Energy: +10 to +25
+- Health: +0 to +10
+- Narrative: Nourishing, satisfying, restores energy
+
+**Medicinal Herbs** (used properly):
+- Energy: +3 to +8
+- Health: +5 to +15
+- Narrative: Therapeutic effects, specific to herb's properties (calming, invigorating, healing)
+
+**Moderately Toxic** (questionable substances, raw ingredients):
+- Energy: -10 to -20
+- Health: -15 to -30
+- Narrative: Nausea, stomach upset, dizziness, vomiting, discomfort
+
+**Highly Toxic** (mercury, quicksilver, lead, arsenic, deadly nightshade, hemlock, belladonna):
+- Energy: 0 (irrelevant)
+- Health: -100 (instant death)
+- Narrative: IMMEDIATE LETHAL EFFECTS - convulsions, agony, collapse, death within moments
+
+**Inedible Objects** (pins, needles, leather, fabric, metal):
+- Energy: -5 to -15
+- Health: -10 to -25
+- Narrative: Physical injury, choking, internal damage, sharp pain
+
+**Unknown/Experimental Substances**:
+- Vary based on realistic assessment of the item's nature
+- Consider historical context (1680 Mexico City medicine)
+- Use medical knowledge to determine realistic effects
+
+**CRITICAL RULES**:
+1. **BE DESCRIPTIVE**: Describe physical sensations, taste, immediate reactions
+2. **BE REALISTIC**: Match effects to the actual nature of the substance
+3. **BE DRAMATIC**: Make lethal substances IMMEDIATELY fatal (no slow decline)
+4. **VARY OUTCOMES**: Don't be predictable - beneficial things can still have side effects, neutral things might surprise
+5. **HISTORICAL ACCURACY**: Reference humoral theory, 1680s medical understanding when relevant
+
+**OUTPUT REQUIREMENTS**:
+- "narrative": 2-4 vivid sentences describing what happens
+- "energyChange": Exact number (can be negative, positive, or zero)
+- "healthChange": Exact number (use -100 for instant death)
+
+**EXAMPLE OUTPUTS**:
+
+Honey consumed:
+"The golden honey slides down Maria's throat, its sweetness a brief comfort in these difficult times. She feels warmth spread through her chest as the nourishment restores some vitality. A small measure of energy returns to her weary limbs."
+
+Mercury consumed:
+"The liquid metal touches Maria's tongue and immediately burns with an unholy fire. Violent convulsions seize her body as the quicksilver ravages her innards. Within moments, she collapses, her vision darkening. Death comes swiftly - the poison shows no mercy."
+
+Leather consumed:
+"Maria gags as the tough, inedible leather catches in her throat. Pain shoots through her mouth and esophagus as the material scrapes and tears delicate tissue. She doubles over, coughing violently, blood speckling her lips."
+
+Chamomile consumed:
+"The dried chamomile flowers release their gentle perfume as Maria chews them. A subtle calm washes over her, the herb's soothing properties easing tension from her shoulders. Though modest, the medicinal benefit is real."
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+
+      userPrompt += consumptionInstructions;
+    }
 
     // Handle list requests (special mode for generating reference tables)
     let finalSystemPrompt = narrativePrompt;
@@ -921,10 +1103,25 @@ Generate narrative response. Remember: JSON format, concise, historically accura
       // The list prompt contains specific table format instructions
       finalSystemPrompt = options.listSystemPrompt;
 
-      // Simplified user prompt for lists - just the action and minimal context
+      // User prompt for lists - include recent conversation history so LLM can see who's present
+      // Extract last 3 turns of conversation history to provide context
+      // IMPORTANT: Include BOTH user and assistant messages to capture names mentioned in player actions
+      const recentHistory = conversationHistory.slice(-3);
+      const historyContext = recentHistory
+        .filter(entry => entry.content)
+        .map(entry => {
+          // Label messages so LLM can distinguish between player actions and narrative
+          const label = entry.role === 'user' ? 'Maria' : 'Narrative';
+          return `${label}: ${entry.content}`;
+        })
+        .join('\n\n');
+
       finalUserPrompt = `Location: ${gameState.location || 'unknown'}
 Time: ${gameState.time || 'unknown'}
 Date: ${gameState.date || 'unknown'}
+
+Recent Narrative (for context):
+${historyContext || 'No recent narrative.'}
 
 ${playerAction}`;
     }
@@ -1142,6 +1339,7 @@ ${playerAction}`;
       requestNewPatient: narrativeData.requestNewPatient || false,
       patientContext: narrativeData.patientContext || null,
       npcDeparted: narrativeData.npcDeparted || false,
+      companions: Array.isArray(narrativeData.companions) ? narrativeData.companions : [],
       entities: narrativeData.entities || []
     };
   } catch (error) {

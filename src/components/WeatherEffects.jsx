@@ -68,6 +68,8 @@ const WeatherEffects = ({
 
   // Particle pools
   const rainPoolRef = useRef(null);
+  const rainBgPoolRef = useRef(null); // Background rain layer (behind clouds)
+  const rainFgPoolRef = useRef(null); // Foreground rain layer (closest to viewer)
   const blossomPoolRef = useRef(null);
   const airPoolRef = useRef(null);
 
@@ -83,16 +85,22 @@ const WeatherEffects = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    rainPoolRef.current = new ParticlePool(60, 'rain-particle'); // Optimized from 100
+    rainPoolRef.current = new ParticlePool(60, 'rain-particle'); // Midground layer
+    rainBgPoolRef.current = new ParticlePool(40, 'rain-particle-bg'); // Background layer (behind clouds)
+    rainFgPoolRef.current = new ParticlePool(40, 'rain-particle-fg'); // Foreground layer (closest)
     blossomPoolRef.current = new ParticlePool(80, 'petal-particle'); // Optimized from 120
     airPoolRef.current = new ParticlePool(60, 'air-particle'); // Optimized from 100
 
     rainPoolRef.current.init(containerRef.current);
+    rainBgPoolRef.current.init(containerRef.current);
+    rainFgPoolRef.current.init(containerRef.current);
     blossomPoolRef.current.init(containerRef.current);
     airPoolRef.current.init(containerRef.current);
 
     return () => {
       rainPoolRef.current?.cleanup();
+      rainBgPoolRef.current?.cleanup();
+      rainFgPoolRef.current?.cleanup();
       blossomPoolRef.current?.cleanup();
       airPoolRef.current?.cleanup();
     };
@@ -115,13 +123,41 @@ const WeatherEffects = ({
     const windShear = Math.min(160, Math.max(-160, windX * 6));
     const intensity = clamp(weather.intensity ?? 0);
 
-    /* --------------------------- RAIN / DRIZZLE --------------------------- */
+    /* --------------------------- RAIN / DRIZZLE (3 DEPTH LAYERS) --------------------------- */
     if (weather.precipitation === 'rain' || weather.precipitation === 'drizzle') {
       const sizeFactor = fx?.dropletSize ?? (weather.precipitation === 'drizzle' ? 0.25 : 0.7);
-      const base = weather.precipitation === 'rain' ? 60 : 40; // Optimized for 60-particle pool
-      const count = Math.floor(intensity * base);
+      const baseCount = weather.precipitation === 'rain' ? 60 : 40;
+      const totalCount = Math.floor(intensity * baseCount);
 
-      rainPoolRef.current?.activate(count, (particle) => {
+      // BACKGROUND LAYER (30% of drops) - Behind clouds, faint, smaller, slower
+      const bgCount = Math.floor(totalCount * 0.3);
+      rainBgPoolRef.current?.activate(bgCount, (particle) => {
+        const x = Math.random() * width;
+        const startY = -20 - Math.random() * 60;
+        const dropW = clamp(0.6 + sizeFactor * 1.2, 0.6, 1.8); // Smaller
+        const dropH = clamp(6 + sizeFactor * 10, 6, 16); // Shorter
+        const duration = 1.8 + Math.random() * 1.6; // Slower (farther away)
+        const delay = Math.random() * 3.0;
+
+        particle.style.setProperty('--fall-y', `${height + 50}px`);
+        particle.style.setProperty('--wind-offset', `${(windShear * 0.7).toFixed(1)}px`); // Less wind effect
+        particle.style.left = `${x}px`;
+        particle.style.top = `${startY}px`;
+        particle.style.width = `${dropW}px`;
+        particle.style.height = `${dropH}px`;
+        particle.style.borderRadius = '1px';
+        particle.style.background = 'linear-gradient(to bottom, rgba(185,205,240,0.04), rgba(155,185,230,0.35))'; // Faint
+        particle.style.opacity = String(0.25 + Math.random() * 0.2); // Very faint
+        particle.style.animation = `rain-fall ${duration}s linear ${delay}s infinite`;
+        const visualTilt = Math.max(-16, Math.min(16, windX * 0.4));
+        particle.style.transform = `rotate(${visualTilt}deg) translateZ(0)`;
+        particle.style.boxShadow = 'none';
+        particle.style.filter = 'blur(0.3px)'; // Atmospheric scattering
+      });
+
+      // MIDGROUND LAYER (50% of drops) - Main rain layer
+      const midCount = Math.floor(totalCount * 0.5);
+      rainPoolRef.current?.activate(midCount, (particle) => {
         const x = Math.random() * width;
         const startY = -20 - Math.random() * 80;
         const dropW = clamp(0.8 + sizeFactor * 2, 0.8, 3);
@@ -143,8 +179,36 @@ const WeatherEffects = ({
         particle.style.transform = `rotate(${visualTilt}deg) translateZ(0)`;
         particle.style.boxShadow = '0 0 1px rgba(185,205,240,0.3)';
       });
+
+      // FOREGROUND LAYER (20% of drops) - Closest to viewer, brightest, largest, fastest
+      const fgCount = Math.floor(totalCount * 0.2);
+      rainFgPoolRef.current?.activate(fgCount, (particle) => {
+        const x = Math.random() * width;
+        const startY = -10 - Math.random() * 40;
+        const dropW = clamp(1.2 + sizeFactor * 3, 1.2, 5); // Larger
+        const dropH = clamp(12 + sizeFactor * 20, 12, 32); // Longer
+        const duration = 0.8 + Math.random() * 0.8; // Faster (closer)
+        const delay = Math.random() * 2.5;
+
+        particle.style.setProperty('--fall-y', `${height + 50}px`);
+        particle.style.setProperty('--wind-offset', `${(windShear * 1.2).toFixed(1)}px`); // More wind effect
+        particle.style.left = `${x}px`;
+        particle.style.top = `${startY}px`;
+        particle.style.width = `${dropW}px`;
+        particle.style.height = `${dropH}px`;
+        particle.style.borderRadius = '2px';
+        particle.style.background = 'linear-gradient(to bottom, rgba(205,225,255,0.15), rgba(175,205,250,0.95))'; // Brighter
+        particle.style.opacity = String(0.8 + Math.random() * 0.2); // Very visible
+        particle.style.animation = `rain-fall ${duration}s linear ${delay}s infinite`;
+        const visualTilt = Math.max(-16, Math.min(16, windX * 0.7));
+        particle.style.transform = `rotate(${visualTilt}deg) translateZ(0)`;
+        particle.style.boxShadow = '0 0 2px rgba(205,225,255,0.5)'; // Brighter glow
+        particle.style.filter = 'blur(0.2px)'; // Slight motion blur
+      });
     } else {
       rainPoolRef.current?.activate(0, () => {});
+      rainBgPoolRef.current?.activate(0, () => {});
+      rainFgPoolRef.current?.activate(0, () => {});
     }
 
     /* --------------------------- BLOSSOMS (SPRING) ------------------------ */

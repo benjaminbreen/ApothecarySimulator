@@ -33,30 +33,49 @@ export const LIST_TYPES = [
 
 **TASK**: List all people Maria can see right now in this location.
 
+**MERCHANT INDICATOR**: Some NPCs are shopkeepers/merchants with permanent shops. These will be identified in the merchant context below. For any merchant, add 🛒 emoji AFTER their name in the Name/Description column.
+
+{merchantContext}
+
+**CRITICAL: Look at the recent narrative/conversation history to identify people who are PHYSICALLY PRESENT:**
+- Check the most recent narrative turn for descriptions of people nearby
+- Include NPCs who were just mentioned as being visible (e.g., "a fruit vendor", "a servant", "a man waiting")
+- Include people who just arrived or are standing/working in the area
+- DO NOT include people who left, departed, or are only mentioned in passing (e.g., "thinking about her sister")
+- DO NOT include Maria herself
+
 **FORMAT**: Create a markdown table with these exact columns:
 
 | Name/Description | Age | Class/Casta | Gender | Clothing | Activity |
 
 **COLUMN SPECIFICATIONS**:
-- **Name/Description** (bold): If Maria knows this person, use their actual name in bold (e.g., "**Isabel Valdés**"). If they are a stranger, use a brief description in bold (e.g., "**An elderly fruit vendor**" or "**A young criolla woman**")
+- **Name/Description** (bold): If Maria knows this person, use their actual name in bold. **If they are a merchant, add 🛒 emoji AFTER the name** (e.g., "**Xochitl** 🛒" or "**Don Lorenzo Medina** 🛒"). If they are a stranger, use a brief description in bold (e.g., "**Stout fruit vendor woman**" or "**Young mestizo boy**")
 - **Age**: Approximate age category (child / young / middle-aged / elderly)
-- **Class/Casta**: Social class/casta designation (peninsular / criollo / mestizo / indigenous / mulatto / enslaved / etc.)
+- **Class/Casta**: Social class/casta designation (peninsular / criollo / mestizo / indigenous / mulatto / enslaved / working class / vendor / etc.)
 - **Gender**: male / female
 - **Clothing**: Brief description of what they're wearing (3-7 words maximum, e.g., "worn cotton dress, faded shawl")
-- **Activity**: What they're doing right now (3-7 words maximum, e.g., "mixing medicine at counter" or "waiting nervously by door")
+- **Activity**: What they're doing right now (3-7 words maximum, e.g., "swatting flies from avocados" or "waiting nervously by door")
+
+**MERCHANT EXAMPLES**:
+- "**Xochitl** 🛒" | elder | indígena | female | simple huipil, woven shawl | arranging dried herbs on stall
+- "**Don Lorenzo Medina** 🛒" | middle-aged | criollo | male | fine wool doublet, clean apron | measuring powders behind counter
+- "**Isabel Téllez** 🛒" | young | mestiza | female | embroidered dress | sewing by shop window
 
 **CRITICAL RULES**:
 1. Keep ALL cells concise - 3 to 7 words maximum per cell
 2. Only list people OTHER than Maria herself
-3. Only list people Maria can actually see right now (not people mentioned but absent)
-4. If no other people are present, output ONLY this text: "No other people are currently visible."
-5. Start your response with EXACTLY this marker on its own line: [LIST_RESPONSE:people]
-6. After the marker, output ONLY the markdown table with NO additional commentary, prose, or narration
+3. Only list people Maria can actually see right now (physically present in the scene)
+4. **LOOK at the recent narrative** - if someone was just described, they should be in the table!
+5. **Check the merchant context above** - if someone is listed as a merchant, add 🛒 after their name
+6. If no other people are present, output ONLY this text: "No other people are currently visible."
+7. Start your response with EXACTLY this marker on its own line: [LIST_RESPONSE:people]
+8. After the marker, output ONLY the markdown table with NO additional commentary, prose, or narration
 
 **EXAMPLE OUTPUT** (if people are present):
 [LIST_RESPONSE:people]
 | Name/Description | Age | Class/Casta | Gender | Clothing | Activity |
 |------------------|-----|-------------|--------|----------|----------|
+| **Xochitl** 🛒 | elder | indígena | female | simple huipil, woven shawl | arranging herbs on stall |
 | **Isabel Valdés** | middle-aged | criollo | female | worn black dress, mantilla | waiting anxiously by counter |
 | **A young mestizo boy** | child | mestizo | male | simple cotton shirt, bare feet | sweeping floor near door |
 
@@ -206,15 +225,24 @@ export function getListTypeById(id) {
  * Interpolate prompt template with game state variables
  * @param {object} listType - List type config
  * @param {object} gameState - Current game state
+ * @param {object} options - Additional options (e.g., merchantContext)
  * @returns {string} Interpolated prompt
  */
-export function interpolatePrompt(listType, gameState) {
+export function interpolatePrompt(listType, gameState, options = {}) {
   let prompt = listType.promptTemplate;
 
   // Replace placeholders with actual game state values
   prompt = prompt.replace(/{location}/g, gameState.location || 'an unknown location');
   prompt = prompt.replace(/{time}/g, gameState.time || 'an unknown time');
   prompt = prompt.replace(/{date}/g, gameState.date || 'an unknown date');
+
+  // Replace merchant context if provided (for people list)
+  if (options.merchantContext) {
+    prompt = prompt.replace(/{merchantContext}/g, options.merchantContext);
+  } else {
+    // Remove placeholder if no merchant context provided
+    prompt = prompt.replace(/{merchantContext}/g, '');
+  }
 
   return prompt;
 }

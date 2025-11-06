@@ -647,12 +647,67 @@ class EntityManager {
     // Store
     this.entities.set(id, updated);
 
-    // Update type list
-    const typeList = this.entitiesByType.get(entity.entityType);
-    if (typeList) {
-      const index = typeList.findIndex(e => e.id === id);
-      if (index !== -1) {
-        typeList[index] = updated;
+    // BUG FIX #8: Handle entityType changes
+    const oldType = entity.entityType;
+    const newType = updated.entityType;
+    if (newType && newType !== oldType) {
+      // Remove from old type list
+      const oldTypeList = this.entitiesByType.get(oldType);
+      if (oldTypeList) {
+        const index = oldTypeList.findIndex(e => e.id === id);
+        if (index !== -1) {
+          oldTypeList.splice(index, 1);
+        }
+      }
+
+      // Add to new type list
+      const newTypeList = this.entitiesByType.get(newType);
+      if (newTypeList) {
+        newTypeList.push(updated);
+      }
+
+      console.log(`[EntityManager] Entity ${id} type changed: ${oldType} → ${newType}`);
+    } else {
+      // Update type list (type didn't change)
+      const typeList = this.entitiesByType.get(oldType);
+      if (typeList) {
+        const index = typeList.findIndex(e => e.id === id);
+        if (index !== -1) {
+          typeList[index] = updated;
+        }
+      }
+    }
+
+    // BUG FIX #8: Handle tier changes
+    const oldTier = entity.tier;
+    const newTier = updated.tier;
+    if (newTier && newTier !== oldTier) {
+      // Remove from old tier list
+      if (oldTier) {
+        const oldTierList = this.entitiesByTier.get(oldTier);
+        if (oldTierList) {
+          const index = oldTierList.findIndex(e => e.id === id);
+          if (index !== -1) {
+            oldTierList.splice(index, 1);
+          }
+        }
+      }
+
+      // Add to new tier list
+      const newTierList = this.entitiesByTier.get(newTier);
+      if (newTierList) {
+        newTierList.push(updated);
+      }
+
+      console.log(`[EntityManager] Entity ${id} tier changed: ${oldTier} → ${newTier}`);
+    } else if (oldTier) {
+      // Update tier list (tier didn't change)
+      const tierList = this.entitiesByTier.get(oldTier);
+      if (tierList) {
+        const index = tierList.findIndex(e => e.id === id);
+        if (index !== -1) {
+          tierList[index] = updated;
+        }
       }
     }
 

@@ -112,7 +112,7 @@ const getWeatherPattern = (season, hours, rng) => {
         windSpeed: 5 + rng() * 10,
         windDirection: rng() * 360,
         visibility: 0.7 + rng() * 0.2,
-        special: hours >= 11 && roll < 0.2 ? 'heatwave' : null
+        special: null
       };
     }
 
@@ -219,7 +219,7 @@ const getWeatherPattern = (season, hours, rng) => {
         windSpeed: 15 + rng() * 20, // Windy, dusty
         windDirection: rng() * 360,
         visibility: 0.5 + rng() * 0.3, // Reduced by dust
-        special: roll < 0.2 ? 'heatwave' : null
+        special: null
       };
     }
 

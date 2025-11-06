@@ -4,6 +4,13 @@
  * Does NOT parse player commands directly
  */
 
+import {
+  getLocationName,
+  getNearbyLandmarks,
+  getDistrictContext,
+  getEnrichedLocationData
+} from './reverseGeocoder';
+
 /**
  * @typedef {Object} Position
  * @property {number} x - Pixel x coordinate
@@ -257,18 +264,40 @@ export class GridMovementSystem {
     const newGridX = gridX + (dx * gridCellsToMove);
     const newGridY = gridY + (dy * gridCellsToMove);
 
+    const newPixelX = newGridX * this.gridSize + this.gridSize / 2;
+    const newPixelY = newGridY * this.gridSize + this.gridSize / 2;
+
+    // Get enriched location data from reverse geocoder
+    const oldPixelX = currentPos.x;
+    const oldPixelY = currentPos.y;
+    const previousLocationName = getLocationName(oldPixelX, oldPixelY);
+    const enrichedLocation = getEnrichedLocationData(newPixelX, newPixelY, previousLocationName);
+
     const result = {
       valid: true,
       reason: 'path is clear',
       newPosition: {
-        x: newGridX * this.gridSize + this.gridSize / 2,
-        y: newGridY * this.gridSize + this.gridSize / 2,
+        x: newPixelX,
+        y: newPixelY,
         gridX: newGridX,
         gridY: newGridY
-      }
+      },
+      // NEW: Enriched location data for StateAgent
+      currentLocationName: previousLocationName,
+      suggestedLocationName: enrichedLocation.locationName,
+      nearbyLandmarks: enrichedLocation.nearbyLandmarks,
+      nearbyLandmarksDetailed: enrichedLocation.nearbyLandmarksDetailed,
+      districtContext: enrichedLocation.districtContext,
+      locationChanged: enrichedLocation.locationChanged
     };
 
     console.log('[MOVEMENT] ✅ VALID move:', result.newPosition);
+    console.log('[MOVEMENT] 📍 Location:', {
+      from: result.currentLocationName,
+      to: result.suggestedLocationName,
+      changed: result.locationChanged,
+      nearby: result.nearbyLandmarks
+    });
 
     return result;
   }

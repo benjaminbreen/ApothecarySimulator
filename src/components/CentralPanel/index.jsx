@@ -1,11 +1,12 @@
 // CentralPanel/index.jsx
 // Main container for tabbed central interface
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TabNavigation } from './TabNavigation';
 import { NarrativeTab } from './NarrativeTab';
 import { LogTab } from './LogTab';
 import { PatientViewTab } from './PatientViewTab';
+import { ReferenceTab } from './ReferenceTab';
 import { NarrationSettingsModal } from './NarrationSettingsModal';
 import { LLMTransparencyView } from './LLMTransparencyView';
 import { getLLMCallHistory } from '../../core/services/llmService';
@@ -99,11 +100,80 @@ export function CentralPanel({
   // Shared
   onEntityClick,
   playerPortrait,
+  toast, // Toast notification function
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [selectedReferenceEntry, setSelectedReferenceEntry] = useState(null);
+  const [tabTransitioning, setTabTransitioning] = useState(false);
 
   const handleHeaderClick = () => {
     setIsCollapsed(prev => !prev);
+  };
+
+  // Listen for medical term clicks from NarrativePanel
+  useEffect(() => {
+    const handleOpenReference = (event) => {
+      const { entryId, sourceName, clickPosition } = event.detail;
+
+      console.log('[CentralPanel] Received openReferenceEntry event:', {
+        entryId,
+        sourceName,
+        clickPosition
+      });
+
+      // Start tab transition with smooth animation
+      setTabTransitioning(true);
+
+      // Set selected entry for ReferenceTab
+      setSelectedReferenceEntry(entryId);
+
+      // Switch to Reference tab with slight delay for visual feedback
+      setTimeout(() => {
+        onTabChange('reference');
+        setTabTransitioning(false);
+      }, 150);
+
+      // Optional: Show visual feedback at click position
+      if (clickPosition && typeof window !== 'undefined') {
+        showRippleEffect(clickPosition);
+      }
+    };
+
+    window.addEventListener('openReferenceEntry', handleOpenReference);
+
+    return () => {
+      window.removeEventListener('openReferenceEntry', handleOpenReference);
+    };
+  }, [onTabChange]);
+
+  // Show ripple effect at click position for extra polish
+  const showRippleEffect = (position) => {
+    const ripple = document.createElement('div');
+    ripple.style.position = 'fixed';
+    ripple.style.left = `${position.x}px`;
+    ripple.style.top = `${position.y}px`;
+    ripple.style.width = '20px';
+    ripple.style.height = '20px';
+    ripple.style.borderRadius = '50%';
+    ripple.style.background = 'radial-gradient(circle, rgba(251, 191, 36, 0.6) 0%, transparent 70%)';
+    ripple.style.transform = 'translate(-50%, -50%) scale(0)';
+    ripple.style.pointerEvents = 'none';
+    ripple.style.zIndex = '9999';
+    ripple.style.transition = 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.6s ease-out';
+    ripple.style.opacity = '1';
+
+    document.body.appendChild(ripple);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+      ripple.style.transform = 'translate(-50%, -50%) scale(4)';
+      ripple.style.opacity = '0';
+    });
+
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(ripple);
+    }, 600);
   };
 
   return (
@@ -165,6 +235,10 @@ export function CentralPanel({
             />
           )}
 
+          {activeTab === 'reference' && (
+            <ReferenceTab initialSelectedEntry={selectedReferenceEntry} />
+          )}
+
           {activeTab === 'log' && (
             <LogTab
               conversationHistory={conversationHistory}
@@ -197,6 +271,7 @@ export function CentralPanel({
               onOpenMixing={onOpenMixing}
               onPrescriptionPending={onPrescriptionPending}
               onPrescriptionComplete={onPrescriptionComplete}
+              toast={toast}
             />
           )}
         </div>

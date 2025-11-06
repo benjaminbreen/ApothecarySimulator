@@ -126,7 +126,9 @@ Current interaction intent: ${interactionIntent}.
     "date": "Month DD, YYYY",
     "timeElapsed": "X hours Y minutes",
     "position": ${positionTemplate},
-    "focusedItem": "string|null"
+    "focusedItem": "string|null",
+    "energyChange": number,
+    "healthChange": number
   },
   "inventoryChanges": [{"item": "string", "quantity": number, "action": "bought|sold|used|foraged|received|lost", "price": number, "isReadable": boolean, "documentType": "letter|document|codex|note|contract|recipe|map|certificate|null", "metadata": {"author": "string|null", "giver": "string|null", "purpose": "string|null"}}],
   "relationshipChanges": [{"npcName": "string", "delta": -20 to 20, "reason": "string"}],
@@ -159,6 +161,14 @@ Current interaction intent: ${interactionIntent}.
 - Keep status to one of the allowed adjectives; change only when the narrative clearly signals an emotional shift.
 - Location should use known names (shop rooms, city districts); if unsure, reuse previous location.
 - Use movement validation: if the grid step is invalid, keep old position; otherwise use provided new coordinates.
+- **Energy and Health Changes**: Extract these ONLY when the narrative explicitly describes changes to Maria's physical condition:
+  * energyChange: -100 to +100 (consumption, rest, exertion, sleep, eating)
+  * healthChange: -100 to +100 (injury, healing, illness, medicine, poison)
+  * Set to 0 when no physical effects occur
+  * For consumption: extract the exact values mentioned in the narrative
+  * For death/lethal effects: healthChange should be -100
+  * For severe poisoning/injury: healthChange -20 to -50
+  * For nourishment/healing: healthChange/energyChange +5 to +25
 - focusedItem: Set this to the item name if the player is ACTIVELY examining, using, mixing, or focusing on a specific item. Examples: "examine aloe" → "aloe", "mix mercury" → "mercury", "I forage for herbs" → "herbs". Set to null if no item focus.
 
 ### Interaction Mapping
@@ -314,9 +324,9 @@ Use actionPrompt ONLY for immediate, clear requests to transfer items:
 ### Prescription Offer Outcomes
 - Populate prescriptionOfferOutcome when narrative describes Maria offering a prescription to an NPC (via action prompt, NOT patient tab treatment) and shows the NPC's decision.
 - Set occurred = true only if the narrative clearly shows the NPC's response to Maria's specific offer (medicine, route, price).
-- outcome = "accepted" if NPC pays and takes the medicine. Keywords: "pays", "takes the medicine", "accepts", "buys", "agrees to the price", "hands over [amount] reales", "thanks Maria", "leaves with the remedy"
-- outcome = "declined" if NPC refuses the offer. Keywords: "refuses", "declines", "scoffs at the price", "too expensive", "cannot afford", "storms off", "walks away without buying", "shakes head"
-- outcome = "bargained" if NPC negotiates the price. Keywords: "counter-offer", "haggles", "offers less", "can only pay [lower amount]", "too steep", "argues about price"
+- outcome = "accepted": NPC pays and takes medicine. Keywords: pays/accepts/buys/hands over reales
+- outcome = "declined": NPC refuses. Keywords: refuses/declines/too expensive/cannot afford/storms off
+- outcome = "bargained": NPC negotiates price. Keywords: counter-offer/haggles/offers less/argues about price
 - Extract finalPrice from narrative (use original price if accepted immediately, lower price if bargained and accepted, 0 if declined)
 - Set includeBloodletting = true only if narrative mentions phlebotomy/bloodletting was part of the offer
 - Do NOT populate this field for regular patient tab prescriptions administered via PrescribePanel - only for action prompt prescription offers where NPC must decide whether to buy
@@ -434,8 +444,20 @@ Context: ${currentGameState.crisis.context || 'No additional context provided.'}
 ${movementData ? `\n### Movement Analysis:
 Direction: ${movementData.direction}
 Status: ${movementData.valid ? '✓ VALID - Path is clear' : '✗ BLOCKED - ' + movementData.reason}
-${movementData.valid ? `New Position: (${movementData.newPosition.x}, ${movementData.newPosition.y})` : `Stayed at: (${movementData.oldPosition.x}, ${movementData.oldPosition.y})`}
-${movementData.nearbyLocations.length > 0 ? `Nearby: ${movementData.nearbyLocations.map(l => l.name).join(', ')}` : ''}
+${movementData.valid ? `
+Location Change:
+- From: "${movementData.currentLocationName || 'Unknown'}"
+- To: "${movementData.suggestedLocationName || 'Unknown'}"
+- Nearby Landmarks: ${movementData.nearbyLandmarks?.join(', ') || 'None'}
+- District Context: ${movementData.districtContext || 'Central Mexico City'}
+- New Position: (${movementData.newPosition.x}, ${movementData.newPosition.y})
+
+**IMPORTANT: Use "${movementData.suggestedLocationName}" as the new location unless the narrative explicitly describes a different location (like entering a building).**
+` : `Movement Blocked:
+- Stayed at: (${movementData.oldPosition.x}, ${movementData.oldPosition.y})
+- Reason: ${movementData.reason}
+`}
+${movementData.nearbyLocations?.length > 0 ? `Other Nearby: ${movementData.nearbyLocations.map(l => l.name).join(', ')}` : ''}
 ` : ''}
 
 Narrative That Just Occurred:
@@ -444,11 +466,33 @@ ${narrative}
 Analyze this narrative and extract game state changes. Return JSON with the specified format.${movementData && !movementData.valid ? '\n\nIMPORTANT: Movement was BLOCKED. Position should NOT change.' : ''}
 
 LOCATION TRACKING:
-- If player moved to a different location, return the SPECIFIC location name
-- Use exact names from "Available Locations" list when player goes to those places
-- For example: "Bedroom, Botica de la Amargura" instead of just "Mexico City"
-- If location didn't change, return current location exactly as is
-- Be specific and granular - rooms, buildings, streets have meaning`;
+${movementData && movementData.valid ? `
+**Movement Detected - Use the Suggested Location:**
+The reverse geocoder has determined the player is now at: "${movementData.suggestedLocationName}"
+
+- Set location to: "${movementData.suggestedLocationName}"
+- ONLY override this if the narrative explicitly describes entering a building or different location
+- Examples where you SHOULD override:
+  * Narrative: "You step through the cathedral doors" → location = "Catedral Metropolitana"
+  * Narrative: "You enter the noble's estate" → location from Available Locations
+  * Narrative: "You walk into your bedroom" → location = "Bedroom, Botica de la Amargura"
+- Examples where you should USE the suggested location:
+  * Narrative: "You walk west along the street" → location = "${movementData.suggestedLocationName}"
+  * Narrative: "You continue down the narrow lane" → location = "${movementData.suggestedLocationName}"
+  * Narrative: "You pass by vendors and shopkeepers" → location = "${movementData.suggestedLocationName}"
+` : `
+**No Movement Detected:**
+- Preserve current location: "${currentGameState.location}"
+- Only change if narrative explicitly describes going to a different place
+- Use exact names from "Available Locations" list for building interiors
+- For city streets, be specific (e.g., "Calle de San Francisco" not "streets")
+`}
+
+**General Rules:**
+- Be specific and granular - streets, plazas, buildings all have distinct names
+- Use hierarchical names for interiors: "Bedroom, Botica de la Amargura"
+- NEVER use vague phrases like "Unknown" or "likely near..." - commit to a specific name
+- Check "Available Locations" list first for exact matches`;
 
     const messages = [
       { role: 'system', content: statePrompt },
