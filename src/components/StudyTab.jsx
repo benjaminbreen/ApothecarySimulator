@@ -1,29 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { createChatCompletion } from '../core/services/llmService';
-import ReadableTextModal from './ReadableTextModal';
 import { RippleButton } from './RippleButton';
 
 const StudyTab = ({
-  discoveredBooks = [],
   onBookClick = null,
   theme = 'light',
   narrativeTurn = '', // Most recent narrative turn
   location = '', // Current location
   documents = [], // Document library (letters, codices, etc.)
-  onDocumentClick = null // Callback when document clicked
+  onDocumentClick = null, // Callback when document clicked
+  readableItems = [], // Controlled: readable items from parent
+  onItemsGenerated = null, // Callback when items are generated
+  textCache = {}, // Controlled: text cache from parent
+  onItemClick = null // Callback when item is clicked (opens modal in parent)
 }) => {
   const isDark = theme === 'dark';
-  const [readableItems, setReadableItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // Cache for generated text content (persists during playthrough, cleared on unmount)
-  const textCacheRef = React.useRef({});
 
   // Generate readable items from the current scene
   useEffect(() => {
     if (!narrativeTurn) return;
+    // Skip generation if we already have items (cache)
+    if (readableItems.length > 0) return;
 
     setIsLoading(true);
 
@@ -62,35 +60,40 @@ Example format:
 
         // Try to parse JSON from the response
         const jsonMatch = content.match(/\[[\s\S]*\]/);
+        let items = [];
         if (jsonMatch) {
-          const items = JSON.parse(jsonMatch[0]);
-          setReadableItems(items);
+          items = JSON.parse(jsonMatch[0]);
         } else {
           // Fallback: create ambient description
-          setReadableItems([{
+          items = [{
             name: 'Ambient Scene',
             type: 'ambient',
             description: content.substring(0, 150)
-          }]);
+          }];
+        }
+
+        // Notify parent of generated items
+        if (onItemsGenerated) {
+          onItemsGenerated(items);
         }
       })
       .catch(error => {
         console.error('[StudyTab] Error generating readable items:', error);
-        setReadableItems([]);
+        // Notify parent with empty array on error
+        if (onItemsGenerated) {
+          onItemsGenerated([]);
+        }
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [narrativeTurn, location]);
+  }, [narrativeTurn, location, onItemsGenerated]);
 
   const handleItemClick = (item) => {
-    setSelectedItem(item);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedItem(null);
+    // Call parent's onItemClick to open modal in ContextPanel
+    if (onItemClick) {
+      onItemClick(item);
+    }
   };
 
   return (
@@ -152,7 +155,7 @@ Example format:
           </p>
         </div>
       ) : readableItems.length > 0 ? (
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+        <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
           {readableItems.map((item, idx) => (
             <ReadableCard
               key={`${item.name}-${idx}`}
@@ -197,15 +200,6 @@ Example format:
           background: ${isDark ? 'rgba(71, 85, 105, 0.7)' : 'rgba(107, 114, 128, 0.7)'};
         }
       `}</style>
-
-      {/* Readable Text Modal */}
-      <ReadableTextModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        item={selectedItem}
-        theme={theme}
-        textCache={textCacheRef.current}
-      />
     </div>
   );
 };

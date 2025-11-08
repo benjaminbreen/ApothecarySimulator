@@ -13,6 +13,7 @@
 
 import React, { useId, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { isSafari } from '../utils/browserDetection';
 
 // Notable building metadata for hover tooltips
 const NOTABLE_BUILDINGS = {
@@ -72,6 +73,12 @@ const HorizonLine = ({
 }) => {
   // Generate unique IDs for SVG gradients/filters to prevent collisions
   const instanceId = useId();
+
+  // Detect Safari for performance optimizations (Safari has poor SVG filter performance)
+  const isSafariBrowser = isSafari();
+
+  // Conditional filter attributes - disable expensive filters on Safari
+  const windowGlowFilter = isSafariBrowser ? undefined : `url(#window-glow-${instanceId})`;
 
   // Check for reduced motion preference (accessibility)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -756,27 +763,11 @@ const HorizonLine = ({
               <stop offset="100%" style={{ stopColor: 'rgba(255,255,255,0)', stopOpacity: 0 }} />
             </radialGradient>
 
-            {/* Organic distortion filter for realistic mountain texture */}
-            <filter id={`mountain-texture-distortion-${instanceId}`}>
-              <feTurbulence type="fractalNoise"
-                            baseFrequency="0.015 0.025"
-                            numOctaves="3"
-                            seed="42"
-                            result="noise" />
-              <feDisplacementMap in="SourceGraphic"
-                                 in2="noise"
-                                 scale="6"
-                                 xChannelSelector="R"
-                                 yChannelSelector="G"
-                                 result="displaced" />
-              <feGaussianBlur in="displaced" stdDeviation="1.5" />
-            </filter>
-
-            {/* Subtle noise overlay filter for surface texture */}
+            {/* Simplified noise overlay filter for surface texture - performance optimized */}
             <filter id={`mountain-surface-noise-${instanceId}`}>
               <feTurbulence type="fractalNoise"
                             baseFrequency="0.08 0.12"
-                            numOctaves="4"
+                            numOctaves="2"
                             seed="123"
                             result="turbulence" />
               <feColorMatrix in="turbulence"
@@ -784,7 +775,7 @@ const HorizonLine = ({
                              values="0"
                              result="grayscale" />
               <feComponentTransfer in="grayscale" result="contrast">
-                <feFuncA type="linear" slope="0.4" intercept="0" />
+                <feFuncA type="linear" slope="0.3" intercept="0" />
               </feComponentTransfer>
             </filter>
 
@@ -800,8 +791,8 @@ const HorizonLine = ({
             fill={`url(#mountain-far-${instanceId})`}
           />
 
-          {/* Mountain depth overlays - reduced count with organic distortion */}
-          <g clipPath={`url(#mountain-far-clip-${instanceId})`} filter={`url(#mountain-texture-distortion-${instanceId})`}>
+          {/* Mountain depth overlays - reduced count */}
+          <g clipPath={`url(#mountain-far-clip-${instanceId})`}>
             {/* Left section - key highlight */}
             <ellipse cx="280" cy="108" rx="20" ry="120" fill={`url(#mountain-light-1-${instanceId})`}
               transform="rotate(-23 280 108)" />
@@ -876,12 +867,14 @@ const HorizonLine = ({
                   fill="rgba(0,0,0,0.25)"
                   opacity="0.3" />
 
-            {/* Subtle noise texture overlay */}
-            <rect x="0" y="0" width="1200" height="300"
-                  fill="white"
-                  filter={`url(#mountain-surface-noise-${instanceId})`}
-                  opacity="0.08"
-                  style={{ mixBlendMode: 'overlay' }} />
+            {/* Subtle noise texture overlay - disabled on Safari for performance */}
+            {!isSafariBrowser && (
+              <rect x="0" y="0" width="1200" height="300"
+                    fill="white"
+                    filter={`url(#mountain-surface-noise-${instanceId})`}
+                    opacity="0.04"
+                    style={{ mixBlendMode: 'overlay' }} />
+            )}
           </g>
 
           {/* Natural Snow cap - Popocatépetl (LEFT peak only) - Organic, integrated with mountain - HIDDEN at night and during poor visibility */}
@@ -1058,27 +1051,11 @@ const HorizonLine = ({
               <stop offset="100%" style={{ stopColor: 'rgba(255,255,255,0)', stopOpacity: 0 }} />
             </radialGradient>
 
-            {/* Organic distortion filter for realistic mountain texture */}
-            <filter id={`mountain-mid-texture-distortion-${instanceId}`}>
-              <feTurbulence type="fractalNoise"
-                            baseFrequency="0.018 0.03"
-                            numOctaves="3"
-                            seed="84"
-                            result="noise" />
-              <feDisplacementMap in="SourceGraphic"
-                                 in2="noise"
-                                 scale="8"
-                                 xChannelSelector="R"
-                                 yChannelSelector="G"
-                                 result="displaced" />
-              <feGaussianBlur in="displaced" stdDeviation="2" />
-            </filter>
-
-            {/* Subtle noise overlay filter for surface texture */}
+            {/* Simplified noise overlay filter for surface texture - performance optimized */}
             <filter id={`mountain-mid-surface-noise-${instanceId}`}>
               <feTurbulence type="fractalNoise"
                             baseFrequency="0.1 0.15"
-                            numOctaves="4"
+                            numOctaves="2"
                             seed="456"
                             result="turbulence" />
               <feColorMatrix in="turbulence"
@@ -1086,7 +1063,7 @@ const HorizonLine = ({
                              values="0"
                              result="grayscale" />
               <feComponentTransfer in="grayscale" result="contrast">
-                <feFuncA type="linear" slope="0.5" intercept="0" />
+                <feFuncA type="linear" slope="0.35" intercept="0" />
               </feComponentTransfer>
             </filter>
 
@@ -1144,8 +1121,8 @@ const HorizonLine = ({
             fill={`url(#mountain-mid-${instanceId})`}
           />
 
-          {/* Mid-mountain depth overlays - reduced count with organic distortion */}
-          <g clipPath={`url(#mountain-mid-clip-${instanceId})`} filter={`url(#mountain-mid-texture-distortion-${instanceId})`}>
+          {/* Mid-mountain depth overlays - reduced count */}
+          <g clipPath={`url(#mountain-mid-clip-${instanceId})`}>
             {/* Left section - key shadow */}
             <ellipse cx="175" cy="155" rx="28" ry="105" fill={`url(#mountain-mid-shadow-1-${instanceId})`}
               transform="rotate(-14 175 155)" />
@@ -1230,12 +1207,14 @@ const HorizonLine = ({
                   fill="rgba(0,0,0,0.3)"
                   opacity="0.35" />
 
-            {/* Subtle noise texture overlay */}
-            <rect x="0" y="0" width="1200" height="300"
-                  fill="white"
-                  filter={`url(#mountain-mid-surface-noise-${instanceId})`}
-                  opacity="0.1"
-                  style={{ mixBlendMode: 'overlay' }} />
+            {/* Subtle noise texture overlay - disabled on Safari for performance */}
+            {!isSafariBrowser && (
+              <rect x="0" y="0" width="1200" height="300"
+                    fill="white"
+                    filter={`url(#mountain-mid-surface-noise-${instanceId})`}
+                    opacity="0.05"
+                    style={{ mixBlendMode: 'overlay' }} />
+            )}
           </g>
         </svg>
 
@@ -3087,172 +3066,172 @@ const HorizonLine = ({
 
             {/* Flickering candlelight windows - Upper floors of residential buildings */}
             {/* Building 1 - LEFT */}
-            <rect x="20" y="287" width="4" height="5" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="20" y="287" width="4" height="5" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.6;0.85;0.7;0.9;0.75" dur="6s" repeatCount="indefinite" />
             </rect>
-            <rect x="32" y="287" width="4" height="5" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="32" y="287" width="4" height="5" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.8;0.65;0.85;0.7" dur="5.5s" repeatCount="indefinite" />
             </rect>
 
             {/* Building 2 - Multiple windows - FIXED ALIGNMENT */}
-            <rect x="53" y="279" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="53" y="279" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.65;0.9;0.7;0.8;0.7" dur="5.8s" repeatCount="indefinite" />
             </rect>
-            <rect x="67" y="279" width="3" height="4" fill="rgba(255,200,100,0.85)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="67" y="279" width="3" height="4" fill="rgba(255,200,100,0.85)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.75;0.85;0.8;0.9;0.75" dur="6.2s" repeatCount="indefinite" />
             </rect>
-            <rect x="75" y="279" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="75" y="279" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.6;0.75;0.7;0.85;0.65" dur="5.3s" repeatCount="indefinite" />
             </rect>
-            <rect x="53" y="287" width="3" height="5" fill="rgba(255,200,100,0.7)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="53" y="287" width="3" height="5" fill="rgba(255,200,100,0.7)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.5;0.8;0.65;0.75;0.6" dur="6.5s" repeatCount="indefinite" />
             </rect>
-            <rect x="69" y="287" width="3" height="5" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="69" y="287" width="3" height="5" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.7s" repeatCount="indefinite" />
             </rect>
 
             {/* Cathedral windows - dimmer, steadier light (religious vigil candles) */}
-            <rect x="107" y="250" width="5" height="8" fill="rgba(255,220,150,0.6)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="107" y="250" width="5" height="8" fill="rgba(255,220,150,0.6)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.5;0.55;0.52;0.58;0.5" dur="8s" repeatCount="indefinite" />
             </rect>
-            <rect x="145" y="250" width="5" height="8" fill="rgba(255,220,150,0.6)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="145" y="250" width="5" height="8" fill="rgba(255,220,150,0.6)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.52;0.58;0.5;0.56;0.52" dur="8.5s" repeatCount="indefinite" />
             </rect>
 
             {/* More residential windows across skyline */}
-            <rect x="198" y="288" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="198" y="288" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="5.9s" repeatCount="indefinite" />
             </rect>
-            <rect x="208" y="288" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="208" y="288" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="6.1s" repeatCount="indefinite" />
             </rect>
 
             {/* El Consulado de Mercaderes - NEW merchant guild windows */}
-            <rect x="280" y="266" width="8" height="10" fill="rgba(255,210,120,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="280" y="266" width="8" height="10" fill="rgba(255,210,120,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="6.1s" repeatCount="indefinite" />
             </rect>
-            <rect x="298" y="266" width="8" height="10" fill="rgba(255,210,120,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="298" y="266" width="8" height="10" fill="rgba(255,210,120,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.75;0.9;0.8;0.95;0.75" dur="5.8s" repeatCount="indefinite" />
             </rect>
-            <rect x="316" y="266" width="8" height="10" fill="rgba(255,210,120,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="316" y="266" width="8" height="10" fill="rgba(255,210,120,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="6.3s" repeatCount="indefinite" />
             </rect>
 
             {/* Church windows */}
-            <rect x="272" y="271" width="3" height="5" fill="rgba(255,220,150,0.55)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="272" y="271" width="3" height="5" fill="rgba(255,220,150,0.55)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.48;0.54;0.5;0.56;0.48" dur="9s" repeatCount="indefinite" />
             </rect>
-            <rect x="282" y="271" width="3" height="5" fill="rgba(255,220,150,0.55)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="282" y="271" width="3" height="5" fill="rgba(255,220,150,0.55)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.5;0.56;0.52;0.58;0.5" dur="8.7s" repeatCount="indefinite" />
             </rect>
 
             {/* Palace windows - brighter, more numerous */}
-            <rect x="377" y="264" width="4" height="6" fill="rgba(255,210,120,0.85)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="377" y="264" width="4" height="6" fill="rgba(255,210,120,0.85)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.75;0.9;0.8;0.95;0.75" dur="5.5s" repeatCount="indefinite" />
             </rect>
-            <rect x="387" y="264" width="4" height="6" fill="rgba(255,210,120,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="387" y="264" width="4" height="6" fill="rgba(255,210,120,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.8s" repeatCount="indefinite" />
             </rect>
-            <rect x="397" y="264" width="4" height="6" fill="rgba(255,210,120,0.85)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="397" y="264" width="4" height="6" fill="rgba(255,210,120,0.85)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.75;0.9;0.8;0.95;0.75" dur="6s" repeatCount="indefinite" />
             </rect>
 
             {/* Additional scattered residential windows */}
-            <rect x="467" y="277" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="467" y="277" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.6;0.8;0.7;0.85;0.6" dur="6.3s" repeatCount="indefinite" />
             </rect>
-            <rect x="478" y="277" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="478" y="277" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.6s" repeatCount="indefinite" />
             </rect>
 
-            <rect x="542" y="271" width="3" height="5" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="542" y="271" width="3" height="5" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="6.2s" repeatCount="indefinite" />
             </rect>
-            <rect x="560" y="271" width="3" height="5" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="560" y="271" width="3" height="5" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.9s" repeatCount="indefinite" />
             </rect>
 
             {/* Mid-right residential cluster - FIXED to match actual windows */}
-            <rect x="601" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="601" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.6;0.8;0.7;0.85;0.6" dur="6.4s" repeatCount="indefinite" />
             </rect>
-            <rect x="611" y="287" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="611" y="287" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.7s" repeatCount="indefinite" />
             </rect>
 
             {/* Mid-center residential - NEW glows for existing windows */}
-            <rect x="761" y="289" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="761" y="289" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="6.3s" repeatCount="indefinite" />
             </rect>
-            <rect x="774" y="292" width="3" height="4" fill="rgba(255,200,100,0.7)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="774" y="292" width="3" height="4" fill="rgba(255,200,100,0.7)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.6;0.75;0.7;0.8;0.6" dur="5.8s" repeatCount="indefinite" />
             </rect>
 
             {/* Larger residential with balconies - NEW glows */}
-            <rect x="796" y="282" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="796" y="282" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="6.1s" repeatCount="indefinite" />
             </rect>
-            <rect x="812" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="812" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="5.9s" repeatCount="indefinite" />
             </rect>
-            <rect x="796" y="293" width="3" height="4" fill="rgba(255,200,100,0.7)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="796" y="293" width="3" height="4" fill="rgba(255,200,100,0.7)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.6;0.75;0.65;0.8;0.6" dur="6.4s" repeatCount="indefinite" />
             </rect>
 
-            <rect x="876" y="286" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="876" y="286" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="6.1s" repeatCount="indefinite" />
             </rect>
-            <rect x="886" y="286" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="886" y="286" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.8s" repeatCount="indefinite" />
             </rect>
 
             {/* Far-right residential - FIXED ALIGNMENT */}
-            <rect x="908" y="286" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="908" y="286" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.6;0.8;0.7;0.85;0.6" dur="6.2s" repeatCount="indefinite" />
             </rect>
-            <rect x="922" y="290" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="922" y="290" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.9s" repeatCount="indefinite" />
             </rect>
 
-            <rect x="1001" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1001" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="6.3s" repeatCount="indefinite" />
             </rect>
-            <rect x="1010" y="287" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1010" y="287" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.6s" repeatCount="indefinite" />
             </rect>
 
-            <rect x="1034" y="285" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1034" y="285" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.6;0.8;0.7;0.85;0.6" dur="6.4s" repeatCount="indefinite" />
             </rect>
-            <rect x="1046" y="285" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1046" y="285" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.7s" repeatCount="indefinite" />
             </rect>
 
-            <rect x="1069" y="288" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1069" y="288" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="6.1s" repeatCount="indefinite" />
             </rect>
-            <rect x="1078" y="288" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1078" y="288" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.8s" repeatCount="indefinite" />
             </rect>
 
             {/* La Merced Market complex - NEW church and bell tower windows */}
             {/* Left bell tower */}
-            <rect x="1105" y="250" width="4" height="5" fill="rgba(255,220,150,0.55)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1105" y="250" width="4" height="5" fill="rgba(255,220,150,0.55)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.48;0.54;0.5;0.56;0.48" dur="8.5s" repeatCount="indefinite" />
             </rect>
             {/* Right bell tower */}
-            <rect x="1131" y="250" width="4" height="5" fill="rgba(255,220,150,0.55)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1131" y="250" width="4" height="5" fill="rgba(255,220,150,0.55)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.5;0.56;0.52;0.58;0.5" dur="8.8s" repeatCount="indefinite" />
             </rect>
             {/* Rose window - central church */}
-            <circle cx="1120" cy="268" r="4" fill="rgba(255,220,150,0.6)" filter={`url(#window-glow-${instanceId})`}>
+            <circle cx="1120" cy="268" r="4" fill="rgba(255,220,150,0.6)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.52;0.58;0.54;0.6;0.52" dur="9.2s" repeatCount="indefinite" />
             </circle>
 
-            <rect x="1151" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1151" y="287" width="3" height="4" fill="rgba(255,200,100,0.75)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.65;0.8;0.7;0.85;0.65" dur="6.2s" repeatCount="indefinite" />
             </rect>
-            <rect x="1161" y="287" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={`url(#window-glow-${instanceId})`}>
+            <rect x="1161" y="287" width="3" height="4" fill="rgba(255,200,100,0.8)" filter={windowGlowFilter}>
               <animate attributeName="opacity" values="0.7;0.85;0.75;0.9;0.7" dur="5.9s" repeatCount="indefinite" />
             </rect>
           </svg>

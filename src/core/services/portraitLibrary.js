@@ -45,7 +45,7 @@ export const PORTRAIT_LIBRARY = {
     occupation: 'midwife',
     tags: ['midwife', 'healer']
   },
-  'joao.jpeg': {
+  'joao.jpg': {
     name: 'João Rodrigues',
     gender: 'male',
     age: 'adult',
@@ -54,7 +54,7 @@ export const PORTRAIT_LIBRARY = {
     occupation: 'apothecary',
     tags: ['apothecary', 'merchant']
   },
-  'marta.jpeg': {
+  'marta.jpg': {
     name: 'Marta',
     gender: 'female',
     age: 'adult',
@@ -470,7 +470,7 @@ export const PORTRAIT_LIBRARY = {
 
 'blacksmith.jpg': {
     gender: 'male',
-    age: 'young',
+    age: 'adult',
     casta: ['español', 'criollo', 'mestizo'],
     class: ['middling', 'common'],
     occupation: ['blacksmith', 'ironworker', 'smith'],
@@ -1149,10 +1149,10 @@ export const PORTRAIT_LIBRARY = {
     'youngmalemessenger.jpg': {
     gender: 'male',
     age: 'young',
-    casta: ['español', 'peninsular'],
+    casta: ['español', 'peninsular', 'mestizo', 'criollo'],
     class: ['middling', 'common'],
-    occupation: ['messenger', 'page', 'young man', 'household staff'],
-    tags: ['messenger', 'young', 'peninsular', 'español', 'domestic']
+    occupation: ['messenger', 'page', 'young man', 'household staff', 'court messenger', 'runner'],
+    tags: ['messenger', 'young', 'court', 'runner', 'delivery', 'assistant']
   },
 
   // Elderly Servants
@@ -1254,7 +1254,7 @@ export const PORTRAIT_LIBRARY = {
     casta: 'animal',
     class: 'animal',
     occupation: ['donkey', 'pack animal', 'transport'],
-    tags: ['animal', 'donkey', 'transport', 'working']
+    tags: ['animal', 'donkey', 'transport', 'working', 'mule']
   },
   'goat.jpg': {
     gender: 'animal',
@@ -1296,6 +1296,14 @@ export const PORTRAIT_LIBRARY = {
     class: 'animal',
     occupation: ['cat', 'pet', 'companion'],
     tags: ['animal', 'cat', 'pet', 'companion', 'daytime']
+  },
+  'frog.jpg': {
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: ['frog', 'amphibian'],
+    tags: ['animal', 'frog', 'amphibian', 'small creature']
   },
   'horse.jpg': {
     gender: 'animal',
@@ -1388,12 +1396,12 @@ export const PORTRAIT_LIBRARY = {
 
   // Auto-generated entries from sync script
   'artisaninworkshop.jpg': {
-    gender: 'unknown',
+    gender: 'male',
     age: 'adult',
-    casta: 'unknown',
+    casta: ['español', 'criollo', 'mestizo'],
     class: 'middling',
     occupation: 'artisan',
-    tags: ['artisan']
+    tags: ['artisan', 'male', 'craftsman', 'workshop', 'tools']
   },
   'conquistadorfrontier.jpg': {
     gender: 'male',
@@ -1405,11 +1413,11 @@ export const PORTRAIT_LIBRARY = {
   },
   'cowboyonhorse.jpg': {
     gender: 'male',
-    age: 'child',
-    casta: 'unknown',
+    age: 'adult',
+    casta: 'criollo',
     class: 'common',
-    occupation: 'unknown',
-    tags: ['male', 'child']
+    occupation: 'cowboy',
+    tags: ['male', 'cowboy', 'vaquero', 'rural',]
   },
   'criollafemalematron40s.jpg': {
     gender: 'female',
@@ -1446,26 +1454,26 @@ export const PORTRAIT_LIBRARY = {
   'curandera.jpg': {
     gender: 'female',
     age: 'adult',
-    casta: 'unknown',
+    casta: ['indio', 'mestizo'],
     class: 'common',
     occupation: 'healer',
-    tags: ['healer', 'female']
+    tags: ['healer', 'female', 'curandera', 'medicine', 'herbalist']
   },
   'dominicannunelderly.jpg .png': {
     gender: 'female',
     age: 'elderly',
-    casta: 'unknown',
-    class: 'common',
+    casta: ['español', 'criollo'],
+    class: 'religious',
     occupation: 'nun',
-    tags: ['nun', 'female', 'elderly']
+    tags: ['nun', 'female', 'elderly', 'dominican', 'religious']
   },
   'dominicannunelderly.png': {
     gender: 'female',
     age: 'elderly',
-    casta: 'unknown',
-    class: 'common',
+    casta: ['español', 'criollo'],
+    class: 'religious',
     occupation: 'nun',
-    tags: ['nun', 'female', 'elderly']
+    tags: ['nun', 'female', 'elderly', 'dominican', 'religious']
   },
   'elderlyafricanwoman.jpg': {
     gender: 'female',
@@ -1494,10 +1502,10 @@ export const PORTRAIT_LIBRARY = {
   'fishermanonriver.jpg': {
     gender: 'male',
     age: 'adult',
-    casta: 'unknown',
+    casta: ['indio', 'mestizo'],
     class: 'common',
     occupation: 'fisherman',
-    tags: ['fisherman', 'male']
+    tags: ['fisherman', 'male', 'river', 'labor', 'worker']
   },
   'handsomecriolloyoungnobleman.jpg': {
     gender: 'male',
@@ -1508,12 +1516,12 @@ export const PORTRAIT_LIBRARY = {
     tags: ['male', 'young', 'criollo', 'elite']
   },
   'indianmerchants.jpg': {
-    gender: 'unknown',
+    gender: 'male',
     age: 'adult',
-    casta: 'unknown',
+    casta: 'indio',
     class: 'middling',
     occupation: 'merchant',
-    tags: ['merchant']
+    tags: ['merchant', 'male', 'indio', 'vendor', 'trader', 'group']
   },
   'indiofemalechinampafarmerelderly.jpg': {
     gender: 'female',
@@ -1534,58 +1542,58 @@ export const PORTRAIT_LIBRARY = {
   'juana_milk_vendor.jpg': {
     gender: 'female',
     age: 'adult',
-    casta: 'unknown',
+    casta: ['indio', 'mestizo'],
     class: 'common',
     occupation: 'vendor',
-    tags: ['vendor', 'female']
+    tags: ['vendor', 'female', 'milk', 'market', 'food']
   },
   'malejeweler.jpg': {
     gender: 'male',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
+    casta: ['español', 'criollo', 'mestizo'],
+    class: 'middling',
     occupation: 'jeweler',
-    tags: ['jeweler', 'male']
+    tags: ['jeweler', 'male', 'artisan', 'craftsman', 'goldsmith']
   },
   'manandwomandinnercandlelight.jpg': {
-    gender: 'female',
+    gender: 'group',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
-    occupation: 'unknown',
-    tags: ['female']
+    casta: ['español', 'criollo'],
+    class: 'middling',
+    occupation: 'any',
+    tags: ['female', 'male', 'couple', 'dining', 'candlelight', 'evening']
   },
   'manattablecandle.jpg': {
     gender: 'male',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
-    occupation: 'unknown',
-    tags: ['male']
+    casta: ['español', 'criollo', 'mestizo'],
+    class: 'middling',
+    occupation: 'any',
+    tags: ['male', 'candle', 'reading', 'writing', 'evening', 'scholar']
   },
   'manonhorse.jpg': {
     gender: 'male',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
-    occupation: 'unknown',
-    tags: ['male']
+    casta: ['español', 'criollo', 'mestizo'],
+    class: 'middling',
+    occupation: 'any',
+    tags: ['male', 'horse', 'rider', 'mounted', 'cavalier', 'travel']
   },
   'manonhorsebacknight.jpg': {
     gender: 'male',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
-    occupation: 'unknown',
-    tags: ['male']
+    casta: ['español', 'criollo', 'mestizo'],
+    class: 'middling',
+    occupation: 'any',
+    tags: ['male', 'horse', 'rider', 'mounted', 'night', 'travel', 'cavalier']
   },
   'manwritingwithlantern.jpg': {
     gender: 'male',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
-    occupation: 'unknown',
-    tags: ['male']
+    casta: ['español', 'criollo'],
+    class: 'middling',
+    occupation: 'any',
+    tags: ['male', 'writing', 'lantern', 'scholar', 'scribe', 'clerk', 'educated']
   },
   'marketplacevendorindiowoman.jpg': {
     gender: 'female',
@@ -1596,12 +1604,12 @@ export const PORTRAIT_LIBRARY = {
     tags: ['vendor', 'female', 'indio']
   },
   'marketvendors.jpg': {
-    gender: 'unknown',
-    age: 'adult',
-    casta: 'unknown',
+    gender: 'group',
+    age: 'mixed',
+    casta: ['indio', 'mestizo'],
     class: 'common',
     occupation: 'vendor',
-    tags: ['vendor']
+    tags: ['vendor', 'market', 'group', 'trading']
   },
   'mestizawomanaged30s.jpg': {
     gender: 'female',
@@ -1630,34 +1638,34 @@ export const PORTRAIT_LIBRARY = {
   'middleagedmalemuleteer.jpg': {
     gender: 'male',
     age: 'middle-aged',
-    casta: 'unknown',
+    casta: ['mestizo', 'indio', 'español'],
     class: 'common',
     occupation: 'muleteer',
-    tags: ['muleteer', 'male', 'middle-aged']
+    tags: ['muleteer', 'male', 'middle-aged', 'transport', 'driver', 'worker']
   },
   'middleagedmaleportuguesesailor.jpg': {
     gender: 'male',
     age: 'middle-aged',
-    casta: 'unknown',
+    casta: 'portugués',
     class: 'common',
     occupation: 'sailor',
-    tags: ['sailor', 'male', 'middle-aged']
+    tags: ['sailor', 'male', 'middle-aged', 'portugués', 'maritime', 'seaman']
   },
   'middleagedpeasantwoman.jpg': {
     gender: 'female',
     age: 'middle-aged',
-    casta: 'unknown',
+    casta: ['indio', 'mestizo'],
     class: 'poor',
-    occupation: 'unknown',
-    tags: ['female', 'middle-aged', 'poor']
+    occupation: 'any',
+    tags: ['female', 'middle-aged', 'poor', 'peasant', 'rural']
   },
   'middleagedtheologianorscholar.jpg': {
-    gender: 'unknown',
+    gender: 'male',
     age: 'middle-aged',
-    casta: 'unknown',
-    class: 'common',
+    casta: ['español', 'criollo'],
+    class: 'middling',
     occupation: 'scholar',
-    tags: ['scholar', 'middle-aged']
+    tags: ['scholar', 'theologian', 'male', 'middle-aged', 'educated', 'clerical']
   },
   'mulattonyoungman.jpg': {
     gender: 'male',
@@ -1670,18 +1678,18 @@ export const PORTRAIT_LIBRARY = {
   'noblemalechild.jpg': {
     gender: 'male',
     age: 'child',
-    casta: 'unknown',
+    casta: ['español', 'criollo'],
     class: 'elite',
-    occupation: 'unknown',
-    tags: ['male', 'child', 'elite']
+    occupation: 'child',
+    tags: ['male', 'child', 'elite', 'noble', 'wealthy']
   },
   'oldmanholdingcandlenight.jpg': {
     gender: 'male',
     age: 'elderly',
-    casta: 'unknown',
+    casta: ['español', 'criollo', 'mestizo'],
     class: 'common',
-    occupation: 'unknown',
-    tags: ['male', 'elderly']
+    occupation: 'any',
+    tags: ['male', 'elderly', 'candle', 'night']
   },
   'peninsularenoblewomanfemaleindoorsmiddleaged.jpg': {
     gender: 'female',
@@ -1702,82 +1710,82 @@ export const PORTRAIT_LIBRARY = {
   'poormalepickpocketyoung.jpg': {
     gender: 'male',
     age: 'young',
-    casta: 'unknown',
+    casta: ['mestizo', 'indio', 'criollo'],
     class: 'poor',
     occupation: 'thief',
-    tags: ['thief', 'male', 'young', 'poor']
+    tags: ['thief', 'male', 'young', 'poor', 'pickpocket', 'street']
   },
   'pooryoungmaninterior.jpg': {
     gender: 'male',
     age: 'young',
-    casta: 'unknown',
+    casta: ['mestizo', 'indio', 'criollo'],
     class: 'poor',
-    occupation: 'unknown',
-    tags: ['male', 'young', 'poor']
+    occupation: 'any',
+    tags: ['male', 'young', 'poor', 'interior']
   },
   'priest.jpg': {
     gender: 'male',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
+    casta: ['español', 'criollo'],
+    class: 'religious',
     occupation: 'priest',
-    tags: ['priest', 'male']
+    tags: ['priest', 'male', 'clergy', 'religious']
   },
   'sailor.jpg': {
-    gender: 'unknown',
+    gender: 'male',
     age: 'adult',
-    casta: 'unknown',
+    casta: ['español', 'criollo', 'mestizo', 'portugués'],
     class: 'common',
     occupation: 'sailor',
-    tags: ['sailor']
+    tags: ['sailor', 'male', 'maritime', 'seaman']
   },
   'shopkeeper.jpg': {
-    gender: 'unknown',
+    gender: 'male',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
+    casta: ['español', 'criollo', 'mestizo'],
+    class: 'middling',
     occupation: 'shopkeeper',
-    tags: ['shopkeeper']
+    tags: ['shopkeeper', 'male', 'merchant', 'vendor']
   },
   'shopkeeperatwindowdusk.jpg': {
-    gender: 'unknown',
+    gender: 'male',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
+    casta: ['español', 'criollo', 'mestizo'],
+    class: 'middling',
     occupation: 'shopkeeper',
-    tags: ['shopkeeper']
+    tags: ['shopkeeper', 'male', 'merchant', 'vendor', 'dusk']
   },
   'skinnyyoungman.jpg': {
     gender: 'male',
     age: 'young',
-    casta: 'unknown',
-    class: 'common',
-    occupation: 'unknown',
-    tags: ['male', 'young']
+    casta: 'any',
+    class: 'poor',
+    occupation: 'any',
+    tags: ['male', 'young', 'thin', 'skinny', 'malnourished', 'poor', 'hungry', 'gaunt', 'weak', 'poverty']
   },
   'soldier_guard_middleaged_espanol.jpg': {
-    gender: 'unknown',
-    age: 'elderly',
+    gender: 'male',
+    age: 'middle-aged',
     casta: 'español',
     class: 'common',
     occupation: 'soldier',
-    tags: ['soldier', 'elderly', 'español']
+    tags: ['soldier', 'guard', 'male', 'middle-aged', 'español', 'military']
   },
   'soldiers.jpg': {
-    gender: 'unknown',
-    age: 'elderly',
-    casta: 'unknown',
+    gender: 'male',
+    age: 'adult',
+    casta: ['español', 'criollo', 'mestizo'],
     class: 'common',
     occupation: 'soldier',
-    tags: ['soldier', 'elderly']
+    tags: ['soldier', 'male', 'group', 'military']
   },
   'teenagemaleservant.jpg': {
     gender: 'male',
     age: 'young',
-    casta: 'unknown',
+    casta: ['mestizo', 'indio', 'criollo'],
     class: 'common',
     occupation: 'servant',
-    tags: ['servant', 'male', 'young']
+    tags: ['servant', 'male', 'young', 'domestic', 'teenage']
   },
   'unhealthyindiowoman.jpg': {
     gender: 'female',
@@ -1790,34 +1798,34 @@ export const PORTRAIT_LIBRARY = {
   'unhealthymiddleagedman.jpg': {
     gender: 'male',
     age: 'middle-aged',
-    casta: 'unknown',
+    casta: ['mestizo', 'criollo', 'español'],
     class: 'common',
-    occupation: 'unknown',
-    tags: ['male', 'middle-aged']
+    occupation: 'any',
+    tags: ['male', 'middle-aged', 'sick', 'ill', 'unhealthy', 'patient']
   },
   'unhealthypickpocket.jpg': {
-    gender: 'unknown',
+    gender: 'male',
     age: 'adult',
-    casta: 'unknown',
-    class: 'common',
+    casta: ['mestizo', 'criollo', 'español'],
+    class: 'poor',
     occupation: 'thief',
-    tags: ['thief']
+    tags: ['thief', 'male', 'poor', 'unhealthy', 'thin']
   },
   'widow.jpg': {
     gender: 'female',
     age: 'adult',
-    casta: 'unknown',
+    casta: ['español', 'criollo', 'mestizo'],
     class: 'common',
-    occupation: 'unknown',
-    tags: ['female']
+    occupation: 'any',
+    tags: ['female', 'widow', 'mourning', 'grief']
   },
   'widow.png': {
     gender: 'female',
     age: 'adult',
-    casta: 'unknown',
+    casta: ['español', 'criollo', 'mestizo'],
     class: 'common',
-    occupation: 'unknown',
-    tags: ['female']
+    occupation: 'any',
+    tags: ['female', 'widow', 'mourning', 'grief']
   },
   'widowpeninsulare30s.jpg': {
     gender: 'female',
@@ -1830,26 +1838,19 @@ export const PORTRAIT_LIBRARY = {
   'womanhand.jpg': {
     gender: 'female',
     age: 'adult',
-    casta: 'unknown',
+    casta: ['español', 'criollo', 'mestizo'],
     class: 'common',
-    occupation: 'unknown',
-    tags: ['female']
+    occupation: 'any',
+    tags: ['female', 'hands', 'worker', 'labor']
   },
-  'womanswork.jpg': {
-    gender: 'female',
-    age: 'adult',
-    casta: 'unknown',
-    class: 'common',
-    occupation: 'unknown',
-    tags: ['female']
-  },
+
   'youngcavalier.jpg': {
-    gender: 'unknown',
+    gender: 'male',
     age: 'young',
-    casta: 'unknown',
-    class: 'common',
+    casta: ['español', 'criollo', 'mestizo'],
+    class: 'middling',
     occupation: 'cavalier',
-    tags: ['cavalier', 'young']
+    tags: ['cavalier', 'young', 'male', 'military', 'horseman']
   },
   'youngcriollawoman.jpg': {
     gender: 'female',
@@ -1870,42 +1871,35 @@ export const PORTRAIT_LIBRARY = {
   'youngfootman.jpg': {
     gender: 'male',
     age: 'young',
-    casta: 'unknown',
+    casta: ['mestizo', 'criollo', 'español'],
     class: 'common',
     occupation: 'servant',
-    tags: ['servant', 'male', 'young']
+    tags: ['servant', 'male', 'young', 'footman', 'domestic']
   },
-  'youngmalemessenger.png': {
-    gender: 'male',
-    age: 'young',
-    casta: 'unknown',
-    class: 'common',
-    occupation: 'messenger',
-    tags: ['messenger', 'male', 'young']
-  },
+
   'youngmaleservant.jpg': {
     gender: 'male',
     age: 'young',
-    casta: 'unknown',
+    casta: ['mestizo', 'indio', 'criollo'],
     class: 'common',
-    occupation: 'servant',
-    tags: ['servant', 'male', 'young']
+    occupation: ['servant', 'attendant', 'assistant', 'household staff'],
+    tags: ['servant', 'male', 'young', 'domestic', 'attendant', 'assistant', 'helper']
   },
   'youngmanwithfaciallaceration.jpg': {
     gender: 'male',
     age: 'young',
-    casta: 'unknown',
+    casta: 'any',
     class: 'common',
-    occupation: 'unknown',
-    tags: ['male', 'young']
+    occupation: 'any',
+    tags: ['male', 'young', 'injured', 'wound', 'cut', 'laceration', 'trauma', 'hurt', 'bleeding', 'facial injury', 'accident', 'violence']
   },
   'youngmanwithpox.jpg': {
     gender: 'male',
     age: 'young',
-    casta: 'unknown',
+    casta: 'any',
     class: 'common',
-    occupation: 'unknown',
-    tags: ['male', 'young']
+    occupation: 'any',
+    tags: ['male', 'young', 'sick', 'disease', 'pox', 'smallpox', 'great pox', 'rash', 'ill', 'pustules', 'lesions', 'contagious', 'fever', 'patient', 'suffering']
   },
   'youngmestizawoman.jpg': {
     gender: 'female',
@@ -1918,18 +1912,18 @@ export const PORTRAIT_LIBRARY = {
   'youngpeasantwoman.jpg': {
     gender: 'female',
     age: 'young',
-    casta: 'unknown',
+    casta: ['indio', 'mestizo'],
     class: 'poor',
-    occupation: 'unknown',
-    tags: ['female', 'young', 'poor']
+    occupation: 'any',
+    tags: ['female', 'young', 'poor', 'peasant', 'rural']
   },
   'youngwomansmallpox.jpg': {
     gender: 'female',
     age: 'young',
-    casta: 'unknown',
+    casta: 'any',
     class: 'common',
-    occupation: 'unknown',
-    tags: ['female', 'young']
+    occupation: 'any',
+    tags: ['female', 'young', 'sick', 'disease', 'smallpox', 'pox', 'rash', 'ill', 'pustules', 'lesions', 'contagious', 'fever', 'patient', 'suffering', 'disfigured']
   },
 
   // === ADDITIONAL CHARACTERS (Previously Unused) ===
@@ -2030,6 +2024,81 @@ export const PORTRAIT_LIBRARY = {
     class: ['common', 'middling'],
     occupation: ['mother', 'parent'],
     tags: ['mother', 'family', 'children', 'domestic', 'evening']
+  },
+
+  // === NEW PORTRAITS (November 2024) ===
+
+  'middleagedcriollofoodvendor.png': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'criollo',
+    class: 'common',
+    occupation: ['vendor', 'food seller', 'merchant'],
+    tags: ['vendor', 'food', 'seller', 'market', 'working', 'business', 'criollo', 'middle-aged']
+  },
+  'middleagedfemalemerchant.jpg': {
+    gender: 'female',
+    age: 'middle-aged',
+    casta: 'any',
+    class: 'middling',
+    occupation: ['merchant', 'shopkeeper', 'vendor'],
+    tags: ['merchant', 'business', 'female', 'middle-aged', 'shopkeeper', 'independent', 'commercial']
+  },
+  'middleagedindiofemalepotterartisan.jpg': {
+    gender: 'female',
+    age: 'middle-aged',
+    casta: 'indio',
+    class: 'common',
+    occupation: ['potter', 'artisan', 'craftsperson'],
+    tags: ['potter', 'artisan', 'craftswoman', 'indigenous', 'skilled', 'ceramic', 'clay', 'working', 'traditional']
+  },
+  'middleagedmalebutcher.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'any',
+    class: 'common',
+    occupation: ['butcher', 'meat seller', 'merchant'],
+    tags: ['butcher', 'meat', 'food', 'vendor', 'working', 'skilled', 'trade', 'market']
+  },
+  'middleagedmaleleatherworker.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'any',
+    class: 'common',
+    occupation: ['leatherworker', 'tanner', 'artisan'],
+    tags: ['leatherworker', 'tanner', 'artisan', 'craftsman', 'working', 'skilled', 'leather', 'trade']
+  },
+  'youngfemaleindiovendor.jpg': {
+    gender: 'female',
+    age: 'young',
+    casta: 'indio',
+    class: 'common',
+    occupation: ['vendor', 'seller', 'merchant'],
+    tags: ['vendor', 'seller', 'market', 'indigenous', 'young', 'female', 'working', 'trade']
+  },
+  'elderlyfemaleindioweaver.jpg': {
+    gender: 'female',
+    age: 'elderly',
+    casta: 'indio',
+    class: 'common',
+    occupation: ['weaver', 'artisan', 'textile worker'],
+    tags: ['weaver', 'artisan', 'craftswoman', 'textile', 'indigenous', 'elderly', 'skilled', 'traditional', 'working']
+  },
+  'mestizomiddleagedmaletoolvendor.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'mestizo',
+    class: 'common',
+    occupation: ['vendor', 'tool seller', 'merchant', 'shopkeeper'],
+    tags: ['vendor', 'seller', 'tools', 'merchant', 'market', 'mestizo', 'middle-aged', 'working', 'trade', 'hardware']
+  },
+  'middleagedmalefilipinomerchant.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: 'filipino',
+    class: 'middling',
+    occupation: ['merchant', 'trader', 'shopkeeper'],
+    tags: ['merchant', 'trader', 'filipino', 'asian', 'pacific', 'middle-aged', 'business', 'commercial', 'galleon trade', 'manila', 'overseas']
   }
 };
 

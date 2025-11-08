@@ -8,6 +8,7 @@ import ActionPanel from './ActionPanel';
 import EntityCard from './EntityCard';
 import { fetchEntitiesWithWikipedia } from '../core/services/wikipediaService';
 import HistoricalContextModal from './HistoricalContextModal';
+import ReadableTextModal from './ReadableTextModal';
 import ReactMarkdown from 'react-markdown';
 import { RippleButton } from './RippleButton';
 
@@ -36,7 +37,6 @@ const ContextPanel = ({
   toast = null, // Toast notifications
   onItemDropOnNPC = null, // Callback when item dropped on NPC portrait
   entities = [], // Entities from LLM (with Wikipedia integration)
-  discoveredBooks = [], // Books discovered during gameplay
   onBookClick = null, // Callback when book is clicked
   documents = [], // Document library (letters, codices, etc.)
   onDocumentClick = null, // Callback when document is clicked
@@ -79,6 +79,15 @@ const ContextPanel = ({
   // State for Historical Context Modal
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [modalMode, setModalMode] = React.useState('fact-check'); // 'fact-check' | 'learn-more' | 'counternarrative'
+
+  // State for Study Tab readable items (shared with Read button)
+  const [readableItemsCache, setReadableItemsCache] = React.useState([]);
+  const [readableTextCache, setReadableTextCache] = React.useState({});
+  const [isReadableModalOpen, setIsReadableModalOpen] = React.useState(false);
+  const [selectedReadableItem, setSelectedReadableItem] = React.useState(null);
+  const [isGeneratingReadables, setIsGeneratingReadables] = React.useState(false);
+  const cachedLocation = React.useRef(null); // Track location changes for cache invalidation
+  const shouldOpenRandomAfterGeneration = React.useRef(false); // Flag to auto-open random item
 
   // Fetch inline content for the selected mode
   const fetchInlineContent = React.useCallback(async (mode) => {
@@ -172,6 +181,117 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
       fetchInlineContent('counternarrative');
     }
   };
+
+  // Generate readable items (shared by Study tab and Read button)
+  const generateReadableItems = React.useCallback(async () => {
+    if (!recentNarrativeTurn) {
+      console.log('[ContextPanel] No narrative turn, cannot generate readable items');
+      return;
+    }
+
+    setIsGeneratingReadables(true);
+
+    try {
+      const { createChatCompletion } = await import('../core/services/llmService');
+
+      const messages = [
+        {
+          role: 'system',
+          content: `You are analyzing a scene from a historical game set in 1680s Mexico City. Based on the narrative, list all readable items visible to the player character.
+
+Your response must be a JSON array of objects. Each object should have:
+- "name": The title/description of the readable item
+- "type": One of "book", "sign", "label", "inscription", "document", or "ambient"
+- "description": A brief description (1 sentence)
+
+Priority order:
+1. If books/texts are mentioned or plausible (library, study, bookshelf), list 3-5 specific historical books
+2. If in a shop/street with signs, list 2-4 visible signs or labels
+3. If no text is visible, create ONE "ambient" entry with a spare sensory description
+
+Be historically accurate for 1680s Mexico. Book titles should be real or plausibly real. Keep it brief.
+
+Example format:
+[
+  {"name": "De Historia Plantarum", "type": "book", "description": "Leather-bound botanical treatise"},
+  {"name": "Botica Sign", "type": "sign", "description": "Painted wooden sign above the door"}
+]`
+        },
+        {
+          role: 'user',
+          content: `Location: ${locationDetails}\n\nNarrative:\n${recentNarrativeTurn}`
+        }
+      ];
+
+      const response = await createChatCompletion(messages, 0.4, 600, null, { agent: 'ReadableItems' });
+      const content = response.choices[0].message.content;
+
+      // Try to parse JSON from the response
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      let items = [];
+      if (jsonMatch) {
+        items = JSON.parse(jsonMatch[0]);
+      } else {
+        // Fallback: create ambient description
+        items = [{
+          name: 'Ambient Scene',
+          type: 'ambient',
+          description: content.substring(0, 150)
+        }];
+      }
+
+      console.log('[ContextPanel] Generated', items.length, 'readable items');
+      setReadableItemsCache(items);
+      cachedLocation.current = locationDetails;
+
+      // If Read button triggered this, open random item
+      if (shouldOpenRandomAfterGeneration.current && items.length > 0) {
+        shouldOpenRandomAfterGeneration.current = false;
+        const randomIndex = Math.floor(Math.random() * items.length);
+        const randomItem = items[randomIndex];
+        console.log('[ContextPanel] Auto-opening random readable item:', randomItem.name);
+        setSelectedReadableItem(randomItem);
+        setIsReadableModalOpen(true);
+      }
+    } catch (error) {
+      console.error('[ContextPanel] Error generating readable items:', error);
+      setReadableItemsCache([]);
+    } finally {
+      setIsGeneratingReadables(false);
+    }
+  }, [recentNarrativeTurn, locationDetails]);
+
+  // Handle Read action button - opens random readable item from Study tab cache
+  const handleReadAction = React.useCallback(() => {
+    // Check if cache is valid (same location and has items)
+    if (readableItemsCache.length > 0 && cachedLocation.current === locationDetails) {
+      // Cache is valid - pick random item and open immediately
+      const randomIndex = Math.floor(Math.random() * readableItemsCache.length);
+      const randomItem = readableItemsCache[randomIndex];
+      console.log('[ContextPanel] Opening random readable item from cache:', randomItem.name);
+      setSelectedReadableItem(randomItem);
+      setIsReadableModalOpen(true);
+    } else {
+      // No cache or stale - trigger generation and auto-open random item
+      console.log('[ContextPanel] Cache empty/stale, generating readable items...');
+      shouldOpenRandomAfterGeneration.current = true;
+      generateReadableItems();
+    }
+  }, [readableItemsCache, locationDetails, generateReadableItems]);
+
+  // Callback when Study tab generates readable items
+  const handleItemsGenerated = React.useCallback((items) => {
+    console.log('[ContextPanel] Study tab generated', items.length, 'readable items');
+    setReadableItemsCache(items);
+    cachedLocation.current = locationDetails;
+  }, [locationDetails]);
+
+  // Callback when readable item is clicked in Study tab
+  const handleReadableItemClick = React.useCallback((item) => {
+    console.log('[ContextPanel] Opening readable item from Study tab:', item.name);
+    setSelectedReadableItem(item);
+    setIsReadableModalOpen(true);
+  }, []);
 
   // Trigger fade-in animation on mount
   React.useEffect(() => {
@@ -347,6 +467,12 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
   };
 
   const handleActionPanelClick = (actionId) => {
+    // Handle Read action - opens random readable item from Study tab cache
+    if (actionId === 'read') {
+      handleReadAction();
+      return;
+    }
+
     // Handle special actions that trigger direct state changes (not text commands)
     if (actionId === 'accounts' && setIsLedgerOpen) {
       setIsLedgerOpen(true);
@@ -390,7 +516,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
   const isDark = document.documentElement.classList.contains('dark');
 
   return (
-    <aside className="hidden xl:flex flex-col w-96 gap-4 h-full overflow-hidden px-1">
+    <aside className="hidden xl:flex flex-col w-99 gap-3 h-full overflow-hidden px-1">
 
       {/* Viewport Panel - Map/Portrait/Weather */}
       <div className="flex-shrink-0 rounded-2xl overflow-hidden shadow-elevation-2 dark:shadow-dark-elevation-3 transition-shadow duration-300 hover:shadow-elevation-3 dark:hover:shadow-dark-elevation-4">
@@ -416,7 +542,6 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
           onEnterBuilding={onEnterBuilding}
           onExitBuilding={onExitBuilding}
           onRoomCommand={onRoomCommand}
-          discoveredBooks={discoveredBooks}
           onBookClick={onBookClick}
           documents={documents}
           onDocumentClick={onDocumentClick}
@@ -429,6 +554,10 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
           travelPath={travelPath}
           isTraveling={isTraveling}
           reputationChange={reputationChange}
+          readableItems={readableItemsCache}
+          onItemsGenerated={handleItemsGenerated}
+          textCache={readableTextCache}
+          onReadableItemClick={handleReadableItemClick}
         />
       </div>
 
@@ -517,7 +646,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
         />
 
         {/* Header with Elegant Dividers + Collapse Toggle */}
-        <div className="flex-shrink-0 px-4 pt-2 pb-2 relative z-10">
+        <div className="flex-shrink-0 px-4 pt-2 pb-1 relative z-10">
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-parchment-400/60 dark:via-amber-600/30 to-parchment-400/60 dark:to-amber-600/30 transition-colors duration-300"></div>
             <div className="flex items-center gap-2">
@@ -547,7 +676,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
 
         {/* Enhanced Action Buttons - Always Visible */}
         <div
-          className="flex-shrink-0 px-3 pb-2 relative z-10"
+          className="flex-shrink-0 px-3 pb-1 relative z-10"
           onMouseEnter={() => setIsPanelHovered(true)}
           onMouseLeave={() => setIsPanelHovered(false)}
         >
@@ -555,7 +684,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
             <RippleButton
               onClick={handleFactCheck}
               rippleColor="rgba(16, 185, 129, 0.4)"
-              className={`text-xs px-2.5 py-2 rounded-lg font-semibold font-sans border-2 transition-all duration-300 bg-transparent ${
+              className={`text-xs px-2.5 py-1 rounded-lg font-semibold font-sans border-2 transition-all duration-300 bg-transparent ${
                 // Text and background colors (active state shows subtle tint)
                 activeInlineMode === 'fact-check'
                   ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/20'
@@ -585,7 +714,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
             <RippleButton
               onClick={handleContext}
               rippleColor="rgba(251, 191, 36, 0.4)"
-              className={`text-xs px-2.5 py-2 rounded-lg font-semibold font-sans border-2 transition-all duration-300 bg-transparent ${
+              className={`text-xs px-2.5 py-1 rounded-lg font-semibold font-sans border-2 transition-all duration-300 bg-transparent ${
                 activeInlineMode === 'context'
                   ? 'text-amber-700 dark:text-amber-400 bg-amber-50/30 dark:bg-amber-950/20'
                   : 'text-parchment-600 dark:text-parchment-400 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-amber-50/30 dark:hover:bg-amber-950/20'
@@ -613,7 +742,7 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
             <RippleButton
               onClick={handleCounterNarrative}
               rippleColor="rgba(168, 85, 247, 0.4)"
-              className={`text-xs px-2.5 py-2 rounded-lg font-semibold font-sans border-2 transition-all duration-300 bg-transparent ${
+              className={`text-xs px-2.5 py-1 rounded-lg font-semibold font-sans border-2 transition-all duration-300 bg-transparent ${
                 activeInlineMode === 'counternarrative'
                   ? 'text-purple-700 dark:text-purple-400 bg-purple-50/30 dark:bg-purple-950/20'
                   : 'text-parchment-600 dark:text-parchment-400 hover:text-purple-700 dark:hover:text-purple-400 hover:bg-purple-50/30 dark:hover:bg-purple-950/20'
@@ -795,8 +924,19 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
         activeMode={activeInlineMode} // Pass active mode for color theming
       />
 
+      {/* Readable Text Modal - Shared by Study Tab and Read button */}
+      <ReadableTextModal
+        isOpen={isReadableModalOpen}
+        onClose={() => setIsReadableModalOpen(false)}
+        item={selectedReadableItem}
+        theme={document.documentElement.classList.contains('dark') ? 'dark' : 'light'}
+        textCache={readableTextCache}
+        narrativeContext={recentNarrativeTurn}
+      />
+
     </aside>
   );
 };
 
-export default ContextPanel;
+// Memoize to prevent unnecessary re-renders (ALL BROWSERS performance optimization)
+export default React.memo(ContextPanel);

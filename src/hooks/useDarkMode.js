@@ -9,11 +9,12 @@
  */
 
 import { useEffect, useState } from 'react';
+import { safeLocalStorage } from '../utils/safeLocalStorage';
 
 export function useDarkMode() {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Check localStorage first for saved preference
-    const saved = localStorage.getItem('apothecary-theme');
+    const saved = safeLocalStorage.getItem('apothecary-theme');
     if (saved) {
       return saved === 'dark';
     }
@@ -27,11 +28,11 @@ export function useDarkMode() {
 
     if (isDarkMode) {
       root.classList.add('dark');
-      localStorage.setItem('apothecary-theme', 'dark');
+      safeLocalStorage.setItem('apothecary-theme', 'dark');
       console.log('[useDarkMode] Dark mode enabled');
     } else {
       root.classList.remove('dark');
-      localStorage.setItem('apothecary-theme', 'light');
+      safeLocalStorage.setItem('apothecary-theme', 'light');
       console.log('[useDarkMode] Light mode enabled');
     }
   }, [isDarkMode]);

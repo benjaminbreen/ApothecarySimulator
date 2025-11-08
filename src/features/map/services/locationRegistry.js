@@ -16,6 +16,100 @@ import {
   getNearestWorldLocation,
   calculateDistanceKm
 } from '../data/worldLocations';
+import { SeededRNG } from '../../../utils/seededRandom';
+
+/**
+ * Historical Trade Route Matrix
+ * Defines which destinations are available from each major port
+ * Based on actual 17th-century trade routes
+ */
+const PORT_ROUTES = {
+  // Atlantic Gateway
+  'veracruz': {
+    primary: ['havana', 'cartagena', 'portobelo', 'santo-domingo'],
+    secondary: ['cadiz', 'seville', 'canary-islands'],
+    rare: ['cape-verde', 'dakar-goree', 'azores']
+  },
+
+  // Pacific Gateway (Manila Galleon route!)
+  'acapulco': {
+    primary: ['panama-city', 'lima', 'callao'],
+    secondary: ['manila', 'guam'], // Famous Manila Galleon
+    rare: ['valparaiso', 'santiago-de-chile']
+  },
+
+  // Caribbean Hub
+  'havana': {
+    primary: ['port-royal', 'san-juan', 'santo-domingo', 'veracruz'],
+    secondary: ['cartagena', 'bridgetown', 'campeche'],
+    rare: ['cadiz', 'seville']
+  },
+
+  // New World Hubs
+  'cartagena': {
+    primary: ['portobelo', 'havana', 'veracruz', 'santo-domingo'],
+    secondary: ['caracas', 'panama-city', 'cape-verde'],
+    rare: ['cadiz', 'seville']
+  },
+
+  'panama-city': {
+    primary: ['lima', 'acapulco', 'cartagena'],
+    secondary: ['guayaquil', 'quito', 'callao'],
+    rare: ['manila']
+  },
+
+  'lima': {
+    primary: ['panama-city', 'callao', 'valparaiso'],
+    secondary: ['acapulco', 'santiago-de-chile', 'cusco'],
+    rare: ['manila', 'guam']
+  },
+
+  // Asian Hub (Manila Galleon terminus)
+  'manila': {
+    primary: ['acapulco', 'guam'], // Return voyage to New Spain
+    secondary: ['macau', 'canton', 'batavia'],
+    rare: ['nagasaki', 'malacca', 'goa']
+  },
+
+  // European Hub
+  'seville': {
+    primary: ['cadiz', 'madrid', 'lisbon', 'barcelona'],
+    secondary: ['veracruz', 'havana', 'cartagena', 'canary-islands'],
+    rare: ['azores', 'cape-verde', 'paris', 'genoa']
+  },
+
+  'cadiz': {
+    primary: ['seville', 'lisbon', 'canary-islands'],
+    secondary: ['veracruz', 'havana', 'azores'],
+    rare: ['london', 'amsterdam', 'cape-verde']
+  },
+
+  // African Ports
+  'cape-verde': {
+    primary: ['dakar-goree', 'canary-islands', 'azores'],
+    secondary: ['seville', 'cadiz', 'veracruz'],
+    rare: ['salvador-da-bahia', 'luanda']
+  },
+
+  'cape-town': {
+    primary: ['goa', 'muscat', 'cape-verde'],
+    secondary: ['batavia', 'luanda', 'dakar-goree'],
+    rare: ['lisbon', 'amsterdam']
+  },
+
+  // Asian Trade Network
+  'goa': {
+    primary: ['muscat', 'cape-town', 'batavia'],
+    secondary: ['colombo', 'malacca', 'macau'],
+    rare: ['lisbon', 'seville']
+  },
+
+  'batavia': {
+    primary: ['malacca', 'macau', 'manila'],
+    secondary: ['goa', 'colombo', 'canton'],
+    rare: ['cape-town', 'amsterdam']
+  }
+};
 
 /**
  * @typedef {Object} LocationEntry
@@ -308,6 +402,132 @@ export function formatAvailableLocations(registry) {
   return registry
     .map(loc => `- ${loc.fullName} (${loc.type})`)
     .join('\n');
+}
+
+/**
+ * Get randomized travel destinations based on trade routes and current location
+ * Routes refresh daily and simulate realistic historical trade patterns
+ *
+ * @param {Object} params
+ * @param {Object} params.scenario
+ * @param {string} params.currentMapId
+ * @param {string} params.currentLocationText
+ * @param {{x:number,y:number}} [params.playerPosition]
+ * @param {string|null} params.currentWorldLocationId
+ * @param {string} params.gameDate - Current game date for seeding randomization
+ * @param {string} params.playthroughSeed - Unique seed for this playthrough
+ * @param {Array<string>} [params.visitedLocations=[]] - Array of visited location IDs
+ * @returns {{ origin: Object|null, destinations: Array<Object> }}
+ */
+export function getRandomizedTravelOptions({
+  scenario,
+  currentMapId,
+  currentLocationText,
+  playerPosition,
+  currentWorldLocationId = null,
+  gameDate,
+  playthroughSeed,
+  visitedLocations = []
+}) {
+  const {
+    originId,
+    originLocation,
+    originLat,
+    originLon
+  } = resolveWorldOrigin({
+    scenario,
+    currentMapId,
+    currentLocationText,
+    playerPosition,
+    explicitWorldLocationId: currentWorldLocationId
+  });
+
+  // Create seeded RNG (same results for same date)
+  const seed = `${gameDate}-${playthroughSeed}-travel`;
+  const rng = new SeededRNG(seed);
+
+  const destinations = [];
+
+  // Tier 1: Local cities (random 3-4 from nearby locations)
+  const localCities = WORLD_LOCATIONS
+    .filter(loc => !loc.suppressRegistry && loc.id !== originId)
+    .map(loc => {
+      const distanceKm = calculateDistanceKm(originLat, originLon, loc.lat, loc.lon);
+      return { ...loc, distanceKm };
+    })
+    .filter(loc => loc.distanceKm <= 500) // Within 500km
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+
+  const randomLocalCount = rng.nextInt(3, 4);
+  const selectedLocal = rng.sample(localCities, randomLocalCount).map(loc => ({
+    ...loc,
+    distanceLeagues: Math.round(loc.distanceKm / 4.2)
+  }));
+
+  destinations.push(...selectedLocal);
+
+  // Tier 2: Major ports (always available from Mexico City and nearby New Spain cities)
+  const originRegion = originLocation?.region?.toLowerCase() || '';
+  const isInMexico = originRegion.includes('new spain') ||
+                     originRegion.includes('mexico');
+
+  if (isInMexico) {
+    ['veracruz', 'acapulco'].forEach(portId => {
+      const port = WORLD_LOCATION_LOOKUP[portId];
+      if (port && !destinations.find(d => d.id === portId)) {
+        const distanceKm = calculateDistanceKm(originLat, originLon, port.lat, port.lon);
+        destinations.push({
+          ...port,
+          distanceKm,
+          distanceLeagues: Math.round(distanceKm / 4.2),
+          isMajorPort: true // Flag for UI highlighting
+        });
+      }
+    });
+  }
+
+  // Tier 3: Port-specific routes (if currently at a port)
+  if (PORT_ROUTES[originId]) {
+    const portRoutes = PORT_ROUTES[originId];
+
+    // Pick 2 primary, 1-2 secondary, 0-1 rare
+    const primaryPicks = rng.sample(portRoutes.primary, 2);
+    const secondaryPicks = rng.sample(portRoutes.secondary, rng.nextInt(1, 2));
+    const rarePicks = rng.chance(0.4) ? rng.sample(portRoutes.rare, 1) : [];
+
+    const portDestinations = [...primaryPicks, ...secondaryPicks, ...rarePicks]
+      .map(destId => {
+        const dest = WORLD_LOCATION_LOOKUP[destId];
+        if (!dest || destinations.find(d => d.id === destId)) return null;
+
+        const distanceKm = calculateDistanceKm(originLat, originLon, dest.lat, dest.lon);
+        return {
+          ...dest,
+          distanceKm,
+          distanceLeagues: Math.round(distanceKm / 4.2),
+          isTradeRoute: true // Flag for UI
+        };
+      })
+      .filter(Boolean);
+
+    destinations.push(...portDestinations);
+  }
+
+  // Remove duplicates and limit to 6 total
+  const uniqueDestinations = [];
+  const seenIds = new Set();
+
+  destinations.forEach(dest => {
+    if (!seenIds.has(dest.id)) {
+      uniqueDestinations.push(dest);
+      seenIds.add(dest.id);
+    }
+  });
+
+  return {
+    origin: originLocation,
+    destinations: uniqueDestinations.slice(0, 6)
+  };
 }
 
 /**

@@ -8,13 +8,13 @@
 export default {
   id: 'mercado-interior',
   type: 'interior',
-  name: 'Mercado',
+  name: 'La Merced Market',
   style: 'colonial-interior',
   bounds: {
     width: 1200,
     height: 500
   },
-  startPosition: [120, 250], // Just inside west entrance
+  startPosition: [600, 250], // Center of central aisle - ONLY SPAWN POINT FOR THIS INTERIOR
 
   // Three main areas: North stalls, South stalls, Central aisle
   rooms: [
@@ -29,10 +29,11 @@ export default {
         [50, 320]
       ],
       type: 'aisle',
-      spawnPoint: { x: 600, y: 250 }
+      spawnPoint: { x: 600, y: 250 },
+      walkable: true
     },
 
-    // North row of stalls
+    // North row of stalls (non-walkable decoration area)
     {
       id: 'north-stalls',
       name: 'North Stalls',
@@ -43,10 +44,10 @@ export default {
         [50, 180]
       ],
       type: 'market-stalls',
-      spawnPoint: { x: 600, y: 115 }
+      walkable: false
     },
 
-    // South row of stalls
+    // South row of stalls (non-walkable decoration area)
     {
       id: 'south-stalls',
       name: 'South Stalls',
@@ -57,7 +58,7 @@ export default {
         [50, 450]
       ],
       type: 'market-stalls',
-      spawnPoint: { x: 600, y: 385 }
+      walkable: false
     }
   ],
 

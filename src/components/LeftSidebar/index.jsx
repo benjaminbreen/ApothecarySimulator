@@ -107,4 +107,5 @@ export function LeftSidebar({
   );
 }
 
-export default LeftSidebar;
+// Memoize to prevent unnecessary re-renders (ALL BROWSERS performance optimization)
+export default React.memo(LeftSidebar);

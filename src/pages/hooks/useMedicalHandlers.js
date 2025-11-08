@@ -265,17 +265,63 @@ export function useMedicalHandlers({
    * Generates transition narrative, updates wealth, sets active patient
    */
   const handleAcceptTreatment = useCallback(async (patientEntity, paymentAmount, contractMeta = null) => {
-    console.log('[Contract] Accepting treatment:', patientEntity.name, 'Payment:', paymentAmount);
+    console.log('[Contract] Accepting treatment for patient:', patientEntity.name);
+    console.log('[Contract] Patient entity:', patientEntity);
+    console.log('[Contract] Contract metadata:', contractMeta);
+    console.log('[Contract] Payment:', paymentAmount);
 
     // PHASE 3A: Detect house calls based on patientLocation in metadata
     const metaLocation = contractMeta?.patientLocation ?? patientEntity.metadata?.patientLocation;
     const metaIsEmissary = contractMeta?.isEmissary ?? patientEntity.metadata?.isEmissary;
-    const isHouseCall = Boolean(metaIsEmissary || (metaLocation && metaLocation !== 'pending')); // Exclude "pending" from house calls
-    const houseLocation = metaLocation;
+
+    // CRITICAL: Don't treat as house call if patient is already at current location
+    // Check if metaLocation is the same as current location (or a sub-location of it)
+    const currentLoc = gameState.location || '';
+    const isPatientAtCurrentLocation = metaLocation && (
+      metaLocation === currentLoc ||
+      metaLocation.includes(currentLoc) ||
+      currentLoc.includes(metaLocation) ||
+      (metaLocation.includes('Botica') && currentLoc.includes('Botica'))
+    );
+
+    const isHouseCall = Boolean(
+      !isPatientAtCurrentLocation && // Patient must be elsewhere
+      (metaIsEmissary || (metaLocation && metaLocation !== 'pending'))
+    );
+
+    // FIXED: Generate fallback location if LLM didn't extract one
+    let houseLocation = metaLocation;
+    if (isHouseCall && !houseLocation) {
+      // Generate appropriate location based on patient description/class
+      const patientDesc = (patientEntity.description || patientEntity.name || '').toLowerCase();
+      const socialClass = (patientEntity.class || patientEntity.social?.class || '').toLowerCase();
+
+      if (patientDesc.includes('priest') || patientDesc.includes('friar') || patientDesc.includes('nun')) {
+        houseLocation = 'the Church rectory';
+      } else if (patientDesc.includes('don ') || patientDesc.includes('doña ') || socialClass.includes('elite')) {
+        houseLocation = 'a noble estate';
+      } else if (patientDesc.includes('merchant') || socialClass.includes('middling')) {
+        houseLocation = 'a merchant household';
+      } else if (patientDesc.includes('servant') || patientDesc.includes('slave')) {
+        houseLocation = 'the servant quarters';
+      } else {
+        // Generic fallback based on emissary description
+        const emissaryDesc = (contractMeta?.offeredBy || '').toLowerCase();
+        if (emissaryDesc.includes('servant')) {
+          houseLocation = 'their household';
+        } else {
+          houseLocation = 'a nearby residence';
+        }
+      }
+      console.log('[Phase 3A] Generated fallback location:', houseLocation);
+    }
 
     console.log('[Phase 3A] House call detection:', {
       isHouseCall,
-      location: houseLocation,
+      isPatientAtCurrentLocation,
+      currentLocation: currentLoc,
+      patientLocation: metaLocation,
+      houseLocation: houseLocation,
       patientMetadata: patientEntity.metadata,
       contractMeta
     });

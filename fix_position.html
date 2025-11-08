@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix La Merced Position</title>
+    <style>
+        body {
+            font-family: system-ui;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #b91c1c;
+        }
+        .success {
+            background: #10b981;
+        }
+        .success:hover {
+            background: #059669;
+        }
+        pre {
+            background: #1f2937;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        h1 {
+            color: #1f2937;
+        }
+        .info {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Fix La Merced Market Spawn Position</h1>
+
+    <div class="box">
+        <h2>Current Save Data</h2>
+        <pre id="currentSave">Loading...</pre>
+    </div>
+
+    <div class="info">
+        <strong>⚠️ Problem:</strong> Your saved game has you spawned at the old broken position (y: 385, south stalls).
+        <br><br>
+        <strong>✅ Solution:</strong> Click the button below to move your character to the correct central aisle position.
+    </div>
+
+    <div class="box">
+        <h2>Fix Options</h2>
+        <button onclick="fixPosition()" class="success">
+            🎯 Move to Central Aisle (600, 250)
+        </button>
+        <br><br>
+        <button onclick="clearAllSaves()">
+            🗑️ Clear ALL Saves (Start Fresh)
+        </button>
+    </div>
+
+    <div class="box">
+        <h2>Result</h2>
+        <pre id="result">No action taken yet</pre>
+    </div>
+
+    <script>
+        function displayCurrentSave() {
+            const autosave = localStorage.getItem('apothecary-autosave');
+            if (autosave) {
+                try {
+                    const data = JSON.parse(autosave);
+                    const display = {
+                        playerPosition: data.playerPosition,
+                        currentMapId: data.currentMapId,
+                        location: data.gameState?.location
+                    };
+                    document.getElementById('currentSave').textContent = JSON.stringify(display, null, 2);
+                } catch (e) {
+                    document.getElementById('currentSave').textContent = 'Error parsing save data';
+                }
+            } else {
+                document.getElementById('currentSave').textContent = 'No autosave found';
+            }
+        }
+
+        function fixPosition() {
+            const autosave = localStorage.getItem('apothecary-autosave');
+            if (!autosave) {
+                document.getElementById('result').textContent = '❌ No autosave found!';
+                return;
+            }
+
+            try {
+                const data = JSON.parse(autosave);
+
+                // Fix the position
+                data.playerPosition = {
+                    x: 600,
+                    y: 250,
+                    gridX: 30,
+                    gridY: 12
+                };
+
+                // Save back
+                localStorage.setItem('apothecary-autosave', JSON.stringify(data));
+
+                document.getElementById('result').textContent =
+                    '✅ SUCCESS!\n\n' +
+                    'Position fixed to:\n' +
+                    'x: 600, y: 250\n' +
+                    'gridX: 30, gridY: 12\n\n' +
+                    '👉 Now reload your game (F5 or Cmd+R)';
+
+                displayCurrentSave();
+            } catch (e) {
+                document.getElementById('result').textContent = '❌ Error: ' + e.message;
+            }
+        }
+
+        function clearAllSaves() {
+            const confirm = window.confirm('This will delete ALL your saves. Are you sure?');
+            if (!confirm) return;
+
+            let cleared = [];
+            for (let key in localStorage) {
+                if (key.startsWith('apothecary')) {
+                    localStorage.removeItem(key);
+                    cleared.push(key);
+                }
+            }
+
+            document.getElementById('result').textContent =
+                '✅ Cleared ' + cleared.length + ' save keys:\n\n' +
+                cleared.join('\n') +
+                '\n\n👉 Now reload the page to start fresh';
+
+            displayCurrentSave();
+        }
+
+        // Display on load
+        displayCurrentSave();
+    </script>
+</body>
+</html>

@@ -205,7 +205,7 @@ export function enrichPatientData(patient, extractedData) {
 
   // Handle birth date and auto-calculate age & astrology
   let birthDate = extractedData.birthDate || patient.birthDate;
-  let age = extractedData.age || patient.age;
+  let age = extractedData.age || patient.appearance?.age || patient.age;
   let astrology = patient.astrology; // Keep existing if not recalculating
 
   // If birth date was provided, calculate age and astrology

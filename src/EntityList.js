@@ -3333,13 +3333,16 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   casta: "Indigenous (Nahua)",
   class: "Working class",
   occupation: "Indigenous herbalist",
+  image: "elderlyfemaleindiohealer.jpg",
+  caption: "Xochitl, indigenous herbalist at Tlatelolco Market",
 
   // Merchant shop flags
   clickable: true,
   merchantShop: true,
   merchantType: "herbalist",
-  shopName: "Xochitl's Herb Stall",
-  location: "Tlatelolco Market",
+  shopName: "Medicinal Herbs",
+  stallId: "south-stall-5",
+  location: "La Merced Market",
 
   inventory: {
     categories: ['herb', 'indigenous', 'food'],
@@ -3349,6 +3352,8 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   },
 
   description: "Xochitl is an elderly Nahua herbalist who has been selling medicinal plants at Tlatelolco Market for decades. She knows the indigenous names and properties of countless herbs, passed down through generations. Her stall is piled high with dried plants, fresh roots, and bundles of aromatic leaves.",
+
+  shopAmbiance: "The herb stall overflows with bundles of dried plants hanging from wooden poles. Woven baskets contain fresh roots still dusted with earth from the chinampas. The air is thick with the scent of epazote, marigold, and copal.",
 
   appearance: {
     age: "elder",
@@ -3380,6 +3385,8 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   casta: "Criollo",
   class: "Middling",
   occupation: "Licensed apothecary",
+  image: "middleagedmaleapothecary.jpg",
+  caption: "Don Lorenzo Medina, licensed apothecary",
 
   // Merchant shop flags
   clickable: true,
@@ -3396,6 +3403,8 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   },
 
   description: "Don Lorenzo operates one of the most respected apothecaries in Mexico City, licensed by the Royal Protomedicato. His shop near Plaza Mayor carries imported substances, alchemical preparations, and rare animal derivatives. He maintains exacting standards and views unlicensed healers with suspicion.",
+
+  shopAmbiance: "Dark wooden shelves line the walls, laden with glass vessels, ceramic jars, and brass scales. The sharp scent of sulfur mingles with myrrh and dried herbs. A large ledger sits open on the counter, filled with careful script detailing transactions and formulas.",
 
   appearance: {
     age: "middle-aged",
@@ -3427,6 +3436,8 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   casta: "Mestiza",
   class: "Middling",
   occupation: "Seamstress and clothier",
+  image: "seamstressdraperortextilemerchant.jpg",
+  caption: "Isabel Téllez, seamstress and clothier",
 
   // Merchant shop flags
   clickable: true,
@@ -3443,6 +3454,8 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   },
 
   description: "Isabel runs a small but well-regarded tailoring shop where she creates and sells clothing for middling and common folk. Her work is known for its quality stitching and reasonable prices. She employs two apprentices and dreams of one day supplying the elite households.",
+
+  shopAmbiance: "Bolts of fabric in muted colors lean against the walls. A dress form stands near the window, draped with partially finished work. Thread, needles, and shears rest on a worn wooden table. The smell of wool and cotton fills the small shop.",
 
   appearance: {
     age: "young adult",
@@ -3473,23 +3486,28 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   currentResidence: "La Merced, Mexico City",
   casta: "Criollo",
   class: "Working class",
-  occupation: "Market vendor",
+  occupation: "Tool vendor",
+  image: "mestizomiddleagedmaletoolvendor.jpg",
+  caption: "Diego Ruiz, tool vendor",
 
   // Merchant shop flags
   clickable: true,
   merchantShop: true,
-  merchantType: "general_goods",
-  shopName: "Diego's Market Stall",
+  merchantType: "tool_vendor",
+  shopName: "Tool Vendor",
+  stallId: "north-stall-5",
   location: "La Merced Market",
 
   inventory: {
-    categories: ['food', 'dietary', 'common', 'tool'],
+    categories: ['tool'],
     size: [20, 30],
     priceVariation: 0.10,
     refreshDaily: true
   },
 
-  description: "Diego operates a busy general goods stall at La Merced Market, selling everything from fresh tortillas and beans to simple tools and household items. He's a fixture at the market, known for his booming voice and willingness to haggle. His stall serves the working people of Mexico City with affordable, everyday necessities.",
+  description: "Diego operates a tool stall at La Merced Market, selling everything the working people of Mexico City need: hammers, saws, chisels, rope, nails, hoes, and sickles. His hands are calloused from years of handling iron and wood. He's known for his booming voice, fair prices, and ability to source hard-to-find tools. Artisans, carpenters, and farmers rely on his well-stocked stall.",
+
+  shopAmbiance: "The stall clangs with iron tools hanging from hooks: hammers, saws, chisels, and sickles catch the light. Coils of hemp rope sit beside barrels of nails. The smell of metal and wood oil fills the air. Wooden handles lean against the stall's posts. Diego tests each tool himself—tapping blades, checking balance, ensuring quality before selling.",
 
   appearance: {
     age: "middle-aged",
@@ -3497,37 +3515,40 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   },
 
   social: {
-    occupation: "Market vendor",
+    occupation: "Tool vendor",
     casta: "criollo",
     class: "common",
     faction: "commonFolk"
   },
 
   dialogue: {
-    greeting: "¡Órale! Fresh goods today, señora. Best prices at La Merced!",
-    farewell: "Come back soon. I'll have something new for you."
+    greeting: "¡Órale! Need tools, señora? Best hammers and chisels at La Merced!",
+    farewell: "Come back when you need something built or fixed."
   },
 
-  secret: "Diego supplements his income by acting as an information broker, quietly noting who buys what at the market and selling gossip to interested parties. He keeps mental records of suspicious purchases that might interest the Inquisition."
+  secret: "Diego supplements his income by acting as an information broker, quietly noting who buys what tools at the market and selling gossip to interested parties. He keeps mental records of suspicious purchases—large quantities of iron, rope, or blades—that might interest the authorities or Inquisition."
 },
 
 {
   entityType: "npc",
   tier: "recurring",
-  name: "Ahmad al-Gharbi",
-  age: 55,
-  birthplace: "Tangier, Morocco",
+  name: "Diego de los Reyes",
+  age: 48,
+  birthplace: "Manila, Philippines",
   currentResidence: "Merchants Quarter, Mexico City",
-  casta: "Moro (Moorish)",
+  casta: "Indio Chino (Filipino)",
   class: "Middling",
   occupation: "Spice merchant",
+  image: "middleagedmalefilipinomerchant.jpg",
+  caption: "Diego de los Reyes, spice merchant",
 
   // Merchant shop flags
   clickable: true,
   merchantShop: true,
   merchantType: "spice_trader",
-  shopName: "House of Oriental Spices",
-  location: "Merchants Quarter",
+  shopName: "Spice Vendor",
+  stallId: "north-stall-4",
+  location: "La Merced Market",
 
   inventory: {
     categories: ['imported', 'exotic', 'spice'],
@@ -3536,7 +3557,9 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
     refreshDaily: true
   },
 
-  description: "Ahmad is a Moorish spice merchant who imports rare substances via the Manila galleon trade and Mediterranean networks. His shop carries exotic goods: Chinese ginger, Malaccan pepper, Arabian frankincense, and Persian saffron. He speaks Spanish with a lilting accent and maintains connections across three continents.",
+  description: "Diego is a Filipino merchant who arrived on the Manila galleon fifteen years ago. Born to a Spanish father and Tagalog mother, he imports rare substances from the East Indies: Chinese ginger, Malaccan pepper, cloves from the Moluccas, and precious cinnamon. He speaks fluent Spanish with a slight Tagalog accent and maintains family connections in Manila who supply his trade.",
+
+  shopAmbiance: "The stall is redolent with Asian spices: star anise, galangal, and turmeric perfume the air. Woven Philippine baskets display colorful spices. A small shrine holds a Santo Niño de Cebú figurine brought from Manila. Behind the counter, dried fish and shrimp paste sit alongside more conventional spices—reminders of his Manila childhood.",
 
   appearance: {
     age: "middle-aged",
@@ -3545,17 +3568,17 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
 
   social: {
     occupation: "Spice merchant",
-    casta: "moro",
+    casta: "indio chino",
     class: "middling",
     faction: "merchants"
   },
 
   dialogue: {
-    greeting: "As-salamu alaykum, señora. I have just received a shipment from Manila. Very fine quality.",
-    farewell: "Ma'a salama. May your remedies be as potent as my spices."
+    greeting: "Magandang araw, señora—good day. Fresh spices from Manila, just off the last galleon.",
+    farewell: "Paalam, señora. May the Santo Niño watch over your remedies."
   },
 
-  secret: "Ahmad is part of an underground network helping conversos and moriscos flee New Spain to safer territories. He uses his merchant ships and trading connections to smuggle people and forbidden texts out of the Spanish Empire."
+  secret: "Diego secretly sends money back to Manila to support Filipino laborers who arrive on galleon ships in terrible conditions. He provides them with food, shelter, and employment connections, having experienced the brutal galleon crossing himself. Some whisper he helped a few deserters flee into the countryside."
 },
 
 {
@@ -3568,13 +3591,16 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   casta: "Mestiza",
   class: "Working class",
   occupation: "Food vendor",
+  image: "middleagedcriollofoodvendor.jpg",
+  caption: "Carmen Flores, food vendor from Xochimilco",
 
   // Merchant shop flags
   clickable: true,
   merchantShop: true,
   merchantType: "food_vendor",
-  shopName: "Carmen's Food Stall",
-  location: "Tlatelolco Market",
+  shopName: "Food Stall",
+  stallId: "north-stall-2",
+  location: "La Merced Market",
 
   inventory: {
     categories: ['food', 'dietary'],
@@ -3584,6 +3610,8 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   },
 
   description: "Carmen sells fresh food from her family's chinampas in Xochimilco: fish from the lake, fresh vegetables, tamales, and pulque. She arrives at the market before dawn with her canoe loaded with goods. Her warm personality and fair prices make her stall popular with both indigenous and Spanish customers.",
+
+  shopAmbiance: "Woven baskets overflow with vegetables still damp from the chinampas. Lake fish rest on a bed of ice. Fresh tamales steam in a clay pot. Gourds of pulque sit in the shade. The smell of fresh masa and lake water mingles with wood smoke.",
 
   appearance: {
     age: "middle-aged",
@@ -3603,6 +3631,318 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   },
 
   secret: "Carmen's family still practices some pre-Hispanic rituals at their chinampa, making offerings to Chalchiuhtlicue, the goddess of water. She fears discovery by the Church authorities but believes these rituals ensure good harvests."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Beatriz de Córdoba",
+  age: 34,
+  birthplace: "Seville, Spain",
+  currentResidence: "La Merced, Mexico City",
+  casta: "Peninsular",
+  class: "Middling",
+  occupation: "Textile merchant",
+  image: "middleagedfemalemerchant.jpg",
+  caption: "Beatriz de Córdoba, textile merchant",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "textile_merchant",
+  shopName: "Textile Stall",
+  stallId: "north-stall-1",
+  location: "La Merced Market",
+
+  inventory: {
+    categories: ['textiles'],
+    size: [12, 18],
+    priceVariation: 0.15,
+    refreshDaily: true
+  },
+
+  description: "Beatriz imports fine textiles from Spain and sells them alongside local fabrics at her La Merced stall. She deals in wool, linen, cotton manta, and occasionally silk. Her keen eye for quality and her connections to Seville merchants give her access to fabrics that middling households covet.",
+
+  shopAmbiance: "Bolts of fabric in rich colors are stacked on shelves: indigo blue, cochineal red, saffron yellow. Samples hang from hooks along the stall's frame. The smell of wool and dye fills the air. A measuring stick and shears rest on the counter beside a ledger.",
+
+  appearance: {
+    age: "middle-aged",
+    gender: "female"
+  },
+
+  social: {
+    occupation: "Textile merchant",
+    casta: "peninsular",
+    class: "middling",
+    faction: "merchants"
+  },
+
+  dialogue: {
+    greeting: "Buenos días, señora. Fresh shipment from Seville. The finest wool you'll find in New Spain.",
+    farewell: "May you sew something beautiful. Vaya con Dios."
+  },
+
+  secret: "Beatriz's late husband died under suspicious circumstances on a return voyage from Spain. She suspects he was murdered by rival merchants but has no proof. She maintains her composure but trusts no one in her trade."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Tlalli",
+  age: 50,
+  birthplace: "Texcoco, New Spain",
+  currentResidence: "La Merced, Mexico City",
+  casta: "Indigenous (Nahua)",
+  class: "Working class",
+  occupation: "Potter",
+  image: "middleagedindiofemalepotterartisan.jpg",
+  caption: "Tlalli, traditional potter",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "potter",
+  shopName: "Pottery Stall",
+  stallId: "north-stall-3",
+  location: "La Merced Market",
+
+  inventory: {
+    categories: ['tool', 'common'],
+    size: [15, 20],
+    priceVariation: 0.10,
+    refreshDaily: false
+  },
+
+  description: "Tlalli creates traditional pottery using techniques passed down through her family for generations. Her stall displays cooking vessels, water jugs, grinding bowls, and decorative pieces with pre-Hispanic designs. She works the clay with practiced hands and fires pieces in a small kiln near her home.",
+
+  shopAmbiance: "Clay vessels of all sizes cover the stall: cooking pots, water jugs, comals for tortillas, and molcajetes for grinding. Some bear traditional geometric patterns in red and black. The earthy smell of fired clay mingles with wood smoke. Chips and cracks from transport mark a few pieces, sold at discount.",
+
+  appearance: {
+    age: "middle-aged",
+    gender: "female"
+  },
+
+  social: {
+    occupation: "Potter",
+    casta: "indígena",
+    class: "common",
+    faction: "indigenous"
+  },
+
+  dialogue: {
+    greeting: "Niltze. Good pottery here, strong and well-made. For cooking, for water.",
+    farewell: "Cualli tonalli. May your vessels never break."
+  },
+
+  secret: "Tlalli occasionally makes small ceremonial vessels with hidden pre-Hispanic religious symbols for indigenous families who still practice the old rituals in secret. She disguises them as ordinary pottery to avoid Church attention."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Rodrigo Estévez",
+  age: 45,
+  birthplace: "Mexico City, New Spain",
+  currentResidence: "La Merced, Mexico City",
+  casta: "Criollo",
+  class: "Working class",
+  occupation: "Butcher",
+  image: "middleagedmalebutcher.jpg",
+  caption: "Rodrigo Estévez, butcher",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "butcher",
+  shopName: "Butcher Stall",
+  stallId: "south-stall-1",
+  location: "La Merced Market",
+
+  inventory: {
+    categories: ['food', 'animal'],
+    size: [10, 15],
+    priceVariation: 0.20,
+    refreshDaily: true
+  },
+
+  description: "Rodrigo runs the busiest butcher stall at La Merced Market. He sells beef, pork, mutton, and chicken to households across the city. His cuts are honest and his prices fair, though he reserves the best meat for regular customers. He arrives before dawn to prepare his stall and works until the last piece is sold.",
+
+  shopAmbiance: "Meat hangs from iron hooks: sides of beef, pork shoulders, chickens plucked and ready. Blood-stained wooden blocks bear the marks of countless cuts. A cleaver and saw rest nearby. The sharp smell of raw meat and sawdust fills the air. Flies buzz despite efforts to keep them away.",
+
+  appearance: {
+    age: "middle-aged",
+    gender: "male"
+  },
+
+  social: {
+    occupation: "Butcher",
+    casta: "criollo",
+    class: "common",
+    faction: "guild"
+  },
+
+  dialogue: {
+    greeting: "¡Buenos días! Fresh meat today, señora. Killed this morning, the best quality.",
+    farewell: "Come back when you need more. I'll save you a good cut."
+  },
+
+  secret: "Rodrigo occasionally sells meat from animals that died of illness, mixing it with fresh cuts to avoid waste. He tells himself it's harmless if cooked well, but he knows it violates guild standards and could make people sick."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Ixchel",
+  age: 28,
+  birthplace: "Xochimilco, New Spain",
+  currentResidence: "La Merced, Mexico City",
+  casta: "Indigenous (Nahua)",
+  class: "Working class",
+  occupation: "Vegetable vendor",
+  image: "youngfemaleindiovendor.jpg",
+  caption: "Ixchel, vegetable vendor from the chinampas",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "vegetable_vendor",
+  shopName: "Vegetable Vendor",
+  stallId: "south-stall-2",
+  location: "La Merced Market",
+
+  inventory: {
+    categories: ['food', 'dietary', 'herb'],
+    size: [15, 20],
+    priceVariation: 0.15,
+    refreshDaily: true
+  },
+
+  description: "Ixchel brings fresh vegetables from the chinampas of Xochimilco every morning. Her stall bursts with seasonal produce: squash, tomatoes, beans, chilies, and herbs. She speaks Nahuatl with customers and knows the medicinal properties of many vegetables. Her prices are fair and her produce is always fresh.",
+
+  shopAmbiance: "Baskets overflow with vegetables still damp from the chinampas: green chilies, red tomatoes, yellow squash, purple beans. Bundles of epazote, cilantro, and verdolagas rest in clay pots. Everything smells of earth and water. A few flowers from the chinampas add color to the display.",
+
+  appearance: {
+    age: "young adult",
+    gender: "female"
+  },
+
+  social: {
+    occupation: "Vegetable vendor",
+    casta: "indígena",
+    class: "common",
+    faction: "indigenous"
+  },
+
+  dialogue: {
+    greeting: "Niltze, señora. Fresh vegetables today from the chinampas. Very good, very fresh.",
+    farewell: "Tlazohcamati. Come again tomorrow for more."
+  },
+
+  secret: "Ixchel is pregnant but hasn't told anyone yet, not even the father. She fears losing her place at the market if she's unable to make the daily journey from Xochimilco while carrying a child."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Sebastián Moreno",
+  age: 52,
+  birthplace: "Toledo, Spain",
+  currentResidence: "La Merced, Mexico City",
+  casta: "Peninsular",
+  class: "Working class",
+  occupation: "Leather worker",
+  image: "middleagedmaleleatherworker.jpg",
+  caption: "Sebastián Moreno, leather worker and cobbler",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "leather_worker",
+  shopName: "Leather Goods",
+  stallId: "south-stall-3",
+  location: "La Merced Market",
+
+  inventory: {
+    categories: ['clothing', 'tool'],
+    size: [12, 18],
+    priceVariation: 0.12,
+    refreshDaily: false
+  },
+
+  description: "Sebastián works with leather in the traditional Toledan style, crafting shoes, belts, bags, and saddle goods. His stall displays finished products alongside leather scraps available for purchase. He takes custom orders and repairs old leather goods. His craftsmanship is excellent but his prices are steep.",
+
+  shopAmbiance: "Leather goods hang from hooks and rest on shelves: boots, belts, saddles, bags. The rich smell of tanned leather and oil fills the stall. Tools of the trade—awls, needles, knives—rest on a worn workbench. Strips of leather in various colors dangle from a pole.",
+
+  appearance: {
+    age: "middle-aged",
+    gender: "male"
+  },
+
+  social: {
+    occupation: "Leather worker",
+    casta: "peninsular",
+    class: "common",
+    faction: "guild"
+  },
+
+  dialogue: {
+    greeting: "Buenos días. Looking for leather work? Everything here is made by hand, Toledan quality.",
+    farewell: "May they serve you well. Return if you need repairs."
+  },
+
+  secret: "Sebastián fled Spain after killing a man in a tavern brawl in Toledo. He took his victim's guild credentials and identity papers, which is how he was able to establish himself as a master leather worker in New Spain. He lives in constant fear of discovery."
+},
+
+{
+  entityType: "npc",
+  tier: "recurring",
+  name: "Citlali",
+  age: 62,
+  birthplace: "Cholula, New Spain",
+  currentResidence: "La Merced, Mexico City",
+  casta: "Indigenous (Nahua)",
+  class: "Working class",
+  occupation: "Basket weaver",
+  image: "elderlyfemaleindioweaver.jpg",
+  caption: "Citlali, traditional basket weaver",
+
+  // Merchant shop flags
+  clickable: true,
+  merchantShop: true,
+  merchantType: "basket_weaver",
+  shopName: "Basket Weaver",
+  stallId: "south-stall-4",
+  location: "La Merced Market",
+
+  inventory: {
+    categories: ['tool', 'common'],
+    size: [12, 18],
+    priceVariation: 0.10,
+    refreshDaily: false
+  },
+
+  description: "Citlali weaves baskets, mats, and carrying nets from palm fronds, reeds, and maguey fiber using ancient techniques. Her work is beautiful and functional, sought after by households across Mexico City. She often works at her stall, her gnarled hands moving with practiced speed as she creates intricate patterns.",
+
+  shopAmbiance: "Woven baskets of every size hang from the stall's frame and stack on the ground: shallow bowls for tortillas, deep baskets for market trips, flat mats for sleeping. Palm fronds and reeds lean against the side, ready to be woven. The sweet smell of fresh plant fiber mingles with the earthy scent of dried materials.",
+
+  appearance: {
+    age: "elder",
+    gender: "female"
+  },
+
+  social: {
+    occupation: "Basket weaver",
+    casta: "indígena",
+    class: "common",
+    faction: "indigenous"
+  },
+
+  dialogue: {
+    greeting: "Niltze. Strong baskets here, good for carrying. Made the old way, they last many years.",
+    farewell: "Cualli tonalli. May your baskets always be full."
+  },
+
+  secret: "Citlali is a curandera who uses basket-weaving as her public trade while secretly treating patients with traditional indigenous medicine. She hides her medicinal herbs and ritual objects inside the baskets she displays at the market."
 },
 
 ];

@@ -268,34 +268,47 @@ export class TransactionManager {
   }
 
   /**
-   * Load transactions from localStorage
-   * @param {string} scenarioId - Scenario identifier
+   * Export transactions for save system
+   * @returns {Array} Array of transaction data
    */
-  loadFromStorage(scenarioId) {
+  exportForSave() {
+    console.log(`[TransactionManager] Exported ${this.transactions.length} transactions for save`);
+    return [...this.transactions];
+  }
+
+  /**
+   * Load transactions from save data
+   * @param {Array} transactionData - Array of transaction data from save
+   * @returns {boolean} Success status
+   */
+  loadFromSave(transactionData) {
     try {
-      const key = `transactions_${scenarioId}`;
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        this.transactions = JSON.parse(stored);
-        console.log(`[TransactionManager] Loaded ${this.transactions.length} transactions from storage`);
+      if (!Array.isArray(transactionData)) {
+        console.error('[TransactionManager] Invalid transaction data: not an array');
+        return false;
       }
+
+      this.transactions = transactionData;
+      console.log(`[TransactionManager] ✅ Loaded ${transactionData.length} transactions from save`);
+      return true;
     } catch (error) {
-      console.error('[TransactionManager] Failed to load from storage:', error);
+      console.error('[TransactionManager] ❌ Failed to load transactions from save:', error);
+      return false;
     }
   }
 
   /**
-   * Save transactions to localStorage
-   * @param {string} scenarioId - Scenario identifier
+   * @deprecated Use exportForSave() instead. localStorage operations moved to saveManager.
+   */
+  loadFromStorage(scenarioId) {
+    console.warn('[TransactionManager] loadFromStorage() is deprecated. Use loadFromSave() and saveManager instead.');
+  }
+
+  /**
+   * @deprecated Use exportForSave() instead. localStorage operations moved to saveManager.
    */
   saveToStorage(scenarioId) {
-    try {
-      const key = `transactions_${scenarioId}`;
-      localStorage.setItem(key, JSON.stringify(this.transactions));
-      console.log(`[TransactionManager] Saved ${this.transactions.length} transactions to storage`);
-    } catch (error) {
-      console.error('[TransactionManager] Failed to save to storage:', error);
-    }
+    console.warn('[TransactionManager] saveToStorage() is deprecated. Use exportForSave() and saveManager instead.');
   }
 }
 
@@ -304,23 +317,15 @@ let transactionManagerInstance = null;
 
 /**
  * Get or create the TransactionManager singleton
- * @param {string} scenarioId - Scenario identifier
+ * @param {string} scenarioId - Scenario identifier (no longer used, kept for compatibility)
  * @returns {TransactionManager} The transaction manager instance
  */
 export function getTransactionManager(scenarioId) {
   if (!transactionManagerInstance) {
     transactionManagerInstance = new TransactionManager();
-    // NOTE: localStorage persistence disabled until save system is implemented
-    // Each page reload starts with a fresh transaction history
-    // Clear any old localStorage data to prevent confusion
-    try {
-      const key = `transactions_${scenarioId}`;
-      localStorage.removeItem(key);
-      console.log('[TransactionManager] Cleared old transaction data from localStorage (no save system yet)');
-    } catch (error) {
-      console.error('[TransactionManager] Failed to clear localStorage:', error);
-    }
-    // transactionManagerInstance.loadFromStorage(scenarioId);
+    // NOTE: Transactions now loaded from unified save system (v1.1.0+)
+    // Legacy localStorage keys cleaned up by saveManager.cleanupLegacyStorage()
+    console.log('[TransactionManager] Created new instance (transactions loaded from save system)');
   }
   return transactionManagerInstance;
 }

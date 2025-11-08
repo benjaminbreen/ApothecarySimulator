@@ -5,6 +5,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, laz
 import { useParams } from 'react-router-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { isSafari } from '../utils/browserDetection';
+import { safeLocalStorage } from '../utils/safeLocalStorage';
 
 // New UI Components
 import Header from '../components/Header';
@@ -30,6 +32,7 @@ import ItemConsumptionModal from '../components/ItemConsumptionModal';
 import GameOverModal from '../components/GameOverModal';
 import SimpleInteractionCard from '../components/SimpleInteractionCard';
 import WeatherBackground from '../components/WeatherBackground'; // PHASE 3: Weather system
+import PerformanceMonitor from '../components/PerformanceMonitor'; // Test Mode: Performance monitoring
 
 const ACTION_PROMPT_SUPPRESSION_WINDOW = 60 * 1000; // 1 minute cooldown for repeated prescribe prompts
 import RandomEventCard from '../components/RandomEventCard';
@@ -37,6 +40,7 @@ import POIModal from '../components/POIModal';
 import { TravelCard } from '../components/TravelCard'; // Phase 3B: House call travel
 import { PurchaseOfferCard } from '../components/PurchaseOfferCard'; // Purchase offers from vendors
 import LongDistanceTravelModal from '../components/LongDistanceTravelModal';
+import JourneyTransitionScreen from '../components/JourneyTransitionScreen'; // Journey transition for long-distance travel
 import ReadableTextModal from '../components/ReadableTextModal'; // Document modal for letters, codices, etc.
 import PrescriptionOutcomeModal from '../features/medical/components/PrescriptionOutcomeModal'; // Detailed prescription outcome modal
 import SaveLoadModal from '../components/SaveLoadModal'; // Save/Load system
@@ -83,9 +87,10 @@ import { useNPCPositions } from '../features/map/hooks/useNPCPositions';
 import EntityList from '../EntityList';
 import { parseNarrativeChoices } from '../utils/narrativeParser';
 import { getGridSystem } from '../features/map/services/gridMovementSystem';
-import { getWorldTravelOptions } from '../features/map/services/locationRegistry';
+import { getWorldTravelOptions, getRandomizedTravelOptions } from '../features/map/services/locationRegistry';
 import { getLocationNPCs } from '../core/services/locationContextService';
 import { getMariaPortrait, getDeterminedPortrait, getPortraitFromStatus } from '../utils/portraitSelector';
+import { WORLD_LOCATIONS } from '../features/map/data/worldLocations';
 
 const PDFPopup = lazy(() => import('../shared/components/PDFPopup'));
 
@@ -215,7 +220,7 @@ const GameContent = () => {
     }
   }, [currentMapId, scenario]);
 
-  // Populate location NPCs ONCE when map changes (persist across turns)
+  // Populate location NPCs when map changes or time/date changes (for time-based NPC spawning)
   useEffect(() => {
     if (currentMapId && gameState.time && gameState.date) {
       const locationNPCs = getLocationNPCs(currentMapId, gameState.time, gameState.date);
@@ -234,7 +239,8 @@ const GameContent = () => {
         }));
       }
     }
-  }, [currentMapId]); // ONLY re-run when map changes (NOT on time/date changes)
+  }, [currentMapId, gameState.time, gameState.date]);
+  // Note: setGameState is stable and doesn't need to be in deps
 
   // Initialize event systems on mount
   useEffect(() => {
@@ -423,8 +429,16 @@ const GameContent = () => {
     targetX: 50 // Default center
   });
 
+  // Biome tracking for horizon rendering
+  const [currentBiome, setCurrentBiome] = useState('city-mexico'); // Default: Mexico City
+  const [previousBiome, setPreviousBiome] = useState(null); // For fade transitions
+
   // Long-distance travel card state
   const [longDistanceCard, setLongDistanceCard] = useState(null);
+
+  // Journey transition screen state (for long-distance travel dramatic presentation)
+  const [journeyTransition, setJourneyTransition] = useState(null);
+  // Structure: { journeyText, horizonImage, modeImage, arrivalText, destinationData, onComplete }
 
   // Purchase offer state (vendor selling to Maria)
   const [pendingPurchaseOffer, setPendingPurchaseOffer] = useState(null);
@@ -456,13 +470,15 @@ const GameContent = () => {
     // Fade UI to show background (immersive mode)
     setBackgroundMode('travel');
 
-    const travelOptions = getWorldTravelOptions({
+    const travelOptions = getRandomizedTravelOptions({
       scenario,
       currentMapId,
       currentLocationText: gameState.location,
       playerPosition,
-      maxResults: 10,
-      currentWorldLocationId: gameState.worldLocationId || null
+      currentWorldLocationId: gameState.worldLocationId || null,
+      gameDate: gameState.date,
+      playthroughSeed: gameState.playthroughSeed,
+      visitedLocations: gameState.visitedWorldLocations || []
     });
 
     if (!travelOptions.destinations || travelOptions.destinations.length === 0) {
@@ -486,23 +502,47 @@ const GameContent = () => {
       origin: travelOptions.origin,
       options: travelOptions.destinations
     });
-  }, [scenario, currentMapId, gameState.location, gameState.worldLocationId, playerPosition, toast, longDistanceCard]);
+  }, [scenario, currentMapId, gameState.location, gameState.worldLocationId, gameState.date, gameState.playthroughSeed, gameState.visitedWorldLocations, playerPosition, toast, longDistanceCard]);
 
-  // Narration settings state
-  const [narrationFontSize, setNarrationFontSize] = useState('text-base');
-  const [narrationDarkMode, setNarrationDarkMode] = useState(false);
+  // Narration settings state (with localStorage persistence)
+  const [narrationFontSize, setNarrationFontSize] = useState(() => {
+    const saved = localStorage.getItem('narrationFontSize');
+    return saved || 'medium'; // Default to medium (20px standard, 22px big screens)
+  });
+  const [narrationDarkMode, setNarrationDarkMode] = useState(() => {
+    const saved = localStorage.getItem('narrationDarkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
   const isNarrationSettingsOpen = modals.narrationSettings;
   const setIsNarrationSettingsOpen = (value) => value ? openModal('narrationSettings') : closeModal('narrationSettings');
 
-  // Weather background toggle (default: true)
+  // Persist narration settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('narrationFontSize', narrationFontSize);
+  }, [narrationFontSize]);
+
+  useEffect(() => {
+    localStorage.setItem('narrationDarkMode', JSON.stringify(narrationDarkMode));
+  }, [narrationDarkMode]);
+
+  // Weather background toggle (default: false on Safari for performance, true on other browsers)
   const [weatherBackgroundEnabled, setWeatherBackgroundEnabled] = useState(() => {
-    const saved = localStorage.getItem('apothecary_weatherBackground');
-    return saved === null ? true : saved === 'true';
+    const isSafariBrowser = isSafari();
+    const saved = safeLocalStorage.getItem('apothecary_weatherBackground');
+
+    // On Safari, only enable if user explicitly opted in (saved as 'true')
+    // This ensures Safari always defaults to classic mode for performance
+    if (isSafariBrowser) {
+      return saved === 'true'; // false unless explicitly enabled
+    }
+
+    // On other browsers, use saved preference or default to enabled
+    return saved !== null ? saved === 'true' : true;
   });
 
   // Persist weather background preference
   useEffect(() => {
-    localStorage.setItem('apothecary_weatherBackground', String(weatherBackgroundEnabled));
+    safeLocalStorage.setItem('apothecary_weatherBackground', String(weatherBackgroundEnabled));
   }, [weatherBackgroundEnabled]);
   const isLLMViewOpen = modals.llmView;
   const setIsLLMViewOpen = (value) => value ? openModal('llmView') : closeModal('llmView');
@@ -555,6 +595,7 @@ const GameContent = () => {
       setXPGain(null);
     }, 2000);
   }, [rawAwardXP, gameState.chosenProfession, playerSkills.level]);
+  // Note: setState functions (setShowDeterminedPortrait, setXPGain, setLeftSidebarTab) are stable and don't need to be in deps
 
   // Categorize XP sources for color-coded particles
   // gold: deals/contracts, green: foraging/herbal, purple: medical, blue: everything else
@@ -676,12 +717,6 @@ const GameContent = () => {
   const [selectedNpcName, setSelectedNpcName] = useState('');
   const [sleepHours, setSleepHours] = useState(8);
   // selectedPDF and selectedCitation now come from ModalContext
-
-  // Study Tab - Discovered Books
-  const [discoveredBooks, setDiscoveredBooks] = useState(() => {
-    const saved = localStorage.getItem(`apothecary_discovered_books_${scenarioId}`);
-    return saved ? JSON.parse(saved) : [];
-  });
 
   // Entity modals (now using ModalContext)
   const showEndGamePopup = modals.endGame;
@@ -902,6 +937,7 @@ const GameContent = () => {
     }
     prevLevelRef.current = playerSkills.level;
   }, [playerSkills.level, gameState.playerTitle, gameState.chosenProfession]);
+  // Note: setState functions are stable and don't need to be in deps
 
   // Sync title with level and profession changes
   useEffect(() => {
@@ -970,7 +1006,8 @@ const GameContent = () => {
         }
       }
     }
-  }, []); // Only run once on mount
+  }, [conversationHistory.length, scenarioId]); // Run when starting new game
+  // Note: setState functions are stable and don't need to be in deps
 
   // Get all handlers from custom hook
   const handlers = useGameHandlers({
@@ -1066,6 +1103,7 @@ const GameContent = () => {
     setCrisisState,
     setBackgroundMode, // Immersive background mode (fade UI for travel/events)
     setTravelZoomState, // Background zoom effects for travel
+    setJourneyTransition, // Journey transition screen for long-distance travel
 
     // State values
     isLoading, // CRITICAL FIX: Pass loading state for double-click guard
@@ -1094,6 +1132,7 @@ const GameContent = () => {
     activePatient,
     currentPatient,
     patientDialogue,
+    pendingContract, // Current pending contract offer (for textual acceptance detection)
     playerSkills,
     journal,
     pendingExitData, // Exit confirmation system state
@@ -1209,8 +1248,24 @@ const GameContent = () => {
     handleCompleteHouseCall, // Phase 3D: House call completion
   } = handlers;
 
+  // Handler to dismiss patient without examination
+  const handleDismissPatient = useCallback(() => {
+    setActivePatient(null);
+  }, [setActivePatient]);
+
   const handleLongDistanceTravelSubmit = useCallback((plan) => {
     if (!plan?.command) return;
+
+    // Update biome if destination has biome metadata
+    if (plan.destination?.id) {
+      const worldLocation = WORLD_LOCATIONS.find(loc => loc.id === plan.destination.id);
+      if (worldLocation?.biome) {
+        console.log(`[GamePage] Updating biome from ${currentBiome} to ${worldLocation.biome} (traveling to ${worldLocation.name})`);
+        setPreviousBiome(currentBiome);
+        setCurrentBiome(worldLocation.biome);
+      }
+    }
+
     setLongDistanceCard(null);
     // Restore normal UI mode
     setBackgroundMode('normal');
@@ -1220,7 +1275,59 @@ const GameContent = () => {
       const fakeEvent = { preventDefault: () => {} };
       handleSubmit(fakeEvent, plan.command);
     }, 50);
-  }, [handleSubmit, setUserInput, setLongDistanceCard]);
+  }, [handleSubmit, setUserInput, setLongDistanceCard, currentBiome]);
+
+  /**
+   * Detect biome from freeform location string
+   * Used for locations that don't have worldLocation metadata
+   */
+  const detectBiomeFromLocation = useCallback((locationString) => {
+    const loc = locationString.toLowerCase();
+
+    // Mexico City and botica - special case
+    if (loc.includes('mexico city') || loc.includes('botica')) {
+      return 'city-mexico';
+    }
+
+    // Coastal/ports
+    if (loc.includes('port') || loc.includes('harbor') || loc.includes('coast') ||
+        loc.includes('acapulco') || loc.includes('veracruz')) {
+      return 'coastal';
+    }
+
+    // Ocean/sea
+    if (loc.includes('ocean') || loc.includes('sea') || loc.includes('atlantic') ||
+        loc.includes('pacific')) {
+      return 'ocean';
+    }
+
+    // Mountains/mining
+    if (loc.includes('mountain') || loc.includes('mine') || loc.includes('taxco') ||
+        loc.includes('zacatecas') || loc.includes('potosi')) {
+      return 'mountain';
+    }
+
+    // Desert
+    if (loc.includes('desert') || loc.includes('sonora') || loc.includes('chihuahua') ||
+        loc.includes('durango')) {
+      return 'desert';
+    }
+
+    // European cities
+    if (loc.includes('europe') || loc.includes('spain') || loc.includes('seville') ||
+        loc.includes('madrid') || loc.includes('london') || loc.includes('paris')) {
+      return 'city-european';
+    }
+
+    // Countryside/grassland
+    if (loc.includes('countryside') || loc.includes('outskirts') || loc.includes('rural') ||
+        loc.includes('field') || loc.includes('farm')) {
+      return 'grassland';
+    }
+
+    // Default: colonial city (most common in game)
+    return 'city-colonial';
+  }, []);
 
   /**
    * Handle loading a save game
@@ -1237,6 +1344,49 @@ const GameContent = () => {
   }, []);
 
   // Note: Old addCompoundToInventoryWithSaleTrigger removed - sale proposal system deprecated
+
+  /**
+   * Handle merchant clicks from the people list
+   * Opens TradeModal with merchant's generated inventory
+   */
+  const handleMerchantClick = useCallback((merchantNPC) => {
+    console.log('[GamePage] Merchant clicked:', merchantNPC.name);
+
+    // Import the inventory generator
+    import('../features/commerce/services/merchantInventoryGenerator').then(({ generateMerchantInventory }) => {
+      // Generate merchant inventory for today
+      const inventory = generateMerchantInventory(merchantNPC, gameState.date);
+
+      console.log(`[GamePage] Generated ${inventory.length} items for ${merchantNPC.name}`);
+
+      // Build portrait path from image filename
+      const portraitPath = merchantNPC.image ? `/portraits/${merchantNPC.image}` : null;
+
+      // Set up merchant data for TradeModal
+      const merchantData = {
+        id: merchantNPC.id,
+        name: merchantNPC.name,
+        shopName: merchantNPC.shopName,
+        merchantType: merchantNPC.merchantType,
+        portrait: portraitPath,
+        greeting: merchantNPC.dialogue?.greeting || `Welcome to ${merchantNPC.shopName}.`,
+        shopAmbiance: merchantNPC.shopAmbiance || '',
+        offering: {
+          items: inventory
+        }
+      };
+
+      // Open TradeModal in merchant mode
+      setTradingNPC(merchantData);
+      setTradeMode('merchant');
+      setIsBuyOpen(true);
+
+      toast.success(`Browsing ${merchantNPC.shopName}...`, { duration: 2000 });
+    }).catch(error => {
+      console.error('[GamePage] Error loading merchant inventory:', error);
+      toast.error('Failed to load merchant inventory');
+    });
+  }, [gameState.date, toast]);
 
   // Keyboard event listener for arrow key movement and A/D rotation
   useEffect(() => {
@@ -1282,13 +1432,6 @@ const GameContent = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleMovement, setPlayerFacing]);
 
-  // Study Tab - Detect books when narrative changes
-  React.useEffect(() => {
-    if (historyOutput && historyOutput.length > 0) {
-      detectNewBooks(historyOutput);
-    }
-  }, [historyOutput]);
-
   // Auto-save every 5 turns
   React.useEffect(() => {
     const turnNumber = gameState.turnNumber;
@@ -1298,16 +1441,33 @@ const GameContent = () => {
       console.log('[Auto-save] Saving at turn', turnNumber);
 
       // Use the auto-save function from saveManager
-      const { autoSave } = require('../core/services/saveManager');
-      const { createSaveData } = require('../core/services/saveManager');
+      const { autoSave, createSaveData } = require('../core/services/saveManager');
+      const { exportEntitiesForSave } = require('../core/entities/initializeEntities');
+      const npcPositionTracker = require('../features/map/services/npcPositionTracker').default;
+      const { getTransactionManager } = require('../core/systems/transactionManager');
 
       try {
+        // Gather all game state for v1.1.0 save system
+        const entities = exportEntitiesForSave();
+        const npcPositions = npcPositionTracker.exportForSave();
+        const transactionManager = getTransactionManager(scenarioId);
+        const transactions = transactionManager.exportForSave();
+
+        // Get calendar notes from localStorage (stored by DateTimeDropdown)
+        const calendarNotesJSON = safeLocalStorage.getItem('apothecary_calendar_notes');
+        const calendarNotes = calendarNotesJSON ? JSON.parse(calendarNotesJSON) : {};
+
         const saveData = createSaveData({
           gameState,
           playerSkills,
           conversationHistory,
           reputation,
           npcRelationships: {},
+          // NEW v1.1.0 fields:
+          entities,
+          npcPositions,
+          calendarNotes,
+          transactions,
           slotName: `Auto-save Turn ${turnNumber}`
         });
 
@@ -1317,7 +1477,22 @@ const GameContent = () => {
         console.error('[Auto-save] Error:', error);
       }
     }
-  }, [gameState.turnNumber, gameState, playerSkills, conversationHistory, reputation, toast]);
+  }, [gameState.turnNumber, gameState, playerSkills, conversationHistory, reputation, scenarioId, toast]);
+
+  // Monitor biome changes from StateAgent (NEW: uses structured biome field)
+  React.useEffect(() => {
+    const newBiome = gameState.biome;
+
+    // StateAgent should always provide biome, but fallback to detectBiomeFromLocation if missing
+    const effectiveBiome = newBiome || detectBiomeFromLocation(gameState.location);
+
+    // Only update if biome changed
+    if (effectiveBiome && effectiveBiome !== currentBiome) {
+      console.log(`[GamePage] Biome changed: ${currentBiome} → ${effectiveBiome}`);
+      setPreviousBiome(currentBiome);
+      setCurrentBiome(effectiveBiome);
+    }
+  }, [gameState.biome, gameState.location, currentBiome, detectBiomeFromLocation]);
 
   // Drag-drop handlers for portraits
   const handleItemDropOnPlayer = (item) => {
@@ -1510,8 +1685,8 @@ const GameContent = () => {
     console.log('[GameOver] Restarting game');
 
     // Clear localStorage to reset save
-    localStorage.removeItem('apothecaryGameState');
-    localStorage.removeItem('apothecaryConversationHistory');
+    safeLocalStorage.removeItem('apothecaryGameState');
+    safeLocalStorage.removeItem('apothecaryConversationHistory');
 
     // Reload the page to start fresh
     window.location.reload();
@@ -1872,58 +2047,6 @@ Be historically accurate, immersive, and concise. Write in third person past ten
     }
   };
 
-  // Study Tab - Detect New Books in Narrative
-  const detectNewBooks = (narrativeText) => {
-    const allEntities = entityManager.getAll();
-    const allBooksWithPdf = [
-      ...allEntities.filter(entity => entity.pdf),
-      ...EntityList.filter(entity => entity.pdf)
-    ];
-
-    // Create regex pattern to match book names
-    if (allBooksWithPdf.length === 0) return;
-
-    const pattern = new RegExp(
-      `\\b(${allBooksWithPdf.map(book => book.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`,
-      'gi'
-    );
-
-    const newBooks = [];
-    const matches = narrativeText.match(pattern);
-
-    if (matches) {
-      matches.forEach((match) => {
-        const book = allBooksWithPdf.find(
-          b => b.name.toLowerCase() === match.toLowerCase()
-        );
-        if (book && !discoveredBooks.some(eb => eb.name === book.name)) {
-          newBooks.push({
-            name: book.name,
-            pdf: book.pdf,
-            citation: book.citation || 'Unknown author',
-            type: book.type || 'text',
-            discoveredAt: new Date().toISOString(),
-            discoveredTurn: turnNumber
-          });
-        }
-      });
-    }
-
-    if (newBooks.length > 0) {
-      const updated = [...discoveredBooks, ...newBooks];
-      setDiscoveredBooks(updated);
-      localStorage.setItem(
-        `apothecary_discovered_books_${scenarioId}`,
-        JSON.stringify(updated)
-      );
-
-      // Show toast notification
-      newBooks.forEach((book) => {
-        toast.info(`📚 Discovered: ${book.name}`);
-      });
-    }
-  };
-
   // Get fresh NPC list on every render (cheap operation, spreads 5-item array)
   // Don't memoize - causes stale data bugs since npcTracker mutates internally
   // NOTE: getRecentNPCs now from NPCContext
@@ -2061,7 +2184,6 @@ Be historically accurate, immersive, and concise. Write in third person past ten
             handlers={handlers}
             nearbyLocations={nearbyLocations}
             filteredNPCPositions={filteredNPCPositions}
-            discoveredBooks={discoveredBooks}
             dynamicChips={dynamicChips}
             conversationHistory={conversationHistory}
             historyOutput={historyOutput}
@@ -2093,14 +2215,37 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 }}
                 travelZoom={travelZoomState.isActive ? travelZoomState : null}
                 isWeatherViewActive={backgroundMode === 'weather'}
+                activeEffects={activeEffects}
+                currentBiome={currentBiome}
+                previousBiome={previousBiome}
               />
             ) : (
               /* Classic parchment/dark background when weather is disabled */
-              <div className="absolute inset-0 -z-10 transition-colors duration-500" style={{
-                background: narrationDarkMode
-                  ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)'
-                  : 'linear-gradient(135deg, #faf8f3 0%, #f5f1e8 50%, #faf8f3 100%)'
-              }} />
+              (() => {
+                // Check for visions effect even when weather is disabled
+                const hasVisions = activeEffects?.some(effect => effect.type === 'hallucinating');
+                console.log('[GamePage] Fallback background - hasVisions:', hasVisions, 'activeEffects:', activeEffects);
+
+                if (hasVisions) {
+                  return (
+                    <div
+                      className="absolute inset-0 -z-10 bg-cover bg-center transition-opacity duration-1000"
+                      style={{
+                        backgroundImage: 'url(/ui/visions_background.png)',
+                        opacity: 1
+                      }}
+                    />
+                  );
+                }
+
+                return (
+                  <div className="absolute inset-0 -z-10 transition-colors duration-500" style={{
+                    background: narrationDarkMode
+                      ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)'
+                      : 'linear-gradient(135deg, #faf8f3 0%, #f5f1e8 50%, #faf8f3 100%)'
+                  }} />
+                );
+              })()
             )}
 
             {/* Main UI Content (z-index: auto, glass effects allow weather to show through) */}
@@ -2195,7 +2340,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
 
           {/* Main Content Area */}
           <div className="flex-1 overflow-hidden">
-          <div className={`h-full max-w-screen-2xl mx-auto px-4 py-1.5 flex gap-6 transition-all duration-500 ease-in-out ${
+          <div className={`h-full max-w-screen-2xl mx-auto px-1 py-1.5 flex gap-6 transition-all duration-500 ease-in-out ${
             activeTab === 'patient' ? 'gap-6' : 'gap-6'
           }`}>
 
@@ -2270,6 +2415,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 activePatient={activePatient}
                 patientDialogue={patientDialogue}
                 onAskQuestion={handleAskQuestion}
+                onDismissPatient={handleDismissPatient}
                 // Contract props
                 pendingContract={pendingContract}
                 onOpenContractModal={() => setIsContractModalOpen(true)}
@@ -2333,6 +2479,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 onOpenLLMView={() => setIsLLMViewOpen(true)}
                 onCloseLLMView={() => setIsLLMViewOpen(false)}
                 toast={toast}
+                onMerchantClick={handleMerchantClick}
               />
 
               {/* Input Area - fixed at bottom (only shown on Chronicle tab) */}
@@ -2389,7 +2536,6 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 toggleShopSign={toggleShopSign} // Direct shop sign control
                 toast={toast} // For notifications
                 entities={currentEntities} // Entities for Wikipedia context panel
-                discoveredBooks={discoveredBooks} // Books discovered during gameplay
                 onBookClick={handleBookClick} // Handle book clicks in Study tab
                 documents={getDocuments()} // Document library from gameState
                 onDocumentClick={(doc) => {
@@ -2576,6 +2722,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           awardSkillXP={awardSkillXP}
           learnNewSkill={learnNewSkill}
           improveSkill={improveSkill}
+          handleListRequest={handleListRequest} // Auto-list for modal-based fast travel
 
           // Portrait and scenario
           portraitImage={mariaPortraitUrl}
@@ -2688,6 +2835,21 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           />
         )}
 
+        {/* Journey transition screen - dramatic presentation for long-distance travel */}
+        {journeyTransition && (
+          <JourneyTransitionScreen
+            isOpen={!!journeyTransition}
+            journeyText={journeyTransition.journeyText}
+            horizonImage={journeyTransition.horizonImage}
+            modeImage={journeyTransition.modeImage}
+            onSeeArrival={() => {
+              // Complete journey transition and show arrival in narrative panel
+              journeyTransition.onComplete();
+              setJourneyTransition(null);
+            }}
+          />
+        )}
+
         {/* Phase 3B: Travel Card - displayed when traveling to house call */}
         {pendingHouseCall && (
           <TravelCard
@@ -2753,6 +2915,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
             setShowPrescriptionOutcomeModal(false);
             setPendingPrescription(null); // Clear the prescription card
           }}
+          mechanicsBreakdown={pendingPrescription?.mechanicsBreakdown}
         />
 
         {/* Save/Load Modal - manage save slots */}
@@ -2765,6 +2928,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           conversationHistory={conversationHistory}
           reputation={reputation}
           npcRelationships={{}}
+          scenarioId={scenarioId}
         />
 
         {/* Opening animation CSS */}
@@ -2812,6 +2976,19 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           }
         `}</style>
 
+        {/* Test Mode: Performance Monitor (conditionally rendered) */}
+        {(() => {
+          const testModeEnabled = safeLocalStorage.getItem('testModeEnabled') === 'true';
+          if (!testModeEnabled) return null;
+
+          return (
+            <PerformanceMonitor
+              weatherEnabled={weatherBackgroundEnabled}
+              particleCount={0} // TODO: Track actual particle count from WeatherEffects
+            />
+          );
+        })()}
+
       </DndProvider>
   );
 };
@@ -2835,6 +3012,28 @@ function GamePageWithProvider() {
     try {
       loadedSaveData = JSON.parse(pendingLoadSaveJSON);
       console.log('[GamePage] Loading from sessionStorage:', loadedSaveData.metadata);
+
+      // NEW v1.1.0: Restore extended game state from save
+      if (loadedSaveData.entities) {
+        const { loadEntitiesFromSave } = require('../core/entities/initializeEntities');
+        loadEntitiesFromSave(loadedSaveData.entities);
+      }
+
+      if (loadedSaveData.npcPositions) {
+        const npcPositionTracker = require('../features/map/services/npcPositionTracker').default;
+        npcPositionTracker.loadFromSave(loadedSaveData.npcPositions);
+      }
+
+      if (loadedSaveData.transactions) {
+        const { getTransactionManager } = require('../core/systems/transactionManager');
+        const transactionManager = getTransactionManager(scenarioId || '1680-mexico-city');
+        transactionManager.loadFromSave(loadedSaveData.transactions);
+      }
+
+      if (loadedSaveData.calendarNotes) {
+        // Store calendar notes in localStorage for DateTimeDropdown to load
+        safeLocalStorage.setItem('apothecary_calendar_notes', JSON.stringify(loadedSaveData.calendarNotes));
+      }
 
       // Clear the pending load save
       sessionStorage.removeItem('pendingLoadSave');

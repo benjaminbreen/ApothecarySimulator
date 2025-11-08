@@ -19,10 +19,20 @@ const TimeAwareBackground = ({
   viewMode = 'standard',
   weather = null,
   season = null,
-  climate = null
+  climate = null,
+  activeEffects = []
 }) => {
   const [backgroundStyle, setBackgroundStyle] = useState({});
   const [shootingStars, setShootingStars] = useState([]);
+
+  // Check for visions/hallucinating effect - replaces dynamic background with static image
+  const hasVisions = activeEffects?.some(effect => effect.type === 'hallucinating');
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[TimeAwareBackground] activeEffects:', activeEffects);
+    console.log('[TimeAwareBackground] hasVisions:', hasVisions);
+  }, [activeEffects, hasVisions]);
 
   // Extract weather values to prevent infinite re-renders (object reference changes)
   const weatherCloudCover = weather?.cloudCover ?? 0;
@@ -419,6 +429,19 @@ const TimeAwareBackground = ({
 
     return () => clearTimeout(timeout);
   }, [gameTimeHours, gameTimeMinutes, starOpacity]);
+
+  // Visions effect - replace entire background with static image
+  if (hasVisions) {
+    return (
+      <div
+        className="absolute inset-0 -z-10 bg-cover bg-center transition-opacity duration-1000"
+        style={{
+          backgroundImage: 'url(/ui/visions_background.png)',
+          opacity: 1
+        }}
+      />
+    );
+  }
 
   return (
     <div className="absolute inset-0 -z-10 overflow-hidden" style={backgroundStyle}>

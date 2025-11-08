@@ -96,8 +96,8 @@ export function calculateEventChance(gameState) {
     baseChance *= 0.5;
   }
 
-  // Cap at 40% max
-  return Math.min(baseChance, 0.40);
+  // Cap at 80% max (TESTING - normally 40%)
+  return Math.min(baseChance, 0.80);
 }
 
 /**
@@ -129,6 +129,7 @@ export function shouldSuppressEvent(playerAction) {
 export function buildEventContext(gameState, reputation) {
   const {
     location,
+    locationType,
     time,
     turnNumber,
     inventory,
@@ -138,6 +139,7 @@ export function buildEventContext(gameState, reputation) {
 
   const context = {
     location: location || 'unknown',
+    locationType: locationType || null, // NEW: Structured location type for reliable event matching
     time: time || '12:00 PM',
     turnNumber: turnNumber || 0,
     wealth: currentWealth || 0,
@@ -157,9 +159,10 @@ export function buildEventContext(gameState, reputation) {
 export function shouldTriggerEvent(gameState, playerAction) {
   const { turnNumber } = gameState;
 
-  // Never trigger on turn 1-2 (let player get oriented)
-  if (turnNumber < 3) {
-    console.log('[EventTriggers] Too early for events (turn < 3)');
+  // TESTING MODE: Trigger from turn 2 (normally turn 3)
+  // TODO: Restore to turnNumber < 3 after testing
+  if (turnNumber < 2) {
+    console.log('[EventTriggers] Too early for events (turn < 2)');
     return false;
   }
 

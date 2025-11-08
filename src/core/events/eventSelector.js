@@ -36,6 +36,7 @@ export function recordEventOccurrence(eventId) {
 
 /**
  * Normalize location string for comparison
+ * @deprecated - Use matchesLocationType instead for reliable matching
  */
 function normalizeLocation(location) {
   if (!location) return 'unknown';
@@ -43,7 +44,24 @@ function normalizeLocation(location) {
 }
 
 /**
- * Check if event location matches current location
+ * Check if event location type matches current location type
+ * NEW: Uses structured locationType field instead of substring matching
+ */
+function matchesLocationType(eventLocationTypes, currentLocationType) {
+  if (!eventLocationTypes || eventLocationTypes.length === 0) return true; // No location restriction
+
+  if (!currentLocationType) {
+    console.warn('[EventSelector] No locationType provided, cannot match events');
+    return false;
+  }
+
+  // Direct enum matching (reliable)
+  return eventLocationTypes.includes(currentLocationType);
+}
+
+/**
+ * Check if event location matches current location (LEGACY)
+ * @deprecated - This function uses unreliable substring matching. Use matchesLocationType instead.
  */
 function matchesLocation(eventLocations, currentLocation) {
   if (!eventLocations || eventLocations.length === 0) return true; // No location restriction
@@ -139,7 +157,7 @@ function exceedsMaxOccurrences(event) {
  * Check if event meets all trigger conditions
  */
 function meetsAllConditions(event, context) {
-  const { location, time, turnNumber, wealth, inventory, reputation } = context;
+  const { location, locationType, time, turnNumber, wealth, inventory, reputation } = context;
   const triggers = event.triggers;
 
   // Check max occurrences first (hard gate)
@@ -148,7 +166,14 @@ function meetsAllConditions(event, context) {
   }
 
   // Check all other conditions
-  if (!matchesLocation(triggers.locations, location)) return false;
+  // NEW: Prefer locationTypes (structured) over locations (legacy substring matching)
+  if (triggers.locationTypes) {
+    if (!matchesLocationType(triggers.locationTypes, locationType)) return false;
+  } else if (triggers.locations) {
+    // LEGACY: Fall back to substring matching for old events
+    if (!matchesLocation(triggers.locations, location)) return false;
+  }
+
   if (!matchesTime(triggers.timeOfDay, time)) return false;
   if (!meetsTurnRequirement(triggers, turnNumber)) return false;
   if (!meetsWealthRequirement(triggers, wealth)) return false;

@@ -15,10 +15,10 @@ export function NarrationSettingsModal({
   if (!isOpen) return null;
 
   const fontSizes = [
-    { label: 'Small', value: 'text-sm', sample: '14px' },
-    { label: 'Medium', value: 'text-base', sample: '16px' },
-    { label: 'Large', value: 'text-lg', sample: '18px' },
-    { label: 'Extra Large', value: 'text-xl', sample: '20px' }
+    { label: 'Small', value: 'small', sample: '18-20px' },
+    { label: 'Medium', value: 'medium', sample: '20-22px' },
+    { label: 'Large', value: 'large', sample: '22-24px' },
+    { label: 'Extra Large', value: 'extra-large', sample: '24-26px' }
   ];
 
   return (

@@ -19,6 +19,14 @@ export default defineConfig({
       include: [/node_modules/],
       transformMixedEsModules: true,
     },
+    // Performance: Strip console.logs in production for all browsers
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove all console.* calls
+        drop_debugger: true, // Remove debugger statements
+      },
+    },
   },
   resolve: {
     alias: {

@@ -50,14 +50,16 @@ export function useTradeState(mode = 'market', tradingNPC = null, initialTab = n
 
   // Merchant state
   const [selectedMerchant, setSelectedMerchant] = useState(
-    mode === 'npc' && tradingNPC
+    (mode === 'npc' || mode === 'merchant') && tradingNPC
       ? {
-          id: tradingNPC.npcId || 'npc',
-          name: tradingNPC.npcName || 'NPC',
+          id: tradingNPC.id || tradingNPC.npcId || 'npc',
+          name: tradingNPC.name || tradingNPC.npcName || 'NPC',
+          shopName: tradingNPC.shopName,
+          merchantType: tradingNPC.merchantType,
           languages: ['spanish'],
           personality: 'friendly',
           haggleResistance: 0.5,
-          portrait: tradingNPC.npcPortrait || '/portraits/default_npc.jpg'
+          portrait: tradingNPC.portrait || tradingNPC.npcPortrait || '/portraits/default_npc.jpg'
         }
       : MERCHANT_TYPES.MARKET_VENDOR
   );

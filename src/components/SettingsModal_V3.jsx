@@ -10,6 +10,8 @@
 
 import React, { useState } from 'react';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { isSafari } from '../utils/browserDetection';
+import { safeLocalStorage } from '../utils/safeLocalStorage';
 import TestSuitePanel from './TestSuitePanel';
 import PortraitTestPanel from './PortraitTestPanel';
 import ProfessionTestPanel from './ProfessionTestPanel';
@@ -29,6 +31,9 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
 
   // Dark mode hook
   const { isDarkMode, toggle } = useDarkMode();
+
+  // Safari performance optimization
+  const isSafariBrowser = isSafari();
 
   // Handle smooth close with exit animation
   const handleClose = () => {
@@ -66,8 +71,8 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
         rel="stylesheet"
       />
 
-      {/* Backdrop */}
-      <div className={`fixed inset-0 bg-stone-900/40 dark:bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-colors duration-300 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}>
+      {/* Backdrop - Safari: no backdrop-blur for performance */}
+      <div className={`fixed inset-0 bg-stone-900/40 dark:bg-black/70 ${isSafariBrowser ? '' : 'backdrop-blur-sm'} z-50 flex items-center justify-center p-4 transition-colors duration-300 ${isClosing ? 'animate-modal-backdrop-out' : 'animate-modal-backdrop-in'}`}>
 
         {/* Modal Container - Responsive: Full screen on mobile, wide on desktop */}
         <div className={`relative w-full max-w-full sm:max-w-7xl h-screen sm:h-[95vh] rounded-none sm:rounded-lg overflow-hidden transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
@@ -852,6 +857,18 @@ function CommandsSection() {
 }
 
 function DevSection({ onLoadTestPatient, onClose, gameState, setGameState, onLoadPrescriptionTest }) {
+  // Test Mode state
+  const [testModeEnabled, setTestModeEnabled] = useState(() => {
+    return safeLocalStorage.getItem('testModeEnabled') === 'true';
+  });
+
+  const handleTestModeToggle = () => {
+    const newValue = !testModeEnabled;
+    setTestModeEnabled(newValue);
+    safeLocalStorage.setItem('testModeEnabled', newValue.toString());
+    console.log('[Settings] Test Mode:', newValue ? 'ENABLED' : 'DISABLED');
+  };
+
   // Background/Environment testing state
   const [testTime, setTestTime] = useState('10:00 AM');
   const [testDate, setTestDate] = useState('August 22, 1680');
@@ -980,6 +997,82 @@ function DevSection({ onLoadTestPatient, onClose, gameState, setGameState, onLoa
           </div>
         </div>
       </div>
+
+      <SettingCard title="Test Mode (Performance Monitor)">
+        <p className="text-sm mb-4" style={{
+          fontFamily: "'Inter', sans-serif",
+          color: '#5c4a3a',
+          lineHeight: '1.6'
+        }}>
+          Enable real-time performance monitoring with FPS counter and detailed metrics for debugging slowdowns.
+        </p>
+
+        <div className="flex items-center justify-between p-4 rounded-lg" style={{
+          background: testModeEnabled
+            ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05))'
+            : 'rgba(245, 238, 223, 0.5)',
+          border: testModeEnabled ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(139, 92, 46, 0.1)',
+          transition: 'all 0.3s ease'
+        }}>
+          <div className="flex items-center gap-3">
+            <div style={{ fontSize: '24px' }}>
+              {testModeEnabled ? '✓' : '⚙️'}
+            </div>
+            <div>
+              <div style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                color: testModeEnabled ? '#059669' : '#5c4a3a',
+                marginBottom: '2px'
+              }}>
+                {testModeEnabled ? 'Test Mode Active' : 'Test Mode Inactive'}
+              </div>
+              <div style={{
+                fontFamily: "'Inter', sans-serif",
+                fontSize: '0.75rem',
+                color: '#6b5d52'
+              }}>
+                {testModeEnabled ? 'FPS counter visible in game' : 'Performance monitoring disabled'}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleTestModeToggle}
+            className="px-4 py-2 rounded-lg font-semibold transition-all"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.75rem',
+              color: 'white',
+              background: testModeEnabled
+                ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                : 'linear-gradient(135deg, #10b981, #059669)',
+              border: testModeEnabled ? '1px solid #dc2626' : '1px solid #059669',
+              boxShadow: testModeEnabled
+                ? '0 2px 8px rgba(239, 68, 68, 0.25)'
+                : '0 2px 8px rgba(16, 185, 129, 0.25)'
+            }}
+          >
+            {testModeEnabled ? 'Disable' : 'Enable'}
+          </button>
+        </div>
+
+        {testModeEnabled && (
+          <div className="mt-4 p-3 rounded" style={{
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.2)'
+          }}>
+            <p className="text-xs" style={{
+              fontFamily: "'Inter', sans-serif",
+              color: '#1e40af',
+              lineHeight: '1.5'
+            }}>
+              <strong>💡 Performance Tips:</strong> Click the FPS counter to view detailed metrics including memory usage, DOM nodes, active particles, and render times. Use this to identify performance bottlenecks.
+            </p>
+          </div>
+        )}
+      </SettingCard>
 
       <SettingCard title="Patient View Testing">
         <p className="text-sm mb-4" style={{

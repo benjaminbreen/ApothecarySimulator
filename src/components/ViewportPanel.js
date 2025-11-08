@@ -29,7 +29,6 @@ const ViewportPanel = ({
   onEnterBuilding = null, // Callback when building is clicked on map
   onExitBuilding = null, // Callback when Exit button is clicked on map
   onRoomCommand = null, // Callback for room movement commands
-  discoveredBooks = [], // Books discovered during gameplay
   onBookClick = null, // Callback when book is clicked
   documents = [], // Document library (letters, codices, etc.)
   onDocumentClick = null, // Callback when document is clicked
@@ -44,7 +43,11 @@ const ViewportPanel = ({
   reputationChange = null, // { delta: number, timestamp: number } - shows reputation change indicator
   focusedItem = null, // VIEWPORT: Item player is examining/using
   gameTime = null, // VIEWPORT: Current game time for time-based scenes
-  recentLocationChange = false // VIEWPORT: Whether location just changed
+  recentLocationChange = false, // VIEWPORT: Whether location just changed
+  readableItems = [], // Controlled: readable items from ContextPanel
+  onItemsGenerated = null, // Callback when Study tab generates items
+  textCache = {}, // Controlled: text cache from ContextPanel
+  onReadableItemClick = null // Callback when readable item is clicked in Study tab
 }) => {
   const defaultTab = npcPresent ? 'portrait' : 'map';
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -368,8 +371,15 @@ const ViewportPanel = ({
                         )}
                       </div>
 
-                      <div className="w-[260px] h-[210px] rounded-lg overflow-hidden border-4 border-botanical-500 dark:border-amber-500 shadow-elevation-3 group-hover:shadow-elevation-4 transition-all">
-                        <img src={npcPortrait} alt={npcName} className="w-full h-full object-cover" />
+                      <div className="w-[260px] h-[210px] rounded-lg overflow-hidden border-4 border-botanical-500 dark:border-amber-500 shadow-elevation-3 group-hover:shadow-elevation-4 transition-shadow">
+                        <img
+                          src={npcPortrait}
+                          alt={npcName}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                          style={{ willChange: 'auto' }}
+                        />
                       </div>
                     </div>
                   </button>
@@ -447,13 +457,16 @@ const ViewportPanel = ({
         {activeTab === 'study' && (
           <div className={getSlideAnimation()}>
             <StudyTab
-              discoveredBooks={discoveredBooks}
               onBookClick={onBookClick}
               documents={documents}
               onDocumentClick={onDocumentClick}
               theme={currentTheme}
               narrativeTurn={narrativeTurn}
               location={locationDetails}
+              readableItems={readableItems}
+              onItemsGenerated={onItemsGenerated}
+              textCache={textCache}
+              onItemClick={onReadableItemClick}
             />
           </div>
         )}
@@ -463,4 +476,5 @@ const ViewportPanel = ({
   );
 };
 
-export default ViewportPanel;
+// Memoize to prevent unnecessary re-renders (ALL BROWSERS performance optimization)
+export default React.memo(ViewportPanel);

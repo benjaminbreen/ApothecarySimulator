@@ -271,6 +271,9 @@ export default function NPCPatientModal({
                       src={portrait}
                       alt={name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      style={{ willChange: 'auto' }}
                       onError={(e) => {
                         e.target.style.display = 'none';
                         e.target.nextSibling.style.display = 'flex';

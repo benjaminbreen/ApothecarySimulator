@@ -44,7 +44,7 @@ class NPCPositionTracker {
       lastUpdate: Date.now()
     });
 
-    this.saveToStorage();
+    // REMOVED: saveToStorage() - now handled by saveManager
   }
 
   /**
@@ -183,7 +183,7 @@ class NPCPositionTracker {
         this.animationFrameId = requestAnimationFrame(animate);
       } else {
         this.animationFrameId = null;
-        this.saveToStorage();
+        // REMOVED: saveToStorage() - now handled by saveManager
       }
     };
 
@@ -250,7 +250,7 @@ class NPCPositionTracker {
    */
   removeNPC(npcId) {
     this.positions.delete(npcId);
-    this.saveToStorage();
+    // REMOVED: saveToStorage() - now handled by saveManager
   }
 
   /**
@@ -259,51 +259,68 @@ class NPCPositionTracker {
   clearAll() {
     this.stopAllMovements();
     this.positions.clear();
-    this.saveToStorage();
+    // REMOVED: saveToStorage() - now handled by saveManager
   }
 
   /**
-   * Save positions to localStorage
+   * Export positions for save system
+   * @returns {Array} Array of NPC position data
+   */
+  exportForSave() {
+    const data = Array.from(this.positions.entries()).map(([id, npc]) => ({
+      npcId: npc.npcId,
+      npcName: npc.npcName,
+      position: npc.position,
+      status: npc.status === 'moving' ? 'idle' : npc.status // Don't save moving state
+    }));
+
+    console.log(`[NPCPositionTracker] Exported ${data.length} NPC positions for save`);
+    return data;
+  }
+
+  /**
+   * Load positions from save data
+   * @param {Array} positionData - Array of NPC position data from save
+   */
+  loadFromSave(positionData) {
+    try {
+      if (!Array.isArray(positionData)) {
+        console.error('[NPCPositionTracker] Invalid position data: not an array');
+        return;
+      }
+
+      this.positions.clear();
+
+      for (const npc of positionData) {
+        this.positions.set(npc.npcId, {
+          npcId: npc.npcId,
+          npcName: npc.npcName,
+          position: npc.position,
+          status: npc.status || 'idle',
+          path: null,
+          pathProgress: 0,
+          lastUpdate: Date.now()
+        });
+      }
+
+      console.log(`[NPCPositionTracker] ✅ Loaded ${positionData.length} NPC positions from save`);
+    } catch (error) {
+      console.error('[NPCPositionTracker] ❌ Failed to load positions from save:', error);
+    }
+  }
+
+  /**
+   * @deprecated Use exportForSave() instead. localStorage operations moved to saveManager.
    */
   saveToStorage() {
-    try {
-      const data = Array.from(this.positions.entries()).map(([id, npc]) => ({
-        npcId: npc.npcId,
-        npcName: npc.npcName,
-        position: npc.position,
-        status: npc.status === 'moving' ? 'idle' : npc.status // Don't save moving state
-      }));
-
-      localStorage.setItem('npcPositions', JSON.stringify(data));
-    } catch (error) {
-      console.error('Failed to save NPC positions:', error);
-    }
+    console.warn('[NPCPositionTracker] saveToStorage() is deprecated. Use exportForSave() and saveManager instead.');
   }
 
   /**
-   * Load positions from localStorage
+   * @deprecated Use loadFromSave() instead. localStorage operations moved to saveManager.
    */
   loadFromStorage() {
-    try {
-      const saved = localStorage.getItem('npcPositions');
-      if (saved) {
-        const data = JSON.parse(saved);
-
-        for (const npc of data) {
-          this.positions.set(npc.npcId, {
-            npcId: npc.npcId,
-            npcName: npc.npcName,
-            position: npc.position,
-            status: npc.status || 'idle',
-            path: null,
-            pathProgress: 0,
-            lastUpdate: Date.now()
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load NPC positions:', error);
-    }
+    console.warn('[NPCPositionTracker] loadFromStorage() is deprecated. Use loadFromSave() and saveManager instead.');
   }
 
   /**

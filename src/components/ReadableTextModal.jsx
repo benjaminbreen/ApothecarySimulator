@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom';
 import { createChatCompletion } from '../core/services/llmService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 const ReadableTextModal = ({ isOpen, onClose, item, theme = 'light', textCache = {}, narrativeContext = '', onMarkAsRead = null }) => {
   const [fullText, setFullText] = useState('');
@@ -120,6 +123,7 @@ IMPORTANT: Format your response with markdown:
 - Use **bold** for emphasis or decorated text
 - Use *italics* for Latin phrases or foreign words
 - Use line breaks between paragraphs
+- DECORATIVE TEXT: For drop capitals or blackletter/Fraktur styling (common in 17th century documents), you can use LaTeX math notation: $\\mathfrak{T}$ for Fraktur "T", $\\mathcal{L}$ for calligraphic "L", etc. Use sparingly for authentic period feel!
 
 ${item.type === 'sign' || item.type === 'label' || item.type === 'notice' || item.type === 'poster' || item.type === 'board' ? 'This is a sign/notice, so use markdown headers to create visual hierarchy like a painted wooden sign or posted proclamation. Include emoji as decorative elements!' : 'Your response will be displayed as a 17th century document with initial capitals and flourishes.'}${contextString}${metadataString}`
       },
@@ -487,7 +491,8 @@ Return ONLY the translated text, no explanations or language labels.`
           ) : (
             <div className={isAmbient ? "ambient-content" : isSign ? "sign-content" : "document-content"}>
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
                 components={{
                   h1: ({node, children, ...props}) => (
                     <h1

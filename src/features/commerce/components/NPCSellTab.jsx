@@ -40,6 +40,60 @@ export default function NPCSellTab({
 }) {
   return (
     <>
+      {/* Merchant Info Section: Portrait + Greeting + Ambiance */}
+      {(tradingNPC?.portrait || tradingNPC?.greeting || tradingNPC?.shopAmbiance) && (
+        <div
+          className="flex-shrink-0 p-6 border-b"
+          style={{
+            background: isDark
+              ? 'linear-gradient(to bottom, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.9))'
+              : 'linear-gradient(to bottom, rgba(252, 250, 247, 0.95), rgba(248, 246, 241, 0.9))',
+            borderColor: isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(209, 213, 219, 0.3)'
+          }}
+        >
+          <div className="flex gap-6">
+            {/* Portrait */}
+            {tradingNPC.portrait && (
+              <div className="flex-shrink-0">
+                <img
+                  src={tradingNPC.portrait}
+                  alt={selectedMerchant.name}
+                  className="w-32 h-32 rounded-xl object-cover border-2"
+                  style={{
+                    borderColor: isDark ? 'rgba(251, 191, 36, 0.4)' : 'rgba(180, 175, 165, 0.5)',
+                    boxShadow: isDark
+                      ? '0 4px 12px rgba(0, 0, 0, 0.4)'
+                      : '0 4px 12px rgba(0, 0, 0, 0.1)'
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Shop Info */}
+            <div className="flex-1 min-w-0">
+              {/* Shop Name */}
+              <h2 className={`text-2xl font-bold font-serif mb-2 ${isDark ? 'text-amber-400' : 'text-ink-900'}`}>
+                {tradingNPC.shopName || selectedMerchant.name}
+              </h2>
+
+              {/* Greeting */}
+              {tradingNPC.greeting && (
+                <p className={`text-base font-serif italic mb-3 ${isDark ? 'text-parchment-200' : 'text-gray-700'}`}>
+                  "{tradingNPC.greeting}"
+                </p>
+              )}
+
+              {/* Shop Ambiance */}
+              {tradingNPC.shopAmbiance && (
+                <p className={`text-sm font-sans leading-relaxed ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
+                  {tradingNPC.shopAmbiance}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Section: Relationship + Bonuses */}
       <div className="flex-shrink-0 p-6 space-y-4">
         {/* Relationship Meter */}

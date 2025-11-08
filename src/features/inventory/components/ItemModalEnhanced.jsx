@@ -9,10 +9,11 @@
  * - Glassomorphic parchment aesthetic
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { getItemRarity, getItemQuality, getRarityColors, QUALITY_LABELS, RARITY_LABELS } from '../../../core/systems/itemRarity';
 import MedicineTypeBadge from '../../../components/MedicineTypeBadge';
+import { calculatePrescriptionOutcome } from '../../medical/utils/prescriptionCalculator.mjs';
 
 // Rarity tooltip descriptions
 const RARITY_TOOLTIPS = {
@@ -26,6 +27,20 @@ const QUALITY_TOOLTIPS = {
   high_quality: "Superior preparation with enhanced properties (2x value multiplier)",
   exceptional: "Masterwork quality with optimal potency (3x value multiplier)"
 };
+
+// Common symptoms for effectiveness testing
+const COMMON_SYMPTOMS = [
+  { name: 'fever', description: 'Hot condition (excess heat)' },
+  { name: 'chills', description: 'Cold condition (deficient heat)' },
+  { name: 'headache', description: 'Hot condition (blood excess)' },
+  { name: 'cough with phlegm', description: 'Moist condition (phlegm excess)' },
+  { name: 'dry cough', description: 'Dry condition (moisture deficiency)' },
+  { name: 'constipation', description: 'Dry condition (bowel dryness)' },
+  { name: 'diarrhea', description: 'Moist condition (bowel flux)' },
+  { name: 'anxiety', description: 'Hot & dry (yellow bile excess)' },
+  { name: 'wound', description: 'Hot & moist (blood imbalance)' },
+  { name: 'inflammation', description: 'Hot condition (excess heat)' }
+];
 
 export default function ItemModalEnhanced({ isOpen, onClose, item }) {
   const [activeTab, setActiveTab] = useState('overview');
@@ -60,6 +75,49 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
+
+  // Memoize effectiveness calculations to prevent recalculating on every render
+  // MUST be before early return to satisfy Rules of Hooks
+  const effectivenessResults = useMemo(() => {
+    // Only calculate when effectiveness section is expanded and modal is open
+    if (!isOpen || !item || !expandedSections.prop_effectiveness) return [];
+
+    const mockPatient = { name: 'Test', symptoms: [] };
+    const results = COMMON_SYMPTOMS.map(symptom => {
+      try {
+        mockPatient.symptoms = [{ name: symptom.name, severity: 'moderate' }];
+        const result = calculatePrescriptionOutcome({
+          item,
+          patient: mockPatient,
+          route: 'Oral',
+          amount: 1,
+          playerSkills: null
+        });
+        return {
+          symptom: symptom.name,
+          description: symptom.description,
+          effectiveness: result.effectiveness,
+          outcome: result.outcome,
+          humoralScore: result.breakdown.humoralScore,
+          explanations: result.breakdown.humoralExplanations
+        };
+      } catch (error) {
+        console.error('[ItemModal] Failed to calculate effectiveness for', symptom.name, error);
+        return {
+          symptom: symptom.name,
+          description: symptom.description,
+          effectiveness: 0,
+          outcome: 'unknown',
+          humoralScore: 0,
+          explanations: []
+        };
+      }
+    });
+
+    // Sort by effectiveness (highest first)
+    results.sort((a, b) => b.effectiveness - a.effectiveness);
+    return results;
+  }, [item, expandedSections.prop_effectiveness, isOpen]);
 
   if (!isOpen || !item) return null;
 
@@ -551,6 +609,79 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                       </span>
                     ))}
                   </div>
+                )}
+              </PropertySection>
+
+              <PropertySection
+                title="Treatment Effectiveness Guide"
+                expanded={expandedSections.prop_effectiveness ?? true}
+                onToggle={() => toggleSection('prop_effectiveness')}
+              >
+                <p className="text-base leading-relaxed mb-4 font-serif text-ink-900" style={{ lineHeight: '1.8' }}>
+                  Based on humoral theory, this remedy's effectiveness varies by condition. Higher percentages
+                  indicate better humoral matching according to Galenic principles.
+                </p>
+                {expandedSections.prop_effectiveness && effectivenessResults.length > 0 && (
+                    <div className="space-y-3">
+                      {effectivenessResults.map((result, idx) => {
+                        const getEffectivenessColor = (eff) => {
+                          if (eff >= 60) return { bg: 'rgba(22, 163, 74, 0.1)', text: '#15803d', border: 'rgba(22, 163, 74, 0.2)' };
+                          if (eff >= 40) return { bg: 'rgba(234, 179, 8, 0.1)', text: '#ca8a04', border: 'rgba(234, 179, 8, 0.2)' };
+                          if (eff >= 20) return { bg: 'rgba(249, 115, 22, 0.1)', text: '#c2410c', border: 'rgba(249, 115, 22, 0.2)' };
+                          return { bg: 'rgba(220, 38, 38, 0.1)', text: '#991b1b', border: 'rgba(220, 38, 38, 0.2)' };
+                        };
+
+                        const colors = getEffectivenessColor(result.effectiveness);
+
+                        return (
+                          <div
+                            key={idx}
+                            className="rounded-lg p-3"
+                            style={{
+                              background: colors.bg,
+                              border: `1px solid ${colors.border}`
+                            }}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <div>
+                                <span className="font-bold text-base font-serif capitalize" style={{ color: colors.text }}>
+                                  {result.symptom}
+                                </span>
+                                <span className="text-xs font-sans ml-2 opacity-70" style={{ color: colors.text }}>
+                                  {result.description}
+                                </span>
+                              </div>
+                              <span
+                                className="px-2 py-1 rounded text-sm font-bold font-sans"
+                                style={{
+                                  background: colors.text,
+                                  color: 'white'
+                                }}
+                              >
+                                {result.effectiveness}%
+                              </span>
+                            </div>
+                            {result.explanations.length > 0 && (
+                              <p className="text-xs font-serif mt-2" style={{ color: colors.text, opacity: 0.9, lineHeight: '1.5' }}>
+                                {result.explanations[0]}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div
+                        className="rounded-lg p-3 mt-4"
+                        style={{
+                          background: 'rgba(59, 130, 246, 0.08)',
+                          border: '1px solid rgba(59, 130, 246, 0.15)'
+                        }}
+                      >
+                        <p className="text-xs font-sans text-ink-600" style={{ lineHeight: '1.6' }}>
+                          <strong>Note:</strong> These scores assume oral administration with 1 drachm dosage and moderate skill level.
+                          Actual effectiveness varies based on route, dosage, and practitioner skill.
+                        </p>
+                      </div>
+                    </div>
                 )}
               </PropertySection>
             </div>

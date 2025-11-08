@@ -222,8 +222,13 @@ export function buildContextSummary(gameState, turnNumber, incorporatedContent, 
     ? `\nCRISIS: ${gameState.crisis.reason || 'Active confrontation requiring resolution.'}`
     : '';
 
+  // Compact inventory list (item names only, prevents LLM hallucinations)
+  const inventoryLine = gameState?.inventory?.length > 0
+    ? `\nInventory: ${gameState.inventory.filter(i => i.quantity > 0).map(i => i.name).join(', ')}`
+    : '';
+
   return `Location: ${gameState.location}
-Date: ${gameState.date} | Time: ${gameState.time} | Turn: ${turnNumber}${crisisLine}
+Date: ${gameState.date} | Time: ${gameState.time} | Turn: ${turnNumber}${crisisLine}${inventoryLine}
 ${incorporatedContent ? `\nCritique: ${incorporatedContent}` : ''}
 ${additionalQuestions ? `\nQuestions: ${additionalQuestions}` : ''}`;
 }

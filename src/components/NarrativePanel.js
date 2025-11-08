@@ -1,7 +1,11 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import remarkSmartypants from 'remark-smartypants';
 import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { entityManager } from '../core/entities/EntityManager';
 import NPCPatientModal from '../features/medical/components/NPCPatientModal';
 import POIModal from './POIModal';
@@ -12,8 +16,304 @@ import SimpleInteractionCard from './SimpleInteractionCard';
 import RandomEventCard from './RandomEventCard';
 import ExitConfirmationCard from './ExitConfirmationCard';
 import { parseListResponse } from '../utils/narrativeParser';
-import { FaListUl } from 'react-icons/fa';
+import { FaListUl, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { getListTypeLabel } from '../core/config/listTypes.config';
+
+/**
+ * Font size mapping
+ * Maps semantic font size values to responsive Tailwind classes
+ * Mobile: Always text-base (16px) for readability
+ * Standard (sm-2xl): Base size for typical laptops (13-15" MacBooks)
+ * Large screens (2xl+, 1536px+): +2px larger for external monitors/27"+ displays
+ */
+const getFontSizeClasses = (fontSize) => {
+  const sizeMap = {
+    'small': 'text-base sm:text-[18px] 2xl:text-[20px]',      // Mobile: 16px, Standard: 18px, Big: 20px
+    'medium': 'text-base sm:text-[20px] 2xl:text-[22px]',     // Mobile: 16px, Standard: 20px, Big: 22px (DEFAULT)
+    'large': 'text-base sm:text-[22px] 2xl:text-[24px]',      // Mobile: 16px, Standard: 22px, Big: 24px
+    'extra-large': 'text-base sm:text-[24px] 2xl:text-[26px]' // Mobile: 16px, Standard: 24px, Big: 26px
+  };
+
+  // Fallback to medium if invalid value
+  return sizeMap[fontSize] || sizeMap['medium'];
+};
+
+/**
+ * MerchantTable - Custom table component that makes merchant names clickable
+ *
+ * Helper to extract text content from React elements (recursively)
+ */
+function extractTextContent(element) {
+  if (typeof element === 'string') return element;
+  if (typeof element === 'number') return String(element);
+  if (!element) return '';
+
+  if (Array.isArray(element)) {
+    return element.map(extractTextContent).join('');
+  }
+
+  if (element.props && element.props.children) {
+    return extractTextContent(element.props.children);
+  }
+
+  return '';
+}
+
+function MerchantTable({ listType, onMerchantClick, children, ...props }) {
+  // Only process "people" lists
+  if (listType !== 'people') {
+    return <table {...props}>{children}</table>;
+  }
+
+  // Clone children and inject click handlers into cells with merchant indicators
+  const processedChildren = React.Children.map(children, child => {
+    if (!child || child.type !== 'tbody') return child;
+
+    // Process tbody rows
+    const processedRows = React.Children.map(child.props.children, row => {
+      if (!row || row.type !== 'tr') return row;
+
+      // Process cells in row
+      const processedCells = React.Children.map(row.props.children, (cell, cellIndex) => {
+        // First cell contains names
+        if (cellIndex !== 0 || !cell || cell.type !== 'td') return cell;
+
+        // Extract full text content from React elements
+        const cellText = extractTextContent(cell.props?.children);
+        console.log('[MerchantTable] Cell text:', cellText);
+
+        // Check if cell contains merchant indicator 🛒
+        if (!cellText.includes('🛒')) return cell;
+
+        // Extract merchant name (everything before the 🛒, trimmed)
+        const merchantName = cellText.replace('🛒', '').trim();
+        console.log('[MerchantTable] Found merchant:', merchantName);
+
+        // Make it clickable
+        return (
+          <td
+            key={cellIndex}
+            onClick={() => {
+              if (onMerchantClick) {
+                console.log('[MerchantTable] Merchant clicked:', merchantName);
+                // Get merchant from EntityManager
+                const merchant = entityManager.getByName(merchantName);
+                if (merchant && merchant.merchantShop) {
+                  console.log('[MerchantTable] Opening shop for:', merchant.name);
+                  onMerchantClick(merchant);
+                } else {
+                  console.warn('[MerchantTable] Merchant not found or not a shop:', merchantName, merchant);
+                }
+              }
+            }}
+            className="cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+            title={`Click to visit ${merchantName}'s shop`}
+          >
+            {cell.props.children}
+          </td>
+        );
+      });
+
+      return <tr key={row.key}>{processedCells}</tr>;
+    });
+
+    return <tbody key={child.key}>{processedRows}</tbody>;
+  });
+
+  return <table {...props}>{processedChildren}</table>;
+}
+
+/**
+ * CollapsibleListTable - Wraps markdown table content with expand/collapse functionality
+ * Shows first 5 entries by default, with "Show N more entries" button if table has > 5 rows
+ *
+ * @param {string} content - Markdown table content
+ * @param {string} listType - Type of list (people, sensory, objects, ingredients)
+ * @param {function} onMerchantClick - Click handler for merchant names
+ */
+function CollapsibleListTable({ content, listType, onMerchantClick }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Parse markdown table to count data rows
+  const tableData = useMemo(() => {
+    if (!content || typeof content !== 'string') {
+      return { hasTable: false };
+    }
+
+    // Check if content is an empty message (not a table)
+    const emptyMessages = [
+      'No other people are currently visible.',
+      'Unable to perceive sensory details.',
+      'No notable objects visible.',
+      'No ingredients available here.'
+    ];
+
+    if (emptyMessages.some(msg => content.includes(msg))) {
+      return { hasTable: false };
+    }
+
+    // Split into lines
+    const lines = content.split('\n').filter(line => line.trim());
+
+    // Find table structure (header | separator | data rows)
+    const headerIndex = lines.findIndex(line => line.includes('|'));
+    if (headerIndex === -1) {
+      return { hasTable: false };
+    }
+
+    const separatorIndex = lines.findIndex((line, idx) =>
+      idx > headerIndex && line.includes('|') && line.includes('-')
+    );
+
+    if (separatorIndex === -1) {
+      return { hasTable: false };
+    }
+
+    // Extract header, separator, and data rows
+    const header = lines[headerIndex];
+    const separator = lines[separatorIndex];
+    const dataRows = lines.slice(separatorIndex + 1).filter(line =>
+      line.trim().startsWith('|') && !line.includes('---')
+    );
+
+    const totalDataRows = dataRows.length;
+    const threshold = 5;
+
+    if (totalDataRows <= threshold) {
+      // Show all rows, no collapse needed
+      return {
+        hasTable: true,
+        needsCollapse: false,
+        fullContent: content
+      };
+    }
+
+    // Split into visible (first 5) and hidden (rest)
+    const visibleRows = dataRows.slice(0, threshold);
+    const hiddenRows = dataRows.slice(threshold);
+
+    const visibleContent = [header, separator, ...visibleRows].join('\n');
+    // Hidden rows: just the data rows, no duplicate header/separator
+    const hiddenRowsOnly = hiddenRows;
+
+    return {
+      hasTable: true,
+      needsCollapse: true,
+      visibleContent,
+      hiddenRows: hiddenRowsOnly,
+      header,
+      separator,
+      hiddenCount: hiddenRows.length
+    };
+  }, [content]);
+
+  // If no table or doesn't need collapse, render normally
+  if (!tableData.hasTable || !tableData.needsCollapse) {
+    return (
+      <div className="prose prose-sm max-w-none list-response-content">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath, remarkSmartypants]}
+          rehypePlugins={[rehypeRaw, rehypeKatex]}
+          className="text-sm text-ink-900 dark:text-parchment-100"
+          components={{
+            table: ({ node, ...props }) => {
+              return <MerchantTable listType={listType} onMerchantClick={onMerchantClick} {...props} />;
+            }
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
+    );
+  }
+
+  // Render collapsible table
+  return (
+    <div className="prose prose-sm max-w-none list-response-content">
+      {/* Render as single complete table to avoid duplicate headers */}
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath, remarkSmartypants]}
+        rehypePlugins={[rehypeRaw, rehypeKatex]}
+        className="text-sm text-ink-900 dark:text-parchment-100"
+        components={{
+          table: ({ node, ...props }) => {
+            return <MerchantTable listType={listType} onMerchantClick={onMerchantClick} {...props} />;
+          }
+        }}
+      >
+        {tableData.visibleContent}
+      </ReactMarkdown>
+
+      {/* Hidden rows (expandable) - rendered as continuation of the table above */}
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {isExpanded && (
+          <table className="w-full border-collapse" style={{ marginTop: '-1rem' }}>
+            <tbody>
+              {tableData.hiddenRows.map((row, idx) => {
+                // Parse markdown row into cells
+                const cells = row.split('|').filter(cell => cell.trim()).map(cell => cell.trim());
+
+                return (
+                  <tr key={idx}>
+                    {cells.map((cell, cellIdx) => {
+                      // First cell: check for merchant indicator and make clickable
+                      if (cellIdx === 0 && listType === 'people' && cell.includes('🛒')) {
+                        const merchantName = cell.replace('🛒', '').replace(/\*\*/g, '').trim();
+                        return (
+                          <td
+                            key={cellIdx}
+                            onClick={() => {
+                              if (onMerchantClick) {
+                                const merchant = entityManager.getByName(merchantName);
+                                if (merchant && merchant.merchantShop) {
+                                  onMerchantClick(merchant);
+                                }
+                              }
+                            }}
+                            className="cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                            title={`Click to visit ${merchantName}'s shop`}
+                            dangerouslySetInnerHTML={{ __html: cell }}
+                          />
+                        );
+                      }
+
+                      // Regular cell
+                      return (
+                        <td key={cellIdx} dangerouslySetInnerHTML={{ __html: cell }} />
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Expand/Collapse button */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="mt-3 w-full py-2 px-4 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-2 border-amber-300 dark:border-amber-600/30 rounded-lg hover:from-amber-100 hover:to-amber-200 dark:hover:from-amber-900/30 dark:hover:to-amber-800/30 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-400"
+      >
+        {isExpanded ? (
+          <>
+            <FaChevronUp className="w-3 h-3" />
+            Show less
+          </>
+        ) : (
+          <>
+            <FaChevronDown className="w-3 h-3" />
+            Show {tableData.hiddenCount} more {tableData.hiddenCount === 1 ? 'entry' : 'entries'}
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
 
 /**
  * Sound effect definitions - maps trigger keywords to visual effects
@@ -231,6 +531,20 @@ function detectSoundEffects(text) {
  * Preprocesses content to wrap quoted dialogue in markdown bold syntax
  * Converts "dialogue" or "dialogue" to **"dialogue"** for semibold rendering
  */
+/**
+ * Convert single newlines to double newlines for ReactMarkdown paragraph rendering
+ * ReactMarkdown needs \n\n for paragraph breaks, but LLM outputs \n
+ */
+function normalizeNewlines(content) {
+  if (typeof content !== 'string') return content;
+
+  // Don't double-up already existing double newlines
+  // Replace single \n with \n\n, but preserve existing \n\n
+  return content.replace(/\n\n/g, '§§PARAGRAPH§§')  // Temporarily mark existing paragraphs
+                .replace(/\n/g, '\n\n')              // Convert single to double
+                .replace(/§§PARAGRAPH§§/g, '\n\n'); // Restore original paragraphs
+}
+
 function boldQuotedDialogue(content) {
   if (typeof content !== 'string') return content;
 
@@ -465,9 +779,14 @@ const NarrativeEntry = React.memo(({
   onConfirmExit,
   onCancelExit,
   onOpenPrescriptionDetails, // BUG FIX #9: Added missing prop
+  onMerchantClick, // Handler for merchant name clicks in list responses
   gameState,
-  isDarkMode
+  isDarkMode,
+  fontSize = 'medium' // Font size setting
 }) => {
+  // Get responsive font size classes
+  const fontSizeClasses = getFontSizeClasses(fontSize);
+
   const isUser = entry.role === 'user';
   const isSystem = entry.role === 'system';
   const content = entry.content || '';
@@ -489,26 +808,6 @@ const NarrativeEntry = React.memo(({
 
   const npcData = getNPCData();
 
-  // Detect if content has certain keywords to add contextual tags
-  const getTags = (text) => {
-    const tags = [];
-    const lowerText = text.toLowerCase();
-
-    if (lowerText.includes('plague') || lowerText.includes('pestilence') || lowerText.includes('spots')) {
-      tags.push({ icon: '🦠', text: 'Plague Risk', color: 'danger' });
-    }
-    if (lowerText.includes('diagnose') || lowerText.includes('symptoms') || lowerText.includes('examination')) {
-      tags.push({ icon: '🧪', text: 'Medical', color: 'potion' });
-    }
-    if (lowerText.includes('decision') || lowerText.includes('choice') || lowerText.includes('choose')) {
-      tags.push({ icon: '⚖️', text: 'Decision Point', color: 'warning' });
-    }
-
-    return tags;
-  };
-
-  const tags = getTags(content);
-
   // Get tooltip text for entry icon
   const getTooltipText = () => {
     if (isUser) {
@@ -526,6 +825,11 @@ const NarrativeEntry = React.memo(({
     // Movement turn
     if (entry.responseType === 'movement') {
       return "This is a *movement turn*, recording movement in space";
+    }
+
+    // Travel turn (long-distance journeys)
+    if (entry.responseType === 'travel') {
+      return "This is a *long-distance travel narrative*, describing a journey to a new destination";
     }
 
     // Next steps turn (after simple interactions)
@@ -595,6 +899,15 @@ const NarrativeEntry = React.memo(({
       );
     }
 
+    // TRAVEL MODE: Wagon/road icon for long-distance travel
+    if (entry.responseType === 'travel') {
+      return (
+        <svg className="w-5 h-5 text-amber-700 dark:text-amber-500 transition-colors duration-300" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"/>
+        </svg>
+      );
+    }
+
     // NARRATION MODE (default): Book icon
     return (
       <svg className="w-6 h-6 text-ink-600 dark:text-parchment-300 transition-colors duration-300" fill="currentColor" viewBox="0 0 20 20">
@@ -630,11 +943,11 @@ const NarrativeEntry = React.memo(({
         <div className="bg-gradient-to-br from-white to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-6 border border-ink-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
           <div className="prose prose-lg max-w-none initial-narrative">
             <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeRaw]}
+              remarkPlugins={[remarkGfm, remarkMath, remarkSmartypants]}
+              rehypePlugins={[rehypeRaw, rehypeKatex]}
               components={entityComponents}
             >
-              {boldQuotedDialogue(content)}
+              {boldQuotedDialogue(normalizeNewlines(content))}
             </ReactMarkdown>
           </div>
         </div>
@@ -692,7 +1005,7 @@ const NarrativeEntry = React.memo(({
           <div className="flex-1 min-w-0">
             {/* Header */}
             <div className="flex items-center gap-2 mb-2">
-              
+
               <span className="text-sm font-semibold text-amber-700 dark:text-amber-400 font-sans">
                 {listLabel}
               </span>
@@ -700,15 +1013,11 @@ const NarrativeEntry = React.memo(({
 
             {/* Table container with parchment styling */}
             <div className="bg-gradient-to-br from-parchment-50 to-white dark:from-slate-800/50 dark:to-slate-900/50 rounded-xl p-4 border-2 border-parchment-300 dark:border-amber-600/30 shadow-elevation-1 overflow-x-auto">
-              <div className="prose prose-sm max-w-none list-response-content">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw]}
-                  className="text-sm text-ink-900 dark:text-parchment-100"
-                >
-                  {listData.content}
-                </ReactMarkdown>
-              </div>
+              <CollapsibleListTable
+                content={listData.content}
+                listType={listData.listType}
+                onMerchantClick={onMerchantClick}
+              />
             </div>
           </div>
         </div>
@@ -796,13 +1105,13 @@ const NarrativeEntry = React.memo(({
           </button>
         )}
           {isUser ? (
-            <div className="bg-gradient-to-br from-botanical-50 to-white dark:from-slate-800 dark:to-slate-700 rounded-xl p-2.5 border border-botanical-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
+            <div className="bg-gradient-to-br from-botanical-50 to-white dark:from-slate-800 dark:to-slate-700 rounded-xl p-4 border border-botanical-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
               <div className="prose prose-lg max-w-none">
                 <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
+                  remarkPlugins={[remarkGfm, remarkSmartypants]}
                   rehypePlugins={[rehypeRaw]}
                   components={entityComponents}
-                  className="text-xl text-ink-900 dark:text-parchment-100 font-serif italic leading-normal font-medium transition-colors duration-300"
+                  className={`${fontSizeClasses} text-ink-900 dark:text-parchment-100 font-serif italic leading-normal font-medium transition-colors duration-300`}
                 >
                   {userContent}
                 </ReactMarkdown>
@@ -812,7 +1121,7 @@ const NarrativeEntry = React.memo(({
             // System announcements - purple, sans serif, smaller font, italic
             <div className="prose prose-sm max-w-none">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkSmartypants]}
                 rehypePlugins={[rehypeRaw]}
                 components={entityComponents}
                 className="text-sm text-purple-600 dark:text-purple-400 font-sans leading-relaxed italic transition-colors duration-300"
@@ -827,13 +1136,13 @@ const NarrativeEntry = React.memo(({
                   NOT used in normal gameplay - NPC dialogue is embedded in narration mode instead.
                   Kept here for future animated map travel feature where Maria follows an NPC to a location. */}
               {entry.responseType === 'dialogue' && entry.dialogue ? (
-                <div className="bg-gradient-to-br from-parchment-100/20 via-parchment-50/50 to-white dark:from-slate-800 dark:via-slate-750 dark:to-slate-700 rounded-2xl p-3.5 border-2 border-parchment-300 dark:border-amber-600/30 shadow-elevation-2 dark:shadow-dark-elevation-2 relative transition-all duration-300">
+                <div className="bg-gradient-to-br from-parchment-100/20 via-parchment-50/50 to-white dark:from-slate-800 dark:via-slate-750 dark:to-slate-700 rounded-2xl p-4 border-2 border-parchment-300 dark:border-amber-600/30 shadow-elevation-2 dark:shadow-dark-elevation-2 relative transition-all duration-300">
                   <div className="prose prose-lg max-w-none relative z-10">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkSmartypants]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className="text-[21px] text-parchment-900 dark:text-parchment-100 font-serif italic transition-colors duration-300"
+                      className={`${fontSizeClasses} text-parchment-900 dark:text-parchment-100 font-serif italic transition-colors duration-300`}
                     >
                       {boldQuotedDialogue(entry.dialogue)}
                     </ReactMarkdown>
@@ -847,22 +1156,22 @@ const NarrativeEntry = React.memo(({
                 </div>
               ) : content.includes('"') || content.includes('"') ? (
                 // Legacy: NPC dialogue detected by quotation marks
-                <div className="bg-gradient-to-br from-parchment-100/20 via-parchment-50/50 to-white dark:from-slate-800 dark:via-slate-750 dark:to-slate-700 rounded-2xl p-3.5 border-2 border-parchment-300 dark:border-amber-600/30 shadow-elevation-2 dark:shadow-dark-elevation-2 relative transition-all duration-300">
+                <div className="bg-gradient-to-br from-parchment-100/20 via-parchment-50/50 to-white dark:from-slate-800 dark:via-slate-750 dark:to-slate-700 rounded-2xl p-4 border-2 border-parchment-300 dark:border-amber-600/30 shadow-elevation-2 dark:shadow-dark-elevation-2 relative transition-all duration-300">
 
                   <div className="prose prose-lg max-w-none relative z-10">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkSmartypants]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className="text-[21px] text-parchment-900 dark:text-parchment-100 font-serif transition-colors duration-300"
+                      className={`${fontSizeClasses} text-parchment-900 dark:text-parchment-100 font-serif transition-colors duration-300`}
                     >
-                      {boldQuotedDialogue(content)}
+                      {boldQuotedDialogue(normalizeNewlines(content))}
                     </ReactMarkdown>
                   </div>
                 </div>
               ) : entry.responseType === 'movement' ? (
                 // PHASE 3B: Movement mode - distinct travel/navigation styling
-                <div className="bg-gradient-to-br from-botanical-50/30 to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-3.5 border border-botanical-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
+                <div className="bg-gradient-to-br from-botanical-50/30 to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-4 border border-botanical-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
                   {/* Extract direction from content for header */}
                   {(() => {
                     const directionMatch = content.match(/\b(north|south|east|west)\b/i);
@@ -876,57 +1185,62 @@ const NarrativeEntry = React.memo(({
                   })()}
                   <div className="prose prose-lg max-w-none">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkSmartypants]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className="text-[20px] text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300"
+                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300`}
                     >
-                      {content}
+                      {normalizeNewlines(content)}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              ) : entry.responseType === 'travel' ? (
+                // TRAVEL MODE: Long-distance journey ARRIVAL styling with amber/gold tones
+                // (Journey section now shown in JourneyTransitionScreen)
+                <div className="bg-gradient-to-br from-amber-50/40 to-orange-50/30 dark:from-amber-900/20 dark:to-slate-900 rounded-2xl p-4 border-2 border-amber-300/50 dark:border-amber-600/30 shadow-elevation-2 dark:shadow-dark-elevation-2 transition-all duration-300">
+                  {/* Travel header indicator */}
+                  <div className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 mb-2 flex items-center gap-1.5">
+                    <span>🛤️</span>
+                    <span>Long-Distance Journey</span>
+                  </div>
+                  <div className="prose prose-lg max-w-none">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkSmartypants]}
+                      rehypePlugins={[rehypeRaw]}
+                      components={entityComponents}
+                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300`}
+                    >
+                      {normalizeNewlines(content)}
                     </ReactMarkdown>
                   </div>
                 </div>
               ) : entry.responseType === 'next_steps' ? (
                 // NEXT STEPS MODE: Reflective prompt after simple interactions
-                <div className="bg-gradient-to-br from-amber-50/40 to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-3.5 border border-amber-200 dark:border-amber-600/20 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
+                <div className="bg-gradient-to-br from-amber-50/40 to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-4 border border-amber-200 dark:border-amber-600/20 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
                   <div className="prose prose-lg max-w-none">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkSmartypants]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className="text-[21px] text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300"
+                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300`}
                     >
-                      {boldQuotedDialogue(content)}
+                      {boldQuotedDialogue(normalizeNewlines(content))}
                     </ReactMarkdown>
                   </div>
                 </div>
               ) : (
                 // Regular narrative description - serif in bubble, LARGER
-                <div className="bg-gradient-to-br from-white to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-3.5 border border-ink-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
+                <div className="bg-gradient-to-br from-white to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-4 border border-ink-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
                   <div className="prose prose-lg max-w-none">
                     <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
+                      remarkPlugins={[remarkGfm, remarkSmartypants]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className="text-[22px] text-ink-800 dark:text-parchment-100 font-serif  transition-colors duration-300"
+                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300`}
                     >
-                      {boldQuotedDialogue(content)}
+                      {boldQuotedDialogue(normalizeNewlines(content))}
                     </ReactMarkdown>
                   </div>
-                </div>
-              )}
-
-              {/* Tags */}
-              {tags.length > 0 && (
-                <div className="mt-3 flex items-center gap-2">
-                  {tags.map((tag, idx) => (
-                    <span
-                      key={idx}
-                      className={`px-3 py-1 bg-${tag.color}-100 text-${tag.color}-700 text-sm rounded-full font-semibold font-sans inline-flex items-center gap-1.5 shadow-elevation-1`}
-                    >
-                      <span>{tag.icon}</span>
-                      <span>{tag.text}</span>
-                    </span>
-                  ))}
                 </div>
               )}
             </div>
@@ -940,7 +1254,7 @@ const NarrativeEntry = React.memo(({
           <div className="flex-1 min-w-0">
             <div className="prose prose-lg max-w-none">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkSmartypants]}
                 rehypePlugins={[rehypeRaw]}
                 components={entityComponents}
                 className="text-lg text-ink-700 dark:text-parchment-300 font-sans leading-relaxed italic transition-colors duration-300"
@@ -1047,8 +1361,25 @@ const NarrativeEntry = React.memo(({
                     <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-bold text-lg dark:bg-white/15 dark:text-purple-100">℞</span>
                     <span className="text-purple-800 font-semibold text-lg dark:text-purple-100">Prescription Administered</span>
                   </div>
-                  <div className="text-purple-800/90 text-sm font-medium dark:text-purple-100/85">
-                    You have prescribed <strong className="text-purple-900 dark:text-white">{entry.card.data.item?.name}</strong> to {entry.card.data.patient?.name}.
+
+                  {/* Text and Button on same line */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-purple-800/90 text-sm font-medium dark:text-purple-100/85">
+                      You have prescribed <strong className="text-purple-900 dark:text-white">{entry.card.data.item?.name}</strong> to {entry.card.data.patient?.name}.
+                    </div>
+
+                    {/* More Info Button - Inline with text */}
+                    {entry.card.data.outcome && onOpenPrescriptionDetails && (
+                      <button
+                        onClick={() => onOpenPrescriptionDetails(entry.card.data)}
+                        className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 border border-purple-300 text-purple-700 text-xs font-semibold rounded-lg transition-all duration-200 hover:bg-purple-100/70 dark:border-purple-200/40 dark:text-purple-50 dark:hover:bg-purple-500/20"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        View Details
+                      </button>
+                    )}
                   </div>
 
                   {(entry.card.data.item || entry.card.data.route) && (
@@ -1064,19 +1395,6 @@ const NarrativeEntry = React.memo(({
                         </span>
                       )}
                     </div>
-                  )}
-
-                  {/* More Info Button - Only show if outcome data is available */}
-                  {entry.card.data.outcome && onOpenPrescriptionDetails && (
-                    <button
-                      onClick={() => onOpenPrescriptionDetails(entry.card.data)}
-                      className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 border border-purple-300 text-purple-700 text-sm font-semibold rounded-lg transition-all duration-200 hover:bg-purple-100/70 dark:border-purple-200/40 dark:text-purple-50 dark:hover:bg-purple-500/20"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      View Detailed Outcome
-                    </button>
                   )}
                 </div>
               </div>
@@ -1106,6 +1424,7 @@ const NarrativePanel = ({
   playerPortrait,
   activePatient,
   onSwitchToPatientView,
+  onDismissPatient = null, // Handler to dismiss patient without examining
   pendingPrescription,
   onOpenPrescriptionDetails = null, // Handler to open prescription outcome modal
   pendingContract = null, // Contract offer pending negotiation
@@ -1128,15 +1447,22 @@ const NarrativePanel = ({
   onRandomEventChoice = null, // Handler for random event choices
   gameState = {}, // Game state for wealth/inventory
   updateInventory = null, // Handler to update inventory quantities
-  fontSize = 'text-base',
+  onMerchantClick = null, // Handler for clicking merchant names in lists
+  fontSize = 'medium',
   isDarkMode = false
 }) => {
+  // Get responsive font size classes
+  const fontSizeClasses = getFontSizeClasses(fontSize);
   const narrativeRef = useRef(null);
   const [selectedEntity, setSelectedEntity] = useState(null);
   const [showPOIModal, setShowPOIModal] = useState(false);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [bookmarkedIndices, setBookmarkedIndices] = useState(new Set());
+
+  // Safari Performance Optimization: Limit rendered messages
+  // Only show last 30 messages by default to prevent Safari slowdowns
+  const [visibleMessageCount, setVisibleMessageCount] = useState(30);
 
   // Entity tooltip and compact popup state
   const [hoveredEntity, setHoveredEntity] = useState(null); // { name, description, rect }
@@ -1424,7 +1750,7 @@ const NarrativePanel = ({
       <div className="h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg rounded-2xl overflow-hidden flex flex-col  dark:shadow-dark-elevation-3 border-1 border-white/20 dark:border-slate-700/50 transition-colors duration-300">
         <div
           ref={narrativeRef}
-          className={`flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-[20px] py-[22px] space-y-3 ${fontSize}`}
+          className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-[20px] py-[22px] space-y-3"
         >
           {conversationHistory.length === 0 ? (
             <div className="text-center py-20">
@@ -1438,8 +1764,38 @@ const NarrativePanel = ({
             </div>
           ) : (
             <>
+              {/* Load More button if there are older messages */}
+              {(() => {
+                const filteredHistory = conversationHistory.filter(entry => !entry.hidden);
+                const hasOlderMessages = filteredHistory.length > visibleMessageCount;
+                const olderMessageCount = filteredHistory.length - visibleMessageCount;
+
+                if (hasOlderMessages) {
+                  return (
+                    <div className="flex justify-center py-4">
+                      <button
+                        onClick={() => setVisibleMessageCount(prev => Math.min(prev + 30, filteredHistory.length))}
+                        className="px-4 py-2 rounded-lg font-medium text-sm transition-all"
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          background: isDarkMode
+                            ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.1))'
+                            : 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05))',
+                          border: isDarkMode ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                          color: isDarkMode ? '#60a5fa' : '#059669'
+                        }}
+                      >
+                        ↑ Load {olderMessageCount} Older Message{olderMessageCount === 1 ? '' : 's'}
+                      </button>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {conversationHistory
                 .filter(entry => !entry.hidden) // Skip hidden entries only (system messages now appear in narrative)
+                .slice(-visibleMessageCount) // Only render last N messages for Safari performance
                 .map((entry, index) => (
                 <NarrativeEntry
                   key={index}
@@ -1457,8 +1813,10 @@ const NarrativePanel = ({
                   onConfirmExit={onConfirmExit}
                   onCancelExit={onCancelExit}
                   onOpenPrescriptionDetails={onOpenPrescriptionDetails}
+                  onMerchantClick={onMerchantClick}
                   gameState={gameState}
                   isDarkMode={isDarkMode}
+                  fontSize={fontSize}
                 />
               ))}
 
@@ -1606,78 +1964,25 @@ const NarrativePanel = ({
                           {activePatient.name} is waiting to be treated
                         </div>
                       </div>
-                      {onSwitchToPatientView && (
-                        <button
-                          onClick={onSwitchToPatientView}
-                          className="flex-shrink-0 px-4 py-2 bg-white hover:bg-red-50 text-red-600 font-semibold rounded-lg transition-colors shadow-md flex items-center gap-2"
-                        >
-                          Begin Examination
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Prescription Pending Status Card - Blue */}
-              {pendingPrescription && (
-                <div className="animate-fade-in mb-4">
-                  <div className="w-full p-4 bg-gradient-to-br from-purple-600/25 via-purple-500/15 to-purple-500/10 dark:from-purple-700/25 dark:via-purple-600/15 dark:to-purple-600/10 rounded-xl shadow-lg border border-purple-400/35 dark:border-purple-500/35 backdrop-blur-sm">
-                    <div className="flex items-start gap-3">
-                      {/* Patient Portrait */}
-                      <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
-                        {pendingPrescription.patient?.visual?.image || pendingPrescription.patient?.image ? (
-                          <img
-                            src={`/portraits/${pendingPrescription.patient.visual?.image || pendingPrescription.patient.image}`}
-                            alt={pendingPrescription.patient.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.outerHTML = '<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>';
-                            }}
-                          />
-                        ) : (
-                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 text-left">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-bold text-lg dark:bg-white/15 dark:text-purple-100">℞</span>
-                          <span className="text-purple-800 font-semibold text-lg dark:text-purple-100">Prescription Administered</span>
-                        </div>
-                        <div className="text-purple-800/90 text-sm font-medium dark:text-purple-100/85">
-                          You have prescribed <strong className="text-purple-900 dark:text-white">{pendingPrescription.item?.name}</strong> to {pendingPrescription.patient?.name}.
-                        </div>
-
-                        {(pendingPrescription.item || pendingPrescription.route) && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {pendingPrescription.item && (
-                              <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-semibold dark:bg-white/15 dark:text-purple-100">
-                                {pendingPrescription.amount || 1}× {pendingPrescription.item.name}
-                              </span>
-                            )}
-                            {pendingPrescription.route && (
-                              <span className="px-3 py-1 rounded-full bg-purple-200 text-purple-800 text-xs font-semibold capitalize dark:bg-purple-500/25 dark:text-purple-50">
-                                {pendingPrescription.route} route
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* More Info Button - Only show if outcome data is available */}
-                        {pendingPrescription.outcome && onOpenPrescriptionDetails && (
+                      <div className="flex-shrink-0 flex gap-2">
+                        {onDismissPatient && (
                           <button
-                            onClick={() => onOpenPrescriptionDetails(pendingPrescription)}
-                            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 border border-purple-300 text-purple-700 text-sm font-semibold rounded-lg transition-all duration-200 hover:bg-purple-100/70 dark:border-purple-200/40 dark:text-purple-50 dark:hover:bg-purple-500/20"
+                            onClick={onDismissPatient}
+                            className="px-3 py-2 bg-white/20 hover:bg-white/30 text-white text-sm rounded-lg transition-colors border border-white/30"
+                            title="Send patient away"
                           >
+                            Dismiss
+                          </button>
+                        )}
+                        {onSwitchToPatientView && (
+                          <button
+                            onClick={onSwitchToPatientView}
+                            className="px-4 py-2 bg-white hover:bg-red-50 text-red-600 font-semibold rounded-lg transition-colors shadow-md flex items-center gap-2"
+                          >
+                            Begin Examination
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
                             </svg>
-                            View Detailed Outcome
                           </button>
                         )}
                       </div>
@@ -1685,6 +1990,8 @@ const NarrativePanel = ({
                   </div>
                 </div>
               )}
+
+              
 
               {/* Show typing indicator when AI is generating */}
               {isLoading && <TypingIndicator />}
@@ -1710,9 +2017,23 @@ const NarrativePanel = ({
           }
 
           /* Better paragraph spacing in narrative content */
+          .prose {
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            font-feature-settings: "kern" 1, "liga" 1;
+          }
+
           .prose p {
             margin-top: 0.75em;
             margin-bottom: 0.75em;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+            color: #2d1810;  /* Warmer, darker brown instead of plain black */
+          }
+
+          .dark .prose p {
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            color: #f5e6d3;  /* Warmer cream color instead of plain white */
           }
 
           /* Initial narrative gets better paragraph spacing and larger text */
@@ -1720,7 +2041,7 @@ const NarrativePanel = ({
             margin-top: 1em;
             margin-bottom: 1em;
             color: #3d2817;
-            font-size: 1.35rem;
+            font-size: 1.4rem;
             font-family: 'Crimson Text', Georgia, serif;
             line-height: 1.7;
             letter-spacing: 0.01em;
@@ -1736,6 +2057,22 @@ const NarrativePanel = ({
 
           .initial-narrative p:last-child {
             margin-bottom: 0;
+          }
+
+          /* Drop cap for initial narrative first paragraph */
+          .initial-narrative p:first-of-type::first-letter {
+            font-size: 3.5em;
+            line-height: 0.9;
+            float: left;
+            margin: 0.1em 0.15em 0 0;
+            font-weight: 700;
+            color: #8b745e;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+          }
+
+          .dark .initial-narrative p:first-of-type::first-letter {
+            color: #d4af37;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.4);
           }
 
           /* NPC names - Subtle teal with semibold weight */
@@ -1909,4 +2246,26 @@ const NarrativePanel = ({
   );
 };
 
-export default NarrativePanel;
+// Memoize with custom comparison to prevent unnecessary re-renders
+// Safari performance optimization: Only re-render when props that affect output actually change
+export default React.memo(NarrativePanel, (prevProps, nextProps) => {
+  // Return true if props are equal (prevent re-render)
+  // Return false if props changed (allow re-render)
+
+  // Critical props that affect rendering:
+  const criticalPropsEqual =
+    prevProps.conversationHistory === nextProps.conversationHistory &&
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.activePatient === nextProps.activePatient &&
+    prevProps.pendingPrescription === nextProps.pendingPrescription &&
+    prevProps.pendingContract === nextProps.pendingContract &&
+    prevProps.pendingExitConfirmation === nextProps.pendingExitConfirmation &&
+    prevProps.tradeOpportunities === nextProps.tradeOpportunities &&
+    prevProps.pendingSimpleInteraction === nextProps.pendingSimpleInteraction &&
+    prevProps.pendingActionPrompt === nextProps.pendingActionPrompt &&
+    prevProps.pendingMixingDecision === nextProps.pendingMixingDecision &&
+    prevProps.pendingRandomEvent === nextProps.pendingRandomEvent &&
+    prevProps.isOpen === nextProps.isOpen;
+
+  return criticalPropsEqual;
+});

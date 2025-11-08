@@ -56,6 +56,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.4326,
     lon: -99.1332,
     region: 'New Spain',
+    biome: 'city-mexico',
     importance: 'capital',
     suppressRegistry: true,
     aliases: [
@@ -73,6 +74,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.55,
     lon: -99.2,
     region: 'New Spain',
+    biome: 'grassland',
     importance: 'local',
     aliases: [
       'mexico city countryside',
@@ -87,6 +89,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.318,
     lon: -98.237,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'regional-center',
     aliases: [
       'tlaxcala de xicohtencatl',
@@ -100,6 +103,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.051,
     lon: -98.307,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'pilgrimage',
     aliases: [
       'san pedro cholula',
@@ -113,6 +117,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.0414,
     lon: -98.2063,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'regional-center',
     aliases: [
       'puebla de los angeles',
@@ -127,6 +132,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.1738,
     lon: -96.1342,
     region: 'New Spain',
+    biome: 'coastal',
     importance: 'port',
     aliases: [
       'puerto de veracruz',
@@ -141,6 +147,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.5438,
     lon: -96.9103,
     region: 'New Spain',
+    biome: 'mountain',
     importance: 'provincial',
     aliases: [
       'jalapa',
@@ -154,6 +161,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 18.9242,
     lon: -99.2216,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'resort',
     aliases: [
       'cuauhnahuac',
@@ -167,6 +175,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 18.556,
     lon: -99.605,
     region: 'New Spain',
+    biome: 'mountain',
     importance: 'mining',
     aliases: [
       'taxco de alarcon',
@@ -180,6 +189,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 16.8638,
     lon: -99.8823,
     region: 'New Spain',
+    biome: 'coastal',
     importance: 'port',
     aliases: [
       'puerto de acapulco',
@@ -193,6 +203,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 17.0732,
     lon: -96.7266,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'regional-center',
     aliases: [
       'oaxaca city',
@@ -208,6 +219,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 16.321,
     lon: -95.241,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'trade-hub',
     aliases: [
       'santo domingo tehuantepec',
@@ -221,6 +233,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 20.5888,
     lon: -100.3899,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'regional-center',
     aliases: [
       'santiago de queretaro',
@@ -234,6 +247,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 20.9144,
     lon: -100.743,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'market-town',
     aliases: [
       'san miguel el grande',
@@ -247,6 +261,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 21.019,
     lon: -101.257,
     region: 'New Spain',
+    biome: 'mountain',
     importance: 'mining',
     aliases: [
       'city of guanajuato',
@@ -260,6 +275,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.705,
     lon: -101.194,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'regional-center',
     aliases: [
       'valladolid de michoacan',
@@ -273,6 +289,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 20.6597,
     lon: -103.3496,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'regional-center',
     aliases: [
       'city of guadalajara',
@@ -287,6 +304,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 22.7709,
     lon: -102.5832,
     region: 'New Spain',
+    biome: 'mountain',
     importance: 'mining',
     aliases: [
       'real de minas de zacatecas',
@@ -300,6 +318,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 22.1565,
     lon: -100.9855,
     region: 'New Spain',
+    biome: 'mountain',
     importance: 'mining',
     aliases: [
       'san luis potosi',
@@ -313,6 +332,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 24.0277,
     lon: -104.6532,
     region: 'New Spain',
+    biome: 'desert',
     importance: 'frontier',
     aliases: [
       'villa durango',
@@ -326,6 +346,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 28.6353,
     lon: -106.0889,
     region: 'New Spain',
+    biome: 'desert',
     importance: 'frontier',
     aliases: [
       'san felipe el real',
@@ -339,6 +360,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 35.6869,
     lon: -105.9378,
     region: 'New Spain',
+    biome: 'desert',
     importance: 'provincial-capital',
     aliases: [
       'santa fe de nuevo mexico',
@@ -352,6 +374,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 31.7619,
     lon: -106.485,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'frontier',
     aliases: [
       'el paso del norte',
@@ -365,6 +388,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 25.6866,
     lon: -100.3161,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'regional-center',
     aliases: [
       'ciudad de monterrey',
@@ -378,6 +402,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 31.5,
     lon: -100.5,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'frontier',
     aliases: [
       'frontier of texas',
@@ -392,6 +417,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 22.2553,
     lon: -97.868,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'puerto de tampico',
@@ -405,6 +431,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.8301,
     lon: -90.5349,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'san francisco de campeche',
@@ -418,6 +445,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 20.967,
     lon: -89.623,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'provincial-capital',
     aliases: [
       'merida de yucatan',
@@ -431,6 +459,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 20.689,
     lon: -88.201,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'market-town',
     aliases: [
       'valladolid yucatan',
@@ -444,6 +473,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 20.422,
     lon: -86.922,
     region: 'New Spain',
+    biome: 'city-colonial',
     importance: 'island',
     aliases: [
       'isla de cozumel',
@@ -457,6 +487,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 14.6349,
     lon: -90.5069,
     region: 'Central America',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'santiago de los caballeros',
@@ -470,6 +501,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 8.9833,
     lon: -79.5167,
     region: 'Central America',
+    biome: 'coastal',
     importance: 'port',
     aliases: [
       'ciudad de panama',
@@ -484,6 +516,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 9.5536,
     lon: -79.6545,
     region: 'Central America',
+    biome: 'coastal',
     importance: 'port',
     aliases: [
       'puerto bello',
@@ -497,6 +530,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 10.391,
     lon: -75.479,
     region: 'Caribbean',
+    biome: 'coastal',
     importance: 'port',
     aliases: [
       'cartagena de indias',
@@ -510,6 +544,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 10.4806,
     lon: -66.9036,
     region: 'Caribbean',
+    biome: 'city-colonial',
     importance: 'provincial-capital',
     aliases: [
       'santiago de leon',
@@ -523,6 +558,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 4.711,
     lon: -74.072,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'santa fe de bogota',
@@ -536,6 +572,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -0.1807,
     lon: -78.4678,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'provincial-capital',
     aliases: [
       'san francisco de quito',
@@ -549,6 +586,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -12.0464,
     lon: -77.0428,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'ciudad de los reyes',
@@ -562,6 +600,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -13.532,
     lon: -71.967,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'highland-center',
     aliases: [
       'cuzco',
@@ -575,6 +614,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -19.588,
     lon: -65.753,
     region: 'South America',
+    biome: 'mountain',
     importance: 'mining',
     aliases: [
       'villa imperial de potosi',
@@ -588,6 +628,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -16.5,
     lon: -68.15,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'provincial-capital',
     aliases: [
       'nuestra senora de la paz',
@@ -601,6 +642,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -25.2637,
     lon: -57.5759,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'asuncion del paraguay',
@@ -614,6 +656,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -33.4489,
     lon: -70.6693,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'santiago de chile',
@@ -627,6 +670,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -33.0472,
     lon: -71.6127,
     region: 'South America',
+    biome: 'coastal',
     importance: 'port',
     aliases: [
       'port of valparaiso',
@@ -640,6 +684,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -34.6037,
     lon: -58.3816,
     region: 'South America',
+    biome: 'coastal',
     importance: 'port',
     aliases: [
       'buenos aires city',
@@ -653,6 +698,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -22.9068,
     lon: -43.1729,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'rio de janeiro city',
@@ -666,6 +712,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -12.9777,
     lon: -38.5016,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'salvador da bahia',
@@ -680,6 +727,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -8.0476,
     lon: -34.877,
     region: 'South America',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'pernambuco',
@@ -693,6 +741,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 23.1136,
     lon: -82.3666,
     region: 'Caribbean',
+    biome: 'coastal',
     importance: 'port',
     aliases: [
       'san cristobal de la habana',
@@ -707,6 +756,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 17.937,
     lon: -76.84,
     region: 'Caribbean',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'port royal jamaica',
@@ -720,6 +770,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 18.4861,
     lon: -69.9312,
     region: 'Caribbean',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'santo domingo de guzman',
@@ -733,6 +784,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 18.4655,
     lon: -66.1057,
     region: 'Caribbean',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'san juan puerto rico',
@@ -746,6 +798,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 13.0975,
     lon: -59.616,
     region: 'Caribbean',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'bridgetown barbados',
@@ -759,6 +812,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 20,
     lon: -40,
     region: 'Atlantic',
+    biome: 'ocean',
     importance: 'open-sea',
     aliases: [
       'mid atlantic',
@@ -773,6 +827,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 38.65,
     lon: -27.22,
     region: 'Atlantic',
+    biome: 'ocean',
     importance: 'resupply',
     aliases: [
       'angra do heroismo',
@@ -787,6 +842,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 32.666,
     lon: -16.925,
     region: 'Atlantic',
+    biome: 'ocean',
     importance: 'resupply',
     aliases: [
       'funchal',
@@ -800,6 +856,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 28.4636,
     lon: -16.2518,
     region: 'Atlantic',
+    biome: 'ocean',
     importance: 'resupply',
     aliases: [
       'santa cruz de tenerife',
@@ -814,6 +871,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 14.909,
     lon: -23.521,
     region: 'Atlantic',
+    biome: 'coastal',
     importance: 'resupply',
     aliases: [
       'ilha de santiago',
@@ -828,6 +886,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 14.667,
     lon: -17.4,
     region: 'West Africa',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'goree island',
@@ -842,6 +901,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -33.9249,
     lon: 18.4241,
     region: 'Southern Africa',
+    biome: 'coastal',
     importance: 'resupply',
     aliases: [
       'cape of good hope',
@@ -856,6 +916,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 37.3891,
     lon: -5.9845,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'metropolis',
     aliases: [
       'sevilla',
@@ -869,6 +930,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 36.5271,
     lon: -6.2886,
     region: 'Europe',
+    biome: 'coastal',
     importance: 'port',
     aliases: [
       'cadiz port',
@@ -882,6 +944,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 40.4168,
     lon: -3.7038,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'capital',
     aliases: [
       'villa de madrid',
@@ -895,6 +958,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 38.7223,
     lon: -9.1393,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'capital',
     aliases: [
       'lisboa',
@@ -908,6 +972,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 41.1579,
     lon: -8.6291,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'port',
     aliases: [
       'oporto',
@@ -921,6 +986,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 41.3851,
     lon: 2.1734,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'port',
     aliases: [
       'barcelona city',
@@ -934,6 +1000,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 48.8566,
     lon: 2.3522,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'metropolis',
     aliases: [
       'paris city',
@@ -947,6 +1014,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 51.5072,
     lon: -0.1276,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'metropolis',
     aliases: [
       'london city',
@@ -960,6 +1028,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 52.3676,
     lon: 4.9041,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'port',
     aliases: [
       'amsterdam city',
@@ -973,6 +1042,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 51.2194,
     lon: 4.4025,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'port',
     aliases: [
       'antwerpen',
@@ -986,6 +1056,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 44.4056,
     lon: 8.9463,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'port',
     aliases: [
       'genova',
@@ -999,6 +1070,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 45.4408,
     lon: 12.3155,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'port',
     aliases: [
       'venezia',
@@ -1012,6 +1084,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 40.8518,
     lon: 14.2681,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'port',
     aliases: [
       'napoli',
@@ -1025,6 +1098,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 41.9028,
     lon: 12.4964,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'metropolis',
     aliases: [
       'roma',
@@ -1038,6 +1112,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 43.2965,
     lon: 5.3698,
     region: 'Europe',
+    biome: 'city-european',
     importance: 'port',
     aliases: [
       'marseille port',
@@ -1051,6 +1126,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 31.6295,
     lon: -7.9811,
     region: 'North Africa',
+    biome: 'desert',
     importance: 'regional-center',
     aliases: [
       'marrakech',
@@ -1064,6 +1140,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 36.8065,
     lon: 10.1815,
     region: 'North Africa',
+    biome: 'desert',
     importance: 'port',
     aliases: [
       'tunis city',
@@ -1077,6 +1154,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 36.7538,
     lon: 3.0588,
     region: 'North Africa',
+    biome: 'desert',
     importance: 'port',
     aliases: [
       'algiers port',
@@ -1090,6 +1168,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 31.2001,
     lon: 29.9187,
     region: 'North Africa',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'alexandria egypt',
@@ -1103,6 +1182,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 6.5244,
     lon: 3.3792,
     region: 'West Africa',
+    biome: 'city-colonial',
     importance: 'trade-hub',
     aliases: [
       'lagos lagoon',
@@ -1116,6 +1196,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 5.0826,
     lon: -1.3509,
     region: 'West Africa',
+    biome: 'city-colonial',
     importance: 'fort',
     aliases: [
       'sao jorge da mina',
@@ -1129,6 +1210,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -8.839,
     lon: 13.2894,
     region: 'West Africa',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'sao paulo de luanda',
@@ -1142,6 +1224,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 15.2993,
     lon: 74.124,
     region: 'South Asia',
+    biome: 'coastal',
     importance: 'capital',
     aliases: [
       'velha goa',
@@ -1155,6 +1238,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 21.1702,
     lon: 72.8311,
     region: 'South Asia',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'city of surat',
@@ -1168,6 +1252,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 13.0827,
     lon: 80.2707,
     region: 'South Asia',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'madraspatnam',
@@ -1182,6 +1267,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 19.076,
     lon: 72.8777,
     region: 'South Asia',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'bombay islands',
@@ -1195,6 +1281,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 6.9271,
     lon: 79.8612,
     region: 'South Asia',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'colombo ceylon',
@@ -1208,6 +1295,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 23.588,
     lon: 58.3829,
     region: 'Indian Ocean',
+    biome: 'ocean',
     importance: 'port',
     aliases: [
       'masqat',
@@ -1221,6 +1309,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 13.3167,
     lon: 43.2456,
     region: 'Red Sea',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'mokka',
@@ -1235,6 +1324,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 18,
     lon: -140,
     region: 'Pacific',
+    biome: 'ocean',
     importance: 'open-sea',
     aliases: [
       'mid pacific',
@@ -1249,6 +1339,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 14.5995,
     lon: 120.9842,
     region: 'Southeast Asia',
+    biome: 'coastal',
     importance: 'capital',
     aliases: [
       'manila city',
@@ -1262,6 +1353,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 13.4443,
     lon: 144.7937,
     region: 'Pacific',
+    biome: 'ocean',
     importance: 'island',
     aliases: [
       'san ignacio de agana',
@@ -1276,6 +1368,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 22.1987,
     lon: 113.5439,
     region: 'East Asia',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'macao',
@@ -1289,6 +1382,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 23.1291,
     lon: 113.2644,
     region: 'East Asia',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'guangzhou',
@@ -1302,6 +1396,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 32.7503,
     lon: 129.8777,
     region: 'East Asia',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'nagasaki port',
@@ -1315,6 +1410,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 35.6762,
     lon: 139.6503,
     region: 'East Asia',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'edo city',
@@ -1328,6 +1424,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 39.9042,
     lon: 116.4074,
     region: 'East Asia',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'peking',
@@ -1341,6 +1438,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 14.3532,
     lon: 100.568,
     region: 'Southeast Asia',
+    biome: 'city-colonial',
     importance: 'capital',
     aliases: [
       'ayutaya',
@@ -1354,6 +1452,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: -6.2088,
     lon: 106.8456,
     region: 'Southeast Asia',
+    biome: 'coastal',
     importance: 'colonial-capital',
     aliases: [
       'batavia java',
@@ -1368,6 +1467,7 @@ const RAW_WORLD_LOCATIONS = [
     lat: 2.1896,
     lon: 102.2501,
     region: 'Southeast Asia',
+    biome: 'city-colonial',
     importance: 'port',
     aliases: [
       'melaka',

@@ -8,10 +8,15 @@ import { getGridSystem } from '../../features/map/services/gridMovementSystem';
 import { getReputationTier, getFactionStanding, FACTION_INFO } from '../systems/reputationSystem';
 import { findPortraitByName } from '../services/portraitMatcher';
 import { resolvePortrait } from '../services/portraitResolver';
-import { isValidPortrait, getFilteredPortraitList } from '../config/portraits.config';
+import { isValidPortrait } from '../config/portraits.config';
 import { buildNPCContext } from '../services/locationContextService'; // Location NPC system
-import { isFeatureEnabled } from '../config/featureFlags';
 import { getNarrativeFlags, formatDuration } from '../../systems/bodyEffects';
+import { parseHourFromTimeString } from '../../utils/timeUtils';
+
+// PERFORMANCE: Cache system prompt to avoid rebuilding every turn
+// Note: Cache is keyed by scenario JSON, so changes to prompts automatically invalidate cache
+let cachedSystemPrompt = null;
+let cachedScenarioId = null;
 
 /**
  * Normalize portrait filenames so downstream UI always receives a consistent shape.
@@ -70,7 +75,7 @@ Faction Standing:
 - Unfriendly (20-39): Curt, suspicious, reluctant to help
 - Hostile (<20): Openly hostile, may refuse service or insult Maria
 
-Use this to inform dialogue tone, willingness to help, and general demeanor.`;
+Use this to inform dialogue tone, willingness to help, and general demeanor - but never explicitly reference reputation score.`;
     } else {
       // Non-faction NPC: Use overall reputation
       context += `\n**IMPORTANT**: This NPC has no specific faction ties. Use Maria's overall reputation to guide their attitude:
@@ -155,7 +160,8 @@ function buildWeatherContext(weather, gameState) {
 
   // Historical context for afternoon thunderstorms
   if (weather.precipitation === 'rain' && gameState.time) {
-    const hour = parseInt(gameState.time.split(':')[0]);
+    // PERFORMANCE: Use centralized time parsing utility
+    const hour = parseHourFromTimeString(gameState.time);
     if (hour >= 14 && hour < 18) {
       parts.push('- HISTORICAL NOTE: Afternoon thunderstorms are typical in Mexico City summer (wet season)');
     }
@@ -378,23 +384,30 @@ ${isInterior ?
  * @returns {string} Complete narrative agent system prompt
  */
  function buildNarrativePrompt(scenarioPrompts, mapContext = '', gameState = {}) {
-  const core = scenarioPrompts.core || {};
-  const mechanics = scenarioPrompts.mechanics || {};
-  const historical = scenarioPrompts.historical || {};
-  const narrative = scenarioPrompts.narrative || {};
+  // PERFORMANCE: Cache static prompt sections (everything except mapContext)
+  // Only rebuild when scenario changes (extremely rare - typically once per session)
+  const cacheKey = JSON.stringify(scenarioPrompts);
 
-  const schemaSection = `### Output Schema
+  if (!cachedSystemPrompt || cachedScenarioId !== cacheKey) {
+    console.log('[NarrativeAgent] Building and caching static system prompt...');
+
+    const core = scenarioPrompts.core || {};
+    const mechanics = scenarioPrompts.mechanics || {};
+    const historical = scenarioPrompts.historical || {};
+    const narrative = scenarioPrompts.narrative || {};
+
+    const schemaSection = `### Output Schema
 Return strict JSON (no markdown fencing, no prose outside the object).
 
 {
   "responseType": "movement|narration",
-  "narrative": "string (<=2-3 short paragraphs, second person). CRITICAL: All NPC speech MUST be embedded here as quoted dialogue, like: She says, "I need your help." Never leave this field without quoted speech when NPCs are present.",
+  "narrative": ["array of strings (each = 1 paragraph, 1-2 sentences). Second person. CRITICAL: (1) All NPC speech MUST be embedded as quoted dialogue, like: She says, "I need your help." Keep it CONCISE - avoid lengthy descriptions."],
   "sceneDescription": "string",
   "suggestedCommands": ["#command"],
   "showPortraitFor": "string or null",
   "primaryPortrait": "null (engine assigns portrait automatically)",
   "experimentalPortraitChoice": "exact filename from portrait list OR null (EXPERIMENTAL: for A/B testing)",
-  "primaryNPC": { "name": "...", "age": "...", "gender": "...", "occupation": "...", "casta": "...", "class": "...", "personality": "two traits", "appearance": "one sentence", "description": "one sentence" } or null,
+  "primaryNPC": { "name": "...", "age": "...", "gender": "...", "occupation": "...", "casta": "...", "class": "...", "personality": "two traits", "appearance": "one sentence", "description": "one sentence" } or null (CRITICAL: primaryNPC must be a HUMAN character Maria can see and interact with. NEVER set this to animals/pets like João the cat. If no human NPC is physically present and visible, set primaryNPC to null),
   "simpleInteraction": { "type": "vendor_offer|service_offer|donation_request|competitive_check|information_exchange|social_visit|extortion_demand|protection_racket|entertainment_tip|food_purchase|gamble_opportunity|labor_offer|neighbor_complaint|church_donation|null", ... } or {"type": "null"} or null,
   "requestNewPatient": true|false,
   "patientContext": { "reason": "string", "urgency": "low|moderate|high|critical" } or null,
@@ -402,41 +415,54 @@ Return strict JSON (no markdown fencing, no prose outside the object).
   "companions": [{"name": "string", "role": "string"}],
   "entities": [{ "text": "...", "entityType": "npc|patient|animal|item|location", "tier": "story-critical|recurring|background", "occupation": "string", "description": "string", "wikipediaQuery": "string|null", "demographics": { "gender": "...", "age": "...", "casta": "...", "class": "..." } }],
   "interactionIntent": "medical_diagnosis|medical_followup|medical_purchase|house_call|nonmedical_request|vendor_offer|social|none"
+}
+
+**EXAMPLE - Correct Narrative Array Format (CONCISE):**
+{
+  "narrative": [
+    "A woman's sharp voice calls through the door. \\"Open this at once, apothecary! I have urgent need.\\"",
+    "**Will you open the door immediately, or call out first?**"
+  ],
+  "responseType": "narration",
+  "primaryNPC": null,
+  "companions": [{"name": "João", "role": "pet"}]
 }`;
 
-  const interactionIntentSection = `### Interaction Intent — Decide By Maria's ACTION
-Ask: *What is the NPC asking Maria to DO right now?*
+    const interactionIntentSection = `### Interaction Intent (What NPC Asks Maria To DO)
 
-- medical_diagnosis → Maria examines or treats a patient who is physically present (or immediately enters) the scene. She is using her medical judgement here in the shop. No travel required.
-- medical_followup → The same patient returns (or an emissary reports back) about an ongoing treatment Maria already manages. No new contract/fee—continue the conversation.
-- medical_purchase → The visitor wants Maria to PROVIDE medicine or a prepared remedy so they can take it away. Maria stays in the shop, selects/dispenses the remedy, accepts payment. Think "Please give me something for…".
-- house_call → **STRICTLY MEDICAL ONLY**. A messenger asks Maria to travel to EXAMINE/TREAT a SICK or INJURED patient. NOT for errands, harvesting, deliveries, or non-medical favors.
-  **Key indicators:** Messenger/intermediary arrives (not patient), patient is sick/injured, messenger asks Maria to examine/treat, location mentioned/implied.
-  **Examples:**
-  * ✓ "Sister: 'Father Anselmo is ill. Come to monastery!'" → house_call
-  * ✓ "Servant: 'Don Luis cannot leave bed. He requests you.'" → house_call
-  * ✗ "Man enters coughing. 'Help me, señora.'" → medical_diagnosis (patient here)
-  * ✗ "Wife: 'My husband is sick. Can I buy medicine?'" → medical_purchase
+**Medical:**
+- **medical_diagnosis** = Patient present in shop, Maria examines/treats
+- **medical_followup** = Patient returns for ongoing treatment
+- **medical_purchase** = "Give me medicine for…" - Maria dispenses remedy, no examination
+- **house_call** = MEDICAL ONLY. Messenger asks Maria to TRAVEL to sick/injured patient
+  * ✓ "Father ill at monastery, come treat him"
+  * ✗ "Man enters coughing, help me" (he's here = diagnosis) | ✗ "Can I buy medicine?" (purchase)
 
-- nonmedical_request → Any favour, investigation, or errand unrelated to medicine. No remedy discussion, no diagnosis. Includes: harvesting help, deliveries, social visits, errands.
-- vendor_offer → The NPC is selling NON-MEDICAL goods/services TO Maria (direction NPC → Maria). Maria is the buyer. **NEVER use for medicine requests - those are medical_purchase!**
-- social → Pure conversation, warnings, gossip, or relationship scenes with no actionable request.
-- none → No clear request or action this turn.`;
- 
-  const modeSection = `### Mode Selection
-- Movement commands ONLY (actual directional travel) -> responseType "movement". 3-4 sentences, describe a single step, second person, minimal dialogue.
-  - VALID: "go north", "walk east", "head south", "move west", "go outside", "go upstairs", "go downstairs", "leave building"
-  - INVALID: "go to the door" (use narration), "let's move on" (use narration), "go see who's there" (use narration), "move forward with the conversation" (use narration)
-  - Rule: Use "movement" ONLY if action is LITERAL spatial movement with compass direction OR explicit exit/entrance (outside/upstairs/downstairs). Otherwise use "narration".
-  - Destination commands ("go to the bakery", "walk to the convent", "go for a walk in the countryside") are full travel scenes: depict leaving the current space, traversing the city or roads, and arriving; advance time realistically and set the new location so downstream systems can update.
-- All other inputs -> responseType "narration". Stay under 150 words, second person. CRITICAL: When NPCs speak, embed their words directly in the narrative using quotation marks. Example: He frowns. "I need medicine for my wife," he says urgently.
-- Always honour player input exactly—no detours or invented lines for Maria.`;
+**CRITICAL - Timing Rule:**
+Set intent only when NPC MAKES a NEW request this turn. When NPC pays/accepts/departs (completing a previous request), set intent to "none".
+- Request turn: "My wife has fever, I need medicine" → medical_purchase ✓
+- Resolution turn: NPC pays 6 reales and departs with vial → "none" ✓ (NOT medical_purchase)
 
-  const agencySection = `### Player Agency & Pacing
+**Non-Medical:**
+- **nonmedical_request** = Favors/errands unrelated to medicine (harvesting, deliveries, social visits)
+- **vendor_offer** = NPC selling TO Maria (she's buyer). NOT for medicine requests!
+- **social** = Pure conversation, no actionable request
+- **none** = No clear request this turn`;
+
+    const modeSection = `### Mode Selection
+**"movement"** = Compass directions (north/south/east/west) OR explicit exits (outside/upstairs/downstairs). 2-3 sentences, second person.
+  - ✓ "go north", "walk east", "leave building"
+  - ✗ "go to door", "let's move on", "go see who's there" (all = narration)
+  - Destinations ("go to bakery") = full travel scene: departure, traversal, arrival. Advance time, update location.
+
+**"narration"** = Everything else. 60-80 words MAX, second person. NPC speech embedded with quotes. Be CONCISE.`;
+
+    const agencySection = `### Player Agency & Pacing
 - If the player (i.e. Maria) enters a command to do something, do it, no matter how strange! (Within reason - i.e. if the player says "fly on a spaceship," this is plainly impossible. But if they say "stand on my head and say a hail mary," then depict Maria doing EXACTLY that - but also depict realistic consequences.)
-- Stop before mechanical actions (mixing, prescribing, buying) so UI modals handle them.
-- Show real consequences, NPC reactions, and sensory detail grounded in 1680 Mexico City.
+- Stop before mechanical actions (mixing, prescribing, buying) so UI modals handle them - UNLESS the player's command contains specific modal results (prescription details, purchase list, mixing ingredients). If the command has modal results, treat the action as COMPLETE and show the aftermath.
+- Show real consequences, NPC reactions, sensory detail grounded in 1680 Mexico City.
 - Close most narration responses with a bold prompt offering 2 concise follow-up choices unless the moment demands free input.
+-  Cut flowery descriptions, redundant details, and obvious observations. Trust the player's imagination.
 
 **Time Passage for Waiting Actions:**
 - When player waits for specific event with stated duration ("wait for [NPC]" after saying "return in X minutes"):
@@ -446,137 +472,162 @@ Ask: *What is the NPC asking Maria to DO right now?*
 - Passive observation ("look around"): 1-5 minutes, pure description
 - Vague waiting ("wait", "rest"): 10-15 minutes, may introduce new event`;
 
-  const momentumSection = `### Momentum & Stakes
+    const momentumSection = `### Momentum & Stakes
 - Every turn must deliver two micro-beats: immediate reaction to the player AND a fresh consequence, clue, or escalation.
-- Think like a skilled novelst: always move things forward in a way that honors character intent, the setting, and the deeply mysterious complexity of the human psyche. 
+- Think like a skilled novelst: always move things forward in a way that honors character intent, the setting, and the deeply mysterious complexity of the human psyche.
 - Never leave the scene idle; even if Maria is alone and reflective, something must happen next. Always something new.`;
 
-  const psychologySection = `### Emotional Realism
+    const psychologySection = `### Emotional Realism
 - Match reactions to status and context: nobles are haughty and often have the pox, bandits press threats, the poor plead or despair.
 - NPCs have purposeful, idiosycratic, psychologically realistic responses.`;
 
-  const comportmentSection = `### Etiquette & Historical Detail
+    const comportmentSection = `### Etiquette & Historical Detail
 - Use proper address (Doña, Don, titles) and note posture/rituals common to 1680 Mexico City.
 - Highlight caste dynamics: elites expect deference, commoners hedge, soldiers enforce authority.`;
 
-  const dialogueSection = `### NPC Dialogue
+    const dialogueSection = `### NPC Dialogue
 - If a primary NPC is present, typically include at least one line of quoted speech from them.
 - When Maria performs any door action after a knock (go/approach/open/see/answer/check the door), reveal who stands there immediately and let them speak first. Complete the encounter in one response.
-- Tie speech to the NPC's role and stakes; vary tone, length, and mannerisms so debt collectors, servants, and beggars sound distinct.
+- Tie speech to the NPC role and stakes; vary tone, length, and mannerisms so debt collectors, servants, and beggars sound distinct.
 - CRITICAL: Embed all dialogue directly in the "narrative" field using quotation marks. Example: He steps forward. "Doña Maria," he says, "I need your help." Do NOT use separate dialogue fields—everything goes in narrative.`;
 
-  const unexpectedSection = `### Texture & Surprise
+    const unexpectedSection = `### Texture & Surprise
 - Draw from Mexico City street life—vendors hawking goods, gossiping neighbors, stray animals, distant bells, sudden weather shifts.
 - Real life is at times unexpected in a David Lynch-ian way. Reflect that. Occasional uncanny or surreal or unexpected touches are welcome **if** they remain grounded in the period.`;
 
-  const variationSection = `### Dialogue & Length Variety
+    const variationSection = `### Dialogue & Length Variety
 - Vary the amount of speech: some NPCs ramble or argue, others mutter a word or two. Some suffer from diseases like syphilis which make them mad or ashamed.
 - Remember how humans ACTUALLY talk. This is not a fantasy novel or historical fiction. It's real life.
 - Dialogue pulls things forward - always advance the plot powerfully.
 - DOOR ACTIONS: When player opens/approaches/answers door after a knock, complete full encounter in ONE response (reveal visitor + their greeting). Don't stop at "reaching for latch."`;
 
-  const animalSection = `### Animals & Non-Human Actors
+    const animalSection = `### Animals & Non-Human Actors
 - Animals do not speak or reason like humans. Describe their behaviour through body language only.
 - If an animal is the focus, show who is handling it or why it matters; otherwise keep the primary NPC slot for humans.`;
 
-  const closingSection = `### Closing Prompt
-- End narration with your own bolded follow-up question (**“Will you …, or …?”**) that offers two concrete next choices rooted in the scene (refer to the NPC, stakes, or setting). There is no system fallback—make it original.
-- Skip the question only when the next step is unambiguous (combat in progress, total silence, cliffhanger, etc.), and in that case end with a vivid image or beat.`;
+    const closingSection = `### Closing Prompt - CRITICAL REQUIREMENT
+- You should usually end the "narrative" field with a bolded follow-up question offering 2-3 concrete, contextual choices.
+- Format: **"Will you [specific action A], or [specific action B]?"** or **"Will you [A], [B], or [C]?"**
+- The question must always be the final sentence.
+- Make it propell the narrative forward in a realistic way.
+- Even when NPCs depart or complete transactions, the question is about MARIA's next action, not the NPC's.
 
-  const simpleInteractionSection = `### Simple Interaction Guardrails
-- Only populate simpleInteraction when explicitly in "SIMPLE INTERACTION MODE".
-- If the scene mentions sickness, remedies, treatment, symptoms, or Maria's expertise, set simpleInteraction.type to "null" immediately. Medical matters always use the main medical systems.
-- Use it for brief non-medical encounters (charity, gossip, quick social visits, threats, gambling, investment offers). Keep to <=50 words and one physical beat + a few lines of dialogue.
-- Do NOT invent new simpleInteraction types. Supported values:
-  * **vendor_offer** = NPC selling goods TO Maria
-  * **service_offer** = NPC offering services TO Maria
-  * **competitive_check** = Rival apothecary scouting Maria's practice
-  * **extortion_demand** = Threats/demands from criminals, corrupt officials, or Inquisition proxies
-  * **gamble_opportunity** = NPC invites Maria to gamble/bet
-  * **investment_offer** = NPC presents investment opportunity TO Maria
-- **Odds guidance for gambling**: favorable (60% win) if NPC is friendly/drunk/unskilled, even (50%) for fair game, unfavorable (40%) if NPC is skilled/cheating/professional gambler
-- **Investment type guidance**: church_bond (⛪, no risk, 10% return, 5-10 days), cacao_plantation (🌿, low risk, 25-50%, 10-15 days), apothecary_syndicate (💊, low risk, 15-25%, 3-7 days), real_estate (🏠, medium risk, 35-60%, 20-30 days), manila_galleon (🚢, medium risk, 120-200% or total loss, 30-45 days), silver_mining (🏔️, high risk, 70-200% or total loss, 7-14 days)
-- **IMPORTANT**: Always provide a contextually appropriate emoji for the item/service being offered. Examples: 💧 for water, 🪵 for firewood, 📜 for documents/codices, 🍯 for honey, 🌿 for herbs, 🔥 for charcoal, 💀 for threats, 🎲 for gambling, ⛪ for church bonds, 🚢 for galleon trade, etc.
-- When SIMPLE INTERACTION MODE is active you MUST fill the simpleInteraction object with the specifics (prices, items, reasons, amounts, odds, investment details) and keep the narrative laser-focused on that exchange.`;
+**GOOD EXAMPLES**:
+- **"Will you open the door and face the guard, or slip out the back entrance?"**
+- **"Will you accept her offer, decline politely, or ask for more time?"**
+- Ending with no question at all if a card has been active, a sale made, a contract card offered, or other event which already presents a choice to the player implicitly.
+-
 
-  const crisisActive = gameState?.crisis?.active;
-  const crisisResolutionSection = crisisActive ? `### Crisis Context
+**BAD EXAMPLES**:
+- ❌ "What will you do?" (too vague, no specific options)
+- ❌ After NPC buys opium and departs: "Will you seek out the confessor to ease your spirit, or return to your lodgings?" (refers to NPC, not Maria!)
+
+**When to include the question** (80% of turns):
+  * After conversations end (NPC leaves, finishes speaking, or waits for response)
+  * At scene transitions or time passage
+  * When Maria is alone and deciding what to do next
+  * When an NPC demands something or makes a request (ESPECIALLY this - like a guard demanding entry!)
+
+- If you skip the question, end with a vivid "narrative beat" that propells plot forward.`;
+
+    const simpleInteractionSection = `### Simple Interactions (SIMPLE MODE only)
+Brief non-medical encounters (≤50 words). If medical (sickness/remedies/symptoms), set type:"null".
+
+| Type | Use Case | Emoji Examples |
+|------|----------|----------------|
+| vendor_offer | NPC selling TO Maria | 💧 water, 🪵 firewood, 🌿 herbs |
+| service_offer | Services TO Maria | 🔨 repairs, 📜 scribing |
+| donation_request | Church/charity | ⛪ alms, 💒 offerings |
+| competitive_check | Rival scouting | 💊 other apothecary |
+| extortion_demand | Threats/demands | 💀 criminals, officials |
+| gamble_opportunity | Betting invite | 🎲 dice, 🃏 cards |
+| investment_offer | Investment TO Maria | ⛪ church bonds (10%, low risk), 🚢 galleon (120-200%, high risk), 🏔️ mining (70-200%, high risk) |
+
+**Gambling odds**: favorable (60%) if NPC drunk/unskilled, even (50%) for fair game, unfavorable (40%) if NPC skilled/cheating.
+
+When SIMPLE MODE active, fill simpleInteraction object with specifics (prices, items, odds, investment details).`;
+
+    const crisisActive = gameState?.crisis?.active;
+    const crisisResolutionSection = crisisActive ? `### Crisis Context
 - A crisis is in progress (${gameState.crisis?.reason || 'high stakes confrontation'}).
 - Describe events clearly so consequences are unmistakable (escape, surrender/arrest, capture, bribery, death, or ongoing standoff).
 - Do NOT declare game mechanics. Show the outcome vividly and let downstream systems handle consequences.` : '';
 
-  const portraitDescriptorSection = `### Portrait Descriptor Rules
-- Our engine chooses portraits automatically. Provide precise demographics so it can match correctly.
-- Use gender values: male | female | unknown.
-- Use age bands: child | young | adult | middle-aged | elderly.
-- Use casta terms: español, criollo, mestizo, mulato, africano, indio, or "unknown".
-- Use social class terms: elite, middling, common, poor, religious, enslaved, freedman, artisan.
-- Keep occupation as a short noun (friar, soldier, merchant, market vendor, nun, muleteer, lawyer, etc.).
-- Mention key traits in appearance/description (e.g., clergy, military, artisan, noble) when relevant.
-- Set primaryPortrait to null; the system will assign the portrait from these descriptors.`;
+    const npcsAndPortraitsSection = `### NPCs & Portraits
+**Demographics**: gender (male/female/unknown), age (child/young/adult/middle-aged/elderly), casta (español/criollo/mestizo/mulato/africano/indio), class (elite/middling/common/poor/religious/enslaved/artisan), occupation (short noun).
 
-  const entitySection = `### Entities & Portraits
-- List 2–3 meaningful entities the player may interact with (no throwaways).
-- Provide complete demographics for primaryNPC (name, age, gender, occupation, casta, class, personality, appearance, description).
-- primaryPortrait is assigned automatically; keep it null in your output.
-- primaryNPC/primaryPortrait must describe the person physically present with Maria; set to null if no primary NPCs are present.
-- Maintain portrait/name continuity when conversations continue, but also allow NPCs to leave as appropriate.`;
+**CRITICAL - Gender & Class Inference:**
+- **Titles with "Father"** → gender: male, class: religious (e.g., "Father Anselmo", "Reverend Father Superior")
+- **Titles with "Mother"** → gender: female, class: religious (e.g., "Mother Superior")
+- **Titles with "Fray"/"Padre"** → gender: male, class: religious (e.g., "Fray Diego")
+- **Titles with "Doña"** → gender: female (e.g., "Doña Isabel")
+- **Titles with "Don"** → gender: male (e.g., "Don Luis")
+- **Religious occupations**: priest, monk, nun, friar, abbess, abbot (NOT muleteer, merchant, etc.)
 
-  const companionsSection = `### Companions & Departures
-- Use the "companions" array to list NPCs who remain physically with Maria after this turn (traveling together, keeping watch, etc.). Include their name and a short role (e.g., "porter", "friend", "guard").
-- If an NPC leaves, set npcDeparted to true and omit them from companions.
-- Never keep casual vendors or brief visitors as companions unless the narrative explicitly has them accompany Maria.
-- If no one remains, return an empty array (not null).`;
+**primaryNPC**: Person PHYSICALLY WITH Maria. Complete demographics required. Null if alone.
+**primaryPortrait**: Always null (engine auto-assigns from demographics).
+**Continuity**: Same NPC = same name across turns. But NPCs leave when appropriate.
 
-  const patientSection = `### Patient Flow
+**Departures & Companions**:
+- npcDeparted: true when NPC exits narrative
+- companions: [{"name","role"}] for NPCs traveling/staying with Maria. Empty array if none (not null).
+- Brief visitors/vendors NOT companions unless explicitly accompanying Maria.
+
+**Entities**: List 2-3 meaningful entities player may interact with (no throwaways).`;
+
+    const patientSection = `### Patient Flow
 - You control patient arrivals: requestNewPatient true only when context supports it (shop open, no active consultation).
 - When an emissary only wants to buy or collect medicine, keep them in the shop and use interactionIntent "medical_purchase".
 - interactionIntent "house_call" for situations where Maria must leave the shop to treat or examine someone.
 - npcDeparted true when the NPC would realistically depart the departure in narrative.`;
 
-  const historySection = historical.accuracy
-    ? `### Historical Accuracy
+    const historySection = historical.accuracy
+      ? `### Historical Accuracy
 ${historical.accuracy}
 ${historical.social || ''}`
-    : '';
+      : '';
 
-  const toneSection = core.tone ? `### Style
+    const toneSection = core.tone ? `### Style
 ${core.tone}` : '';
 
-  const commandsSection = mechanics.commands ? `### Command Suggestions
+    const commandsSection = mechanics.commands ? `### Command Suggestions
 ${mechanics.commands}` : '';
 
-  const pacingSection = narrative.pacing ? `### Scene Pacing
+    const pacingSection = narrative.pacing ? `### Scene Pacing
 ${narrative.pacing}` : '';
 
-  const sections = [
-    core.identity || 'You are the Narrative Engine for HistoryLens, a historical simulation set in 1680 Mexico City.',
-    toneSection,
-    schemaSection,
-    interactionIntentSection,
-    modeSection,
-    agencySection,
-    momentumSection,
-    psychologySection,
-    comportmentSection,
-    unexpectedSection,
-    variationSection,
-    dialogueSection,
-    animalSection,
-    closingSection,
-    simpleInteractionSection,
-    crisisResolutionSection,
-    portraitDescriptorSection,
-    entitySection,
-    companionsSection,
-    patientSection,
-    commandsSection,
-    historySection,
-    pacingSection,
-    mapContext ? mapContext.trim() : ''
-  ];
+    const sections = [
+      core.identity || 'You are the Narrative Engine for HistoryLens, a historical simulation set in 1680 Mexico City.',
+      toneSection,
+      schemaSection,
+      interactionIntentSection,
+      modeSection,
+      agencySection,
+      momentumSection,
+      psychologySection,
+      comportmentSection,
+      unexpectedSection,
+      variationSection,
+      dialogueSection,
+      animalSection,
+      closingSection,
+      simpleInteractionSection,
+      crisisResolutionSection,
+      npcsAndPortraitsSection,
+      patientSection,
+      commandsSection,
+      historySection,
+      pacingSection
+    ];
 
-  return sections.filter(Boolean).join('\n\n');
+    // Cache the static prompt (everything except dynamic mapContext)
+    cachedSystemPrompt = sections.filter(Boolean).join('\n\n');
+    cachedScenarioId = cacheKey;
+  }
+
+  // PERFORMANCE: Append dynamic mapContext to cached static prompt
+  // This avoids rebuilding 95% of the prompt every turn
+  return mapContext ? `${cachedSystemPrompt}\n\n${mapContext.trim()}` : cachedSystemPrompt;
 }
 
 function buildConversationHistory(conversationHistory, journal = [], currentTurn = 0) {
@@ -597,8 +648,8 @@ function buildConversationHistory(conversationHistory, journal = [], currentTurn
   // PHASE 1 FIX: Process messages sequentially instead of enforcing strict pairing
   // This allows medical events (Q&A, prescriptions, contracts) to be included without breaking
 
-  // Take last 20 messages for detailed recent context
-  const recentMessages = conversationHistory.slice(-20);
+  // PERFORMANCE: Reduced from 20 to 12 messages for faster LLM processing
+  const recentMessages = conversationHistory.slice(-12);
 
   const history = [];
 
@@ -754,7 +805,10 @@ export async function generateNarrative({
 
 **Example Response Structure**:
 {
-  "narrative": "Isabel returns to the shop, walking more easily than before. She smiles as she shows you her arm where the wound was...",
+  "narrative": [
+    "Isabel returns to the shop, walking more easily than before. She smiles as she shows you her arm where the wound was.",
+    "The redness has faded significantly, and the swelling is nearly gone. She flexes her fingers with only a slight wince. \\"Doña Maria, your treatment worked wonders. The pain is much better.\\""
+  ],
   "outcomeStatus": "improving",
   "symptomChanges": [
     {"symptom": "Pain", "before": "severe", "now": "mild"},
@@ -865,17 +919,22 @@ Generate a BRIEF, VARIED encounter. Don't reuse exact dialogue from previous tur
 `;
     }
 
-    // Build reputation context
-    const reputationContext = buildReputationContext(reputation, selectedEntity);
+    // PERFORMANCE: Lazy context building - only build when data exists and is needed
+    const reputationContext = (reputation && selectedEntity)
+      ? buildReputationContext(reputation, selectedEntity)
+      : '';
 
-    // Build weather context
-    const weatherContext = buildWeatherContext(weather, gameState);
+    const weatherContext = weather
+      ? buildWeatherContext(weather, gameState)
+      : '';
 
-    // Build skills context
-    const skillsContext = playerSkills ? buildSkillsContext(playerSkills) : '';
+    const skillsContext = (playerSkills && Object.keys(playerSkills).length > 0)
+      ? buildSkillsContext(playerSkills)
+      : '';
 
-    // Build active effects context
-    const effectsContext = gameState.activeEffects ? buildEffectsContext(gameState.activeEffects) : '';
+    const effectsContext = (gameState.activeEffects && gameState.activeEffects.length > 0)
+      ? buildEffectsContext(gameState.activeEffects)
+      : '';
 
     // PHASE 3: Build conversation continuation context
     let continuationContext = '';
@@ -905,73 +964,15 @@ DO:
 Previous NPCs have departed. Do NOT continue their scenes. Set primaryNPC/primaryPortrait to null.
 
 **Waiting/Passive Actions & Time Passage:**
-- **Waiting for specific events with stated duration** ("wait for Mateo", "wait for the escort"):
+- **Waiting for specific events with stated duration**:
   * Check recent conversation history for stated time ("return in 30 minutes", "back in an hour")
   * Advance time to MATCH that duration (e.g., if they said "30 minutes", advance ~30 minutes)
   * Show the expected event occurring (person returns, task completes)
-  * Example: Maria sent Mateo on errand "return in 30 minutes" → Player says "wait" → Advance 30-35 minutes and show Mateo returning
 - **Passive observation** ("not much", "look around", "watch"): Pure description, minimal time (1-5 minutes), no new events
 - **Vague waiting** ("rest", "wait" with no context): Brief time passage (10-15 minutes), introduce new event
 `;
     }
 
-    // EXPERIMENTAL: Portrait list for LLM to choose from (A/B testing vs demographic matching)
-    // Feature flag controlled to save ~280 tokens when disabled
-    let experimentalPortraitSection = '';
-    if (isFeatureEnabled('experimentalPortraitSelection')) {
-      try {
-        if (selectedEntity && !isContinuation) {
-          // Filter portraits based on selected entity
-          const portraitList = getFilteredPortraitList({
-            gender: selectedEntity.gender,
-            occupation: selectedEntity.occupation || selectedEntity.archetype,
-            limit: 35  // Token-efficient: ~280 tokens for 35 portraits
-          });
-
-          experimentalPortraitSection = `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🧪 EXPERIMENTAL PORTRAIT SELECTION (A/B Testing)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-${portraitList}
-
-**EXPERIMENTAL INSTRUCTION:**
-Pick the EXACT filename from the list above that best matches this NPC.
-Put it in "experimentalPortraitChoice" field.
-This will NOT affect the game - it's for testing portrait variety.
-
-If no good match, set experimentalPortraitChoice to null.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
-
-        console.log('[NarrativeAgent] 🧪 Experimental portrait list generated:', portraitList.split('\n').length, 'lines');
-      } else if (!selectedEntity && !isContinuation) {
-        // No NPC - offer scenes/animals
-        experimentalPortraitSection = `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🧪 EXPERIMENTAL PORTRAIT SELECTION (Scenes/Animals)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**Available Scene Portraits** (for atmosphere without NPCs):
-coffeehouseday.jpg, coffeehouseevening.jpg, tavernaday.jpg, marketplaceday.jpg,
-churchcourtyard.jpg, backalleynight.jpg, villagelaneday.jpg, citybackstreet.jpg,
-palaceentryway.jpg, conventoinside.jpg, streetscene.jpg
-
-**Available Animal Portraits** (if an animal is present):
-catday.jpg, dog.jpg, pig.jpg, pablothegoat.jpg, horse.jpg, donkey.jpg,
-cow.jpg, sheep.jpg, owl.jpg, rabbit.jpg, rooster.jpg, duck.jpg
-
-**EXPERIMENTAL INSTRUCTION:**
-If appropriate, pick a scene or animal portrait from above.
-Put it in "experimentalPortraitChoice" field.
-This will NOT affect the game - it's for testing.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`;
-      }
-      } catch (error) {
-        console.warn('[NarrativeAgent] ⚠️ Failed to generate experimental portrait list:', error);
-      }
-    }
 
     // Build conversation history (5 full turns + 10 journal entries)
     const recentHistory = buildConversationHistory(conversationHistory, journal, turnNumber);
@@ -1004,8 +1005,6 @@ ${weatherContext ? `\n${weatherContext}\n` : ''}
 ${skillsContext ? `\n${skillsContext}\n` : ''}
 
 ${effectsContext ? `\n${effectsContext}\n` : ''}
-
-${experimentalPortraitSection ? `\n${experimentalPortraitSection}\n` : ''}
 
 Player Action: ${playerAction}
 
@@ -1146,8 +1145,8 @@ ${playerAction}`;
 
     const response = await createChatCompletion(
       messages,
-      0.7, // Higher temperature for more creative narrative
-      1200,
+      0.5, // Higher temperature for more creative narrative
+      1000,
       responseFormat,
       { agent: 'NarrativeAgent', turnNumber } // Metadata for LLM transparency view
     );
@@ -1187,10 +1186,12 @@ ${playerAction}`;
       narrativeData.primaryPortrait = null;
     }
     if (primaryNPC) {
-      if ((isContinuation || primaryNPC.name === continuationNPC) && recentPortrait) {
+      // FIX: Only maintain portrait if BOTH continuation is detected AND the NPC name matches
+      // If NPC changed (e.g., muleteer interrupted boy conversation), select new portrait
+      if (isContinuation && primaryNPC.name === continuationNPC && recentPortrait) {
         const normalizedRecentPortrait = normalizePortraitFilename(recentPortrait);
         narrativeData.primaryPortrait = normalizedRecentPortrait;
-        console.log(`[NarrativeAgent] 🔄 Continuation: Maintaining portrait ${normalizedRecentPortrait}`);
+        console.log(`[NarrativeAgent] 🔄 Continuation: Maintaining portrait ${normalizedRecentPortrait} for ${primaryNPC.name}`);
       } else {
         // Build input entity for portrait resolver using LLM-provided descriptors
         const portraitEntity = {
@@ -1200,7 +1201,12 @@ ${playerAction}`;
           casta: primaryNPC.casta,
           class: primaryNPC.class,
           occupation: primaryNPC.occupation,
-          appearance: {
+          // Add top-level fields for portrait tag matching
+          appearance: primaryNPC.appearance,
+          description: primaryNPC.description,
+          personality: primaryNPC.personality,
+          // Keep nested appearance for backwards compatibility
+          appearanceNested: {
             gender: primaryNPC.gender,
             age: primaryNPC.age,
             description: primaryNPC.appearance
@@ -1315,8 +1321,32 @@ ${playerAction}`;
         (keywordMatch && normalizedGender === 'unknown' && !normalizedOccupation);
     }
 
+    // ARRAY TO STRING: Join narrative array into single string with paragraph breaks
+    let narrativeText = '';
+    if (Array.isArray(narrativeData.narrative)) {
+      // LLM sent array of paragraphs - join with double newlines
+      narrativeText = narrativeData.narrative.join('\n\n');
+      console.log('[NarrativeAgent] ✓ Joined', narrativeData.narrative.length, 'paragraph(s)');
+    } else if (typeof narrativeData.narrative === 'string') {
+      // LLM sent string (legacy format) - use as-is
+      narrativeText = narrativeData.narrative;
+      console.warn('[NarrativeAgent] ⚠️ Received string instead of array for narrative (legacy format)');
+    } else {
+      narrativeText = '';
+    }
+
+    // PARAGRAPH BREAK FIX: Add line break before "Will you..." questions (if not already present)
+    // This ensures the closing question is visually separated from dialogue/description
+    if (narrativeText && !narrativeText.match(/\n\n.*?Will you/)) {
+      // Match: end punctuation + optional quote + whitespace + "Will you"
+      // Replace with: same content + double newline before "Will you"
+      narrativeText = narrativeText.replace(
+        /([.!?]"?)\s+(Will you [^?]+\?)/g,
+        '$1\n\n$2'
+      );
+    }
+
     // Check if NPC dialogue is embedded in narrative (should contain quoted speech)
-    const narrativeText = narrativeData.narrative || '';
     const hasQuotedDialogue = narrativeText.includes('"') || narrativeText.includes('"') || narrativeText.includes('"');
 
     if (primaryNPC && !hasQuotedDialogue && !isAnimal && narrativeText.length > 50) {
@@ -1327,13 +1357,14 @@ ${playerAction}`;
 
     return {
       success: true,
-      narrative: narrativeData.narrative || '',
+      narrative: narrativeText,
       responseType: narrativeData.responseType || 'narration',
       sceneDescription: narrativeData.sceneDescription || '',
       suggestedCommands: narrativeData.suggestedCommands || [],
       interactionIntent: narrativeData.interactionIntent || 'none',
       showPortraitFor: narrativeData.showPortraitFor || null,
-      primaryPortrait: narrativeData.primaryPortrait || null,
+      // Fix: Convert string "null" to actual null (LLM sometimes returns string instead of JSON null)
+      primaryPortrait: (narrativeData.primaryPortrait === 'null' || !narrativeData.primaryPortrait) ? null : narrativeData.primaryPortrait,
       primaryNPC: narrativeData.primaryNPC || null,
       simpleInteraction: narrativeData.simpleInteraction || null,
       requestNewPatient: narrativeData.requestNewPatient || false,
@@ -1402,18 +1433,10 @@ ${recentHistory}
 **Critical - The Final Question**:
 - Review the recent narrative for active plot threads (debts, conflicts, mysteries, opportunities, threats, NPC relationships)
 - Reference at least ONE of these threads in your question
-- Format: "Will you [specific action A], or [specific action B]?"
+- Format: "Will you [brief, specific action A], or [brief, specific action B]?"
 - Make both options feel urgent, interesting, or consequential
 - AVOID generic choices that result in no action
-- Connect to the drama: debts, dangers, relationships, mysteries, opportunities
-
-**Examples of GOOD questions**:
-- "Will you forage for herbs in the fields outside the city, or visit the market?"
-- "Will you accept the stranger's suspicious offer, or turn instead to the church for sanctuary?"
-
-**Examples of BAD questions (NEVER use these)**:
-- "What do you do?" ❌
-- "What is your next move?" ❌
+- Connect to the drama/plot that just happened, but propell plot forward in new, realistic way
 
 **Style**:
 - Second person ("you")

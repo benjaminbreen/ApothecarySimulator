@@ -4,6 +4,7 @@ import { useDrop } from 'react-dnd';
 import { getProfessionName, getProfessionIcon, PROFESSIONS } from '../../core/systems/levelingSystem';
 import { RippleIconButton } from '../RippleButton';
 import { formatDuration } from '../../systems/bodyEffects';
+import { isSafari } from '../../utils/browserDetection';
 
 /**
  * Get profession color theme for badges
@@ -55,7 +56,8 @@ function getProfessionColor(professionId) {
  * Displays character portrait, identity, and vital stats (health, energy, wealth)
  * with animations and collapse functionality
  */
-export function CharacterCard({
+// Memoize to prevent unnecessary re-renders (ALL BROWSERS performance optimization)
+export const CharacterCard = React.memo(function CharacterCard({
   wealth = 11,
   status = 'rested',
   health = 85,
@@ -72,6 +74,9 @@ export function CharacterCard({
   activeEffects = [], // Body effects (hallucinating, poisoned, etc.)
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Safari performance optimization - disable expensive animations
+  const isSafariBrowser = isSafari();
 
   // Notify parent when collapse state changes
   React.useEffect(() => {
@@ -102,7 +107,7 @@ export function CharacterCard({
   const wealthTimer = useRef(null);
   const ringPulseTimer = useRef(null);
 
-  // Detect health changes
+  // Detect health changes - Safari optimized: removed prevHealth from dependencies to prevent loops
   useEffect(() => {
     if (health !== prevHealth) {
       const diff = health - prevHealth;
@@ -112,9 +117,10 @@ export function CharacterCard({
       if (healthTimer.current) clearTimeout(healthTimer.current);
       healthTimer.current = setTimeout(() => setHealthFlash(null), 2000);
     }
-  }, [health, prevHealth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [health]); // Only health, not prevHealth (prevents dependency loop)
 
-  // Detect energy changes
+  // Detect energy changes - Safari optimized: removed prevEnergy from dependencies to prevent loops
   useEffect(() => {
     if (energy !== prevEnergy) {
       const diff = energy - prevEnergy;
@@ -124,9 +130,10 @@ export function CharacterCard({
       if (energyTimer.current) clearTimeout(energyTimer.current);
       energyTimer.current = setTimeout(() => setEnergyFlash(null), 2000);
     }
-  }, [energy, prevEnergy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [energy]); // Only energy, not prevEnergy (prevents dependency loop)
 
-  // Detect wealth changes
+  // Detect wealth changes - Safari optimized: removed prevWealth from dependencies to prevent loops
   useEffect(() => {
     if (wealth !== prevWealth) {
       const diff = wealth - prevWealth;
@@ -136,7 +143,8 @@ export function CharacterCard({
       if (wealthTimer.current) clearTimeout(wealthTimer.current);
       wealthTimer.current = setTimeout(() => setWealthFlash(null), 2000);
     }
-  }, [wealth, prevWealth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wealth]); // Only wealth, not prevWealth (prevents dependency loop)
 
   // IMPROVED: Semantic color logic - only show warning/danger when actually critical
   const getStatColor = (value, type) => {
@@ -241,7 +249,7 @@ export function CharacterCard({
     return 6; // Worst - red
   };
 
-  // Detect ring status changes and trigger pulse
+  // Detect ring status changes and trigger pulse - Safari optimized: removed prev values from dependencies
   useEffect(() => {
     const currentTier = getRingTier(health, energy);
     const prevTier = getRingTier(prevHealth, prevEnergy);
@@ -262,7 +270,8 @@ export function CharacterCard({
       if (ringPulseTimer.current) clearTimeout(ringPulseTimer.current);
       ringPulseTimer.current = setTimeout(() => setRingPulse(null), 1000);
     }
-  }, [health, energy, prevHealth, prevEnergy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [health, energy]); // Only current values, not prev (prevents dependency loop)
 
   // Drop zone for inventory items on player portrait
   const [{ isOverPlayer }, dropPlayer] = useDrop(() => ({
@@ -327,8 +336,8 @@ export function CharacterCard({
         }
 
         .liquid-shimmer-green:hover::after {
-          opacity: 1;
-          animation: liquidShimmer 4.5s ease-in-out infinite;
+          opacity: ${isSafariBrowser ? '0' : '1'};
+          ${isSafariBrowser ? '' : 'animation: liquidShimmer 4.5s ease-in-out infinite;'}
         }
 
         .liquid-shimmer-purple::after {
@@ -356,8 +365,8 @@ export function CharacterCard({
         }
 
         .liquid-shimmer-purple:hover::after {
-          opacity: 1;
-          animation: liquidShimmer 4.5s ease-in-out infinite;
+          opacity: ${isSafariBrowser ? '0' : '1'};
+          ${isSafariBrowser ? '' : 'animation: liquidShimmer 4.5s ease-in-out infinite;'}
         }
 
         .liquid-shimmer-gold::after {
@@ -387,8 +396,8 @@ export function CharacterCard({
         }
 
         .liquid-shimmer-gold:hover::after {
-          opacity: 1;
-          animation: liquidShimmer 4.5s ease-in-out infinite;
+          opacity: ${isSafariBrowser ? '0' : '1'};
+          ${isSafariBrowser ? '' : 'animation: liquidShimmer 4.5s ease-in-out infinite;'}
         }
 
         /* Portrait ring shimmer animation */
@@ -425,54 +434,54 @@ export function CharacterCard({
         }
 
         .portrait-ring-shimmer:hover::before {
-          opacity: 1;
-          animation: portraitRingShimmer 3s ease-in-out infinite;
+          opacity: ${isSafariBrowser ? '0' : '1'};
+          ${isSafariBrowser ? '' : 'animation: portraitRingShimmer 3s ease-in-out infinite;'}
         }
 
-        /* Dynamic ring width expansion on hover */
+        /* Dynamic ring width expansion on hover - disabled on Safari */
         .portrait-ring-shimmer:hover {
-          padding: 6px !important;
+          ${isSafariBrowser ? '' : 'padding: 6px !important;'}
         }
 
-        /* Pulse animations for status changes */
+        /* Pulse animations for status changes - Safari: no filters, only scale */
         @keyframes ringPulseMild {
           0%, 100% {
             transform: scale(1);
-            filter: brightness(1);
+            ${isSafariBrowser ? '' : 'filter: brightness(1);'}
           }
           50% {
             transform: scale(1.03);
-            filter: brightness(1.15);
+            ${isSafariBrowser ? '' : 'filter: brightness(1.15);'}
           }
         }
 
         @keyframes ringPulseModerate {
           0%, 100% {
             transform: scale(1);
-            filter: brightness(1) drop-shadow(0 0 0px transparent);
+            ${isSafariBrowser ? '' : 'filter: brightness(1) drop-shadow(0 0 0px transparent);'}
           }
           50% {
             transform: scale(1.05);
-            filter: brightness(1.25) drop-shadow(0 0 8px currentColor);
+            ${isSafariBrowser ? '' : 'filter: brightness(1.25) drop-shadow(0 0 8px currentColor);'}
           }
         }
 
         @keyframes ringPulseCritical {
           0%, 100% {
             transform: scale(1);
-            filter: brightness(1) drop-shadow(0 0 0px transparent);
+            ${isSafariBrowser ? '' : 'filter: brightness(1) drop-shadow(0 0 0px transparent);'}
           }
           25% {
             transform: scale(1.08);
-            filter: brightness(1.4) drop-shadow(0 0 12px currentColor);
+            ${isSafariBrowser ? '' : 'filter: brightness(1.4) drop-shadow(0 0 12px currentColor);'}
           }
           50% {
             transform: scale(1.05);
-            filter: brightness(1.3) drop-shadow(0 0 10px currentColor);
+            ${isSafariBrowser ? '' : 'filter: brightness(1.3) drop-shadow(0 0 10px currentColor);'}
           }
           75% {
             transform: scale(1.08);
-            filter: brightness(1.4) drop-shadow(0 0 12px currentColor);
+            ${isSafariBrowser ? '' : 'filter: brightness(1.4) drop-shadow(0 0 12px currentColor);'}
           }
         }
 
@@ -488,7 +497,7 @@ export function CharacterCard({
           animation: ringPulseCritical 1s ease-in-out;
         }
 
-        /* Profession choice badge glow animation */
+        /* Profession choice badge glow animation - Safari: static shadow */
         @keyframes professionBadgeGlow {
           0%, 100% {
             box-shadow: 0 0 8px rgba(251, 191, 36, 0.4), 0 0 16px rgba(251, 191, 36, 0.2);
@@ -499,7 +508,9 @@ export function CharacterCard({
         }
 
         .profession-badge-glow {
-          animation: professionBadgeGlow 2s ease-in-out infinite;
+          ${isSafariBrowser
+            ? 'box-shadow: 0 0 8px rgba(251, 191, 36, 0.4), 0 0 16px rgba(251, 191, 36, 0.2);'
+            : 'animation: professionBadgeGlow 2s ease-in-out infinite;'}
         }
 
         /* Body effects badge pulse animation */
@@ -516,13 +527,15 @@ export function CharacterCard({
       `}</style>
     <div className="group rounded-2xl p-4 shadow-lg dark:shadow-dark-elevation-2 mb-4 flex-shrink-0 transition-all duration-300 hover:shadow-2xl dark:hover:shadow-dark-elevation-3 relative overflow-hidden bg-gradient-to-br from-parchment-50/50 via-white/90 to-parchment-50/70 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 backdrop-blur-lg border border-parchment-300/30 hover:border-parchment-400/50 dark:border-slate-600/30 dark:hover:border-amber-500/40"
     >
-      {/* Beautiful glassmorphic overlay - subtle by default, brighter on hover */}
+      {/* Beautiful glassmorphic overlay - subtle by default, brighter on hover - Safari: no backdrop-filter */}
       <div
         className="absolute inset-0 opacity-50 dark:opacity-0 group-hover:opacity-40 dark:group-hover:opacity-0 transition-all duration-300 pointer-events-none"
         style={{
           background: 'radial-gradient(circle at 50% 80%, rgba(240, 253, 244, 0.5) 0%, rgba(255, 255, 255, 0.35) 30%, rgba(252, 250, 247, 0.98) 60%, transparent 100%)',
-          backdropFilter: 'blur(20px) saturate(100%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(200%)',
+          ...(isSafariBrowser ? {} : {
+            backdropFilter: 'blur(20px) saturate(100%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(200%)',
+          }),
         }}
       />
       {/* Collapse/Expand Button */}
@@ -552,7 +565,7 @@ export function CharacterCard({
             onClick={onOpenCharacterModal}
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
-            className={`mb-2 -mt-4 transition-all duration-500 hover:scale-105 cursor-pointer group relative portrait-ring-shimmer ${ringPulse ? `ring-pulse-${ringPulse}` : ''} ${isOverPlayer ? 'ring-4 ring-amber-400 scale-105' : ''}`}
+            className={`mb-2 -mt-4 transition-transform duration-500 hover:scale-105 cursor-pointer group relative portrait-ring-shimmer ${ringPulse ? `ring-pulse-${ringPulse}` : ''} ${isOverPlayer ? 'ring-4 ring-amber-400 scale-105' : ''}`}
             style={{
               width: '144px',
               height: '144px',
@@ -566,7 +579,7 @@ export function CharacterCard({
             }}
           >
             {/* Inner white ring for separation */}
-            <div className="w-full h-full rounded-full p-[2px] bg-white dark:bg-slate-800 transition-all duration-500 group-hover:shadow-lg"
+            <div className="w-full h-full rounded-full p-[2px] bg-white dark:bg-slate-800 transition-shadow duration-500 group-hover:shadow-lg"
               style={{
                 boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)'
               }}
@@ -585,6 +598,9 @@ export function CharacterCard({
                   src={portraitImage}
                   alt={characterName}
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                  style={{ willChange: 'auto' }}
                 />
               </div>
             </div>
@@ -601,7 +617,7 @@ export function CharacterCard({
           <button
             ref={dropPlayer}
             onClick={onOpenCharacterModal}
-            className={`mb-3 cursor-pointer hover:scale-105 transition-all duration-500 group relative flex items-center justify-center portrait-ring-shimmer ${ringPulse ? `ring-pulse-${ringPulse}` : ''} ${isOverPlayer ? 'ring-4 ring-amber-400 scale-105' : ''}`}
+            className={`mb-3 cursor-pointer hover:scale-105 transition-transform duration-500 group relative flex items-center justify-center portrait-ring-shimmer ${ringPulse ? `ring-pulse-${ringPulse}` : ''} ${isOverPlayer ? 'ring-4 ring-amber-400 scale-105' : ''}`}
             title={isOverPlayer ? "Drop item to use" : "View character details"}
             style={{
               width: '120px',
@@ -989,4 +1005,4 @@ export function CharacterCard({
     )}
     </>
   );
-}
+});

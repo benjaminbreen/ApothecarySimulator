@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FaClipboardList, FaBed, FaShoppingCart, FaBalanceScale } from 'react-icons/fa';
 import { RippleButton } from './RippleButton';
+import { getBackdropFilter } from '../utils/browserDetection';
 
 // Available actions that can be assigned to hotkey slots
 const AVAILABLE_ACTIONS = {
@@ -364,7 +365,7 @@ export function ActionPanel({
               className="w-10 h-10 bg-gradient-to-br from-[#fdfbf7] to-[#f9f6f1] dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center text-xl border border-[#f4e8d0] dark:border-gray-600 transition-all duration-300 group-hover/tooltip:rotate-[5deg]"
               style={{
                 boxShadow: isHovered
-                  ? `inset 0 2px 4px rgba(0, 0, 0, ${isDark ? 0.3 : 0.08}), 0 2px 8px rgba(0, 0, 0, ${isDark ? 0.2 : 0.05}), 0 0 20px ${colorScheme.glowColor}`
+                  ? `inset 0 2px 4px rgba(0, 0, 0, ${isDark ? 0.4 : 0.2}), 0 2px 8px rgba(0, 0, 0, ${isDark ? 0.3 : 0.25}), 0 0 20px ${colorScheme.glowColor}`
                   : isDark
                   ? 'inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2)'
                   : 'inset 0 2px 4px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.05)'
@@ -417,7 +418,7 @@ export function ActionPanel({
           }}
         >
           {/* Icon */}
-          <div className="w-10 h-10 bg-[#f9f6f1] dark:bg-gray-700 rounded-lg flex items-center justify-center text-lg flex-shrink-0 text-[#6b5a47] dark:text-[#f4e8d0]">
+          <div className="w-8 h-8 bg-[#f9f6f1] dark:bg-gray-700 rounded-lg flex items-center justify-center text-lg flex-shrink-0 text-[#6b5a47] dark:text-[#f4e8d0]">
             {action.icon}
           </div>
 
@@ -454,8 +455,7 @@ export function ActionPanel({
           background: isDark
             ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(30, 41, 59, 0.92) 50%, rgba(15, 23, 42, 0.90) 100%)'
             : 'linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(249, 245, 235, 0.92) 50%, rgba(252, 250, 247, 0.90) 100%)',
-          backdropFilter: 'blur(16px) saturate(120%)',
-          WebkitBackdropFilter: 'blur(16px) saturate(120%)',
+          ...getBackdropFilter('blur(16px) saturate(120%)'),
           border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)',
           boxShadow: isDark
             ? '0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
@@ -539,8 +539,7 @@ export function ActionPanel({
           background: isDark
             ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.88) 0%, rgba(30, 41, 59, 0.92) 50%, rgba(15, 23, 42, 0.90) 100%)'
             : 'linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, rgba(249, 245, 235, 0.92) 50%, rgba(252, 250, 247, 0.90) 100%)',
-          backdropFilter: 'blur(16px) saturate(120%)',
-          WebkitBackdropFilter: 'blur(16px) saturate(120%)',
+          ...getBackdropFilter('blur(16px) saturate(120%)'),
           border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)',
           boxShadow: isDark
             ? '0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
@@ -549,7 +548,7 @@ export function ActionPanel({
       >
 
         {/* Primary Actions Section Header with Elegant Dividers */}
-        <div className="flex items-center gap-2.5 mb-2">
+        <div className="flex items-center gap-2 mb-1">
           <div className="flex-1 h-px bg-gradient-to-r from-transparent via-[#d4c5a9] to-[#d4c5a9] dark:via-gray-600 dark:to-gray-600"></div>
           <span className="font-sans text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-[0.15em] whitespace-nowrap">
             Primary Actions
@@ -583,7 +582,7 @@ export function ActionPanel({
         </div>
 
         {/* 3 Main Action Buttons (ROW) */}
-        <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+        <div className="grid grid-cols-3 gap-1.5 mb-2">
           {renderMainActionButton(1)}
           {renderMainActionButton(2)}
           {renderMainActionButton(3)}
@@ -629,4 +628,5 @@ export function ActionPanel({
   );
 }
 
-export default ActionPanel;
+// Memoize to prevent unnecessary re-renders (ALL BROWSERS performance optimization)
+export default React.memo(ActionPanel);

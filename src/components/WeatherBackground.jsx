@@ -15,6 +15,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import TimeAwareBackground from './TimeAwareBackground';
 import HorizonLine from './HorizonLine';
+import BiomeHorizon from './BiomeHorizon';
 import WeatherEffects from './WeatherEffects';
 import CloudLayer from './CloudLayer';
 import { parseGameTime, getSeasonFromDate, getTimeOfDay } from '../utils/timeUtils';
@@ -31,8 +32,16 @@ const WeatherBackground = ({
   testWeatherOverride = null, // DEV: Override weather type (e.g., 'thunderstorm', 'clear')
   testHorizonOverride = null, // DEV: Override horizon type (e.g., 'mountains', 'city')
   travelZoom = null, // House call zoom state { isActive, progress, targetX }
-  isWeatherViewActive = false // When true, enable pointer events for building tooltips
+  isWeatherViewActive = false, // When true, enable pointer events for building tooltips
+  activeEffects = [], // Body effects (for special backgrounds like visions)
+  currentBiome = 'city-mexico', // Current biome for horizon rendering
+  previousBiome = null // Previous biome for fade transitions
 }) => {
+  // Debug logging
+  useEffect(() => {
+    console.log('[WeatherBackground] Received activeEffects:', activeEffects);
+  }, [activeEffects]);
+
   const [weather, setWeather] = useState(null);
   const [lightningFlash, setLightningFlash] = useState(false);
   const [dimensions, setDimensions] = useState({
@@ -46,14 +55,22 @@ const WeatherBackground = ({
   const timeOfDay = useMemo(() => getTimeOfDay(hours), [hours]);
 
   // Memoize cloud config to prevent unnecessary regeneration
-  // Only regenerates when hours change (once per hour), not every minute
+  // Only depends on cloud-affecting weather properties (not full weather object)
   const cloudConfig = useMemo(() => {
     if (!enabled || !weather) {
       return { enabled: false, layers: [], seed: 0 };
     }
     const seed = hours * 100;
     return generateCloudConfig(weather, seed);
-  }, [weather, hours, enabled]);
+  }, [
+    enabled,
+    weather?.precipitation,
+    weather?.intensity,
+    weather?.cloudCover,
+    weather?.windSpeed,
+    weather?.special,
+    hours
+  ]);
 
   // Helper function to generate test weather from override string
   const generateTestWeather = (weatherType) => {
@@ -154,19 +171,27 @@ const WeatherBackground = ({
     }
   }, [gameTime, gameDate, location, enabled, hours, testWeatherOverride]); // Removed onWeatherChange to prevent infinite loop from callback recreation
 
-  // Update dimensions on window resize
+  // Update dimensions on window resize (debounced for performance)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    let resizeTimeout;
     const handleResize = () => {
-      setDimensions({
-        width: window.innerWidth,
-        height: window.innerHeight
-      });
+      // Debounce: only update after 500ms of no resizing
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        setDimensions({
+          width: window.innerWidth,
+          height: window.innerHeight
+        });
+      }, 500);
     };
 
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimeout);
+    };
   }, []);
 
   // Trigger random lightning flashes during storms
@@ -308,6 +333,7 @@ const WeatherBackground = ({
         weather={weather}
         season={season}
         climate={climate}
+        activeEffects={activeEffects}
       />
 
       {/* Animated clouds (above sky, below horizon) */}
@@ -320,31 +346,36 @@ const WeatherBackground = ({
         />
       )}
 
-      {/* Lightning flashes during storms */}
-      {weather.fx?.lightningProbability > 0.3 && lightningFlash && (
+      {/* Lightning flashes during storms - pre-created overlay for performance */}
+      {weather.fx?.lightningProbability > 0.3 && (
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: `radial-gradient(ellipse at ${Math.random() * 100}% ${Math.random() * 40}%,
-              rgba(255, 255, 255, 0.4) 0%,
-              rgba(220, 230, 255, 0.3) 20%,
-              rgba(180, 200, 240, 0.15) 40%,
-              transparent 70%)`,
+            background: 'radial-gradient(ellipse at 50% 20%, rgba(255, 255, 255, 0.4) 0%, rgba(220, 230, 255, 0.3) 20%, rgba(180, 200, 240, 0.15) 40%, transparent 70%)',
             mixBlendMode: 'screen',
             zIndex: 5,
-            animation: 'lightning-flicker 0.1s ease-in-out'
+            opacity: lightningFlash ? 1 : 0,
+            transition: 'opacity 0.05s ease-out'
           }}
         />
       )}
 
-      {/* Horizon silhouettes (mountains + city) */}
+      {/* Horizon silhouettes (mountains + city for Mexico City, PNG for other locations) */}
       {viewMode !== 'interior' && (
-        <HorizonLine
-          type={horizonType}
-          timeOfDay={timeOfDay}
-          weather={weather}
-          travelZoom={travelZoom}
-        />
+        currentBiome === 'city-mexico' ? (
+          <HorizonLine
+            type={horizonType}
+            timeOfDay={timeOfDay}
+            weather={weather}
+            travelZoom={travelZoom}
+          />
+        ) : (
+          <BiomeHorizon
+            currentBiome={currentBiome}
+            previousBiome={previousBiome}
+            gameTime={gameTime}
+          />
+        )
       )}
 
       {/* Weather particle effects (top layer) */}

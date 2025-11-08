@@ -1,6 +1,7 @@
 import React from 'react';
 import DateTimeDropdown from './DateTimeDropdown';
 import { RippleButton, RippleIconButton } from './RippleButton';
+import { isSafari } from '../utils/browserDetection';
 
 const Header = ({
   location = 'Mexico City',
@@ -23,6 +24,8 @@ const Header = ({
   // Style prop for pointer events control
   style
 }) => {
+  // Safari performance optimization - disable expensive backdrop-filter
+  const isSafariBrowser = isSafari();
 
   const handleSaveGame = () => {
     if (onSaveGame) {
@@ -76,7 +79,7 @@ const Header = ({
 
             {/* Location & Time - More elegant */}
             <div className="hidden lg:flex items-center gap-3">
-              <div className="flex items-center ml-2 gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-parchment-300 dark:border-slate-600 shadow-sm dark:shadow-dark-elevation-1 transition-all duration-300">
+              <div className={`flex items-center ml-2 gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 ${isSafariBrowser ? '' : 'backdrop-blur-sm'} border border-parchment-300 dark:border-slate-600 shadow-sm dark:shadow-dark-elevation-1 transition-all duration-300`}>
                 <svg className="w-4 h-4 text-emerald-600 dark:text-amber-500 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -98,10 +101,10 @@ const Header = ({
                 wealth={wealth}
                 onTimeChange={onTimeChange}
               />
-              {/* Weather Badge */}
+              {/* Weather Badge - Safari: no backdrop-blur */}
               <button
                 onClick={onWeatherClick}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl backdrop-blur-sm border shadow-sm transition-all duration-300 ${
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${isSafariBrowser ? '' : 'backdrop-blur-sm'} border shadow-sm transition-all duration-300 ${
                   isWeatherViewActive
                     ? 'bg-sky-500/80 border-sky-400 text-white'
                     : 'bg-white/60 dark:bg-slate-800/60 border-parchment-300 dark:border-slate-600 text-ink-800 dark:text-parchment-200 hover:bg-white/80 dark:hover:bg-slate-700/60'
@@ -157,4 +160,5 @@ const Header = ({
   );
 };
 
-export default Header;
+// Memoize to prevent unnecessary re-renders (ALL BROWSERS performance optimization)
+export default React.memo(Header);

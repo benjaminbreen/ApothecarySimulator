@@ -87,15 +87,26 @@ function ContractOfferModal({
   // Handle treatment contract acceptance
   const handleAcceptTreatment = () => {
     // Find or create the patient entity
+    console.log('[ContractModal] Looking for patient entity with name:', offer.patientName);
     let patientEntity = entityManager.getByName(offer.patientName);
 
     if (!patientEntity) {
+      console.log('[ContractModal] Patient not found, searching for match...');
       // Try to find a patient entity registered by NarrativeAgent that matches the description
+      // IMPORTANT: Only match if patientName is generic (like "Citlali's child")
+      // Don't accidentally match emissary when looking for their child!
       const allEntities = entityManager.getAll();
-      const potentialPatient = allEntities.find(e =>
+      const isGenericName = offer.patientName.toLowerCase().includes('child') ||
+                           offer.patientName.toLowerCase().includes('son') ||
+                           offer.patientName.toLowerCase().includes('daughter');
+
+      const potentialPatient = isGenericName && offer.patientDescription ? allEntities.find(e =>
         e.entityType === 'patient' &&
-        e.description?.toLowerCase().includes(offer.patientDescription?.toLowerCase().split(' ').slice(0, 3).join(' '))
-      );
+        e.name !== offer.offeredBy && // CRITICAL: Don't match the emissary!
+        e.description?.toLowerCase().includes(offer.patientDescription.toLowerCase().split(' ').slice(0, 3).join(' '))
+      ) : null;
+
+      console.log('[ContractModal] Entity search - isGenericName:', isGenericName, 'found:', potentialPatient?.name || 'none');
 
       if (potentialPatient) {
         console.log('[ContractModal] Found matching patient entity from LLM:', potentialPatient.name);
@@ -155,6 +166,7 @@ function ContractOfferModal({
       offeredBy: offer.offeredBy || null,
       paymentAgreed: offer.paymentOffered,
       patientLocation: offer.patientLocation || null,
+      ailmentDescription: offer.ailmentDescription || offer.patientDescription || null,
       isEmissary: !!offer.isEmissary,
       contractIntent: offer.type || 'treatment'
     };
@@ -365,6 +377,8 @@ ${isTreatment
 
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
+          
+
           {/* Negotiation Response (if active) */}
           {negotiationResponse && (
             <div

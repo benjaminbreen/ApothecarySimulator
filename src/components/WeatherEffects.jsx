@@ -66,7 +66,7 @@ const WeatherEffects = ({
 }) => {
   const containerRef = useRef(null);
 
-  // Particle pools
+  // Particle pools (lazy-initialized only when needed)
   const rainPoolRef = useRef(null);
   const rainBgPoolRef = useRef(null); // Background rain layer (behind clouds)
   const rainFgPoolRef = useRef(null); // Foreground rain layer (closest to viewer)
@@ -81,22 +81,17 @@ const WeatherEffects = ({
   const fx = weather.fx;
   const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 
-  // Initialize pools once
+  // Helper function to lazy-initialize a pool
+  const ensurePool = (poolRef, size, className) => {
+    if (!poolRef.current && containerRef.current) {
+      poolRef.current = new ParticlePool(size, className);
+      poolRef.current.init(containerRef.current);
+    }
+    return poolRef.current;
+  };
+
+  // Cleanup on unmount
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    rainPoolRef.current = new ParticlePool(60, 'rain-particle'); // Midground layer
-    rainBgPoolRef.current = new ParticlePool(40, 'rain-particle-bg'); // Background layer (behind clouds)
-    rainFgPoolRef.current = new ParticlePool(40, 'rain-particle-fg'); // Foreground layer (closest)
-    blossomPoolRef.current = new ParticlePool(80, 'petal-particle'); // Optimized from 120
-    airPoolRef.current = new ParticlePool(60, 'air-particle'); // Optimized from 100
-
-    rainPoolRef.current.init(containerRef.current);
-    rainBgPoolRef.current.init(containerRef.current);
-    rainFgPoolRef.current.init(containerRef.current);
-    blossomPoolRef.current.init(containerRef.current);
-    airPoolRef.current.init(containerRef.current);
-
     return () => {
       rainPoolRef.current?.cleanup();
       rainBgPoolRef.current?.cleanup();
@@ -131,7 +126,7 @@ const WeatherEffects = ({
 
       // BACKGROUND LAYER (30% of drops) - Behind clouds, faint, smaller, slower
       const bgCount = Math.floor(totalCount * 0.3);
-      rainBgPoolRef.current?.activate(bgCount, (particle) => {
+      ensurePool(rainBgPoolRef, 30, 'rain-particle-bg')?.activate(bgCount, (particle) => {
         const x = Math.random() * width;
         const startY = -20 - Math.random() * 60;
         const dropW = clamp(0.6 + sizeFactor * 1.2, 0.6, 1.8); // Smaller
@@ -157,7 +152,7 @@ const WeatherEffects = ({
 
       // MIDGROUND LAYER (50% of drops) - Main rain layer
       const midCount = Math.floor(totalCount * 0.5);
-      rainPoolRef.current?.activate(midCount, (particle) => {
+      ensurePool(rainPoolRef, 30, 'rain-particle')?.activate(midCount, (particle) => {
         const x = Math.random() * width;
         const startY = -20 - Math.random() * 80;
         const dropW = clamp(0.8 + sizeFactor * 2, 0.8, 3);
@@ -182,7 +177,7 @@ const WeatherEffects = ({
 
       // FOREGROUND LAYER (20% of drops) - Closest to viewer, brightest, largest, fastest
       const fgCount = Math.floor(totalCount * 0.2);
-      rainFgPoolRef.current?.activate(fgCount, (particle) => {
+      ensurePool(rainFgPoolRef, 20, 'rain-particle-fg')?.activate(fgCount, (particle) => {
         const x = Math.random() * width;
         const startY = -10 - Math.random() * 40;
         const dropW = clamp(1.2 + sizeFactor * 3, 1.2, 5); // Larger
@@ -206,6 +201,7 @@ const WeatherEffects = ({
         particle.style.filter = 'blur(0.2px)'; // Slight motion blur
       });
     } else {
+      // Deactivate rain pools if initialized
       rainPoolRef.current?.activate(0, () => {});
       rainBgPoolRef.current?.activate(0, () => {});
       rainFgPoolRef.current?.activate(0, () => {});
@@ -221,9 +217,9 @@ const WeatherEffects = ({
 
     if (showBlossoms && blossoms) {
       const { activity, palette, sizeRange } = blossoms;
-      const count = Math.min(80, Math.floor(activity * 80)); // Optimized for 80-particle pool
+      const count = Math.min(40, Math.floor(activity * 40)); // Reduced pool size for performance
 
-      blossomPoolRef.current?.activate(count, (particle) => {
+      ensurePool(blossomPoolRef, 40, 'petal-particle')?.activate(count, (particle) => {
         const x = Math.random() * width;
         const startY = Math.random() * (height * 0.28) - 60;
         const size = sizeRange ? (sizeRange[0] + Math.random() * (sizeRange[1] - sizeRange[0])) : (3 + Math.random() * 4);
@@ -262,9 +258,9 @@ const WeatherEffects = ({
     const showPollen = ap && ap.type === 'pollen';
 
     if ((showDust || showPollen) && weather.precipitation === 'none') {
-      const count = Math.floor((ap.density ?? 0.4) * 60); // Optimized for 60-particle pool
+      const count = Math.floor((ap.density ?? 0.4) * 30); // Reduced pool size for performance
 
-      airPoolRef.current?.activate(count, (particle) => {
+      ensurePool(airPoolRef, 30, 'air-particle')?.activate(count, (particle) => {
         const x = Math.random() * width;
         const baseY = height * (showDust ? (0.08 + Math.random() * 0.5) : (0.15 + Math.random() * 0.5));
         const dx = showDust ? windX * (8 + Math.random() * 18) : (Math.random() * 40 - 20);

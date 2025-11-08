@@ -241,7 +241,7 @@ export function LongDistanceTravelModal({
       setSelectedModeId(null);
       setCustomNote('');
       if (worldMapData?.bounds) {
-        setMapZoom(1);
+        setMapZoom(2.5); // Default to zoomed-in view (was 1)
         setMapCenter({
           x: origin?.position?.x ?? worldMapData.bounds.width / 2,
           y: origin?.position?.y ?? worldMapData.bounds.height / 2

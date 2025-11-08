@@ -42,41 +42,18 @@ export async function initializeEntitySystem() {
       item: itemGenerator
     });
 
-    // Try to load from localStorage first
-    const savedEntities = localStorage.getItem('apothecary_entities');
+    // NOTE: Entity loading is now handled by saveManager (v1.1.0+)
+    // Entities are loaded from save slots, not separate localStorage keys
+    // If no entities are loaded (new game), migrate from static data
 
-    if (savedEntities) {
-      try {
-        const entities = JSON.parse(savedEntities);
-        console.log(`[EntitySystem] Loading ${entities.length} entities from localStorage...`);
-        entityManager.importFromJSON(entities);
-        console.log('[EntitySystem] ✅ Loaded entities from localStorage');
-      } catch (error) {
-        console.error('[EntitySystem] Failed to load from localStorage:', error);
-        // Fall through to migration
-      }
-    }
-
-    // If no saved entities or loading failed, migrate from static data
     if (entityManager.count() === 0) {
-      console.log('[EntitySystem] No saved entities, migrating from static data...');
+      console.log('[EntitySystem] No entities loaded, migrating from static data...');
       const results = await migrateAllEntities(EntityList, initialInventoryData);
       console.log(`[EntitySystem] Migrated ${results.npcs} NPCs and ${results.items} items`);
-
-      // Save after migration
-      saveEntitiesToLocalStorage();
     }
 
-    // Set up auto-save callback
-    entityManager.setSaveCallback(() => {
-      // Debounce saves to avoid excessive writes
-      if (window.entitySaveTimeout) {
-        clearTimeout(window.entitySaveTimeout);
-      }
-      window.entitySaveTimeout = setTimeout(() => {
-        saveEntitiesToLocalStorage();
-      }, 500); // Save 500ms after last change
-    });
+    // REMOVED: Auto-save callback (saveManager now handles persistence)
+    // REMOVED: localStorage operations (saveManager now handles storage)
 
     initialized = true;
 
@@ -96,26 +73,42 @@ export async function initializeEntitySystem() {
 }
 
 /**
- * Save all entities to localStorage
+ * Export all entities for save system
+ * @returns {Array} Array of entity data ready for JSON serialization
  */
-export function saveEntitiesToLocalStorage() {
+export function exportEntitiesForSave() {
+  const entities = entityManager.exportToJSON();
+  console.log(`[EntitySystem] Exported ${entities.length} entities for save`);
+  return entities;
+}
+
+/**
+ * Load entities from save data
+ * @param {Array} entities - Array of entity data from save
+ * @returns {boolean} Success status
+ */
+export function loadEntitiesFromSave(entities) {
   try {
-    const entities = entityManager.exportToJSON();
-    localStorage.setItem('apothecary_entities', JSON.stringify(entities));
-    console.log(`[EntitySystem] 💾 Saved ${entities.length} entities to localStorage`);
+    if (!Array.isArray(entities)) {
+      console.error('[EntitySystem] Invalid entity data: not an array');
+      return false;
+    }
+
+    entityManager.clear();
+    entityManager.importFromJSON(entities);
+    console.log(`[EntitySystem] ✅ Loaded ${entities.length} entities from save`);
     return true;
   } catch (error) {
-    console.error('[EntitySystem] ❌ Failed to save entities:', error);
+    console.error('[EntitySystem] ❌ Failed to load entities from save:', error);
     return false;
   }
 }
 
 /**
- * Reset the entity system (for testing)
+ * Reset the entity system (for new game)
  */
 export function resetEntitySystem() {
   entityManager.clear();
-  localStorage.removeItem('apothecary_entities');
   initialized = false;
   console.log('[EntitySystem] Reset complete');
 }

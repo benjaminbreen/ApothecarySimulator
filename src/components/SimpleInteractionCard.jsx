@@ -842,7 +842,15 @@ export default function SimpleInteractionCard({
     // Gambling state (use Map to handle multiple simultaneous gambles)
     const gambleKey = `${interaction.type}_${interaction.npcName}_${gameType}`;
     const [gamblingStates, setGamblingStates] = useState(new Map());
-    const gamblingState = gamblingStates.get(gambleKey) || { phase: 'offer', result: null };
+    const gamblingState = gamblingStates.get(gambleKey) || {
+      phase: 'offer',
+      result: null,
+      playerChoice: null,
+      gameResult: null,
+      dealerCard: null,
+      playerDice: null,
+      houseDice: null
+    };
 
     const setGamblingState = (newState) => {
       setGamblingStates(prev => {
@@ -852,6 +860,36 @@ export default function SimpleInteractionCard({
       });
     };
 
+    // Helper: Draw random Spanish playing card
+    const drawCard = () => {
+      const suits = ['Oros', 'Copas', 'Espadas', 'Bastos'];
+      const values = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12]; // Spanish deck: 1-7, 10(Sota), 11(Caballo), 12(Rey)
+      return {
+        suit: suits[Math.floor(Math.random() * suits.length)],
+        value: values[Math.floor(Math.random() * values.length)]
+      };
+    };
+
+    // Helper: Get card emoji
+    const getCardEmoji = (card) => {
+      if (!card) return '🃏';
+      const suitEmojis = {
+        'Oros': '🪙', // Coins
+        'Copas': '🍷', // Cups
+        'Espadas': '⚔️', // Swords
+        'Bastos': '🏏'  // Clubs
+      };
+      return suitEmojis[card.suit] || '🃏';
+    };
+
+    // Helper: Get card display name
+    const getCardName = (card) => {
+      if (card.value === 10) return 'Sota';
+      if (card.value === 11) return 'Caballo';
+      if (card.value === 12) return 'Rey';
+      return card.value.toString();
+    };
+
     // Odds display
     const oddsInfo = {
       favorable: { text: '60% to win', color: 'text-green-300', icon: '🍀' },
@@ -859,6 +897,155 @@ export default function SimpleInteractionCard({
       unfavorable: { text: '40% to win', color: 'text-red-300', icon: '⚠️' }
     };
     const oddsDisplay = oddsInfo[odds] || oddsInfo.even;
+
+    // === GAME-SPECIFIC HANDLERS ===
+
+    // Taba (Knucklebone) Game
+    const handleTabaChoice = (side) => {
+      setGamblingState({
+        ...gamblingState,
+        phase: 'playing',
+        playerChoice: side.name
+      });
+
+      // Simulate toss
+      setTimeout(() => {
+        const sides = [
+          { name: 'Suerte', probability: 0.35 },
+          { name: 'Culo', probability: 0.35 },
+          { name: 'Lado', probability: 0.15 },
+          { name: 'Pinino', probability: 0.15 }
+        ];
+
+        const roll = Math.random();
+        let cumulative = 0;
+        let landed = sides[0];
+
+        for (const s of sides) {
+          cumulative += s.probability;
+          if (roll <= cumulative) {
+            landed = s;
+            break;
+          }
+        }
+
+        const won = landed.name === side.name;
+
+        setGamblingState({
+          ...gamblingState,
+          phase: 'result',
+          playerChoice: side.name,
+          gameResult: landed.name,
+          result: won ? 'win' : 'lose'
+        });
+
+        resolveGame(won, false);
+      }, 1500);
+    };
+
+    // Cards (High/Low) Game
+    const handleCardChoice = (guess) => {
+      const dealer = gamblingState.dealerCard || drawCard();
+      setGamblingState({
+        ...gamblingState,
+        phase: 'playing',
+        dealerCard: dealer,
+        playerChoice: guess
+      });
+
+      // Draw next card
+      setTimeout(() => {
+        const nextCard = drawCard();
+        const won = (guess === 'higher' && nextCard.value > dealer.value) ||
+                     (guess === 'lower' && nextCard.value < dealer.value) ||
+                     (guess === 'same' && nextCard.value === dealer.value);
+
+        setGamblingState({
+          ...gamblingState,
+          phase: 'result',
+          dealerCard: dealer,
+          gameResult: nextCard,
+          playerChoice: guess,
+          result: won ? 'win' : 'lose'
+        });
+
+        resolveGame(won, false);
+      }, 1500);
+    };
+
+    // Dice Game
+    const handleDiceRoll = () => {
+      setGamblingState({
+        ...gamblingState,
+        phase: 'playing'
+      });
+
+      // Roll dice
+      setTimeout(() => {
+        const house = Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1;
+        const player = Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1;
+        const won = player > house;
+
+        setGamblingState({
+          ...gamblingState,
+          phase: 'result',
+          houseDice: house,
+          playerDice: player,
+          result: won ? 'win' : 'lose'
+        });
+
+        resolveGame(won, false);
+      }, 1500);
+    };
+
+    // Cockfight Game
+    const handleCockfightBet = (choice) => {
+      setGamblingState({
+        ...gamblingState,
+        phase: 'playing',
+        playerChoice: choice
+      });
+
+      // Simulate fight
+      setTimeout(() => {
+        const winProbability = choice === 'red' ? 0.45 : 0.55; // Black slightly favored
+        const won = Math.random() < winProbability;
+
+        setGamblingState({
+          ...gamblingState,
+          phase: 'result',
+          playerChoice: choice,
+          result: won ? 'win' : 'lose',
+          gameResult: won ? choice : (choice === 'red' ? 'black' : 'red')
+        });
+
+        resolveGame(won, false);
+      }, 2000);
+    };
+
+    // Generic resolution
+    const resolveGame = (won, isDouble) => {
+      setTimeout(() => {
+        if (won && !isDouble) {
+          // Offer double or nothing
+          setGamblingState(prev => ({
+            ...prev,
+            phase: 'double_offer',
+            currentWinnings: potentialWin - wager
+          }));
+        } else {
+          // Final result - trigger callback after delay
+          setTimeout(() => {
+            if (won) {
+              onChoice(isDouble ? 'bet_doubled_won' : 'bet_won', interaction);
+            } else {
+              onChoice(isDouble ? 'bet_doubled_lost' : 'bet_lost', interaction);
+            }
+            setGamblingState({ phase: 'offer', result: null });
+          }, 2500);
+        }
+      }, 1500);
+    };
 
     const handleBet = (isDouble = false, currentStake = wager, currentPotential = potentialWin) => {
       if (!canAfford && !isDouble) return;
@@ -1015,22 +1202,146 @@ export default function SimpleInteractionCard({
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleBet}
-                      disabled={!canAfford}
-                      className="flex-1 px-4 py-3 bg-gradient-to-r from-yellow-500/80 to-orange-500/80 hover:from-yellow-500/90 hover:to-orange-500/90 text-white font-bold rounded-lg transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
-                    >
-                      {canAfford ? `🎲 Place Bet (${wager} reales)` : `Cannot Afford (need ${wager})`}
-                    </button>
-                    <button
-                      onClick={() => onChoice('walk_away', interaction)}
-                      className="px-4 py-3 bg-white/20 hover:bg-white/30 text-white font-semibold rounded-lg transition-colors"
-                    >
-                      Walk Away
-                    </button>
-                  </div>
+                  {/* Game-Specific UI */}
+                  {gameType === 'taba' && (
+                    <>
+                      <div className="text-white/90 text-sm mb-2 text-center">
+                        {npcName} tosses the knucklebone... Which side lands up?
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        {[
+                          { name: 'Suerte', probability: 35, emoji: '🦴', color: 'from-green-500/40' },
+                          { name: 'Culo', probability: 35, emoji: '🦴', color: 'from-blue-500/40' },
+                          { name: 'Lado', probability: 15, emoji: '🦴', color: 'from-orange-500/40' },
+                          { name: 'Pinino', probability: 15, emoji: '🦴', color: 'from-purple-500/40' }
+                        ].map(side => (
+                          <button
+                            key={side.name}
+                            onClick={() => handleTabaChoice(side)}
+                            disabled={!canAfford}
+                            className={`p-3 bg-gradient-to-br ${side.color} to-black/40 hover:to-black/20 rounded-lg border border-white/30 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed`}
+                          >
+                            <div className="text-3xl mb-1">{side.emoji}</div>
+                            <div className="text-white font-bold text-sm">{side.name}</div>
+                            <div className="text-white/70 text-xs">{side.probability}% chance</div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {gameType === 'cards' && (
+                    <>
+                      <div className="bg-black/30 rounded-lg p-4 mb-3 border border-white/20">
+                        <div className="text-white/80 text-sm mb-2 text-center">Dealer's Card</div>
+                        <div className="text-center mb-2">
+                          {(() => {
+                            const card = gamblingState.dealerCard || drawCard();
+                            if (!gamblingState.dealerCard) {
+                              setGamblingState({ ...gamblingState, dealerCard: card });
+                            }
+                            return (
+                              <>
+                                <div className="text-5xl mb-1">{getCardEmoji(card)}</div>
+                                <div className="text-white font-bold text-xl">{getCardName(card)}</div>
+                                <div className="text-white/70 text-sm">{card.suit}</div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                        <div className="text-white/90 text-sm text-center">Will the next card be higher or lower?</div>
+                      </div>
+                      <div className="flex gap-2 mb-3">
+                        <button
+                          onClick={() => handleCardChoice('higher')}
+                          disabled={!canAfford}
+                          className="flex-1 p-3 bg-green-500/30 hover:bg-green-500/40 rounded-lg border border-green-400/50 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="text-white font-bold">⬆️ Higher</div>
+                        </button>
+                        <button
+                          onClick={() => handleCardChoice('lower')}
+                          disabled={!canAfford}
+                          className="flex-1 p-3 bg-red-500/30 hover:bg-red-500/40 rounded-lg border border-red-400/50 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="text-white font-bold">⬇️ Lower</div>
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {gameType === 'dice' && (
+                    <>
+                      <div className="bg-black/30 rounded-lg p-4 mb-3 border border-white/20 text-center">
+                        <div className="text-white/80 text-sm mb-3">Roll 2d6 and beat the house!</div>
+                        <div className="text-6xl mb-2">🎲 🎲</div>
+                        <div className="text-white/70 text-xs">Higher total wins</div>
+                      </div>
+                      <button
+                        onClick={handleDiceRoll}
+                        disabled={!canAfford}
+                        className="w-full p-3 bg-gradient-to-r from-blue-500/40 to-purple-500/40 hover:from-blue-500/50 hover:to-purple-500/50 rounded-lg border border-white/30 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="text-white font-bold text-lg">🎲 Roll the Dice!</div>
+                      </button>
+                    </>
+                  )}
+
+                  {gameType === 'cockfight' && (
+                    <>
+                      <div className="text-white/90 text-sm mb-2 text-center">
+                        Choose your champion!
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <button
+                          onClick={() => handleCockfightBet('red')}
+                          disabled={!canAfford}
+                          className="p-4 bg-gradient-to-br from-red-500/40 to-black/40 hover:to-black/20 rounded-lg border border-red-400/50 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="text-4xl mb-1">🐓</div>
+                          <div className="text-white font-bold">Red Cock</div>
+                          <div className="text-white/70 text-xs">Aggressive</div>
+                          <div className="text-white/60 text-xs">45% chance</div>
+                        </button>
+                        <button
+                          onClick={() => handleCockfightBet('black')}
+                          disabled={!canAfford}
+                          className="p-4 bg-gradient-to-br from-gray-700/40 to-black/40 hover:to-black/20 rounded-lg border border-gray-400/50 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="text-4xl mb-1">🐓</div>
+                          <div className="text-white font-bold">Black Cock</div>
+                          <div className="text-white/70 text-xs">Defensive</div>
+                          <div className="text-white/60 text-xs">55% chance</div>
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {gameType === 'wager' && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleBet}
+                        disabled={!canAfford}
+                        className="flex-1 px-4 py-3 bg-gradient-to-r from-yellow-500/80 to-orange-500/80 hover:from-yellow-500/90 hover:to-orange-500/90 text-white font-bold rounded-lg transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+                      >
+                        {canAfford ? `🎲 Place Bet (${wager} reales)` : `Cannot Afford (need ${wager})`}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Walk Away button (always shown) */}
+                  <button
+                    onClick={() => onChoice('walk_away', interaction)}
+                    className="w-full px-4 py-2 bg-white/20 hover:bg-white/30 text-white font-semibold rounded-lg transition-colors mt-2"
+                  >
+                    Walk Away
+                  </button>
+
+                  {!canAfford && (
+                    <div className="text-red-300 text-xs text-center mt-2">
+                      Not enough reales (need {wager}, have {currentWealth})
+                    </div>
+                  )}
                 </>
               )}
 
@@ -1038,15 +1349,24 @@ export default function SimpleInteractionCard({
               {gamblingState.phase === 'playing' && (
                 <div className="bg-black/30 rounded-lg p-6 mb-3 border border-white/20 text-center">
                   <div className="text-4xl mb-2 animate-bounce">
-                    {gameType === 'dice' ? '🎲' : gameType === 'cards' ? '🃏' : gameType === 'cockfight' ? '🐓' : '🎰'}
+                    {gameType === 'taba' ? '🦴' :
+                     gameType === 'dice' ? '🎲' :
+                     gameType === 'cards' ? '🃏' :
+                     gameType === 'cockfight' ? '🐓' : '🎰'}
                   </div>
-                  <div className="text-white font-bold animate-pulse">
+                  <div className="text-white font-bold animate-pulse mb-2">
                     {gamblingState.isDouble ? 'DOUBLE OR NOTHING!' :
+                     gameType === 'taba' ? 'Tossing the knucklebone...' :
                      gameType === 'dice' ? 'Rolling the dice...' :
-                     gameType === 'cards' ? 'Drawing cards...' :
+                     gameType === 'cards' ? 'Drawing next card...' :
                      gameType === 'cockfight' ? 'The birds are fighting...' :
                      'Placing the wager...'}
                   </div>
+                  {gamblingState.playerChoice && (
+                    <div className="text-white/70 text-sm">
+                      You chose: <span className="font-semibold text-white">{gamblingState.playerChoice}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1105,6 +1425,44 @@ export default function SimpleInteractionCard({
                       ? (gamblingState.isDouble ? 'DOUBLED!' : 'YOU WON!')
                       : (gamblingState.isDouble ? 'LOST IT ALL!' : 'YOU LOST!')}
                   </div>
+
+                  {/* Game-Specific Result Details */}
+                  {gameType === 'taba' && gamblingState.gameResult && (
+                    <div className="text-white/90 text-sm mb-2">
+                      The bone landed: <span className="font-bold">{gamblingState.gameResult}</span>
+                      {gamblingState.playerChoice && (
+                        <div className="text-white/70 text-xs mt-1">
+                          (You chose {gamblingState.playerChoice})
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {gameType === 'dice' && gamblingState.playerDice && gamblingState.houseDice && (
+                    <div className="text-white/90 text-sm mb-2 space-y-1">
+                      <div>Your roll: <span className="font-bold text-white">🎲 {gamblingState.playerDice}</span></div>
+                      <div>House roll: <span className="font-bold text-white">🎲 {gamblingState.houseDice}</span></div>
+                    </div>
+                  )}
+
+                  {gameType === 'cards' && gamblingState.gameResult && gamblingState.dealerCard && (
+                    <div className="text-white/90 text-sm mb-2">
+                      <div>Dealer: <span className="font-bold">{getCardEmoji(gamblingState.dealerCard)} {getCardName(gamblingState.dealerCard)}</span></div>
+                      <div>Next card: <span className="font-bold">{getCardEmoji(gamblingState.gameResult)} {getCardName(gamblingState.gameResult)}</span></div>
+                    </div>
+                  )}
+
+                  {gameType === 'cockfight' && gamblingState.gameResult && (
+                    <div className="text-white/90 text-sm mb-2">
+                      <div className="font-bold capitalize">{gamblingState.gameResult} Cock wins!</div>
+                      {gamblingState.playerChoice && (
+                        <div className="text-white/70 text-xs mt-1">
+                          (You bet on {gamblingState.playerChoice})
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className={`text-lg font-semibold ${
                     gamblingState.result === 'win' ? 'text-green-200' : 'text-red-200'
                   }`}>

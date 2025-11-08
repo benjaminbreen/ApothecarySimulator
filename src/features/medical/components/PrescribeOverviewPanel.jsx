@@ -66,9 +66,9 @@ function PrescribeOverviewPanel({
             <div className="flex flex-wrap gap-2 text-xs font-medium text-ink-600 dark:text-slate-400 mb-2">
               <span>{patient.occupation || 'Unknown'}</span>
               <span>•</span>
-              <span>{patient.gender || 'Unknown'}</span>
+              <span>{patient.appearance?.gender || patient.gender || 'Unknown'}</span>
               <span>•</span>
-              <span>Age {patient.age || '?'}</span>
+              <span>Age {patient.appearance?.age || patient.age || '?'}</span>
             </div>
 
             {/* Top 3 Symptoms */}

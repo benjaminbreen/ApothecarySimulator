@@ -2,6 +2,7 @@
 // Catches React errors and prevents full app crashes
 
 import React from 'react';
+import { safeLocalStorage } from '../utils/safeLocalStorage';
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -24,7 +25,7 @@ export class ErrorBoundary extends React.Component {
         stack: error.stack,
         componentStack: errorInfo.componentStack
       };
-      localStorage.setItem('lastCrashLog', JSON.stringify(crashLog));
+      safeLocalStorage.setItem('lastCrashLog', JSON.stringify(crashLog));
     } catch (e) {
       console.error('Failed to save crash log:', e);
     }

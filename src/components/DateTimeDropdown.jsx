@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import InteractiveClock from './InteractiveClock';
+import { isSafari } from '../utils/browserDetection';
+import { safeLocalStorage } from '../utils/safeLocalStorage';
 
 const DateTimeDropdown = ({
   time = '8:00 AM',
@@ -26,7 +28,7 @@ const DateTimeDropdown = ({
   const [selectedDate, setSelectedDate] = useState(null); // Currently viewed date
   const [notes, setNotes] = useState(() => {
     // Load notes from localStorage
-    const saved = localStorage.getItem('apothecary_calendar_notes');
+    const saved = safeLocalStorage.getItem('apothecary_calendar_notes');
     return saved ? JSON.parse(saved) : {};
   });
   const [currentNote, setCurrentNote] = useState('');
@@ -37,6 +39,9 @@ const DateTimeDropdown = ({
   const noteInputRef = useRef(null);
   const [hoveredEvent, setHoveredEvent] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
+  // Safari performance optimization
+  const isSafariBrowser = isSafari();
 
   // Historical events database for 1680 New Spain
   const historicalEvents = useMemo(() => ({
@@ -122,7 +127,7 @@ const DateTimeDropdown = ({
       if (selectedDate && currentNote !== (notes[selectedDate] || '')) {
         const updated = { ...notes, [selectedDate]: currentNote };
         setNotes(updated);
-        localStorage.setItem('apothecary_calendar_notes', JSON.stringify(updated));
+        safeLocalStorage.setItem('apothecary_calendar_notes', JSON.stringify(updated));
       }
     }, 500);
     return () => clearTimeout(timer);
@@ -306,11 +311,11 @@ const DateTimeDropdown = ({
 
   return (
     <div className="relative flex items-center gap-3">
-      {/* Button */}
+      {/* Button - Safari: no backdrop-blur */}
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-parchment-300 dark:border-slate-600 shadow-sm dark:shadow-dark-elevation-1 transition-all duration-300 hover:shadow-md hover:scale-[1.02]"
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 ${isSafariBrowser ? '' : 'backdrop-blur-sm'} border border-parchment-300 dark:border-slate-600 shadow-sm dark:shadow-dark-elevation-1 transition-all duration-300 hover:shadow-md hover:scale-[1.02]`}
       >
         <svg className="w-4 h-4 text-brass-600 dark:text-amber-500 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -326,9 +331,9 @@ const DateTimeDropdown = ({
         </svg>
       </button>
 
-      {/* Condensed Stats (shown when CharacterCard is collapsed) */}
+      {/* Condensed Stats (shown when CharacterCard is collapsed) - Safari: no backdrop-blur */}
       {showCondensedStats && (
-        <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm border border-parchment-300 dark:border-slate-600 shadow-sm dark:shadow-dark-elevation-1">
+        <div className={`flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-slate-800/60 ${isSafariBrowser ? '' : 'backdrop-blur-sm'} border border-parchment-300 dark:border-slate-600 shadow-sm dark:shadow-dark-elevation-1`}>
           {/* Health */}
           <div className="flex items-center gap-1.5">
             <span className="text-base" title="Health">❤️</span>
@@ -787,4 +792,5 @@ const DateTimeDropdown = ({
   );
 };
 
-export default DateTimeDropdown;
+// Memoize to prevent unnecessary re-renders (ALL BROWSERS performance optimization)
+export default React.memo(DateTimeDropdown);

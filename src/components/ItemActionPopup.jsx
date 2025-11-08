@@ -1,4 +1,5 @@
 import React from 'react';
+import { getBackdropFilter } from '../utils/browserDetection';
 
 /**
  * ItemActionPopup - Modal for choosing action when dropping item on NPC
@@ -65,8 +66,7 @@ function ItemActionPopup({
             background: isDark
               ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.95) 100%)'
               : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(252, 250, 247, 0.95) 100%)',
-            backdropFilter: 'blur(20px) saturate(120%)',
-            WebkitBackdropFilter: 'blur(20px) saturate(120%)',
+            ...getBackdropFilter('blur(20px) saturate(120%)'),
             border: isDark ? '1px solid rgba(71, 85, 105, 0.5)' : '1px solid rgba(228, 218, 195, 0.5)',
           }}
         >

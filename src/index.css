@@ -254,6 +254,35 @@ a:hover {
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
+  /* ========================================
+     SAFARI PERFORMANCE OPTIMIZATIONS
+     Safari has extremely poor backdrop-filter performance
+     Disable it entirely and use solid backgrounds instead
+     ======================================== */
+  .is-safari .glass-subtle {
+    background: rgba(255, 255, 255, 0.85); /* More opaque without blur */
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .is-safari .glass {
+    background: rgba(255, 255, 255, 0.90);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .is-safari .glass-strong {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .is-safari .glass-dark {
+    background: rgba(26, 24, 22, 0.95);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
   /* IMPROVED: Smooth stat bar transitions with hardware acceleration */
   .stat-bar {
     transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -991,6 +1020,33 @@ a:hover {
     transform: translateX(var(--shoot-distance, 150px)) translateY(var(--shoot-distance, 150px));
     opacity: 0;
   }
+}
+
+/* Biome horizon fade animations */
+@keyframes biome-horizon-fade-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes biome-horizon-fade-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.biome-horizon-fade-in {
+  animation: biome-horizon-fade-in 1.5s ease-in-out forwards;
+}
+
+.biome-horizon-fade-out {
+  animation: biome-horizon-fade-out 1.5s ease-in-out forwards;
 }
 
 /* Reduce motion for accessibility */

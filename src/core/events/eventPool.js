@@ -23,9 +23,9 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['streets', 'market', 'plaza'],
+      locationTypes: ['street', 'market', 'plaza'],
       timeOfDay: ['morning', 'afternoon'],
-      minTurnNumber: 3,
+      minTurnNumber: 2, // TESTING: Lowered from 3
       maxPerSession: 1,
       weight: 15
     },
@@ -73,7 +73,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['market'],
+      locationTypes: ['market'],
       timeOfDay: ['morning', 'afternoon'],
       minTurnNumber: 5,
       maxPerSession: 1,
@@ -122,7 +122,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['streets', 'plaza', 'cathedral'],
+      locationTypes: ['street', 'plaza', 'cathedral'],
       timeOfDay: ['morning', 'afternoon'],
       minTurnNumber: 4,
       maxPerSession: 1,
@@ -171,7 +171,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['market', 'streets'],
+      locationTypes: ['market', 'street'],
       timeOfDay: ['afternoon', 'evening'],
       minTurnNumber: 8,
       maxPerSession: 1,
@@ -238,7 +238,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['market'],
+      locationTypes: ['market'],
       timeOfDay: ['morning', 'afternoon'],
       minTurnNumber: 6,
       maxPerSession: 2,
@@ -298,7 +298,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['streets', 'market'],
+      locationTypes: ['street', 'market'],
       timeOfDay: ['any'],
       minTurnNumber: 10,
       maxPerSession: 1,
@@ -348,7 +348,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['market', 'streets'],
+      locationTypes: ['market', 'street'],
       timeOfDay: ['afternoon'],
       minTurnNumber: 7,
       maxPerSession: 1,
@@ -399,7 +399,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['plaza', 'cathedral'],
+      locationTypes: ['plaza', 'cathedral'],
       timeOfDay: ['morning', 'afternoon'],
       minTurnNumber: 5,
       maxPerSession: 1,
@@ -459,7 +459,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['streets', 'outskirts'],
+      locationTypes: ['street', 'outskirts'],
       timeOfDay: ['morning', 'afternoon'],
       minTurnNumber: 4,
       maxPerSession: 1,
@@ -525,7 +525,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['cathedral', 'streets'],
+      locationTypes: ['cathedral', 'street'],
       timeOfDay: ['afternoon'],
       minTurnNumber: 12,
       maxPerSession: 1,
@@ -578,7 +578,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['streets', 'market'],
+      locationTypes: ['street', 'market'],
       timeOfDay: ['any'],
       minTurnNumber: 6,
       maxPerSession: 1,
@@ -626,7 +626,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['fountain', 'market'],
+      locationTypes: ['fountain', 'market'],
       timeOfDay: ['any'],
       minTurnNumber: 15,
       maxPerSession: 1,
@@ -684,7 +684,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['alley', 'market'],
+      locationTypes: ['alley', 'market'],
       timeOfDay: ['evening', 'afternoon'],
       minTurnNumber: 10,
       maxPerSession: 1,
@@ -736,7 +736,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['any_outdoor'],
+      locationTypes: ['outdoor'],
       timeOfDay: ['afternoon'],
       minTurnNumber: 8,
       maxPerSession: 1,
@@ -797,7 +797,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['cathedral', 'plaza'],
+      locationTypes: ['cathedral', 'plaza'],
       timeOfDay: ['morning', 'afternoon'],
       minTurnNumber: 8,
       maxPerSession: 1,
@@ -850,7 +850,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['cathedral', 'plaza'],
+      locationTypes: ['cathedral', 'plaza'],
       timeOfDay: ['morning'],
       minTurnNumber: 10,
       maxPerSession: 1,
@@ -901,7 +901,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['any'],
+      // No locationTypes restriction - can trigger anywhere
       timeOfDay: ['any'],
       minTurnNumber: 12,
       maxPerSession: 1,
@@ -949,7 +949,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['cathedral', 'streets'],
+      locationTypes: ['cathedral', 'street'],
       timeOfDay: ['any'],
       minTurnNumber: 5,
       maxPerSession: 1,
@@ -1013,7 +1013,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['plaza', 'cathedral'],
+      locationTypes: ['plaza', 'cathedral'],
       timeOfDay: ['afternoon'],
       minTurnNumber: 15,
       maxPerSession: 1,
@@ -1065,7 +1065,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['market', 'fountain'],
+      locationTypes: ['market', 'fountain'],
       timeOfDay: ['morning', 'afternoon'],
       minTurnNumber: 7,
       maxPerSession: 2,
@@ -1115,7 +1115,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['plaza', 'streets'],
+      locationTypes: ['plaza', 'street'],
       timeOfDay: ['afternoon'],
       minTurnNumber: 10,
       maxPerSession: 1,
@@ -1171,7 +1171,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['tavern', 'alley'],
+      locationTypes: ['tavern', 'alley'],
       timeOfDay: ['evening', 'afternoon'],
       minTurnNumber: 10,
       maxPerSession: 1,
@@ -1231,7 +1231,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['market'],
+      locationTypes: ['market'],
       timeOfDay: ['afternoon', 'evening'],
       minTurnNumber: 8,
       maxPerSession: 1,
@@ -1291,7 +1291,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['market'],
+      locationTypes: ['market'],
       timeOfDay: ['morning', 'afternoon'],
       minTurnNumber: 12,
       maxPerSession: 1,
@@ -1360,7 +1360,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['plaza', 'cathedral'],
+      locationTypes: ['plaza', 'cathedral'],
       timeOfDay: ['afternoon'],
       minTurnNumber: 8,
       maxPerSession: 1,
@@ -1421,7 +1421,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['guild'],
+      locationTypes: ['guild'],
       timeOfDay: ['afternoon'],
       minTurnNumber: 15,
       maxPerSession: 1,
@@ -1480,7 +1480,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['cathedral', 'plaza'],
+      locationTypes: ['cathedral', 'plaza'],
       timeOfDay: ['any'],
       minTurnNumber: 10,
       maxPerSession: 1,
@@ -1531,7 +1531,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['streets'],
+      locationTypes: ['street'],
       timeOfDay: ['any'],
       minTurnNumber: 12,
       maxPerSession: 1,
@@ -1590,7 +1590,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['streets', 'market'],
+      locationTypes: ['street', 'market'],
       timeOfDay: ['any'],
       minTurnNumber: 10,
       maxPerSession: 1,
@@ -1650,7 +1650,7 @@ export const EVENT_POOL = [
     type: 'random_event',
 
     triggers: {
-      locations: ['market'],
+      locationTypes: ['market'],
       timeOfDay: ['afternoon'],
       minTurnNumber: 8,
       maxPerSession: 1,
@@ -1688,6 +1688,108 @@ export const EVENT_POOL = [
           reputation: { merchants: 5, indigenous: -8 },
           xp: 1,
           narrativeTemplate: 'You claim you saw the theft. The boy is arrested. The merchant thanks you. Later, you wonder: was he truly guilty, or did you condemn an innocent?'
+        }
+      }
+    ]
+  },
+
+  // ============================================
+  // SHOP EVENTS (for testing - triggers at Botica)
+  // ============================================
+
+  {
+    id: 'curious-customer',
+    category: 'economic',
+    type: 'random_event',
+
+    triggers: {
+      locationTypes: ['botica', 'shop'], // TESTING: Triggers at shop
+      timeOfDay: ['morning', 'afternoon'],
+      minTurnNumber: 2,
+      maxPerSession: 2,
+      weight: 20
+    },
+
+    title: 'Curious Customer',
+    description: 'A well-dressed criollo woman enters your shop, examining your shelves with interest. "I\'ve heard you have rare ingredients, Doña," she says. "Do you have anything for... women\'s complaints?" She lowers her voice conspiratorially.',
+    icon: '💊',
+    colorScheme: 'purple',
+
+    choices: [
+      {
+        action: 'recommend',
+        label: 'Recommend pennyroyal tea',
+        outcomes: {
+          reputation: { commonFolk: 3, elite: 2 },
+          xp: 2,
+          narrativeTemplate: 'You discreetly recommend pennyroyal tea for "regulating the humors." She nods knowingly and pays generously. Word of your discretion will spread among wealthy women.'
+        }
+      },
+      {
+        action: 'refuse',
+        label: 'Politely decline',
+        outcomes: {
+          reputation: { church: 3 },
+          narrativeTemplate: 'You explain you only treat diagnosed ailments. She leaves disappointed, but a passing friar notes your propriety with approval.'
+        }
+      },
+      {
+        action: 'offer_consultation',
+        label: 'Offer private consultation',
+        cost: { time: 15 },
+        outcomes: {
+          reputation: { elite: 5, commonFolk: 3 },
+          wealth: 3,
+          xp: 3,
+          narrativeTemplate: 'You close the shop briefly for a private consultation. She explains her situation, and you provide careful advice. She pays well and promises to return—and to tell her friends.'
+        }
+      }
+    ]
+  },
+
+  {
+    id: 'neighborhood-gossip',
+    category: 'street-life',
+    type: 'random_event',
+
+    triggers: {
+      locationTypes: ['botica', 'shop'], // TESTING: Triggers at shop
+      timeOfDay: ['morning', 'afternoon'],
+      minTurnNumber: 2,
+      maxPerSession: 2,
+      weight: 18
+    },
+
+    title: 'Neighborhood Gossip',
+    description: 'Your neighbor, Señora Vargas, leans through the shop door. "María! Have you heard? The baker\'s son has been seen with that Indigenous girl from the market. A scandal!" Her eyes gleam with the thrill of scandal.',
+    icon: '🗣️',
+    colorScheme: 'blue',
+
+    choices: [
+      {
+        action: 'engage',
+        label: 'Share gossip in return',
+        cost: { time: 10 },
+        outcomes: {
+          reputation: { commonFolk: 4 },
+          xp: 1,
+          narrativeTemplate: 'You share what you\'ve heard about the silversmith\'s failing business. Señora Vargas nods eagerly, storing it away. Social currency exchanged. She\'ll remember you spoke with her.'
+        }
+      },
+      {
+        action: 'deflect',
+        label: 'Change the subject politely',
+        outcomes: {
+          reputation: { commonFolk: 1 },
+          narrativeTemplate: 'You steer the conversation to safer topics—the weather, the price of maize. She seems mildly disappointed but continues chatting pleasantly.'
+        }
+      },
+      {
+        action: 'dismiss',
+        label: 'Dismiss it as idle talk',
+        outcomes: {
+          reputation: { commonFolk: -2, elite: 2 },
+          narrativeTemplate: '"I have no time for such gossip, Señora," you say firmly. She huffs and leaves. Your aloofness is noted—both positively and negatively.'
         }
       }
     ]

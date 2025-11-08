@@ -214,3 +214,32 @@ export const formatTime = (hours, minutes) => {
   const displayMinutes = minutes.toString().padStart(2, '0');
   return `${displayHours}:${displayMinutes} ${period}`;
 };
+
+/**
+ * Parse hour from game time string (simplified, 24-hour format)
+ * Utility function for agents that only need the hour value
+ * @param {string} timeString - Format: "8:00 AM" or "11:30 PM"
+ * @returns {number} - Hour in 24-hour format (0-23)
+ */
+export const parseHourFromTimeString = (timeString) => {
+  if (!timeString || typeof timeString !== 'string') {
+    return 12; // Default to noon
+  }
+
+  // Try full parsing first
+  const timeParts = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!timeParts) {
+    // Fallback: try simple split for "8:00" format
+    const simpleParse = parseInt(timeString.split(':')[0]);
+    return isNaN(simpleParse) ? 12 : simpleParse;
+  }
+
+  let hour = parseInt(timeParts[1]);
+  const period = timeParts[3].toUpperCase();
+
+  // Convert to 24-hour format
+  if (period === 'PM' && hour !== 12) hour += 12;
+  if (period === 'AM' && hour === 12) hour = 0;
+
+  return hour;
+};

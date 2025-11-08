@@ -13,6 +13,54 @@ import inhaledImage from '../assets/inhaled.jpg';
 import topicalImage from '../assets/topical.jpg';
 import enemaImage from '../assets/enema.jpg';
 
+/**
+ * Infer the best administration route based on item name and description
+ * @param {Object} item - Inventory item
+ * @returns {string} - Route name: 'Oral', 'Topical', 'Inhaled', or 'Enema'
+ */
+function inferBestRoute(item) {
+  if (!item) return 'Oral';
+
+  const name = item.name?.toLowerCase() || '';
+  const desc = item.description?.toLowerCase() || '';
+  const text = `${name} ${desc}`;
+
+  // Priority 1: Explicit description mentions
+  if (text.includes('topically') || text.includes('applied to') || text.includes('rub')) {
+    return 'Topical';
+  }
+  if (text.includes('inhaled') || text.includes('smoked') || text.includes('vapor')) {
+    return 'Inhaled';
+  }
+  if (text.includes('enema') || text.includes('clyster')) {
+    return 'Enema';
+  }
+
+  // Priority 2: Name patterns (preparation types)
+  if (name.includes('salve') || name.includes('ointment') || name.includes('balm') ||
+      name.includes('poultice') || name.includes('plaster')) {
+    return 'Topical';
+  }
+  if (name.includes('tincture') || name.includes('syrup') || name.includes('elixir') ||
+      name.includes('decoction')) {
+    return 'Oral';
+  }
+  if (name.includes('powder')) {
+    return 'Oral'; // Most powders were taken orally
+  }
+  if (name.includes('oil')) {
+    return 'Topical'; // Most oils were topical
+  }
+
+  // Priority 3: Item type hints
+  if (name.includes('wine') || name.includes('honey') || name.includes('sugar')) {
+    return 'Oral';
+  }
+
+  // Default: Oral (most common route historically)
+  return 'Oral';
+}
+
 export default function ActionPromptCard({
   actionPrompt,
   inventory = [],
@@ -69,6 +117,10 @@ export default function ActionPromptCard({
       if ((actionPrompt.type === 'sell' || actionPrompt.type === 'prescribe') && !actionPrompt.priceOffered && item.price) {
         setPrice(item.price);
       }
+      // Auto-select best route for prescribe type
+      if (actionPrompt.type === 'prescribe') {
+        setSelectedRoute(inferBestRoute(item));
+      }
     },
     collect: (monitor) => ({
       isOver: monitor.isOver()
@@ -120,12 +172,11 @@ export default function ActionPromptCard({
   const containerClasses = isPrescribe
     ? `w-full p-3 rounded-xl shadow-lg border ${colors.border} ${colors.darkBorder} bg-gradient-to-br ${colors.gradient} ${colors.darkGradient} backdrop-blur-sm`
     : `w-full p-3 bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder}`;
-  const headerClasses = `flex items-center gap-3 ${isPrescribe ? 'mb-2 px-3 py-1 rounded-lg bg-purple-100/60 dark:bg-purple-500/20 border border-purple-200/60 dark:border-purple-400/40' : 'mb-3'}`;
   const titleClass = isPrescribe ? 'text-purple-900 dark:text-purple-100 font-semibold text-base mb-0.5' : 'text-white font-bold text-lg mb-0.5';
   const subtitleClass = isPrescribe
     ? `${colors.textSecondary} ${colors.darkTextSecondary} text-xs sm:text-sm font-medium`
     : `${colors.textSecondary} ${colors.darkTextSecondary} text-sm font-medium`;
-  const dropZoneClasses = `border-2 border-dashed rounded-lg p-3 mb-3 text-center transition-colors ${
+  const dropZoneClasses = `border-2 border-dashed rounded-lg p-2 text-center transition-colors ${
     isOver
       ? (isPrescribe ? 'bg-purple-100 border-purple-400 dark:bg-purple-500/25 dark:border-white/70' : 'bg-white/20 border-white')
       : (isPrescribe ? 'bg-purple-50 border-purple-300 dark:bg-purple-500/15 dark:border-purple-300/40' : 'bg-white/5 border-white/30')
@@ -222,8 +273,8 @@ export default function ActionPromptCard({
   return (
     <div className="animate-fade-in mb-3">
       <div className={containerClasses}>
-        {/* Top Row: NPC Info */}
-        <div className={headerClasses}>
+        {/* Header Row: Portrait + Info + Drop Zone */}
+        <div className="grid grid-cols-[auto_1fr_minmax(180px,240px)] gap-3 mb-2">
           {/* NPC Portrait */}
           <div className="flex-shrink-0 w-14 h-14 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
             {actionPrompt.npcPortrait ? (
@@ -259,70 +310,34 @@ export default function ActionPromptCard({
               </div>
             )}
           </div>
-        </div>
 
-        {/* Drag-Drop Zone */}
-        <div
-          ref={drop}
-          className={dropZoneClasses}
-          style={{
-            minHeight: '60px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-        >
-          {selectedItem ? (
-            <div className="flex flex-col items-center">
-              <div className={`${isPrescribe ? 'text-purple-800 dark:text-purple-100' : 'text-white'} font-bold text-base`}>{selectedItem.name}</div>
-              <div className={`${isPrescribe ? 'text-purple-700 dark:text-purple-100/70' : 'text-white/70'} text-xs mt-1`}>
-                Available: {maxAmount}
+          {/* Drag-Drop Zone - Now in header row */}
+          <div
+            ref={drop}
+            className={dropZoneClasses}
+            style={{
+              minHeight: '60px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            {selectedItem ? (
+              <div className="flex flex-col items-center">
+                <div className={`${isPrescribe ? 'text-purple-800 dark:text-purple-100' : 'text-white'} font-bold text-sm`}>{selectedItem.name}</div>
+                <div className={`${isPrescribe ? 'text-purple-700 dark:text-purple-100/70' : 'text-white/70'} text-xs mt-0.5`}>
+                  Available: {maxAmount}
+                </div>
               </div>
-            </div>
-          ) : (
-            <p className={`${isPrescribe ? 'text-purple-700 dark:text-purple-100/80' : 'text-white/80'} text-sm`}>
-              Drag an item from your inventory here
-            </p>
-          )}
-        </div>
-
-        {/* Amount and Price Controls */}
-        {selectedItem && (
-          <div className={`grid gap-2 mb-2 ${(actionPrompt.type === 'sell' || actionPrompt.type === 'prescribe') ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {/* Amount */}
-            <div>
-              <label className={amountLabelClass}>
-                Amount:
-              </label>
-              <input
-                type="number"
-                min="1"
-                max={maxAmount}
-                value={amount}
-                onChange={(e) => setAmount(Math.min(maxAmount, Math.max(1, parseInt(e.target.value) || 1)))}
-                className={inputClass}
-              />
-            </div>
-
-            {/* Price (for sell and prescribe types) */}
-            {(actionPrompt.type === 'sell' || actionPrompt.type === 'prescribe') && (
-              <div>
-                <label className={amountLabelClass}>
-                  Price (reales):
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={price}
-                  onChange={(e) => setPrice(Math.max(0, parseInt(e.target.value) || 0))}
-                  className={priceInputClass}
-                  placeholder={actionPrompt.priceOffered ? actionPrompt.priceOffered.toString() : "Enter price"}
-                />
-              </div>
+            ) : (
+              <p className={`${isPrescribe ? 'text-purple-700 dark:text-purple-100/80' : 'text-white/80'} text-xs text-center`}>
+                Drag item here
+              </p>
             )}
           </div>
-        )}
+        </div>
+
 
         {/* Suggested Items Hint with Availability Check */}
         {!selectedItem && actionPrompt.suggestedItems && actionPrompt.suggestedItems.length > 0 && (
@@ -456,37 +471,77 @@ export default function ActionPromptCard({
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-2 justify-end">
-          {/* Mix a Remedy Button - Always available */}
-          {onMix && (
-            <button
-              onClick={handleMixClick}
-              className={`${secondaryButtonClass} flex items-center gap-1`}
-              title="Open mixing workshop to craft a remedy"
-            >
-              🧪 Mix a Remedy
-            </button>
+        {/* Controls and Action Buttons - All on one row */}
+        <div className="flex flex-wrap gap-2 items-end justify-between">
+          {/* Left side: Amount and Price Controls (compact) */}
+          {selectedItem && (
+            <div className="flex gap-2 items-end">
+              {/* Amount */}
+              <div className="w-20">
+                <label className={`${amountLabelClass} mb-0.5`}>
+                  Amt:
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={maxAmount}
+                  value={amount}
+                  onChange={(e) => setAmount(Math.min(maxAmount, Math.max(1, parseInt(e.target.value) || 1)))}
+                  className={inputClass}
+                />
+              </div>
+
+              {/* Price (for sell and prescribe types) */}
+              {(actionPrompt.type === 'sell' || actionPrompt.type === 'prescribe') && (
+                <div className="w-24">
+                  <label className={`${amountLabelClass} mb-0.5`}>
+                    Price:
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={price}
+                    onChange={(e) => setPrice(Math.max(0, parseInt(e.target.value) || 0))}
+                    className={priceInputClass}
+                    placeholder={actionPrompt.priceOffered ? actionPrompt.priceOffered.toString() : "0"}
+                  />
+                </div>
+              )}
+            </div>
           )}
 
-          {/* Primary Action Button */}
-          <button
-            onClick={handlePropose}
-            disabled={!selectedItem || (actionPrompt.type === 'prescribe' && !selectedRoute)}
-            className={`${primaryButtonClass} ${
-              (!selectedItem || (actionPrompt.type === 'prescribe' && !selectedRoute)) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer shadow-md hover:shadow-lg'
-            }`}
-          >
-            {actionPrompt.type === 'sell' ? 'Complete Sale' : actionPrompt.type === 'give' ? 'Give Item' : 'Offer Prescription'}
-          </button>
+          {/* Right side: Action Buttons */}
+          <div className="flex flex-wrap gap-2 justify-end ml-auto">
+            {/* Mix a Remedy Button - Always available */}
+            {onMix && (
+              <button
+                onClick={handleMixClick}
+                className={`${secondaryButtonClass} flex items-center gap-1`}
+                title="Open mixing workshop to craft a remedy"
+              >
+                🧪 Mix a Remedy
+              </button>
+            )}
 
-          {/* Decline Button */}
-          <button
-            onClick={() => onDecline(actionPrompt)}
-            className={secondaryButtonClass}
-          >
-            Decline
-          </button>
+            {/* Primary Action Button */}
+            <button
+              onClick={handlePropose}
+              disabled={!selectedItem || (actionPrompt.type === 'prescribe' && !selectedRoute)}
+              className={`${primaryButtonClass} ${
+                (!selectedItem || (actionPrompt.type === 'prescribe' && !selectedRoute)) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer shadow-md hover:shadow-lg'
+              }`}
+            >
+              {actionPrompt.type === 'sell' ? 'Complete Sale' : actionPrompt.type === 'give' ? 'Give Item' : 'Offer Prescription'}
+            </button>
+
+            {/* Decline Button */}
+            <button
+              onClick={() => onDecline(actionPrompt)}
+              className={secondaryButtonClass}
+            >
+              Decline
+            </button>
+          </div>
         </div>
       </div>
     </div>

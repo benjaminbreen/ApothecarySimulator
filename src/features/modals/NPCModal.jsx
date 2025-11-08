@@ -17,6 +17,7 @@ import RelationshipBar from '../character/components/RelationshipBar';
 import { getCastaInfo } from '../../core/config/castaInfo.config';
 import { getBiography } from '../../core/entities/procedural/biographyGenerator';
 import { getEventIcon, getEventColor } from '../../core/entities/procedural/timelineGenerator';
+import { getBackdropFilter } from '../../utils/browserDetection';
 import {
   FaUser,
   FaTheaterMasks,
@@ -258,8 +259,7 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
           background: isDark
             ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 50%, rgba(15, 23, 42, 0.98) 100%)'
             : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 252, 247, 0.95) 50%, rgba(255, 255, 255, 0.98) 100%)',
-          backdropFilter: 'blur(16px) saturate(120%)',
-          WebkitBackdropFilter: 'blur(16px) saturate(120%)',
+          ...getBackdropFilter('blur(16px) saturate(120%)'),
           border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)',
           boxShadow: isDark
             ? '0 24px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
@@ -377,12 +377,15 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                       src={portraitUrl}
                       alt={adaptedNpc.name}
                       onClick={() => setIsLightboxOpen(true)}
-                      className="w-72 h-72 object-cover rounded-2xl border-4 shadow-elevation-3 transition-all duration-200 cursor-pointer hover:scale-105 hover:brightness-105"
+                      className="w-72 h-72 object-cover rounded-2xl border-4 shadow-elevation-3 transition-transform duration-200 cursor-pointer hover:scale-105"
+                      loading="lazy"
+                      decoding="async"
                       style={{
                         borderColor: isDark ? '#8b5cf6' : '#16a34a',
                         filter: isDark
                           ? 'drop-shadow(0 0 20px rgba(139, 92, 246, 0.3))'
-                          : 'drop-shadow(0 0 20px rgba(22, 163, 74, 0.3))'
+                          : 'drop-shadow(0 0 20px rgba(22, 163, 74, 0.3))',
+                        willChange: 'auto'
                       }}
                     />
                   </div>
@@ -1881,7 +1884,7 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
             className="absolute top-8 right-8 px-6 py-3 rounded-lg text-white font-bold transition-all duration-300 hover:bg-black/80"
             style={{
               background: 'rgba(0, 0, 0, 0.6)',
-              backdropFilter: 'blur(10px)',
+              ...getBackdropFilter('blur(10px)'),
               border: '1px solid rgba(255, 255, 255, 0.2)'
             }}
           >

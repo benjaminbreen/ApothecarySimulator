@@ -35,7 +35,6 @@ import { useToast } from '../../components/ToastNotification';
  * @param {Object} props.handlers - All game handlers from useGameHandlers
  * @param {Array} props.nearbyLocations - Calculated nearby locations
  * @param {Array} props.filteredNPCPositions - Filtered NPC positions
- * @param {Array} props.discoveredBooks - Books discovered during gameplay
  * @param {Object} props.dynamicChips - Dynamic action chips from narrative
  * @param {Array} props.conversationHistory - Conversation history (local state from GamePage)
  * @param {string} props.historyOutput - Current narrative output
@@ -56,7 +55,6 @@ const MobileGameLayout = ({
   handlers,
   nearbyLocations,
   filteredNPCPositions,
-  discoveredBooks,
   dynamicChips,
   // Local state from GamePage (not in contexts)
   conversationHistory,
@@ -772,7 +770,6 @@ const MobileGameLayout = ({
                   toggleShopSign={toggleShopSign}
                   toast={toast}
                   entities={currentEntities}
-                  discoveredBooks={discoveredBooks}
                   onBookClick={handleBookClick}
                   onLocationChange={(newLocation) => {
                     console.log('Location changed to:', newLocation);

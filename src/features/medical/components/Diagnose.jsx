@@ -22,8 +22,8 @@ const Diagnose = ({ isOpen, onClose, patient = null, previousOutput = '', theme 
         You are an apothecary in the 1680s. Given the following patient information, provide a brief diagnosis for the patient and suggest medicinal simples or compound remedies of potential value.
         **Patient Information:**
         - Name: ${patient.name}
-        - Age: ${patient.age || 'Unknown'}
-        - Gender: ${patient.gender || 'Unknown'}
+        - Age: ${patient.appearance?.age || patient.age || 'Unknown'}
+        - Gender: ${patient.appearance?.gender || patient.gender || 'Unknown'}
         - Occupation: ${patient.occupation || 'Unknown'}
         - Symptoms: ${patient.symptoms?.length > 0
             ? patient.symptoms.map(s => `${s.name} (${s.location}): "${s.quote}"`).join('; ')
@@ -141,7 +141,7 @@ const Diagnose = ({ isOpen, onClose, patient = null, previousOutput = '', theme 
                     }}
                   >
                     Examining: <span style={{fontWeight: 600, color: isDark ? '#cbd5e1' : '#6b5d52'}}>{patient.name}</span>
-                    {patient.age && ` • Age ${patient.age}`}
+                    {(patient.appearance?.age || patient.age) && ` • Age ${patient.appearance?.age || patient.age}`}
                     {patient.occupation && ` • ${patient.occupation}`}
                   </p>
                 )}

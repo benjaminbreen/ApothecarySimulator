@@ -8,6 +8,7 @@ import { generateNameForTemplate, isTemplateName } from '../entities/procedural/
 import { checkNPCConditions, getCriticalNPC, filterAvailableNPCs } from '../systems/npcConditions';
 import { calculatePatientFlow } from '../systems/patientFlow';
 import { calculateDaysBetween } from '../../features/medical/utils/followUpUtils';
+import { parseHourFromTimeString } from '../../utils/timeUtils';
 
 /**
  * Context-aware entity selection
@@ -262,15 +263,8 @@ export function selectContextAwareEntity(context) {
   const shopSign = context.shopSign || {};
 
   // Parse time to check business hours
-  const timeParts = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  let hour = 12; // Default to noon if parsing fails
-  if (timeParts) {
-    hour = parseInt(timeParts[1]);
-    const period = timeParts[3].toUpperCase();
-    // Convert to 24-hour format
-    if (period === 'PM' && hour !== 12) hour += 12;
-    if (period === 'AM' && hour === 12) hour = 0;
-  }
+  // PERFORMANCE: Use centralized time parsing utility instead of duplicating logic
+  const hour = parseHourFromTimeString(time);
 
   const isBusinessHours = hour >= 8 && hour < 18; // 8 AM to 6 PM
   const isAtWorkplace = location && location.toLowerCase().includes('botica');
@@ -503,15 +497,8 @@ function checkPatientEncounterConditions(context) {
   const { time, location, activePatient, shopSign } = context;
 
   // Parse time to check business hours
-  const timeParts = time.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  let hour = 12; // Default to noon if parsing fails
-  if (timeParts) {
-    hour = parseInt(timeParts[1]);
-    const period = timeParts[3].toUpperCase();
-    // Convert to 24-hour format
-    if (period === 'PM' && hour !== 12) hour += 12;
-    if (period === 'AM' && hour === 12) hour = 0;
-  }
+  // PERFORMANCE: Use centralized time parsing utility instead of duplicating logic
+  const hour = parseHourFromTimeString(time);
 
   const isBusinessHours = hour >= 8 && hour < 18; // 8 AM to 6 PM
   const isAtWorkplace = location && location.toLowerCase().includes('botica');

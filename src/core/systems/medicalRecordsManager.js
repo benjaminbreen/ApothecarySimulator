@@ -50,7 +50,7 @@ export class MedicalRecordsManager {
       updatedRecords[patientId] = {
         patientId,
         patientName: patient.name,
-        age: patient.age || patient.appearance?.age || 'Unknown',
+        age: patient.appearance?.age || patient.age || 'Unknown',
         occupation: patient.occupation || patient.social?.occupation || 'Unknown',
         portrait: resolvedPortrait,
         firstSeen: sessionData.date,

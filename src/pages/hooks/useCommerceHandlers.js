@@ -42,7 +42,7 @@ function isAbstractDonation(itemName) {
  * Helper: Build evaluation prompt for give/sell outcomes
  * Relies on LLM knowledge of 17th century medicine rather than hard-coded tables
  */
-function buildGiveSellOutcomePrompt({ type, recipientName, item, amount, price, ailmentDescription }) {
+function buildGiveSellOutcomePrompt({ type, recipientName, item, amount, price, ailmentDescription, recentNarrative, location }) {
   const quantityText = `${amount}× ${item.name}`;
   const priceLine = type === 'sell'
     ? `Maria is asking ${price} reales for this transaction.`
@@ -50,27 +50,52 @@ function buildGiveSellOutcomePrompt({ type, recipientName, item, amount, price, 
   const ailmentLine = ailmentDescription
     ? `The recipient originally described their need as: "${ailmentDescription}".`
     : 'The recipient did not describe a specific ailment.';
+  const contextLine = recentNarrative
+    ? `\n\nRecent context:\n${recentNarrative}`
+    : '';
 
   return `You adjudicate outcomes for a historical roleplaying game set in 1680 Mexico City.
 Maria de Lima, a converso apothecary, offers ${quantityText} of ${item.name} to ${recipientName} as a ${type === 'sell' ? 'sale' : 'gift'}.
 ${priceLine}
-${ailmentLine}
+${ailmentLine}${contextLine}
 
-Consider period-appropriate medical reasoning (humoral theory, materia medica, colonial trade realities) and the item’s actual usefulness for the stated ailment. Do not force a positive outcome—if the offering is unsuitable or suspicious, let the recipient hesitate, counter, or refuse.
+**CRITICAL - Realistic Skepticism:**
+People in 1680 are NOT passive customers. They are:
+- Skeptical of remedies that don't match their ailment (honey for cough = reasonable but not very impressive; honey for broken bone = outrageous nonsense)
+- Price-conscious (1 real = day's wages for poor; >10 reales = serious expense)
+- Knowledgeable about common remedies (old wives' tales, humoral theory, Church teachings)
+- Quick to anger if they feel cheated or dismissed, which is often
+
+**Decision Guidelines:**
+- **Appropriate remedy + fair price** → Likely accept (60-70% chance)
+- **Appropriate remedy + high price** → Counter-offer or decline if poor (40% accept)
+- **Questionable remedy** → Skeptical, even insulting - likely counter or decline (10% accept)
+- **Wrong remedy** → Outright reject, offended, possibly try to fight Maria or demean her (0% accept)
 
 Respond with ONLY a JSON object in this format:
 {
   "accepted": true | false,
   "decision": "accepted" | "declined" | "counter",
-  "finalPrice": ${type === 'sell' ? 'number (use the amount actually exchanged, or the amount they would accept if countering)' : '0'},
-  "narrative": "2-3 sentences from an omniscient narrator describing the exchange and the recipient’s reaction",
-  "reason": "Short phrase explaining why they responded that way"
+  "finalPrice": ${type === 'sell' ? 'number (amount exchanged, or counter-offer if haggling)' : '0'},
+  "narrative": "3-4 sentences describing: (1) NPC's reaction, (2) their departure (leaving satisfied/angry/confused) OR staying to haggle/ask follow-up/badmouth the player",
+  "reason": "Short phrase explaining their decision",
+  "forwardMomentum": "ONLY if NPC departs, 1 sentence with bold question offering 2 choices: **'Will you [action A], or [action B]?'** (example: **'Will you open the shop for more patients, or close early to forage for herbs?'**). If NPC stays, leave null."
 }
 
+**CRITICAL - Departure Logic:**
+- If accepted OR declined → NPC leaves (describe them exiting, satisfied or furious or whatever it is)
+- If counter/haggle → NPC stays, awaiting Maria's response (do NOT describe departure)
+- forwardMomentum ONLY appears when NPC leaves
+
+**Example Narratives:**
+✓ GOOD (accepted, departs): "Mateo reluctantly accepts, counting out the reales with calloused fingers. He tucks the honey into his basket and nods curtly before stepping back into the crowded street, his shoulders still tight with worry."
+✓ GOOD (declined, departs): "The woman's eyes narrow. 'Honey for a broken finger? You mock me, señora.' She turns sharply, her skirts kicking up dust as she storms toward the plaza, muttering about 'fraudulent healers.'"
+✓ GOOD (counter, stays): "He frowns, weighing the vial in his palm. 'Five reales is all I have, Doña Maria. Will you take that instead?' He waits, eyes hopeful but wary."
+
 Rules:
-- If decision is "counter", set accepted to false and finalPrice to the counter-offer amount (or leave null if they want a different remedy).
 - For gifts, finalPrice must be 0.
-- Keep the narrative grounded in the situation; do not invent cures the item cannot plausibly deliver.`;
+- If the NPC has a specific ask and the player offers something else, the NPC is always offended and leaves.
+- Keep narrative grounded in 1680 realities; no anachronisms.`;
 }
 
 /**
@@ -99,6 +124,7 @@ function parseGiveSellOutcome(rawText, type, fallbackPrice) {
         finalPrice,
         narrative: parsed.narrative || defaultNarrative,
         reason: parsed.reason || '',
+        forwardMomentum: parsed.forwardMomentum || null, // New: forward momentum question
       };
     }
   } catch (error) {
@@ -111,6 +137,7 @@ function parseGiveSellOutcome(rawText, type, fallbackPrice) {
     finalPrice: type === 'sell' ? (fallbackPrice ?? 0) : 0,
     narrative: defaultNarrative,
     reason: 'No clear outcome returned',
+    forwardMomentum: null,
   };
 }
 
@@ -1504,8 +1531,11 @@ export function useCommerceHandlers({
         word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
       ).join(' ');
 
+      // Fallback for ailment description
+      const ailmentText = ailmentDescription || 'ailment';
+
       // Create clean prescription statement (what player sees in Chronicle)
-      const cleanStatement = `Maria de Lima offers ${recipientNameCapitalized} a prescription for their ${ailmentDescription}: ${amount} ${amount === 1 ? 'drachm' : 'drachms'} of ${item.name} (${route}), price ${price} reales.${bloodlettingNote}`;
+      const cleanStatement = `Maria de Lima offers ${recipientNameCapitalized} a prescription for their ${ailmentText}: ${amount} ${amount === 1 ? 'drachm' : 'drachms'} of ${item.name} (${route}), price ${price} reales.${bloodlettingNote}`;
 
       // Create full prompt with instructions (what LLM sees to guide behavior)
       const llmInstructions = `
@@ -1513,7 +1543,7 @@ Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-
 
 Context:
 - ${price} reales is ${price > 50 ? 'extremely expensive (several months of wages for a common laborer)' : price > 20 ? 'moderately expensive (2-3 weeks of wages)' : 'affordable (a few days of wages)'} for ${recipientName.includes('Don') || recipientName.includes('Doña') ? 'a wealthy patron' : 'a common person (note: sailors earn ~80-100 reales/month)'}.
-- ${recipientNameCapitalized} can ACCEPT (pay and take the medicine gratefully), BARGAIN (counter-offer with less money, create tension), or DECLINE (refuse, possibly offended by the price or skeptical of the treatment).
+- ${recipientNameCapitalized} can ACCEPT (pay and take the medicine gratefully), BARGAIN (counter-offer with less money, create tension), or DECLINE (refuse, possibly offended by the price or skeptical of the treatment - this is the most common outcome and will always happen, with patient getting angry or insulting, if the player offers a nonsensical prescription or one that is different from what was discussed).
 - Make their decision realistic based on their social class, the price, and their desperation level.`;
 
       setPendingActionPrompt(null);
@@ -1544,19 +1574,28 @@ Context:
 
     let outcome;
     try {
+      // Get recent narrative for context
+      const recentNarrative = conversationHistory
+        .slice(-2)
+        .filter(msg => msg.role === 'assistant' && msg.content)
+        .map(msg => msg.content)
+        .join('\n\n');
+
       const systemPrompt = buildGiveSellOutcomePrompt({
         type,
         recipientName,
         item,
         amount,
         price,
-        ailmentDescription
+        ailmentDescription,
+        recentNarrative,
+        location: gameState?.location || 'Mexico City'
       });
       const messages = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: 'Determine the realistic outcome. Reply with JSON only.' }
       ];
-      const response = await createChatCompletion(messages, 0.4, 400);
+      const response = await createChatCompletion(messages, 0.5, 500); // Increased temp for variety, tokens for longer response
       const rawText = response?.choices?.[0]?.message?.content || response;
       outcome = parseGiveSellOutcome(rawText, type, price);
       console.log('[ActionPrompt] Give/Sell evaluation outcome:', outcome);
@@ -1566,7 +1605,7 @@ Context:
       return;
     }
 
-    const { accepted, decision, finalPrice, narrative, reason } = outcome;
+    const { accepted, decision, finalPrice, narrative, reason, forwardMomentum } = outcome;
     const primarySystemTag = (() => {
       if (accepted) {
         if (type === 'sell') {
@@ -1590,13 +1629,18 @@ Context:
       return `*${base}*`;
     })();
 
+    // Append forward momentum question to narrative if NPC departed
+    const fullNarrative = forwardMomentum
+      ? `${narrative}\n\n${forwardMomentum}`
+      : narrative;
+
     setConversationHistory(prev => [
       ...prev,
       { role: 'system', content: primarySystemTag },
-      { role: 'assistant', content: narrative },
+      { role: 'assistant', content: fullNarrative },
       { role: 'system', content: systemSummary }
     ]);
-    setHistoryOutput(narrative);
+    setHistoryOutput(fullNarrative);
 
     if (!accepted) {
       const journalDecline = (() => {

@@ -41,9 +41,9 @@ export const PORTRAIT_CATEGORIES = {
     'femaleyoungcriolloservant.jpg',
     'pensinsularefemaleservantyoung.jpg',
     'sickyoungwoman.jpg',
+    'youngafricanowoman.jpg',
     'youngafricanwoman.jpg',
     'youngcriollawoman.jpg',
-    'youngcriollawoman.png',
     'youngindigenouswoman.jpg',
     'youngmestizawoman.jpg',
     'youngmulattowoman.jpg',
@@ -94,6 +94,8 @@ export const PORTRAIT_CATEGORIES = {
     'manonhorsebacknight.jpg',
     'manwritingwithlantern.jpg',
     'middleagedcriolloman.jpg',
+    'middleagedmalebutcher.jpg',
+    'middleagedmaleleatherworker.jpg',
     'mulattoman.jpg',
     'mulattonyoungman.jpg',
     'oldmanholdingcandlenight.jpg',
@@ -114,10 +116,10 @@ export const PORTRAIT_CATEGORIES = {
     'water_seller.png',
     'worriedfather.jpg',
     'writer.jpg',
-    'youngafricanman.png',
+    'youngafricanoman.jpg',
     'youngcavalier.jpg',
     'youngfootman.jpg',
-    'youngmalemessenger.png',
+    'youngmalemessenger.jpg',
     'youngmaleservant.jpg',
     'youngman.jpg',
     'youngmanwithfaciallaceration.jpg',
@@ -126,7 +128,7 @@ export const PORTRAIT_CATEGORIES = {
   'Clergy': [
     'abbot.jpg',
     'africanorindianoceanreligiousritualnight.jpg',
-    'dominicannunelderly.jpg .png',
+    'dominicannunelderly.jpg',
     'dominicannunelderly.png',
     'elderlycriollonun.jpg',
     'friar.jpg',
@@ -149,12 +151,17 @@ export const PORTRAIT_CATEGORIES = {
     'merchantman.jpg',
     'merchantwritingbill.jpg',
     'mestizomiddleagedmalemerchant.jpg',
+    'mestizomiddleagedmaletoolvendor.jpg',
     'middleagedafricanofemalemerchant.jpg',
+    'middleagedcriollofoodvendor.jpg',
+    'middleagedfemalemerchant.jpg',
+    'middleagedmalefilipinomerchant.jpg',
     'middleagedmalemerchant.jpg',
     'seamstressdraperortextilemerchant.jpg',
     'shopkeeper.jpg',
     'shopkeeperatwindowdusk.jpg',
-    'shopkeepercriollomiddleaged.jpg'
+    'shopkeepercriollomiddleaged.jpg',
+    'youngfemaleindiovendor.jpg'
   ],
   'Soldiers': [
     'armedsoldiernight.jpg',
@@ -204,6 +211,7 @@ export const PORTRAIT_CATEGORIES = {
     'criollofemaleseamstressmiddleaged.jpg',
     'criollomaleinnkeeperelderly.jpg',
     'criollomaleprintermiddleaged.jpg',
+    'elderlyfemaleindioweaver.jpg',
     'fishermanonriver.jpg',
     'indiofemalechinampafarmerelderly.jpg',
     'laborer.jpg',
@@ -211,6 +219,7 @@ export const PORTRAIT_CATEGORIES = {
     'mestizoartisan.jpg',
     'mestizomaleartisan.jpg',
     'middleagedfarmer.jpg',
+    'middleagedindiofemalepotterartisan.jpg',
     'middleagedmalemuleteer.jpg',
     'middleagedmaleportuguesesailor.jpg',
     'middleagedmalesailor.jpg',
@@ -221,6 +230,12 @@ export const PORTRAIT_CATEGORIES = {
     'poorfarmerwoman.jpg',
     'sailor.jpg',
     'youngafricanartisan.jpg'
+  ],
+  'Animals': [
+    'catday.jpg',
+    'dog.jpg',
+    'donkey.jpg',
+    'frog.jpg'
   ]
 };
 

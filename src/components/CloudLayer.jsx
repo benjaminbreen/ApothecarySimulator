@@ -15,6 +15,7 @@
 import React, { useMemo, memo } from 'react';
 import { getCloudShapes, getCloudSizeMultiplier, getAltitudeRange, getAltitudeSpeedMultiplier } from '../services/cloudService';
 import { createSeededRandom } from '../utils/seededRandom';
+import { isSafari } from '../utils/browserDetection';
 
 const CLOUD_SVG_CONFIG = {
   default: { width: 200, height: 100, viewBox: { minX: 0, minY: 0, width: 170, height: 80 } },
@@ -57,6 +58,9 @@ const CloudLayer = ({
   timeOfDay = 'day',
   className = ''
 }) => {
+  // Detect Safari for performance optimizations (Safari has poor SVG filter performance)
+  const isSafariBrowser = isSafari();
+
   // Don't render if clouds are disabled
   if (!cloudConfig.enabled || !cloudConfig.layers || cloudConfig.layers.length === 0) {
     return null;
@@ -222,9 +226,9 @@ const CloudLayer = ({
     if (!shouldShowBirds) return [];
     const rng = createSeededRandom((cloudConfig.seed || 0) + 97);
 
-    // More flocks during dawn/dusk (2-4 instead of 1-2)
-    const baseFlockCount = isDawnDusk ? 2 + rng.randomInt(0, 3) : 1 + rng.randomInt(0, 2);
-    const maxFlockCount = 6; // Cap at 6 flocks to prevent memory leak
+    // Reduced by 50% for performance: 1-2 during dawn/dusk, 0-1 otherwise
+    const baseFlockCount = isDawnDusk ? 1 + rng.randomInt(0, 2) : rng.randomInt(0, 2);
+    const maxFlockCount = 3; // Reduced from 6 to 3
     const baseDuration = width < 900 ? 22 : 28;
 
     // More realistic bird silhouettes
@@ -269,8 +273,8 @@ const CloudLayer = ({
           opacity: 0.5 + rng.random() * 0.15
         });
       } else {
-        // V-FORMATION FLOCK - Multiple birds in V shape
-        const formationSize = 3 + rng.randomInt(0, 3); // 3-5 birds (smaller groups)
+        // V-FORMATION FLOCK - Multiple birds in V shape (reduced for performance)
+        const formationSize = 3 + rng.randomInt(0, 2); // 3-4 birds (was 3-5)
         const leaderY = (0.2 + rng.random() * 0.2) * 100;
         const vAngle = 35 + rng.random() * 20;
 
@@ -297,8 +301,8 @@ const CloudLayer = ({
     if (!shouldShowBirds) return [];
     const rng = createSeededRandom((cloudConfig.seed || 0) + 199);
 
-    // Fewer, smaller perching birds
-    const birdCount = isDawnDusk ? 2 + rng.randomInt(0, 2) : 1 + rng.randomInt(0, 2);
+    // Reduced by 50% for performance: 1 during dawn/dusk, 0-1 otherwise
+    const birdCount = isDawnDusk ? 1 : rng.randomInt(0, 2);
 
     // Perching locations (church spires and rooftops - scaled to vw)
     const perchLocations = [
@@ -336,8 +340,8 @@ const CloudLayer = ({
     if (!shouldShowBirds) return [];
     const rng = createSeededRandom((cloudConfig.seed || 0) + 777);
 
-    // Spawn 2-4 tiny birds at high altitude
-    const birdCount = 2 + rng.randomInt(0, 3);
+    // Reduced by 50% for performance: 1-2 tiny birds at high altitude
+    const birdCount = 1 + rng.randomInt(0, 2);
     const birds = [];
 
     for (let i = 0; i < birdCount; i++) {
@@ -441,11 +445,11 @@ const CloudLayer = ({
                             height={vbHeight + maskPadding * 2}
                             colorInterpolationFilters="sRGB"
                           >
-                            {/* Turbulence creates organic noise pattern */}
+                            {/* Turbulence creates organic noise pattern - optimized for performance */}
                             <feTurbulence
                               type="fractalNoise"
                               baseFrequency={instance.type === 'cirrus' ? '0.03 0.01' : (instance.type === 'cumulus' ? '0.02 0.02' : '0.015 0.008')}
-                              numOctaves={instance.type === 'cumulonimbus' ? '5' : '4'}
+                              numOctaves={isSafariBrowser ? '1' : '2'}
                               seed={instance.id.split('-')[1] || 0}
                               result="turbulence"
                             />
@@ -501,7 +505,7 @@ const CloudLayer = ({
                             <feTurbulence
                               type="fractalNoise"
                               baseFrequency="0.015 0.015"
-                              numOctaves="3"
+                              numOctaves="1"
                               seed={(instance.id.split('-')[1] || 0) + 100}
                               result="noise"
                             />
@@ -714,29 +718,7 @@ const CloudLayer = ({
                               </g>
                             )}
 
-                            {/* Fractal detail - IMPROVED: Small-scale texture for realism */}
-                            <g opacity="0.25">
-                              {instance.shapeData.puffs.map((puff, idx) => {
-                                // Add 2-3 micro-puffs per main puff for fractal structure
-                                return [0, 1, 2].map((microIdx) => {
-                                  const angle = (microIdx / 3) * Math.PI * 2;
-                                  const offsetDist = puff.rx * 0.35;
-                                  const microX = puff.cx + Math.cos(angle) * offsetDist;
-                                  const microY = puff.cy + Math.sin(angle) * offsetDist;
-                                  return (
-                                    <ellipse
-                                      key={`fractal-${idx}-${microIdx}`}
-                                      cx={microX}
-                                      cy={microY}
-                                      rx={puff.rx * 0.25}
-                                      ry={puff.ry * 0.25}
-                                      fill={colors.main}
-                                      fillOpacity={0.5}
-                                    />
-                                  );
-                                });
-                              })}
-                            </g>
+                            {/* Fractal detail - REMOVED: Performance optimization (-15-24 ellipses per cloud) */}
 
                             {/* Wispy outer edges - IMPROVED: Variable softness + torn irregular edges */}
                             <g opacity="0.3" filter={`url(#${maskFilterId}-soft)`}>

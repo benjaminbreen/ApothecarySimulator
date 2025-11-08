@@ -380,7 +380,7 @@ export default function PatientRosterModal({
 // Patient Card Component
 function PatientCard({ patient, onClick, isDark }) {
   const name = patient.name || 'Unknown Patient';
-  const age = patient.age || '?';
+  const age = patient.appearance?.age || patient.age || '?';
   const diagnosis = patient.diagnosis || 'No diagnosis recorded';
   const occupation = patient.occupation || 'Unknown occupation';
 

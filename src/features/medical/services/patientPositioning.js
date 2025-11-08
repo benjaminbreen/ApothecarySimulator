@@ -170,14 +170,55 @@ export function determinePatientPosition(patient, houseMapId) {
 export function getPlacementNarrative(positionData, patient) {
   const { severity, furnitureName, description } = positionData;
 
-  const baseNarrative = description || `${patient.name} is positioned near ${furnitureName}.`;
+  // Extract patient's actual ailment/symptoms for more specific narrative
+  const ailment = patient.metadata?.ailmentDescription || patient.description || null;
+  const symptoms = patient.symptoms || [];
 
-  // Add condition-specific context
-  const contextAdditions = {
+  // Build condition-specific narrative that incorporates actual symptoms
+  let conditionDesc = '';
+  if (severity === 'critical') {
+    if (ailment) {
+      conditionDesc = `suffering from ${ailment}`;
+    } else if (symptoms.length > 0) {
+      conditionDesc = `in critical condition with ${symptoms[0].name || 'severe symptoms'}`;
+    } else {
+      conditionDesc = 'gravely ill';
+    }
+  } else if (severity === 'moderate') {
+    if (ailment) {
+      conditionDesc = `showing signs of ${ailment}`;
+    } else if (symptoms.length > 0) {
+      conditionDesc = `experiencing ${symptoms[0].name || 'discomfort'}`;
+    } else {
+      conditionDesc = 'unwell';
+    }
+  } else {
+    // Mild
+    if (ailment) {
+      conditionDesc = `complaining of ${ailment}`;
+    } else if (symptoms.length > 0) {
+      conditionDesc = `concerned about ${symptoms[0].name || 'minor ailment'}`;
+    } else {
+      conditionDesc = 'showing signs of concern';
+    }
+  }
+
+  // Generate position-specific narrative
+  let positionNarrative;
+  if (furnitureName.includes('Bed') || furnitureName.includes('Mattress')) {
+    positionNarrative = `${patient.name} lies on the ${furnitureName.toLowerCase()}, ${conditionDesc}.`;
+  } else if (furnitureName.includes('Chair') || furnitureName.includes('Table')) {
+    positionNarrative = `${patient.name} sits near the ${furnitureName.toLowerCase()}, ${conditionDesc}.`;
+  } else {
+    positionNarrative = `${patient.name} stands near the ${furnitureName.toLowerCase()}, ${conditionDesc}.`;
+  }
+
+  // Add Maria's assessment
+  const mariaReaction = {
     critical: ` Maria can see the gravity of the situation immediately.`,
-    moderate: ` Maria notes the patient's discomfort with concern.`,
-    mild: ` Maria prepares to examine the patient's complaint.`
+    moderate: ` Maria assesses the patient with concern.`,
+    mild: ` Maria prepares to examine the complaint.`
   };
 
-  return baseNarrative + (contextAdditions[severity] || '');
+  return positionNarrative + (mariaReaction[severity] || '');
 }

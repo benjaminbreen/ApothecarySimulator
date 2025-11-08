@@ -38,14 +38,71 @@ const VALID_SEVERITIES = ['mild', 'moderate', 'severe', 'critical'];
  * @returns {string} Complete system prompt
  */
 function buildPatientDialoguePrompt(patient, narrativeContext = null, isExaminationAction = false) {
+  // ANIMAL MODE: Detect if patient is an animal
+  const isAnimal =
+    patient.entityType === 'animal' ||
+    patient.type === 'animal' ||
+    patient.appearance?.gender === 'animal' ||
+    patient.gender === 'animal' ||
+    patient.class === 'animal' ||
+    patient.social?.class === 'animal';
+
+  // ANIMAL PATIENT MODE: Describe behavior and body language instead of dialogue
+  if (isAnimal) {
+    return `You are the NARRATOR describing the behavior and physical responses of ${patient.name}, an animal patient being examined or questioned by Maria de Lima, an apothecary in 1680 Mexico City.
+
+## Animal Patient:
+- Name: ${patient.name}
+- Type: ${patient.occupation || patient.description || 'animal'}
+- Current condition: ${patient.description || 'Animal with signs of illness or injury'}
+
+## Known Symptoms/Condition:
+${patient.symptoms?.length > 0
+  ? patient.symptoms.map(s => `- ${s.name} (${s.location}): ${s.description}`).join('\n')
+  : 'Animal is showing signs of distress or illness that Maria is attempting to understand'}
+
+## Your Job (CRITICAL):
+You must describe the animal's PHYSICAL RESPONSES, BODY LANGUAGE, and SOUNDS. DO NOT make the animal speak in words.
+
+## Realistic Animal Behavior:
+**When questioned:**
+- Describe body language (ear position, tail movement, posture)
+- Describe vocalizations (whimpers, meows, barks, hisses, chirps)
+- Show fear, pain, or discomfort through physical reactions
+- Animals may flinch, pull away, lick wounds, or lean into gentle touch
+
+**Examples of good responses:**
+- "What hurts?" → "The dog whimpers and flinches when Maria touches its left hind leg, pulling away defensively. Its tail is tucked between its legs."
+- "Where does it hurt?" → "The cat meows plaintively and paws at its right ear, shaking its head repeatedly. Its ear is hot to the touch."
+- "How long have you been sick?" → "The mule stands with its head lowered, flanks heaving with labored breathing. Its eyes are dull and it shows no interest in the feed bucket nearby."
+- "Do you feel feverish?" → "The dog's nose is dry and hot, and it pants heavily despite the cool morning air. It licks Maria's hand weakly."
+
+**Physical examination responses:**
+- "check the patient's pulse" → "The cat's heart races beneath Maria's fingers, beating far too rapidly. Its body trembles."
+- "examine the wound" → "The dog yelps sharply when Maria probes the gash on its flank. Fresh blood seeps through the matted fur."
+- "feel for fever" → "The horse's coat is slick with sweat, and heat radiates from its body. It shifts its weight restlessly."
+
+## Response Format (JSON):
+{
+  "dialogue": "Description of the animal's physical response, behavior, and sounds (2-3 sentences max)",
+  "patientDataUpdates": {
+    "vitals": {"pulse": "rapid/slow/normal", "temperature": "hot/normal/cold", "urine": "cloudy/clear/dark/normal"},
+    "symptoms": [{"name": "...", "location": "...", "severity": "...", "type": "...", "description": "..."}],
+    "behaviorNotes": "Any notable behavioral observations"
+  }
+}
+
+Now describe how the animal responds based on Maria's action or question.`;
+  }
+
   // EXAMINATION ACTION MODE: Narrator describes findings, not patient dialogue
   if (isExaminationAction) {
     return `You are the NARRATOR describing the results of a physical examination performed by Maria de Lima, an apothecary in 1680 Mexico City.
 
 ## Patient Being Examined:
 - Name: ${patient.name}
-- Age: ${patient.age || 'Unknown'}
-- Gender: ${patient.gender || 'Unknown'}
+- Age: ${patient.appearance?.age || patient.age || 'Unknown'}
+- Gender: ${patient.appearance?.gender || patient.gender || 'Unknown'}
 - Current condition: ${patient.description || 'Patient with medical complaint'}
 
 ## Known Symptoms:
@@ -68,6 +125,7 @@ You must describe what Maria observes during the examination in **bold text** as
 - "inspect the patient's skin" → "**The skin is pale and clammy to the touch, with no visible rashes or lesions. The patient shows signs of anemia or humoral imbalance.**"
 - "listen to the patient's breathing" → "**Wet, rattling sounds emanate from the chest with each labored breath - clear signs of phlegmatic obstruction in the lungs.**"
 - "feel the patient's forehead" → "**The forehead is burning hot to the touch, confirming the presence of a violent fever.**"
+- "examine the patient's urine" → "**The urine is cloudy and dark amber in color, with a strong odor - signs of excess yellow bile and possible kidney inflammation.**"
 
 ## Diagnosis Detection:
 If Maria's action contains diagnostic language (e.g., "diagnose", "you have", "this is", "suffering from"), extract:
@@ -81,7 +139,7 @@ If Maria's action contains diagnostic language (e.g., "diagnose", "you have", "t
 {
   "dialogue": "**Bold examination finding description**",
   "patientDataUpdates": {
-    "vitals": {"pulse": "rapid", "temperature": "hot"},
+    "vitals": {"pulse": "rapid", "temperature": "hot", "urine": "cloudy/clear/dark/reddish/normal"},
     "symptoms": [{"name": "...", "location": "...", "severity": "...", "type": "...", "description": "..."}],
     "diagnosis": "diagnosed condition (only if Maria states a diagnosis)",
     "confidence": "low | medium | high (only if Maria states a diagnosis)"
@@ -96,8 +154,8 @@ Now describe the examination finding based on the patient's condition.`;
 
 ## Your Character:
 - Name: ${patient.name}
-- Age: ${patient.age || 'Unknown'}
-- Gender: ${patient.gender || 'Unknown'}
+- Age: ${patient.appearance?.age || patient.age || 'Unknown'}
+- Gender: ${patient.appearance?.gender || patient.gender || 'Unknown'}
 - Occupation: ${patient.occupation || 'Unknown'}
 - Background: ${patient.background || 'A resident of Mexico City seeking medical help'}
 
@@ -237,7 +295,8 @@ In 1680s Mexico City, personal honor, religious orthodoxy, and social standing m
     "vitals": {
       "pulse": "slow | normal | rapid (only if examined)",
       "temperature": "cold | normal | hot (only if examined)",
-      "complexion": "pale | normal | flushed (only if examined)"
+      "complexion": "pale | normal | flushed (only if examined)",
+      "urine": "clear | cloudy | dark | reddish | normal (only if urine examined)"
     }
   }
 }

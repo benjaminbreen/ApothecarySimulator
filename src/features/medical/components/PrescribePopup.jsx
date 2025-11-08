@@ -4,11 +4,13 @@
  * Preserves all game logic while modernizing UI
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDrop } from 'react-dnd';
 import { createChatCompletion } from '../../../core/services/llmService';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import imageMap from '../../../imageMap';
+import { getBackdropFilter } from '../../../utils/browserDetection';
+import { calculatePrescriptionOutcome } from '../utils/prescriptionCalculator.mjs';
 
 import oralImage from '../../../assets/oral.jpg';
 import inhaledImage from '../../../assets/inhaled.jpg';
@@ -88,6 +90,26 @@ function PrescribePopup({
   useEffect(() => {
     setPrice(basePrice * amount);
   }, [amount, basePrice]);
+
+  // Memoize prescription analysis to prevent recalculating on every render
+  const prescriptionAnalysis = useMemo(() => {
+    if (!selectedItem || !currentPatient || !selectedRoute || amount <= 0) {
+      return null;
+    }
+
+    try {
+      return calculatePrescriptionOutcome({
+        item: selectedItem,
+        patient: currentPatient,
+        route: selectedRoute,
+        amount: amount,
+        playerSkills: gameState.playerSkills || null
+      });
+    } catch (error) {
+      console.error('[PrescribePopup] Failed to calculate prescription analysis:', error);
+      return null;
+    }
+  }, [selectedItem, currentPatient, selectedRoute, amount, gameState.playerSkills]);
 
   // Handle drop of item into prescription area
   const [{ isOver }, drop] = useDrop({
@@ -184,9 +206,9 @@ function PrescribePopup({
     Secret: ${secret}
     Maria's current wealth is ${currentWealth} silver coins.
 
-    Using your knowledge of early modern medicine, humoral theory, and human biology (and incorporating information from the NPC's secret, social context, and diagnosis), assess the safety and effectiveness of this prescription. Consider both immediate and long-term effects of the medicine. Focus on the dosage, toxicity, and health condition of the NPC, ensuring the response is naturalistic and varied based on the substance and method of delivery. Some prescriptions can cause an NPC to die or suffer disabling complications, but not every instance should result in severe side effects such as nausea unless appropriate. Most treatments, however, will fail in various ways.
+    Using your knowledge of early modern medicine, humoral theory, and human biology (and incorporating information from the NPC's secret, social context, and diagnosis), assess the safety and effectiveness of this prescription. Consider both immediate and long-term effects of the medicine. Focus on the dosage, toxicity, and health condition of the NPC, ensuring the response is naturalistic and varied based on the substance and method of delivery. Some prescriptions can cause an NPC to die or suffer disabling complications, but not every instance should result in severe side effects. Most treatments, however, will fail in various ways.
 
-    Be unsparing, detailed, and realistic in your descriptions. Avoid excessive nausea or vomiting for relatively benign substances like wine, chamomile, or lightly infused herbal remedies unless administered in excess or combined with other dangerous factors. Instead, consider other common reactions in early modern medicine, such as mild discomfort, temporary relief, or no reaction at all. If a treatment is historically known for purging, do not shy away from those reactions, but balance it with other possibilities based on the patient's condition.
+    Be unsparing, detailed, daring, and shockingly realistic in your descriptions. If a treatment is historically known for purging, do not shy away from those reactions, but balance it with other possibilities based on the patient's condition.
 
     Consider reactions like:
     - If a drug causes purging (such as vomiting or diarrhea), describe it in vivid, unsparing and graphically realistic sensory detail, but ensure that only substances known for their toxicity or purgative qualities cause such effects.
@@ -212,7 +234,7 @@ function PrescribePopup({
       - For more minor injuries, use something like: ##### The prescription seems to have failed...
 
     ### Patient Reactions:
-    After the headline, describe the patient's experience over a period of three hours in 2 highly detailed paragraphs that emphasize vivid, historically authentic characterization and finely observed details:
+    After the headline, describe the patient's experience over a period of three hours in 2 succinct but detailed paragraphs that emphasize vivid, historically authentic characterization and finely observed details:
     - Focus on the **sensory characteristics** of the medicine (e.g., taste, smell, texture). Always mention the route of administration and give specifics about how it was applied.
     - Show how the patient reacts to the prescribed dose, including the price. Reactions might range from a miraculous cure to mild discomfort, satisfaction, or a complete lack of effect.
     - Describe the **perceived effects** of the medicine on the patient's health, and when appropriate, consider early modern concepts like humoral balance (hot, cold, wet, dry qualities).
@@ -222,17 +244,7 @@ function PrescribePopup({
     - Benign things like wine, rose water, and other lightly infused or sugared medicines should not cause serious complications unless taken in excess.
     - Topical prescriptions are almost always well tolerated and effective for external ailments.
 
-    Following the description, include a historically authentic quote or proverb that reflects the situation. Rate the prescription with a score out of 10 (10=best possible prescription choice, 1=worst possible). At the end of the response, provide a summary of Maria's wealth, status, reputation, and the time (remember that at least four hours have passed) in **this exact format**:
-
-    *Now Maria has ${currentWealth + price} silver coins. She is feeling [single word status]. Her reputation is [emoji]. The time is now # AM (or PM), xx [month] [year].*
-
-    **Reputation Emoji Guide:**
-    - 😡 (1) : Extremely bad (e.g., patient dies)
-    - 😠 (2) : Very bad (e.g., severe complications)
-    - 😐 (3) : Neutral (e.g., treatment is ineffective but not harmful)
-    - 🙂 (5) : Positive (e.g., minor positive effects)
-    - 😇 (9) : Excellent (e.g., miraculous cure)
-    - 👑 (10) : Outstanding (e.g., near-mythical healing)
+    Following the description, include, in italics, a historically authentic quote or proverb that reflects the situation. Finally, at the end, in a bold markdown header, rate the prescription with a score out of 10 (10=best possible prescription choice, 1=worst possible). 
   `;
     }
     // General poison
@@ -412,7 +424,7 @@ function PrescribePopup({
             background: isDark
               ? 'rgba(15, 23, 42, 0.85)'
               : 'rgba(92, 74, 58, 0.4)',
-            backdropFilter: 'blur(8px)'
+            ...getBackdropFilter('blur(8px)')
           }}
           onClick={onClose}
         >
@@ -723,7 +735,7 @@ function PrescribePopup({
                             background: selectedRoute === route
                               ? 'rgba(217, 119, 6, 0.9)'
                               : 'rgba(0, 0, 0, 0.5)',
-                            backdropFilter: 'blur(4px)'
+                            ...getBackdropFilter('blur(4px)')
                           }}
                         >
                           {route}
@@ -733,6 +745,228 @@ function PrescribePopup({
                   ))}
                 </div>
               </div>
+
+              {/* Treatment Analysis Panel */}
+              {prescriptionAnalysis && (
+                (() => {
+                  const analysis = prescriptionAnalysis;
+                  const isDark = theme === 'dark';
+
+                  return (
+                    <details
+                      open
+                      className="mb-6 rounded-lg border overflow-hidden transition-all"
+                      style={{
+                        borderColor: isDark ? '#374151' : '#d4a574',
+                        background: isDark
+                          ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
+                          : 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                        boxShadow: isDark
+                          ? '0 2px 8px rgba(0, 0, 0, 0.3)'
+                          : '0 2px 8px rgba(180, 130, 70, 0.2)'
+                      }}
+                    >
+                      <summary
+                        className="px-4 py-3 cursor-pointer transition-all flex items-center gap-2"
+                        style={{
+                          fontFamily: "'Cormorant Garamond', serif",
+                          fontSize: '1.1rem',
+                          fontWeight: '600',
+                          color: isDark ? '#fbbf24' : '#92400e',
+                          background: isDark ? 'rgba(15, 23, 42, 0.5)' : 'rgba(254, 243, 199, 0.5)',
+                          borderBottom: isDark ? '1px solid #374151' : '1px solid #d4a574'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = isDark
+                            ? 'rgba(30, 41, 59, 0.8)'
+                            : 'rgba(252, 211, 77, 0.3)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = isDark
+                            ? 'rgba(15, 23, 42, 0.5)'
+                            : 'rgba(254, 243, 199, 0.5)';
+                        }}
+                      >
+                        <span style={{ fontSize: '1.3rem' }}>⚗️</span>
+                        <span>Treatment Analysis</span>
+                        <span
+                          className="ml-auto px-2 py-1 rounded text-sm"
+                          style={{
+                            fontFamily: "'Inter', sans-serif",
+                            background: analysis.effectiveness >= 75
+                              ? (isDark ? 'rgba(22, 163, 74, 0.2)' : 'rgba(21, 128, 61, 0.15)')
+                              : analysis.effectiveness >= 50
+                              ? (isDark ? 'rgba(234, 179, 8, 0.2)' : 'rgba(202, 138, 4, 0.15)')
+                              : (isDark ? 'rgba(220, 38, 38, 0.2)' : 'rgba(153, 27, 27, 0.15)'),
+                            color: analysis.effectiveness >= 75
+                              ? (isDark ? '#4ade80' : '#15803d')
+                              : analysis.effectiveness >= 50
+                              ? (isDark ? '#fbbf24' : '#ca8a04')
+                              : (isDark ? '#f87171' : '#991b1b'),
+                            fontWeight: '600'
+                          }}
+                        >
+                          {analysis.effectiveness}% effective
+                        </span>
+                      </summary>
+
+                      <div
+                        className="px-4 py-3 space-y-3"
+                        style={{
+                          background: isDark ? '#0f172a' : 'white',
+                          fontFamily: "'Inter', sans-serif",
+                          fontSize: '0.9rem'
+                        }}
+                      >
+                        {/* Outcome Prediction */}
+                        <div
+                          className="p-3 rounded-lg"
+                          style={{
+                            background: isDark ? 'rgba(30, 41, 59, 0.5)' : '#fef3c7',
+                            border: isDark ? '1px solid #374151' : '1px solid #fcd34d'
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: '600',
+                              color: isDark ? '#fbbf24' : '#92400e',
+                              marginBottom: '0.5rem'
+                            }}
+                          >
+                            Predicted Outcome: <span style={{ textTransform: 'capitalize' }}>{analysis.outcome}</span>
+                          </div>
+                          {analysis.breakdown.toxicityWarning && (
+                            <div
+                              className="mt-2 p-2 rounded"
+                              style={{
+                                background: isDark ? 'rgba(220, 38, 38, 0.2)' : 'rgba(153, 27, 27, 0.1)',
+                                color: isDark ? '#f87171' : '#991b1b',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              {analysis.breakdown.toxicityWarning}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Humoral Matching */}
+                        {analysis.breakdown.humoralScore > 0 && (
+                          <div>
+                            <div
+                              style={{
+                                fontWeight: '600',
+                                color: isDark ? '#a78bfa' : '#6d28d9',
+                                marginBottom: '0.5rem',
+                                fontSize: '0.95rem'
+                              }}
+                            >
+                              Humoral Theory (+{analysis.breakdown.humoralScore} pts)
+                            </div>
+                            <ul
+                              className="space-y-1"
+                              style={{
+                                color: isDark ? '#cbd5e1' : '#475569',
+                                fontSize: '0.85rem',
+                                paddingLeft: '1.25rem',
+                                listStyleType: 'disc'
+                              }}
+                            >
+                              {analysis.breakdown.humoralExplanations.map((exp, idx) => (
+                                <li key={idx}>{exp}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Direct Effect Matches */}
+                        {analysis.breakdown.directMatches && analysis.breakdown.directMatches.length > 0 && (
+                          <div>
+                            <div
+                              style={{
+                                fontWeight: '600',
+                                color: isDark ? '#34d399' : '#059669',
+                                marginBottom: '0.5rem',
+                                fontSize: '0.95rem'
+                              }}
+                            >
+                              Matched Symptoms: {analysis.breakdown.directMatches.join(', ')}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Route Appropriateness */}
+                        {analysis.breakdown.routeBonus !== 0 && (
+                          <div>
+                            <div
+                              style={{
+                                fontWeight: '600',
+                                color: analysis.breakdown.routeBonus > 0
+                                  ? (isDark ? '#34d399' : '#059669')
+                                  : (isDark ? '#f87171' : '#991b1b'),
+                                marginBottom: '0.25rem',
+                                fontSize: '0.95rem'
+                              }}
+                            >
+                              Route: {analysis.breakdown.routeBonus > 0 ? '+' : ''}{analysis.breakdown.routeBonus} pts
+                            </div>
+                            <div
+                              style={{
+                                color: isDark ? '#cbd5e1' : '#475569',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              {analysis.breakdown.routeExplanation}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Dosage Warning */}
+                        {analysis.breakdown.dosageWarning && (
+                          <div
+                            className="p-2 rounded"
+                            style={{
+                              background: isDark ? 'rgba(234, 179, 8, 0.2)' : 'rgba(202, 138, 4, 0.1)',
+                              color: isDark ? '#fbbf24' : '#ca8a04',
+                              fontSize: '0.85rem'
+                            }}
+                          >
+                            {analysis.breakdown.dosageWarning}
+                          </div>
+                        )}
+
+                        {/* Mismatches */}
+                        {analysis.breakdown.mismatches && analysis.breakdown.mismatches.length > 0 && (
+                          <div>
+                            <div
+                              style={{
+                                fontWeight: '600',
+                                color: isDark ? '#f87171' : '#991b1b',
+                                marginBottom: '0.5rem',
+                                fontSize: '0.95rem'
+                              }}
+                            >
+                              Warnings:
+                            </div>
+                            <ul
+                              className="space-y-1"
+                              style={{
+                                color: isDark ? '#fca5a5' : '#dc2626',
+                                fontSize: '0.85rem',
+                                paddingLeft: '1.25rem',
+                                listStyleType: 'disc'
+                              }}
+                            >
+                              {analysis.breakdown.mismatches.map((mis, idx) => (
+                                <li key={idx}>{mis}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })()
+              )}
 
               {/* Prescribe Button */}
               <div className="flex justify-end gap-3">
@@ -796,7 +1030,7 @@ function PrescribePopup({
             background: isDark
               ? 'rgba(15, 23, 42, 0.9)'
               : 'rgba(92, 74, 58, 0.5)',
-            backdropFilter: 'blur(10px)'
+            ...getBackdropFilter('blur(10px)')
           }}
         >
           <div

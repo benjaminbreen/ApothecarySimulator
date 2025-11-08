@@ -281,7 +281,8 @@ Compounding Method: ${selectedMethod}
 
       // Apply Alchemist L25/L30 ability: Prevent sludge
       let compoundName = compoundData.name || 'Unusable Sludge';
-      let compoundPrice = compoundData.price || 0;
+      // CRITICAL: Parse price as number (LLM sometimes returns string instead of number)
+      let compoundPrice = parseInt(compoundData.price, 10) || 0;
 
       if (canPreventSludge(gameState.chosenProfession, gameState.playerLevel)) {
         if (compoundName === 'Unusable Sludge') {
@@ -338,7 +339,8 @@ Compounding Method: ${selectedMethod}
       };
 
       // Calculate rarity based on LLM's historical accuracy score
-      const accuracyScore = compoundData.historicalAccuracyScore || 30; // Default to common range
+      // CRITICAL: Parse accuracy score as number (LLM sometimes returns string)
+      const accuracyScore = parseInt(compoundData.historicalAccuracyScore, 10) || 30; // Default to common range
       const rarity = calculateRarity(accuracyScore);
 
       // Apply rarity multiplier to price
@@ -349,7 +351,8 @@ Compounding Method: ${selectedMethod}
       console.log(`[Mixing] Adjusted price: ${compoundPrice} reales`);
 
       // Apply Alchemist L20/L30 ability: Double batch chance
-      let compoundQuantity = compoundData.quantity || 1;
+      // CRITICAL: Parse quantity as number (LLM sometimes returns string "1" instead of number 1)
+      let compoundQuantity = parseInt(compoundData.quantity, 10) || 1;
       const doubleBatchChance = getDoubleBatchChance(gameState.chosenProfession, gameState.playerLevel);
 
       if (doubleBatchChance > 0 && Math.random() < doubleBatchChance && compoundName !== 'Unusable Sludge') {

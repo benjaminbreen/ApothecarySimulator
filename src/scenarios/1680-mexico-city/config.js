@@ -72,14 +72,14 @@ As make your way to the shop floor where you greet customers, you ponder what to
 
 Meanwhile, the street outside comes to life. Servants hurry past with baskets of fresh produce. A line of Dominican friars makes their way towards the nearby church, casting disapproving glances at a boisterous group of students. A patrol of soldiers carrying pikes is a reminder of troubling rumors – whispers of unrest in the northern provinces.
 
-Just as you begin to sort through your inventory, a sharp knock at the door announces the day's first visitor.
+Suddenly, a knock at the door announces the day's first visitor.
 
 **Will you see who is there, or ignore them?**`,
 
   debts: {
     'Don Luis (Moneylender)': {
       amount: 100,
-      deadline: 'August 23, 1680, 8:00 PM',
+      deadline: 'August 29, 1680, 8:00 PM',
       consequence: 'Shop repossession and potential imprisonment'
     },
     'Marta (Herb Woman)': {

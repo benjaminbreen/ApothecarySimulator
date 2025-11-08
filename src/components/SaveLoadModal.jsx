@@ -15,6 +15,7 @@ import {
   formatSaveTimestamp,
   createSaveData
 } from '../core/services/saveManager';
+import { safeLocalStorage } from '../utils/safeLocalStorage';
 
 export default function SaveLoadModal({
   isOpen,
@@ -25,7 +26,9 @@ export default function SaveLoadModal({
   playerSkills,
   conversationHistory,
   reputation,
-  npcRelationships
+  npcRelationships,
+  discoveredBooks, // NEW v1.1.0: Discovered books from Study tab
+  scenarioId // NEW v1.1.0: For gathering other save data
 }) {
   const isDark = document.documentElement.classList.contains('dark');
   const [saves, setSaves] = useState([]);
@@ -46,12 +49,32 @@ export default function SaveLoadModal({
   };
 
   const handleSave = (slotKey, slotName) => {
+    // Gather all game state for v1.1.0 save system
+    const { exportEntitiesForSave } = require('../core/entities/initializeEntities');
+    const npcPositionTracker = require('../features/map/services/npcPositionTracker').default;
+    const { getTransactionManager } = require('../core/systems/transactionManager');
+
+    const entities = exportEntitiesForSave();
+    const npcPositions = npcPositionTracker.exportForSave();
+    const transactionManager = getTransactionManager(scenarioId);
+    const transactions = transactionManager.exportForSave();
+
+    // Get calendar notes from localStorage (stored by DateTimeDropdown)
+    const calendarNotesJSON = safeLocalStorage.getItem('apothecary_calendar_notes');
+    const calendarNotes = calendarNotesJSON ? JSON.parse(calendarNotesJSON) : {};
+
     const saveData = createSaveData({
       gameState,
       playerSkills,
       conversationHistory,
       reputation,
       npcRelationships,
+      // NEW v1.1.0 fields:
+      entities,
+      npcPositions,
+      discoveredBooks: discoveredBooks || [],
+      calendarNotes,
+      transactions,
       slotName
     });
 

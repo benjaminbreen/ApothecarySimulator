@@ -8,7 +8,6 @@ import { autoGenerateNPCsFromNarrative } from '../entities/autoGenerateNPC';
 import { entityManager } from '../entities/EntityManager';
 import { buildLocationRegistry } from '../../features/map/services/locationRegistry';
 import { scenarioLoader } from '../services/scenarioLoader';
-import { isFeatureEnabled } from '../config/featureFlags';
 
 /**
  * @typedef {import('../types/game.types').GameState} GameState
@@ -313,9 +312,6 @@ export async function orchestrateTurn({
     }
     if (stateResult.actionPrompt) {
       console.log('[AgentOrchestrator] actionPrompt from state:', stateResult.actionPrompt.type, stateResult.actionPrompt);
-    }
-    if (isFeatureEnabled('interactionDebugLogging')) {
-      console.log('[AgentOrchestrator] Feature flags:', isFeatureEnabled('revisedInteractionPipeline') ? 'revisedInteractionPipeline=ON' : 'revisedInteractionPipeline=OFF');
     }
 
     return {

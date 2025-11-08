@@ -13,6 +13,7 @@ import { useGameState } from '../../../contexts/GameStateContext';
 import { MedicalRecordsManager } from '../../../core/systems/medicalRecordsManager';
 import { entityManager } from '../../../core/entities/EntityManager';
 import { generateFollowUpSchedule } from '../utils/followUpUtils';
+import { calculatePrescriptionOutcome } from '../utils/prescriptionCalculator.mjs';
 
 import oralImage from '../../../assets/oral.jpg';
 import inhaledImage from '../../../assets/inhaled.jpg';
@@ -114,6 +115,7 @@ function PrescribePanelIntegrated({
   const [showOutcomeModal, setShowOutcomeModal] = useState(false);
   const [prescriptionData, setPrescriptionData] = useState(null);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [mechanicsBreakdown, setMechanicsBreakdown] = useState(null);
 
   // Bloodletting feature states
   const [includeBloodletting, setIncludeBloodletting] = useState(false);
@@ -381,6 +383,22 @@ function PrescribePanelIntegrated({
       const summaryData = await createChatCompletion(summaryMessages, 0.4);
       const journalSummary = summaryData.choices[0].message.content.trim();
 
+      // Calculate mechanics breakdown for display in outcome modal
+      let breakdown = null;
+      try {
+        breakdown = calculatePrescriptionOutcome({
+          item,
+          patient: currentPatient,
+          route,
+          amount,
+          playerSkills: gameState.playerSkills || null
+        });
+        setMechanicsBreakdown(breakdown);
+        console.log('[PrescribePanelIntegrated] Mechanics breakdown:', breakdown);
+      } catch (error) {
+        console.error('[PrescribePanelIntegrated] Failed to calculate mechanics breakdown:', error);
+      }
+
       // Notify parent that prescription is complete (triggers blue card with full outcome data)
       if (onPrescriptionPending) {
         onPrescriptionPending({
@@ -391,7 +409,8 @@ function PrescribePanelIntegrated({
           route,
           outcome: simulatedOutput,  // Full detailed narrative
           journalSummary: journalSummary,
-          timestamp: gameState.time
+          timestamp: gameState.time,
+          mechanicsBreakdown: breakdown // Add mechanics breakdown to prescription data
         });
       }
 
@@ -404,7 +423,41 @@ function PrescribePanelIntegrated({
         ? ` She also performed bloodletting, drawing ${bloodAmount} ounces of blood to restore humoral balance.`
         : '';
 
-      const comprehensiveSummary = `After a thorough examination of ${npcName}, during which Maria observed ${symptoms}, she diagnosed the condition as ${diagnosis}. Maria then prescribed ${amount} drachms of ${item.name} administered via the ${route} route for ${price} reales.${bloodlettingSummary} ${journalSummary}`;
+      let comprehensiveSummary = `After a thorough examination of ${npcName}, during which Maria observed ${symptoms}, she diagnosed the condition as ${diagnosis}. Maria then prescribed ${amount} drachms of ${item.name} administered via the ${route} route for ${price} reales.${bloodlettingSummary} ${journalSummary}`;
+
+      // Generate narrative follow-up (2-3 sentences about patient reaction and aftermath)
+      try {
+        const patientClass = currentPatient?.class || currentPatient?.social?.class || 'common';
+        const patientPersonality = currentPatient?.personality || 'reserved';
+
+        const followUpPrompt = `You are narrating a medical transaction in 1680 Mexico City.
+
+PRESCRIPTION EVENT:
+${comprehensiveSummary}
+
+Write 2-3 sentences describing the immediate aftermath. Focus on:
+- Patient's emotional reaction to diagnosis/prescription (hopeful/worried/grateful/skeptical based on their personality)
+- How they pay (readily/reluctantly/haggling - based on their social class)
+- What they do next (depart quickly/linger to ask questions/express gratitude/remain doubtful)
+
+Patient: ${npcName}
+Social class: ${patientClass}
+Personality: ${patientPersonality}
+
+Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character through action and dialogue.`;
+
+        const messages = [{ role: 'user', content: followUpPrompt }];
+        const response = await createChatCompletion(messages, 0.8, 200);
+        const narrativeFollowUp = response.choices[0].message.content.trim();
+
+        // Append narrative follow-up to comprehensive summary (only if non-empty)
+        if (narrativeFollowUp && narrativeFollowUp.length > 0) {
+          comprehensiveSummary = comprehensiveSummary + "\n\n" + narrativeFollowUp;
+        }
+      } catch (error) {
+        console.error('[PrescribePanelIntegrated] Error generating narrative follow-up:', error);
+        // Continue without follow-up if LLM call fails
+      }
 
       setConversationHistory(prev => [
         ...prev,
@@ -1057,6 +1110,7 @@ function PrescribePanelIntegrated({
         prescriptionData={prescriptionData}
         outcome={simulatedOutput}
         onContinue={handleOutcomeModalContinue}
+        mechanicsBreakdown={mechanicsBreakdown}
       />
     </>
   );

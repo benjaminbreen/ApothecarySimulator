@@ -55,6 +55,8 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       time: startingState.time,
       date: startingState.date,
       location: startingState.location,
+      locationType: 'shop', // NEW: Structured location type (shop = Botica de la Amargura)
+      biome: 'city-mexico', // NEW: Geographical biome (Mexico City = city-mexico)
       turnNumber: 1,
       isGameOver: false,
       endQuestResult: null,
@@ -105,6 +107,10 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
         active: [], // Active investments: [{ id, typeId, type, emoji, amount, startDate, maturityDate, duration, status, riskLevel }]
         history: [] // Completed investments: [{ id, typeId, type, amount, payout, profit, returnPercentage, outcome, completedDate }]
       },
+      // Long-distance travel system - tracks visited locations and routes
+      playthroughSeed: Math.random().toString(36).substring(2, 15), // Unique seed for this playthrough (for randomization)
+      visitedWorldLocations: ['mexico-city'], // Array of visited world location IDs
+      worldLocationId: 'mexico-city', // Current world location ID (null if not at a world location)
     };
   } catch (error) {
     console.error('Failed to load scenario, using fallback:', error);
@@ -173,6 +179,10 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
         active: [], // Active investments: [{ id, typeId, type, emoji, amount, startDate, maturityDate, duration, status, riskLevel }]
         history: [] // Completed investments: [{ id, typeId, type, amount, payout, profit, returnPercentage, outcome, completedDate }]
       },
+      // Long-distance travel system - tracks visited locations and routes
+      playthroughSeed: Math.random().toString(36).substring(2, 15), // Unique seed for this playthrough (for randomization)
+      visitedWorldLocations: ['mexico-city'], // Array of visited world location IDs
+      worldLocationId: 'mexico-city', // Current world location ID (null if not at a world location)
     };
   }
 };

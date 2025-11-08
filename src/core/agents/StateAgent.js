@@ -4,8 +4,32 @@
 import { createChatCompletion } from '../services/llmService';
 import { scenarioLoader } from '../services/scenarioLoader';
 import { getGridSystem } from '../../features/map/services/gridMovementSystem';
-import { isFeatureEnabled } from '../config/featureFlags';
 import { isDocumentItem, getDocumentType } from '../../utils/documentDetector';
+
+// PERFORMANCE: Cache state prompt to avoid rebuilding static sections every turn
+// Note: Cache is keyed by scenario ID, invalidates only when scenario changes
+let cachedStatePromptBase = null;
+let cachedScenarioId = null;
+
+// PERFORMANCE: Compile regex patterns at module level (not per-call)
+// Movement detection patterns
+const LOCATION_CHANGE_PATTERNS = [
+  /(?:step|walk|move|head|go)\s+(?:out|outside|into|inside|through)/i,
+  /(?:leave|exit|depart)\s+(?:the|your)?\s*(?:shop|building|house|room)/i,
+  /(?:enter|arrive\s+at|step\s+into)\s+(?:the|a)\s+(?:street|building|shop|house)/i,
+  /(?:secured|lock|close)\s+(?:the)?\s*(?:door|latch)/i,
+  /transition|teleport|appear\s+in|find\s+yourself\s+in/i
+];
+
+const MOVEMENT_PATTERNS = [
+  /(?:walk|move|head|go|travel|run|stride)\s+(?:toward|to|into|across|through)?\s*(north|south|east|west)(?:ward)?\b/i,
+  /(?:toward|to|into|across|through)\s+(?:the\s+)?(north|south|east|west)(?:ern)?\b/i,
+  /(north|south|east|west)ward\b/i
+];
+
+// Contract detection patterns (for binary acceptance question blocking)
+const ACCEPTANCE_KEYWORDS = /\b(accept|agree|help\s+(him|her|them)|see\s+(him|her|them|the\s+patient)|take\s+the\s+case)\b/i;
+const REFUSAL_KEYWORDS = /\b(refuse|decline|reject|turn\s+away|dismiss|send\s+away)\b/i;
 
 /**
  * Create a null/empty contract offer object
@@ -45,15 +69,8 @@ function extractMovement(narrative, playerAction, currentPosition, currentMapId,
 
   // Check for location changes - if the narrative describes transitioning to a different location/map,
   // skip grid movement validation (Maria is leaving the shop, entering a building, etc.)
-  const locationChangePatterns = [
-    /(?:step|walk|move|head|go)\s+(?:out|outside|into|inside|through)/i,
-    /(?:leave|exit|depart)\s+(?:the|your)?\s*(?:shop|building|house|room)/i,
-    /(?:enter|arrive\s+at|step\s+into)\s+(?:the|a)\s+(?:street|building|shop|house)/i,
-    /(?:secured|lock|close)\s+(?:the)?\s*(?:door|latch)/i,
-    /transition|teleport|appear\s+in|find\s+yourself\s+in/i
-  ];
-
-  const isLocationChange = locationChangePatterns.some(pattern => pattern.test(combinedText));
+  // PERFORMANCE: Use module-level compiled patterns
+  const isLocationChange = LOCATION_CHANGE_PATTERNS.some(pattern => pattern.test(combinedText));
 
   if (isLocationChange) {
     // Location change detected - skip grid movement validation
@@ -62,16 +79,10 @@ function extractMovement(narrative, playerAction, currentPosition, currentMapId,
     return null;
   }
 
-  // Movement patterns to detect
-  const movementPatterns = [
-    /(?:walk|move|head|go|travel|run|stride)\s+(?:toward|to|into|across|through)?\s*(north|south|east|west)(?:ward)?\b/i,
-    /(?:toward|to|into|across|through)\s+(?:the\s+)?(north|south|east|west)(?:ern)?\b/i,
-    /(north|south|east|west)ward\b/i
-  ];
-
+  // PERFORMANCE: Use module-level compiled patterns
   let detectedDirection = null;
 
-  for (const pattern of movementPatterns) {
+  for (const pattern of MOVEMENT_PATTERNS) {
     const match = combinedText.match(pattern);
     if (match) {
       detectedDirection = match[1].toLowerCase();
@@ -109,23 +120,69 @@ function extractMovement(narrative, playerAction, currentPosition, currentMapId,
  * @returns {string} Complete state agent system prompt
  */
 function buildStatePrompt(scenario, movementData = null, interactionIntent = 'none', crisisState = null) {
-  const currencyName = scenario.currency || 'coins';
+  // PERFORMANCE: Cache static prompt sections to avoid rebuilding every turn
+  // Only rebuild when scenario changes (extremely rare)
+  if (!cachedStatePromptBase || cachedScenarioId !== scenario.id) {
+    console.log('[StateAgent] Building and caching static state prompt...');
+    const currencyName = scenario.currency || 'coins';
+
+    // Build the static base prompt (everything except dynamic parts)
+    cachedStatePromptBase = {
+      header: `You are the StateAgent. Read the latest narrative turn and emit JSON only (no markdown). Update values conservatively—prefer carrying forward previous state when information is missing.`,
+      currencyName: currencyName,
+      staticBody: buildStaticPromptBody(currencyName)
+    };
+    cachedScenarioId = scenario.id;
+  }
+
+  // PERFORMANCE: Assemble final prompt from cached base + dynamic parts
   const positionTemplate = movementData ? `{"x": ${movementData.newPosition.x}, "y": ${movementData.newPosition.y}}` : 'null';
+  const interactionLine = `\nCurrent interaction intent: ${interactionIntent}.`;
+  const positionLine = `"position": ${positionTemplate},`;
 
-  return `You are the StateAgent. Read the latest narrative turn and emit JSON only (no markdown). Update values conservatively—prefer carrying forward previous state when information is missing.
-Current interaction intent: ${interactionIntent}.
+  // Replace placeholders in cached body
+  let finalPrompt = cachedStatePromptBase.header + interactionLine + '\n\n' +
+    cachedStatePromptBase.staticBody.replace('POSITION_PLACEHOLDER', positionLine);
 
-### Output Shape
+  // Append crisis section if active (dynamic)
+  if (crisisState?.active) {
+    finalPrompt += `
+
+### Crisis Resolution Detection
+The crisis flag is ACTIVE (${crisisState.reason || 'unresolved confrontation'}).
+- status "escaped": Maria evades capture and reaches safety (gameOver false).
+- status "surrendered": Maria yields or is peacefully arrested (gameOver true, reason should explain by whom).
+- status "captured": Escape attempt fails and she is seized (gameOver true).
+- status "bribed": Officials accept a payment and depart (gameOver false).
+- status "killed": Narrative confirms Maria's death (gameOver true, include brief reason).
+- Use "ongoing" when negotiations or conflict continue without a final outcome this turn.
+- Fill wealthChange or reputationDelta only if explicitly resolved in narrative (bribes, public disgrace, etc.).
+- Apply monetary consequences directly to gameState.wealth and mirror the change in wealthChange.
+`;
+  }
+
+  return finalPrompt;
+}
+
+/**
+ * Build the static portion of the state prompt (cached per scenario)
+ * @param {string} currencyName - Currency name from scenario
+ * @returns {string} Static prompt body with placeholders
+ */
+function buildStaticPromptBody(currencyName) {
+  return `### Output Shape
 {
   "gameState": {
     "wealth": number,
     "wealthChange": number,
     "status": "calm|anxious|frightened|determined|curious|hopeful|relieved|exhausted|tired|confident|worried|angry|content|weary|joyful|melancholy|proud|ashamed|uncertain",
     "location": "string",
+    "locationType": "shop|street|market|plaza|cathedral|tavern|home|guild|fountain|outskirts|alley|indoor|outdoor",
+    "biome": "city-mexico|city-colonial|city-european|coastal|mountain|desert|ocean|grassland",
     "time": "H:MM AM/PM",
     "date": "Month DD, YYYY",
     "timeElapsed": "X hours Y minutes",
-    "position": ${positionTemplate},
+    POSITION_PLACEHOLDER
     "focusedItem": "string|null",
     "energyChange": number,
     "healthChange": number
@@ -133,10 +190,10 @@ Current interaction intent: ${interactionIntent}.
   "inventoryChanges": [{"item": "string", "quantity": number, "action": "bought|sold|used|foraged|received|lost", "price": number, "isReadable": boolean, "documentType": "letter|document|codex|note|contract|recipe|map|certificate|null", "metadata": {"author": "string|null", "giver": "string|null", "purpose": "string|null"}}],
   "relationshipChanges": [{"npcName": "string", "delta": -20 to 20, "reason": "string"}],
   "reputationEvents": [{"faction": "church|elite|common_folk|indigenous|guild|merchants", "delta": -50 to 50, "reason": "string"}],
-  "contractOffer": {"type": "treatment|null", "offeredBy": "string", "offeredByDescription": "string", "patientName": "string", "patientDescription": "string", "patientLocation": "string|null", "paymentOffered": number, "ailmentDescription": "string", "isEmissary": boolean},
-  "actionPrompt": {"type": "give|sell|prescribe|null", "recipientName": "string", "npcId": "kebab-case", "npcPortrait": "/portraits/filename.jpg|null", "context": "string", "suggestedItems": ["string"], "priceOffered": number, "ailmentDescription": "string|null"},
+  "contractOffer": {"type": "treatment|null", "offeredBy": "string", "offeredByDescription": "string", "patientName": "HUMAN name (NEVER items/furniture like 'Drug Cabinet', 'Shelf', etc.)", "patientDescription": "string", "patientLocation": "string|null", "paymentOffered": number, "ailmentDescription": "string", "isEmissary": boolean},
+  "actionPrompt": {"type": "give|sell|prescribe|null", "recipientName": "string", "npcId": "kebab-case", "npcPortrait": "/portraits/filename.jpg|null", "context": "string (10 words max: what NPC needs and why)", "suggestedItems": ["string"], "priceOffered": number, "ailmentDescription": "string|null"},
   "simpleInteraction": {
-    "type": "vendor_offer|service_offer|donation_request|competitive_check|information_exchange|social_visit|extortion_demand|gamble_opportunity|null",
+    "type": "vendor_offer|service_offer|donation_request|competitive_check|information_exchange|social_visit|extortion_demand|gamble_opportunity|investment_offer|null",
     "npcName": "string",
     "npcPortrait": "/portraits/filename.jpg|null",
     "npcRole": "string|null",
@@ -147,7 +204,8 @@ Current interaction intent: ${interactionIntent}.
     "information": {"topic": "string", "cost": "string like '2 reales' or '1 bread'", "value": "high|medium|low"} OR null,
     "social": {"purpose": "string", "mood": "friendly|concerned|urgent"} OR null,
     "extortion": {"demandType": "protection|silence|information|access", "amount": number, "threatLevel": "veiled|direct|violent", "threatener": "gang|official|inquisition_proxy|rival", "consequence": "string describing what happens if refused", "difficulty": "easy|medium|hard"} OR null,
-    "gamble": {"gameType": "cards|dice|cockfight|wager", "wager": number, "potentialWin": number, "odds": "favorable|even|unfavorable", "description": "string"} OR null
+    "gamble": {"gameType": "taba|cards|dice|cockfight|wager", "wager": number, "potentialWin": number, "odds": "favorable|even|unfavorable", "description": "string"} OR null,
+    "investment": {"opportunityType": "string", "amount": number, "potentialReturn": "string", "riskLevel": "low|medium|high", "backer": "string|null"} OR null
   },
   "journalEntry": "string",
   "crisisResolution": {"status": "ongoing|escaped|surrendered|captured|bribed|killed", "gameOver": boolean, "gameOverReason": "string|null", "wealthChange": number, "reputationDelta": number},
@@ -160,6 +218,26 @@ Current interaction intent: ${interactionIntent}.
 - Time/date only move forward. Conversations usually advance ~10 minutes; movement uses map timing when provided.
 - Keep status to one of the allowed adjectives; change only when the narrative clearly signals an emotional shift.
 - Location should use known names (shop rooms, city districts); if unsure, reuse previous location.
+- **locationType**: REQUIRED field that categorizes the current location type. Choose from: shop, street, market, plaza, cathedral, tavern, home, guild, fountain, outskirts, alley, indoor, outdoor. Examples:
+  * "Botica de la Amargura" → "shop"
+  * "La Merced Market" → "market"
+  * "Walking down Calle San Francisco" → "street"
+  * "Plaza Mayor" → "plaza"
+  * "Catedral Metropolitana" → "cathedral"
+  * "Maria's bedroom" → "home"
+  * "Dark alley near the market" → "alley"
+  * If location is indoors but not a specific type → "indoor"
+  * If location is outdoors but not a specific type → "outdoor"
+- **biome**: REQUIRED field that indicates the geographical biome. Choose from: city-mexico, city-colonial, city-european, coastal, mountain, desert, ocean, grassland. Examples:
+  * "Mexico City" or "Botica de la Amargura, Mexico City" → "city-mexico"
+  * "Puebla" or "Tlaxcala" → "city-colonial" (other colonial Spanish cities)
+  * "Seville" or "Madrid" → "city-european" (European cities)
+  * "Veracruz" or "Acapulco" → "coastal" (ports/harbors)
+  * "Taxco" or "Guanajuato" → "mountain" (mountain towns/mines)
+  * "Durango" or "Chihuahua" → "desert" (arid regions)
+  * "Mid-Atlantic" or sailing → "ocean"
+  * "Outskirts of Mexico City" → "grassland" (rural/countryside)
+  * Preserve previous biome if unclear from narrative
 - Use movement validation: if the grid step is invalid, keep old position; otherwise use provided new coordinates.
 - **Energy and Health Changes**: Extract these ONLY when the narrative explicitly describes changes to Maria's physical condition:
   * energyChange: -100 to +100 (consumption, rest, exertion, sleep, eating)
@@ -171,66 +249,43 @@ Current interaction intent: ${interactionIntent}.
   * For nourishment/healing: healthChange/energyChange +5 to +25
 - focusedItem: Set this to the item name if the player is ACTIVELY examining, using, mixing, or focusing on a specific item. Examples: "examine aloe" → "aloe", "mix mercury" → "mercury", "I forage for herbs" → "herbs". Set to null if no item focus.
 
-### Interaction Mapping
-Use the provided Interaction Intent when classifying requests.
-- medical_diagnosis -> Patient is PHYSICALLY PRESENT at shop. Create treatment contract (isEmissary false). Set actionPrompt.type = "null".
-- house_call -> Messenger insists Maria travel to treat/examine the patient. contractOffer.type = "treatment", isEmissary true, patientLocation filled. DO NOT create actionPrompt during negotiation.
-- medical_followup -> Ongoing care. Do not create new contracts; update relationship/reputation only.
-- medical_purchase -> **CRITICAL:** Patient is NOT present. NPC wants medicine to take away. Use actionPrompt ONLY (type "sell" if item specified, "prescribe" if Maria must choose). Set contractOffer.type = "null". DO NOT create treatment contract.
-- nonmedical_request -> Leave contractOffer and actionPrompt null. Capture request in journal/systemAnnouncements only.
-- vendor_offer -> **CRITICAL:** Populate simpleInteraction ONLY (type 'vendor_offer'). Set actionPrompt.type = "null" and contractOffer.type = "null". DO NOT populate purchaseOffer (deprecated field). See examples below.
-- social or none -> All transactional fields null unless narrative contradicts the intent.
+### Intent-Based Object Creation
+**CRITICAL**: Trust the interactionIntent from NarrativeAgent. Do NOT re-interpret or re-classify it. Simply create the matching objects as specified below.
 
-### House Call Detection (CRITICAL)
-When Interaction Intent is "house_call" OR when you detect house call patterns, set contractOffer with isEmissary: true.
+**When interactionIntent is "medical_diagnosis":**
+- Create: contractOffer {type: "treatment", isEmissary: false, patientName = offeredBy = person in shop, patientLocation: null}
+- Set: actionPrompt.type = "null"
+- Rule: NEVER use names from backstory - only the person physically present
 
-**STRICTLY MEDICAL REQUESTS ONLY - House calls are for treating SICK or INJURED patients. NOT for errands, harvesting, deliveries, social visits, or non-medical favors.**
+**When interactionIntent is "house_call":**
+- Create: contractOffer {type: "treatment", isEmissary: true, patientName = sick person discussed, offeredBy = messenger present, patientLocation required}
+- Set: actionPrompt.type = "null"
 
-**Narrative Patterns That Indicate House Call (ALL must be present):**
-1. Messenger/intermediary arrives (nun, servant, family member, neighbor) requesting Maria come to patient
-2. Patient is SICK, INJURED, or SUFFERING from a medical condition (explicit mention required)
-3. Messenger asks Maria to EXAMINE/TREAT/SEE the patient (medical language required)
-4. Phrases: "taken ill", "fallen sick", "bedridden", "needs a physician", "fever", "injury", "cannot rise", "breathing poorly"
-5. Patient is NOT physically present in the scene - only the messenger/intermediary is shown
-6. Location mentioned or implied: "at the monastery", "in his chambers", "at her estate"
+**When interactionIntent is "medical_purchase":**
+- Create: actionPrompt {type: "sell" or "prescribe"}
+- Set: contractOffer.type = "null"
 
-**NOT a house call if:**
-- Request is for harvesting herbs, gathering ingredients, or agricultural help
-- Request is for delivery of items or running errands
-- Request is for social visits, business discussions, or non-medical matters
-- No mention of illness, injury, or medical need
+**When interactionIntent is "medical_followup":**
+- Set: contractOffer.type = "null", actionPrompt.type = "null" (ongoing care, no new contracts)
 
-**Required Fields for House Call Contract:**
-- type: "treatment"
-- isEmissary: true (THE CRITICAL FLAG - this triggers house call flow)
-- offeredBy: Name of the messenger/intermediary (e.g., "Sister Ines", "servant boy", "Don Luis's wife")
-- offeredByDescription: Brief description of messenger (e.g., "nun from convent", "household servant")
-- patientName: Name of the actual patient (NOT the messenger) - extract from dialogue
-- patientDescription: Patient's title/role (e.g., "elderly priest", "nobleman", "child")
-- patientLocation: Where patient is located - extract from narrative OR infer from patient's role
-  * If mentioned: use exact phrase (e.g., "Church of San Francisco", "Don Luis's estate")
-  * If not mentioned but inferable: use patient's likely location (priest -> church, nobleman -> estate, etc.)
-  * Format: Specific building/place name if possible
-- paymentOffered: Amount if mentioned, 0 if charity/urgent care
-- ailmentDescription: What messenger says is wrong (e.g., "sudden fever", "terrible turn", "breathing difficulty")
+**When interactionIntent is "vendor_offer":**
+- Create: simpleInteraction {type: "vendor_offer" or "investment_offer"}
+- Set: contractOffer.type = "null", actionPrompt.type = "null"
 
-**Example 1 - Nun Requesting Help for Priest:**
-Narrative: "A nun arrives, clutching her rosary. 'Father Anselmo has taken a sudden turn. Please, come quickly!'"
-Contract: {type: "treatment", isEmissary: true, offeredBy: "Sister Ines", offeredByDescription: "nun from convent", patientName: "Father Anselmo", patientDescription: "priest", patientLocation: "Church of San Francisco", paymentOffered: 0, ailmentDescription: "sudden turn/illness"}
+**All other intents:**
+- Set all transaction fields to "null"
 
-**Example 2 - Servant Summoning for Noble:**
-Narrative: "A servant boy appears at your door. 'Don Esteban requests your presence at his estate. He cannot rise from bed.'"
-Contract: {type: "treatment", isEmissary: true, offeredBy: "servant boy", offeredByDescription: "household servant", patientName: "Don Esteban", patientDescription: "nobleman", patientLocation: "Don Esteban's estate", paymentOffered: 0, ailmentDescription: "bedridden"}
+### House Call Field Requirements
+When interactionIntent is "house_call":
+- Set contractOffer with **isEmissary: true** (critical flag for travel flow)
+- offeredBy = messenger present (nun, servant, family member)
+- patientName = sick person NOT present (NEVER items/furniture like "Drug Cabinet", "Shelf")
+- patientLocation = where patient is ("Church of San Francisco", "estate", infer from patient role if not stated)
+- ailmentDescription = condition mentioned ("fever", "bedridden", "breathing poorly")
 
-**Example 3 - Direct Patient Arrival (NOT a house call):**
-Narrative: "An elderly woman enters your shop, coughing heavily. 'Can you help me, señora?'"
-Contract: {type: "treatment", isEmissary: false, offeredBy: "elderly woman", patientName: "elderly woman", patientLocation: null, ...}
-
-**DO NOT** set isEmissary true when:
-- Patient is physically present at Maria's shop
-- Patient speaks directly to Maria
-- No messenger/intermediary involved
-- narrative says "enters", "arrives at the shop", "sits down in your botica"
+**Examples:**
+- "A nun arrives. 'Father Anselmo has taken a sudden turn. Please come!'" → {isEmissary: true, offeredBy: "nun", patientName: "Father Anselmo", patientLocation: "Church of San Francisco"}
+- "Servant: 'Don Esteban cannot rise from bed.'" → {isEmissary: true, offeredBy: "servant", patientName: "Don Esteban", patientLocation: "Don Esteban's estate"}
 
 ### Vendor Offers (SimpleInteraction)
 When interaction intent is "vendor_offer", use simpleInteraction ONLY. Do NOT populate actionPrompt or purchaseOffer.
@@ -241,46 +296,42 @@ SimpleInteraction: {type: "vendor_offer", npcName: "Citlali", npcPortrait: null,
 ActionPrompt: {type: "null", ...}
 ContractOffer: {type: "null"}
 
-**Example 2 - NOT a vendor (patient seeking help):**
-Narrative: "A woman enters, coughing. 'Please, I need medicine for my fever.'"
-SimpleInteraction: {type: "null"}
-ActionPrompt: {type: "prescribe", recipientName: "woman", context: "asks for fever medicine", ...}
-ContractOffer: {type: "treatment", isEmissary: false, ...}
+**Example 2 - Investment Offer:**
+Narrative: "Don Fernando proposes investing 200 pesos in silver futures from Zacatecas. 'The Consulado manages the venture. Returns could be substantial, though it carries risk.'"
+SimpleInteraction: {type: "investment_offer", npcName: "Don Fernando", context: "silver futures investment from Zacatecas", offer: null, investment: {opportunityType: "silver futures", amount: 200, potentialReturn: "substantial returns", riskLevel: "medium", backer: "Consulado"}}
 
-### Medical Diagnosis vs Medical Purchase (CRITICAL DISTINCTION)
+### Gamble Opportunities
+When narrative describes gambling, games of chance, betting, or wagers, use type "gamble_opportunity" with gamble field.
 
-**medical_diagnosis** = Patient is physically present, wants to be treated/examined by Maria
-→ Create contractOffer (treatment contract)
-→ Set actionPrompt.type = "null"
+**Default Wagers** (when narrative doesn't specify exact amounts):
+- "Small wager", "friendly game", "pocket change" → wager: 2, potentialWin: 4
+- Standard game, no qualifier → wager: 5, potentialWin: 10
+- "High stakes", "serious money" → wager: 10, potentialWin: 20
+- "Substantial sum" → wager: 20, potentialWin: 40
 
-**medical_purchase** = Someone wants medicine to take away (patient is elsewhere)
-→ Create actionPrompt (sell/prescribe)
-→ Set contractOffer.type = "null"
+**Game Types**: taba (knucklebone), cards (Spanish deck high/low), dice (2d6), cockfight (rooster betting), wager (generic)
 
-**Example 1 - medical_diagnosis (Patient Present):**
-Narrative: "An elderly man enters your shop, coughing heavily. He sits down on the bench. 'Doña Maria, can you examine me? This cough won't stop.'"
+**Example:**
+Narrative: "Don Esteban invites you to play Taba, a friendly game with the local silversmith."
+SimpleInteraction: {type: "gamble_opportunity", npcName: "Don Esteban", npcRole: "Lottery Seller", context: "Taba game at the fountain", gamble: {gameType: "taba", wager: 2, potentialWin: 4, odds: "even", description: "Friendly game of knucklebone toss"}}
+
+### Object Creation Examples by Intent
+
+**Example 1 - interactionIntent: "medical_diagnosis"**
+Narrative: "Elderly man enters shop, coughing heavily. He sits down. 'Doña Maria, can you examine me?'"
+Create: contractOffer {type: "treatment", isEmissary: false, offeredBy: "elderly man", patientName: "elderly man", ailmentDescription: "persistent cough"}
+Set: actionPrompt.type = "null"
+
+**Example 2 - interactionIntent: "medical_purchase"**
+Narrative: "Woman: 'My daughter has fever. I need medicine quickly.'"
+Create: actionPrompt {type: "prescribe", recipientName: "woman", context: "fever remedy for daughter"}
+Set: contractOffer.type = "null"
+
+**Example 3 - Context confusion (AVOID)**
+Narrative: "Earlier, Don Luis left. Now, Doña Isabel enters: 'I need tincture for fluxion.'"
 Intent: medical_diagnosis
-ContractOffer: {type: "treatment", isEmissary: false, offeredBy: "elderly man", patientName: "elderly man", patientLocation: null, ailmentDescription: "persistent cough", ...}
-ActionPrompt: {type: "null"}
-SimpleInteraction: {type: "null"}
-
-**Example 2 - medical_purchase (Mother Buying for Sick Child):**
-Narrative: "A worried woman arrives at your door. 'My daughter has terrible fever and vomiting. I need medicine quickly before it worsens.'"
-Intent: medical_purchase
-ContractOffer: {type: "null"}
-ActionPrompt: {type: "prescribe", recipientName: "worried woman", context: "needs fever/vomiting remedy for daughter", suggestedItems: ["Willow Bark", "Ginger"], ...}
-SimpleInteraction: {type: "null"}
-
-**Example 3 - medical_purchase (Husband Buying for Wife):**
-Narrative: "A man approaches, holding out coins. 'My wife has headaches. Do you have willow bark?'"
-Intent: medical_purchase
-ContractOffer: {type: "null"}
-ActionPrompt: {type: "sell", recipientName: "man", context: "wants willow bark for wife's headaches", suggestedItems: ["Willow Bark"], ...}
-SimpleInteraction: {type: "null"}
-
-**Key Differences:**
-- Diagnosis: Patient sits down, asks to be examined, shows symptoms TO Maria → contractOffer
-- Purchase: Family member/messenger describes patient elsewhere, asks for medicine → actionPrompt
+CORRECT: {patientName: "Doña Isabel"} (person present NOW)
+WRONG: {patientName: "Don Luis"} (from earlier context) - NEVER extract names from backstory!
 
 ### ActionPrompt Usage
 Use actionPrompt ONLY for immediate, clear requests to transfer items:
@@ -288,6 +339,12 @@ Use actionPrompt ONLY for immediate, clear requests to transfer items:
 - type "sell": NPC wants to buy a specific item from Maria's inventory.
 - type "prescribe": NPC asks for medicine but doesn't specify which one (Maria must choose).
 - type "null": Default. Use when no immediate item transfer is being requested.
+
+**CRITICAL - Context Field:**
+- Brief factual statement (10 words max). State ONLY what NPC needs and why.
+- Do NOT include decision prompts or narrative instructions to Maria.
+- Good: "corporal fell from horse, needs draught for unsettled humors"
+- Bad: "needs draught. You must decide whether to invite him in or suggest remedy"
 
 **CRITICAL - Bargaining Behavior:**
 - When NPC haggles/negotiates/counters price on an existing offer, set actionPrompt.type = "null"
@@ -298,7 +355,8 @@ Use actionPrompt ONLY for immediate, clear requests to transfer items:
 ### Inventory & Documents
 - Record only concrete item exchanges. If Maria merely inspects an item, leave inventoryChanges empty.
 - Mark isReadable true for obvious letters, codices, maps, recipes, contracts, summons, warrants, complaints, or any other readable documents mentioned in the narrative. Leave metadata fields null when details are unavailable; downstream code enriches them.
-- When an NPC hands/presents/gives/extends a document to Maria (letter, summons, warrant, etc.), create an inventoryChange with action "received" and isReadable true. Example: Lawyer presents summons → {"item": "Guild summons", "quantity": 1, "action": "received", "isReadable": true, "documentType": "document", "metadata": {"giver": "Licenciado Ramírez"}}.
+- **CRITICAL - Document Names:** When an NPC hands/presents/gives/extends a document to Maria, the "item" name MUST accurately describe the document's content and purpose. Use specific, contextual names (e.g., "Royal Court debt summons", "Letter from Father Anselmo", "Inquisition warrant"). DO NOT use generic placeholder names.
+  - Example format: Lawyer presents summons → {"item": "[Specific Court Name] summons regarding [topic]", "quantity": 1, "action": "received", "isReadable": true, "documentType": "document", "metadata": {"giver": "[NPC name]", "author": "[Issuing authority]", "purpose": "[Brief purpose]"}}.
 
 ### Wealth Changes (CRITICAL - Common Error)
 **When Maria SELLS an item to an NPC:**
@@ -331,21 +389,11 @@ Use actionPrompt ONLY for immediate, clear requests to transfer items:
 - Set includeBloodletting = true only if narrative mentions phlebotomy/bloodletting was part of the offer
 - Do NOT populate this field for regular patient tab prescriptions administered via PrescribePanel - only for action prompt prescription offers where NPC must decide whether to buy
 - If outcome is unclear or NPC's decision is deferred ("I'll think about it"), set occurred = false
+- When occurred = true, set actionPrompt.type = "null" (request is resolved)
 
-If data is missing or ambiguous, preserve the previous state rather than guessing.` + (crisisState?.active ? `
-
-### Crisis Resolution Detection
-The crisis flag is ACTIVE (${crisisState.reason || 'unresolved confrontation'}).
-- status "escaped": Maria evades capture and reaches safety (gameOver false).
-- status "surrendered": Maria yields or is peacefully arrested (gameOver true, reason should explain by whom).
-- status "captured": Escape attempt fails and she is seized (gameOver true).
-- status "bribed": Officials accept a payment and depart (gameOver false).
-- status "killed": Narrative confirms Maria's death (gameOver true, include brief reason).
-- Use "ongoing" when negotiations or conflict continue without a final outcome this turn.
-- Fill wealthChange or reputationDelta only if explicitly resolved in narrative (bribes, public disgrace, etc.).
-- Apply monetary consequences directly to gameState.wealth and mirror the change in wealthChange.
-` : '');
+If data is missing or ambiguous, preserve the previous state rather than guessing.`;
 }
+
 /**
  * Extract game state from narrative
  * @param {Object} params - Parameters
@@ -550,70 +598,18 @@ The reverse geocoder has determined the player is now at: "${movementData.sugges
 
     // Split keywords: acceptance vs refusal
     // Block ONLY if question offers BOTH options (binary choice to help or not)
-    const acceptanceKeywords = /\b(accept|agree|help\s+(him|her|them)|see\s+(him|her|them|the\s+patient)|take\s+the\s+case)\b/i;
-    const refusalKeywords = /\b(refuse|decline|reject|turn\s+away|dismiss|send\s+away)\b/i;
+    // PERFORMANCE: Use module-level compiled patterns
 
     // Question must offer BOTH acceptance AND refusal to be blocked
     // This allows negotiation questions like "agree to 10 pesos or ask for more" (no refusal keyword)
     const isAcceptanceQuestion =
       /will you\s+.+\?[*\s]*$/.test(finalQuestion) &&
-      acceptanceKeywords.test(finalQuestion) &&
-      refusalKeywords.test(finalQuestion);
+      ACCEPTANCE_KEYWORDS.test(finalQuestion) &&
+      REFUSAL_KEYWORDS.test(finalQuestion);
 
+    // PHASE 1 SIMPLIFICATION: Trust NarrativeAgent's intent classification completely
+    // No reclassification logic - NarrativeAgent is the single source of truth
     let normalizedIntent = (interactionIntent || 'none').toLowerCase();
-
-    if (normalizedIntent === 'house_call') {
-      const mentionsPayment = /\b(pay|pays|coin|coins|reales|price|offer|payment|fee|compensation)\b/i.test(narrativeLower);
-      const mentionsRemedy = /\b(remedy|medicine|medicinal|potion|draught|tincture|salve|unguent|ointment|powder|lozenge|herb|remedio)\b/i.test(narrativeLower);
-      const invitesTravel = /\b(house\s+call|come\s+with\s+me|bring\s+you|travel|journey|accompany|walk\s+with\s+me|go\s+to\s+(his|her|their)\s+(home|house|bedside)|visit\s+(him|her|them)|follow\s+me|come\s+to\s+(the|my|his|her|their)|at\s+(a|the|my|his|her)\s+(rented\s+)?(house|home|residence|estate|chambers)|near\s+the|she\s+is\s+at|he\s+is\s+at)\b/i.test(narrativeLower);
-
-      if (mentionsPayment && mentionsRemedy && !invitesTravel) {
-        console.log('[StateAgent] 🔁 Reclassifying house_call → medical_purchase (purchase language detected)');
-        normalizedIntent = 'medical_purchase';
-        stateData.interactionIntent = 'medical_purchase';
-
-        // Drop house-call specific data
-        if (stateData.houseCallTravel) {
-          delete stateData.houseCallTravel;
-        }
-
-        if (stateData.systemAnnouncements) {
-          stateData.systemAnnouncements = stateData.systemAnnouncements.filter(announcement => {
-            const lower = announcement.toLowerCase();
-            return !lower.includes('contract') && !lower.includes('house call');
-          });
-        }
-
-        // Preserve original contract details for action prompt before clearing
-        const contractPatient = originalContractOffer?.patientDescription || originalContractOffer?.patientName || 'a patient';
-        const ailment = originalContractOffer?.ailmentDescription || null;
-        const paymentOffered = originalContractOffer?.paymentOffered || 0;
-
-        if (stateData.contractOffer && stateData.contractOffer.type && stateData.contractOffer.type !== 'null') {
-          stateData.contractOffer = createNullContract();
-        }
-
-        if (!stateData.actionPrompt || stateData.actionPrompt.type === 'null') {
-          const npcName = primaryNPC?.name || selectedEntity?.name || originalContractOffer?.offeredBy || '';
-          const npcId = npcName ? npcName.toLowerCase().replace(/[^a-z0-9]+/g, '-') : '';
-          const contextParts = [`${npcName || 'The visitor'} wants to buy a prepared remedy for ${contractPatient}`];
-          if (ailment) {
-            contextParts.push(`(${ailment})`);
-          }
-
-          stateData.actionPrompt = {
-            type: 'sell',
-            recipientName: npcName,
-            npcId,
-            npcPortrait: null,
-            context: contextParts.join(' '),
-            suggestedItems: [],
-            priceOffered: paymentOffered,
-            ailmentDescription: ailment
-          };
-        }
-      }
-    }
 
     const announcements = stateData.systemAnnouncements || [];
     const contractNotice = announcements.some(msg => {
@@ -651,122 +647,6 @@ The reverse geocoder has determined the player is now at: "${movementData.sugges
       }
     }
 
-    const usingRevisedPipeline = isFeatureEnabled('revisedInteractionPipeline');
-    if (usingRevisedPipeline && stateData.contractOffer && stateData.contractOffer.type && stateData.contractOffer.type !== 'null') {
-      const contractIntentWhitelist = new Set(['medical_diagnosis', 'house_call']);
-      const shouldKeepContract = contractIntentWhitelist.has(normalizedIntent);
-
-      if (!shouldKeepContract) {
-        console.log('[StateAgent] 🛑 Contract removed by revised pipeline', {
-          intent: normalizedIntent,
-          offeredBy: stateData.contractOffer.offeredBy,
-          ailment: stateData.contractOffer.ailmentDescription
-        });
-
-        stateData.contractOffer = createNullContract();
-
-        if (stateData.systemAnnouncements) {
-          stateData.systemAnnouncements = stateData.systemAnnouncements.filter(
-            announcement => !announcement.toLowerCase().includes('contract')
-          );
-        }
-      } else if (normalizedIntent === 'house_call') {
-        stateData.contractOffer.isEmissary = true;
-        if (!stateData.contractOffer.patientLocation || stateData.contractOffer.patientLocation.trim() === '') {
-          stateData.contractOffer.patientLocation = stateData.contractOffer.patientLocation || null;
-        }
-
-        // FIX: Use narrativeEntities to extract correct patient name
-        // Sometimes LLM uses primaryNPC.name (the messenger) instead of the actual patient
-        if (narrativeEntities && narrativeEntities.length > 0) {
-          const patientEntity = narrativeEntities.find(e => e.entityType === 'patient');
-          if (patientEntity && patientEntity.text) {
-            // Only override if the current patientName looks like it might be the messenger
-            // Detect relationship descriptions vs proper names with titles
-            const currentName = stateData.contractOffer.patientName || '';
-
-            // Relationship words (mother, servant, etc.) - but NOT when used as titles (Father Antonio)
-            const relationshipPattern = /^(the\s+)?(mother|servant|maid|messenger|wife|husband|daughter|son|nurse|boy|girl|child|woman|man)$/i;
-            const possessivePattern = /'s\s+(mother|father|servant|maid|wife|husband|daughter|son|brother|sister|nurse|boy|girl|child)/i;
-
-            const isRelationshipDescription = relationshipPattern.test(currentName.trim()) ||
-                                             possessivePattern.test(currentName);
-            const matchesPrimaryNPC = primaryNPC && currentName === primaryNPC.name;
-            const isProbablyMessenger = isRelationshipDescription || matchesPrimaryNPC;
-
-            if (isProbablyMessenger) {
-              console.log(`[StateAgent] ✅ Correcting patient name from "${currentName}" to "${patientEntity.text}" using narrativeEntities`);
-              stateData.contractOffer.patientName = patientEntity.text;
-
-              // Also update patient description if available
-              if (patientEntity.description) {
-                stateData.contractOffer.patientDescription = patientEntity.description;
-              }
-            }
-          }
-        }
-
-        // NEGOTIATION GATING: House calls need location OR payment details before showing contract
-        // This prevents contracts from appearing on first mention of illness
-        const hasLocation = stateData.contractOffer.patientLocation &&
-                          stateData.contractOffer.patientLocation !== 'null' &&
-                          stateData.contractOffer.patientLocation.trim().length > 0;
-        const hasPayment = stateData.contractOffer.paymentOffered &&
-                         stateData.contractOffer.paymentOffered > 0;
-        const hasPatientName = stateData.contractOffer.patientName &&
-                             stateData.contractOffer.patientName.trim().length > 0 &&
-                             !stateData.contractOffer.patientName.toLowerCase().includes('unknown') &&
-                             !stateData.contractOffer.patientName.toLowerCase().includes('unidentified');
-
-        // Require at least 2 of 3 details (location, payment, or named patient) for house call contract
-        const detailCount = (hasLocation ? 1 : 0) + (hasPayment ? 1 : 0) + (hasPatientName ? 1 : 0);
-
-        if (detailCount < 2) {
-          console.log('[StateAgent] 🛑 House call contract blocked: insufficient negotiation details', {
-            hasLocation,
-            hasPayment,
-            hasPatientName,
-            detailCount,
-            location: stateData.contractOffer.patientLocation,
-            payment: stateData.contractOffer.paymentOffered,
-            patient: stateData.contractOffer.patientName
-          });
-
-          stateData.contractOffer = createNullContract();
-
-          if (stateData.systemAnnouncements) {
-            stateData.systemAnnouncements = stateData.systemAnnouncements.filter(
-              announcement => !announcement.toLowerCase().includes('contract')
-            );
-          }
-        }
-      } else if (normalizedIntent === 'medical_diagnosis') {
-        stateData.contractOffer.isEmissary = false;
-        stateData.contractOffer.patientLocation = null;
-      }
-    }
-
-    if (usingRevisedPipeline &&
-        normalizedIntent === 'house_call' &&
-        contractNotice &&
-        stateData.contractOffer &&
-        stateData.contractOffer.type &&
-        stateData.contractOffer.type !== 'null' &&
-        !stateData.houseCallTravel) {
-      // Use stateData.contractOffer (corrected) instead of originalContractOffer (uncorrected)
-      stateData.houseCallTravel = {
-        emissaryName: stateData.contractOffer.offeredBy || null,
-        emissaryDescription: stateData.contractOffer.offeredByDescription || null,
-        patientName: stateData.contractOffer.patientName || null,
-        patientDescription: stateData.contractOffer.patientDescription || null,
-        patientLocation: stateData.contractOffer.patientLocation || null,
-        paymentOffered: stateData.contractOffer.paymentOffered || 0,
-        ailmentDescription: stateData.contractOffer.ailmentDescription || null
-      };
-
-      stateData.contractOffer = createNullContract();
-    }
-
     // Ensure position is updated correctly if movement occurred
     if (movementData && movementData.valid) {
       if (!stateData.gameState.position) {
@@ -777,60 +657,6 @@ The reverse geocoder has determined the player is now at: "${movementData.sugges
       stateData.gameState.position = movementData.oldPosition;
     }
 
-    if (usingRevisedPipeline && Array.isArray(stateData.inventoryChanges)) {
-      stateData.inventoryChanges = stateData.inventoryChanges.map(change => {
-        if (!change || !change.item) {
-          return change;
-        }
-
-        const action = (change.action || '').toLowerCase();
-        const docCandidate = isDocumentItem(change.item);
-
-        if (docCandidate && (action === 'received' || action === 'foraged' || action === 'bought')) {
-          change.isReadable = true;
-          change.documentType = change.documentType && change.documentType !== 'null'
-            ? change.documentType
-            : getDocumentType(change.item);
-          change.metadata = change.metadata || { author: null, giver: null, purpose: null };
-        } else if (change.isReadable === undefined) {
-          change.isReadable = false;
-          change.documentType = change.documentType && change.documentType !== 'null'
-            ? change.documentType
-            : null;
-        }
-
-        return change;
-      });
-    }
-
-    // FILTER ERRONEOUS ACTION PROMPTS: During house call negotiations, prevent "give" type
-    // actionPrompts from appearing when we're still negotiating (no contract created)
-    if (usingRevisedPipeline && normalizedIntent === 'house_call') {
-      const hasActiveContract = stateData.contractOffer &&
-                               stateData.contractOffer.type &&
-                               stateData.contractOffer.type !== 'null';
-      const hasGivePrompt = stateData.actionPrompt &&
-                          stateData.actionPrompt.type === 'give';
-
-      // If no contract (still negotiating) but there's a give prompt, remove it
-      if (!hasActiveContract && hasGivePrompt) {
-        console.log('[StateAgent] 🛑 Give actionPrompt blocked during house call negotiation');
-        stateData.actionPrompt = { type: 'null' };
-      }
-    }
-
-    // FILTER ERRONEOUS ACTION PROMPTS: During nonmedical requests, block all actionPrompts
-    // These should use contractOffer or simpleInteraction instead
-    if (usingRevisedPipeline && normalizedIntent === 'nonmedical_request') {
-      const hasActionPrompt = stateData.actionPrompt &&
-                            stateData.actionPrompt.type &&
-                            stateData.actionPrompt.type !== 'null';
-
-      if (hasActionPrompt) {
-        console.log('[StateAgent] 🛑 ActionPrompt blocked for nonmedical request (type was:', stateData.actionPrompt.type + ')');
-        stateData.actionPrompt = { type: 'null' };
-      }
-    }
 
     const hasContract = stateData.contractOffer && stateData.contractOffer.type && stateData.contractOffer.type !== 'null';
     const hasActionPrompt = stateData.actionPrompt && stateData.actionPrompt.type && stateData.actionPrompt.type !== 'null';
@@ -897,24 +723,6 @@ The reverse geocoder has determined the player is now at: "${movementData.sugges
       console.warn('[StateAgent] 🩺 OVERRIDE: medical_diagnosis with contractOffer detected. Clearing actionPrompt to prevent duplicate cards.');
       console.warn('[StateAgent] Patient IS present - this is a treatment contract, not a quick purchase.');
       stateData.actionPrompt = { type: 'null' };
-    }
-
-    if (isFeatureEnabled('interactionDebugLogging')) {
-      try {
-        console.log('[StateAgent][Legacy] Classification snapshot:', {
-          contractType: stateData.contractOffer?.type || 'null',
-          actionPromptType: stateData.actionPrompt?.type || 'null',
-          simpleInteractionType: stateData.simpleInteraction?.type || 'null',
-          relationshipChanges: stateData.relationshipChanges?.length || 0,
-          interactionIntent: normalizedIntent,
-          originalInteractionIntent: interactionIntent,
-          primaryNPC: primaryNPC?.name || null,
-          activePatient: activePatient?.name || null,
-          narrativePreview: narrative.length > 160 ? `${narrative.slice(0, 160)}…` : narrative
-        });
-      } catch (logError) {
-        console.warn('[StateAgent] Failed logging classification snapshot:', logError);
-      }
     }
 
     // Debug logging for house call detection

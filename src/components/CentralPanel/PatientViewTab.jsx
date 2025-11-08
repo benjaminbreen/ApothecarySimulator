@@ -11,6 +11,56 @@ import PrescribeOverviewPanel from '../../features/medical/components/PrescribeO
 import { getZodiacSymbol } from '../../core/utils/astrologyCalculator';
 import { entityManager } from '../../core/entities/EntityManager';
 import PatientDialogueHistory from './PatientDialogueHistory';
+import { createChatCompletion } from '../../core/services/llmService';
+
+// Humoral mapping function
+const getHumoralInfo = (temperature, moisture) => {
+  if (!temperature || !moisture || temperature === 'neutral' || moisture === 'neutral') {
+    return null;
+  }
+
+  const key = `${temperature}-${moisture}`;
+  const humoralMap = {
+    'hot-moist': {
+      humor: 'Blood',
+      temperament: 'Sanguine',
+      temperamentDesc: 'optimistic and social',
+      element: 'Air',
+      qualities: 'Hot and moist',
+      season: 'Spring',
+      color: '#ef4444' // red
+    },
+    'hot-dry': {
+      humor: 'Yellow Bile',
+      temperament: 'Choleric',
+      temperamentDesc: 'ambitious and leader-like',
+      element: 'Fire',
+      qualities: 'Hot and dry',
+      season: 'Summer',
+      color: '#eab308' // yellow
+    },
+    'cold-dry': {
+      humor: 'Black Bile',
+      temperament: 'Melancholic',
+      temperamentDesc: 'analytical and quiet',
+      element: 'Earth',
+      qualities: 'Cold and dry',
+      season: 'Autumn',
+      color: '#64748b' // slate
+    },
+    'cold-moist': {
+      humor: 'Phlegm',
+      temperament: 'Phlegmatic',
+      temperamentDesc: 'relaxed and peaceful',
+      element: 'Water',
+      qualities: 'Cold and moist',
+      season: 'Winter',
+      color: '#06b6d4' // cyan
+    }
+  };
+
+  return humoralMap[key] || null;
+};
 
 export function PatientViewTab({
   patient,
@@ -935,18 +985,6 @@ export function PatientViewTab({
           )}
         </div>
 
-        {/* Diagnosis Button - Appears after 3+ questions */}
-        {viewMode === 'examine' && showDiagnoseButton && !diagnosisData && (
-          <div className="px-5 pt-4 pb-2 border-t-2 border-ink-100 dark:border-slate-700 bg-gradient-to-b from-blue-50 to-white dark:from-blue-900/20 dark:to-slate-900/20">
-            <button
-              onClick={() => setViewMode('diagnose')}
-              className="w-full bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white font-bold py-3 px-4 rounded-lg text-sm uppercase tracking-wide transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-            >
-              🩺 Would you like to make a diagnosis?
-            </button>
-          </div>
-        )}
-
         {/* Question Input Area */}
         <div className="px-5 py-5 border-t-2 border-ink-100 dark:border-slate-700 bg-white dark:bg-slate-900">
           <div className="relative mb-3">
@@ -1037,35 +1075,34 @@ export function PatientViewTab({
       )}
 
       {/* RIGHT COLUMN - MEDICAL VISUALIZATION (60%) - Scrollable HUD Panel */}
-      <div className="flex flex-col bg-gradient-to-br from-ink-900 via-ink-800 to-ink-900 rounded-xl shadow-lg overflow-hidden">
+      <div className="flex flex-col bg-white dark:bg-slate-800 rounded-xl shadow-lg overflow-hidden border border-ink-100 dark:border-slate-700">
 
         {/* QUICK ACTIONS TOOLBAR */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-slate-900/95 to-slate-800/95 backdrop-blur-sm border-b border-white/10 px-5 py-3 flex items-center gap-3 sticky top-0 z-10">
+        <div className="flex-shrink-0 bg-gradient-to-r from-parchment-50 to-amber-50/50 dark:from-slate-900/95 dark:to-slate-800/95 backdrop-blur-sm border-b border-ink-200 dark:border-white/10 px-5 py-3 flex items-center gap-3 sticky top-0 z-10">
           {/* Status Badge */}
-          <div className={`px-3 py-1.5 rounded-lg border font-semibold text-xs uppercase tracking-wide flex items-center gap-2 ${
+          <div className={`px-3 py-1.5 rounded-lg border font-semibold text-xs flex items-center gap-2 ${
             diagnosisData
-              ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
-              : 'bg-amber-500/20 border-amber-400/40 text-amber-300'
+              ? 'bg-emerald-50 border-emerald-400 text-emerald-700 dark:bg-emerald-500/20 dark:border-emerald-400/40 dark:text-emerald-300'
+              : 'bg-amber-50 border-amber-400 text-amber-700 dark:bg-amber-500/20 dark:border-amber-400/40 dark:text-amber-300'
           }`}>
             {diagnosisData ? '✓ Diagnosed' : '⏳ Examining'}
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons - Always show Diagnose (moved from conditional) */}
           {viewMode !== 'prescribe' && (
             <>
-              {showDiagnoseButton && !diagnosisData && (
-                <button
-                  onClick={() => setViewMode('diagnose')}
-                  className="px-4 py-1.5 bg-blue-500/20 border border-blue-400/40 rounded-lg text-blue-300 hover:bg-blue-500/30 hover:border-blue-400/60 transition-all text-xs font-semibold uppercase tracking-wide flex items-center gap-2"
-                >
-                  🩺 Diagnose
-                </button>
-              )}
+              <button
+                onClick={() => setViewMode('diagnose')}
+                disabled={!diagnosisData && patientDialogue.length < 3}
+                className="ml-auto px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-ink-200 disabled:text-ink-400 border border-emerald-700 disabled:border-ink-300 rounded-lg text-white disabled:cursor-not-allowed transition-all text-xs font-semibold flex items-center gap-2 shadow-sm"
+              >
+                {diagnosisData ? '🩺 Revise Diagnosis' : '🩺 Make Diagnosis'}
+              </button>
 
               {diagnosisData && (
                 <button
                   onClick={() => setViewMode('prescribe')}
-                  className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 rounded-lg text-white transition-all text-xs font-semibold uppercase tracking-wide flex items-center gap-2 shadow-lg"
+                  className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 rounded-lg text-white transition-all text-xs font-semibold flex items-center gap-2 shadow-md"
                 >
                   ℞ Prescribe
                 </button>
@@ -1077,7 +1114,7 @@ export function PatientViewTab({
           {viewMode === 'prescribe' && (
             <button
               onClick={() => setViewMode('examine')}
-              className="px-4 py-1.5 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/15 transition-all text-xs font-semibold uppercase tracking-wide flex items-center gap-2"
+              className="px-4 py-1.5 bg-ink-100 border border-ink-300 rounded-lg text-ink-700 hover:bg-ink-200 dark:bg-white/10 dark:border-white/20 dark:text-white dark:hover:bg-white/15 transition-all text-xs font-semibold flex items-center gap-2"
             >
               ← Back to Examine
             </button>
@@ -1086,33 +1123,33 @@ export function PatientViewTab({
 
         {/* TAB NAVIGATION - Only show in examine mode */}
         {viewMode !== 'prescribe' && (
-          <div className="flex-shrink-0 flex border-b border-white/10 bg-slate-900/50">
+          <div className="flex-shrink-0 flex border-b border-ink-200 dark:border-white/10 bg-parchment-50/30 dark:bg-slate-900/50">
             <button
               onClick={() => setActiveMedicalTab('body')}
-              className={`flex-1 px-4 py-3 text-sm font-semibold uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 px-4 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                 activeMedicalTab === 'body'
-                  ? 'text-emerald-300 border-b-2 border-emerald-400 bg-emerald-500/10'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-white/5'
+                  ? 'text-emerald-700 border-b-2 border-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-400 dark:bg-emerald-500/10'
+                  : 'text-ink-500 hover:text-ink-700 hover:bg-parchment-50 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-white/5'
               }`}
             >
               🫀 Body & Vitals
             </button>
             <button
               onClick={() => setActiveMedicalTab('symptoms')}
-              className={`flex-1 px-4 py-3 text-sm font-semibold uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 px-4 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                 activeMedicalTab === 'symptoms'
-                  ? 'text-emerald-300 border-b-2 border-emerald-400 bg-emerald-500/10'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-white/5'
+                  ? 'text-emerald-700 border-b-2 border-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-400 dark:bg-emerald-500/10'
+                  : 'text-ink-500 hover:text-ink-700 hover:bg-parchment-50 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-white/5'
               }`}
             >
               📋 Symptoms
             </button>
             <button
               onClick={() => setActiveMedicalTab('diagnosis')}
-              className={`flex-1 px-4 py-3 text-sm font-semibold uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 px-4 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                 activeMedicalTab === 'diagnosis'
-                  ? 'text-emerald-300 border-b-2 border-emerald-400 bg-emerald-500/10'
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-white/5'
+                  ? 'text-emerald-700 border-b-2 border-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-400 dark:bg-emerald-500/10'
+                  : 'text-ink-500 hover:text-ink-700 hover:bg-parchment-50 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-white/5'
               }`}
             >
               🩺 Diagnosis
@@ -1129,25 +1166,25 @@ export function PatientViewTab({
           {activeMedicalTab === 'body' && (
             <div className="animate-fade-in">
           {/* Body Diagram Section */}
-          <div className="body-diagram-container bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 relative mb-6">
+          <div className="body-diagram-container bg-gradient-to-br from-parchment-50 to-amber-50/30 dark:bg-white/5 dark:backdrop-blur-xl border border-ink-200 dark:border-white/10 rounded-2xl p-6 relative mb-6">
             {/* Patient Header - Full Width */}
-            <div className="flex items-center gap-4 pb-4 mb-4 border-b border-white/10">
+            <div className="flex items-center gap-4 pb-4 mb-4 border-b border-ink-200 dark:border-white/10">
               <div className="flex items-center gap-3">
-                <div className="text-2xl font-display font-semibold text-white" style={{ textShadow: '0 0 10px rgba(255,255,255,0.3)' }}>
+                <div className="text-2xl font-serif font-bold text-ink-900 dark:text-white">
                   {patient.name || 'Unknown Patient'}
                 </div>
                 {diagnosisData && (
-                  <span className="px-3 py-1 rounded-full text-xs uppercase tracking-widest bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 max-w-[240px] truncate">
+                  <span className="px-3 py-1 rounded-full text-xs bg-emerald-100 border border-emerald-400 text-emerald-700 dark:bg-emerald-500/20 dark:border-emerald-400/40 dark:text-emerald-200 max-w-[240px] truncate">
                     Diagnosed: {diagnosisData.diagnosis}
                   </span>
                 )}
               </div>
               <div className="flex gap-3 text-xs font-sans font-semibold">
-                <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded text-ink-300">
-                  Age {patient.age || '?'}
+                <span className="px-3 py-1.5 bg-parchment-100 dark:bg-white/5 border border-ink-200 dark:border-white/10 rounded text-ink-600 dark:text-ink-300">
+                  Age {patient.appearance?.age || patient.age || '?'}
                 </span>
                 <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded text-ink-300">
-                  {patient.gender || 'Unknown'}
+                  {patient.appearance?.gender || patient.gender || 'Unknown'}
                 </span>
                 <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded text-ink-300">
                   {patient.occupation || 'Unknown'}
@@ -1271,16 +1308,16 @@ export function PatientViewTab({
                   </div>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+                <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
                   <InfoCardHeader>HUMORAL</InfoCardHeader>
-                  <div className="grid grid-cols-2 gap-1.5 mt-2">
+                  <div className="grid grid-cols-2 gap-1 mt-1.5">
                     {/* Temperature Dropdown */}
-                    <div className="text-center p-1.5 bg-white/5 rounded">
-                      <div className="text-[9px] text-ink-400 uppercase tracking-wide mb-0.5">Temp</div>
+                    <div className="text-center p-1 bg-white/5 rounded">
+                      <div className="text-[8px] text-ink-400 uppercase tracking-wide mb-0.5">Temp</div>
                       <select
                         value={manualHumorTemp || ''}
                         onChange={(e) => handleHumorUpdate('temperature', e.target.value)}
-                        className="w-full text-sm font-bold bg-transparent border-none text-center cursor-pointer text-orange-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
+                        className="w-full text-[11px] font-bold bg-transparent border-none text-center cursor-pointer text-orange-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
                       >
                         <option value="" className="bg-slate-800">?</option>
                         <option value="hot" className="bg-slate-800">Hot</option>
@@ -1289,12 +1326,12 @@ export function PatientViewTab({
                       </select>
                     </div>
                     {/* Moisture Dropdown */}
-                    <div className="text-center p-1.5 bg-white/5 rounded">
-                      <div className="text-[9px] text-ink-400 uppercase tracking-wide mb-0.5">Moisture</div>
+                    <div className="text-center p-1 bg-white/5 rounded">
+                      <div className="text-[8px] text-ink-400 uppercase tracking-wide mb-0.5">Moisture</div>
                       <select
                         value={manualHumorMoisture || ''}
                         onChange={(e) => handleHumorUpdate('moisture', e.target.value)}
-                        className="w-full text-sm font-bold bg-transparent border-none text-center cursor-pointer text-yellow-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
+                        className="w-full text-[11px] font-bold bg-transparent border-none text-center cursor-pointer text-yellow-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
                       >
                         <option value="" className="bg-slate-800">?</option>
                         <option value="dry" className="bg-slate-800">Dry</option>
@@ -1303,9 +1340,68 @@ export function PatientViewTab({
                       </select>
                     </div>
                   </div>
-                  <div className="text-[9px] text-center text-ink-400 mt-2">
-                    Ask patient or set manually
-                  </div>
+
+                  {/* Humoral Information Display */}
+                  {(() => {
+                    const humoralInfo = getHumoralInfo(manualHumorTemp, manualHumorMoisture);
+                    if (!humoralInfo) {
+                      return (
+                        <div className="text-[8px] text-center text-ink-400 mt-1.5">
+                          Ask patient or set manually
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        className="mt-2 p-2 rounded-lg border text-[10px] leading-tight"
+                        style={{
+                          background: `linear-gradient(135deg, ${humoralInfo.color}15 0%, ${humoralInfo.color}08 100%)`,
+                          borderColor: `${humoralInfo.color}40`
+                        }}
+                      >
+                        <div className="space-y-0.5">
+                          {/* Humor - Most prominent */}
+                          <div className="mb-1">
+                            <span className="text-[8px] font-bold uppercase tracking-wide text-ink-400 block mb-0.5">HUMOR:</span>
+                            <span
+                              className="text-sm font-bold font-serif block"
+                              style={{ color: humoralInfo.color }}
+                            >
+                              {humoralInfo.humor}
+                            </span>
+                          </div>
+
+                          {/* Temperament */}
+                          <div>
+                            <span className="text-[8px] font-bold uppercase text-ink-400">TEMPERAMENT:</span>{' '}
+                            <span className="text-[10px] text-ink-200">
+                              {humoralInfo.temperament}
+                            </span>
+                          </div>
+                          <div className="text-[9px] text-ink-400 italic pl-2">
+                            ({humoralInfo.temperamentDesc})
+                          </div>
+
+                          {/* Compact list */}
+                          <div className="pt-1 space-y-0.5">
+                            <div>
+                              <span className="text-[8px] font-bold uppercase text-ink-400">ELEMENT:</span>{' '}
+                              <span className="text-[10px] text-ink-200">{humoralInfo.element}</span>
+                            </div>
+                            <div>
+                              <span className="text-[8px] font-bold uppercase text-ink-400">QUALITIES:</span>{' '}
+                              <span className="text-[10px] text-ink-200">{humoralInfo.qualities}</span>
+                            </div>
+                            <div>
+                              <span className="text-[8px] font-bold uppercase text-ink-400">SEASON:</span>{' '}
+                              <span className="text-[10px] text-ink-200">{humoralInfo.season}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -1421,6 +1517,7 @@ export function PatientViewTab({
                 manualAstrology={manualAstrology}
                 editableFields={editableFields}
                 vitalCards={vitalCards}
+                patientDialogue={patientDialogue}
               />
             </div>
           )}
@@ -1823,16 +1920,16 @@ function VitalCard({ label, value, status, statusColor, valueSize = 'text-xl', h
   const latestTimestamp = history.length > 0 ? history[history.length - 1].timestamp : null;
 
   return (
-    <div className="bg-white/5 dark:bg-slate-800/70 border border-white/10 dark:border-slate-700 rounded-lg p-4 min-w-[200px]">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="text-xs uppercase tracking-wide text-ink-400 dark:text-slate-400">{label}</div>
+    <div className="bg-white/5 dark:bg-slate-800/70 border border-white/10 dark:border-slate-700 rounded-lg p-3 min-w-[160px]">
+      <div className="flex items-center justify-between gap-1.5 mb-1.5">
+        <div className="text-[10px] uppercase tracking-wide text-ink-400 dark:text-slate-400">{label}</div>
         <TrendBadge trend={trend} />
       </div>
-      <div className={`${valueSize} font-bold text-white dark:text-slate-100`}>{value}</div>
-      <div className={`text-xs mt-1 ${statusColor || 'text-ink-300'} dark:text-slate-300`}>{status}</div>
+      <div className={`text-lg font-bold text-white dark:text-slate-100`}>{value}</div>
+      <div className={`text-[11px] mt-0.5 ${statusColor || 'text-ink-300'} dark:text-slate-300`}>{status}</div>
       {numericHistory.length > 1 && (
-        <div className="mt-3">
-          <svg width={chartWidth} height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-10">
+        <div className="mt-2">
+          <svg width={chartWidth} height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-8">
             <polyline
               fill="none"
               stroke={`url(#${gradientId})`}
@@ -1851,8 +1948,8 @@ function VitalCard({ label, value, status, statusColor, valueSize = 'text-xl', h
         </div>
       )}
       {latestTimestamp && (
-        <div className="text-[10px] uppercase tracking-wide text-ink-400 dark:text-slate-500 mt-2">
-          Updated {formatDiscoveredAt(latestTimestamp)}
+        <div className="text-[9px] uppercase tracking-wide text-ink-400 dark:text-slate-500 mt-1.5">
+          {formatDiscoveredAt(latestTimestamp)}
         </div>
       )}
     </div>
@@ -1902,15 +1999,150 @@ function TrendBadge({ trend }) {
 }
 
 // Diagnosis Summary Panel - Auto-populated text summary
-function DiagnosisSummaryPanel({ patient, symptoms, diagnosisData, manualHumorTemp, manualHumorMoisture, manualAstrology, editableFields, vitalCards }) {
+function DiagnosisSummaryPanel({ patient, symptoms, diagnosisData, manualHumorTemp, manualHumorMoisture, manualAstrology, editableFields, vitalCards, patientDialogue }) {
+  const [diagnosisHint, setDiagnosisHint] = useState(null);
+  const [loadingHint, setLoadingHint] = useState(false);
+
+  const generateDiagnosisHint = async () => {
+    setLoadingHint(true);
+    setDiagnosisHint(null);
+
+    try {
+      // Build comprehensive patient context
+      const patientContext = [];
+
+      // Basic info
+      patientContext.push(`Patient Name: ${patient.name || 'Unknown'}`);
+      if (patient.appearance?.age || patient.age) patientContext.push(`Age: ${patient.appearance?.age || patient.age}`);
+      if (patient.appearance?.gender || patient.gender) patientContext.push(`Gender: ${patient.appearance?.gender || patient.gender}`);
+      if (editableFields.occupation) patientContext.push(`Occupation: ${editableFields.occupation}`);
+      if (editableFields.family) patientContext.push(`Family: ${editableFields.family}`);
+
+      // Humoral balance
+      if (manualHumorTemp || manualHumorMoisture) {
+        const humoralInfo = getHumoralInfo(manualHumorTemp, manualHumorMoisture);
+        if (humoralInfo) {
+          patientContext.push(`Humoral Balance: ${humoralInfo.humor} (${humoralInfo.temperament}, ${humoralInfo.qualities})`);
+        } else {
+          patientContext.push(`Temperature: ${manualHumorTemp || 'unknown'}, Moisture: ${manualHumorMoisture || 'unknown'}`);
+        }
+      }
+
+      // Astrology
+      if (manualAstrology) patientContext.push(`Astrological Sign: ${manualAstrology}`);
+
+      // Symptoms
+      if (symptoms && symptoms.length > 0) {
+        patientContext.push(`\nSymptoms:`);
+        symptoms.forEach(symptom => {
+          patientContext.push(`- ${symptom.name} (${symptom.severity || 'unknown severity'}): ${symptom.description || 'no description'}`);
+        });
+      }
+
+      // Vital signs
+      if (vitalCards && vitalCards.length > 0) {
+        patientContext.push(`\nVital Signs:`);
+        vitalCards.forEach(vital => {
+          patientContext.push(`- ${vital.label}: ${vital.value} (${vital.status || 'no status'})`);
+        });
+      }
+
+      // Patient dialogue transcript
+      if (patientDialogue && patientDialogue.length > 0) {
+        patientContext.push(`\nPatient Q&A Transcript:`);
+        patientDialogue.forEach((exchange, idx) => {
+          patientContext.push(`Q${idx + 1}: ${exchange.question}`);
+          patientContext.push(`A${idx + 1}: ${exchange.answer}`);
+        });
+      }
+
+      const prompt = `You are a physician in Mexico City in 1680 practicing Galenic medicine. Based on the patient information below, provide a diagnosis in ONE PARAGRAPH (4-6 sentences maximum).
+
+${patientContext.join('\n')}
+
+Your diagnosis should:
+- Identify the specific humoral imbalance (excess of blood, yellow bile, black bile, or phlegm)
+- Cite the KEY EVIDENCE from symptoms and vital signs that support this diagnosis
+- Reference the four qualities (hot, cold, moist, dry) and how they relate to observed symptoms
+- Use authentic 17th-century medical terminology
+- Be direct and clinical - NO "dear colleague" or "esteemed" language, just the diagnosis
+
+Write one concise paragraph citing specific evidence.`;
+
+      const messages = [
+        { role: 'user', content: prompt }
+      ];
+
+      const response = await createChatCompletion(messages, 0.7, 800);
+      const hintText = response.choices[0].message.content;
+
+      setDiagnosisHint(hintText);
+    } catch (error) {
+      console.error('[DiagnosisHint] Error generating hint:', error);
+      setDiagnosisHint('Unable to generate diagnosis hint. Please try again.');
+    } finally {
+      setLoadingHint(false);
+    }
+  };
+
   if (!diagnosisData) {
     return (
-      <div className="text-center py-16 px-6">
-        <div className="text-6xl mb-6 opacity-30"></div>
-        <div className="text-xl font-bold text-white mb-3">No Diagnosis Yet</div>
-        <div className="text-sm text-slate-400 max-w-md mx-auto">
-          Gather evidence through examination and questioning, then use the <strong className="text-emerald-300">Diagnose</strong> button in the toolbar to submit your diagnosis.
+      <div className="space-y-6">
+        <div className="text-center py-16 px-6">
+          <div className="text-6xl mb-6 opacity-30">🔍</div>
+          <div className="text-xl font-bold text-white mb-3">No Diagnosis Yet</div>
+          <div className="text-sm text-slate-400 max-w-md mx-auto">
+            Gather evidence through examination and questioning, then use the <strong className="text-emerald-300">Diagnose</strong> button in the toolbar to submit your diagnosis.
+          </div>
+
+          {/* Give me a hint button */}
+          <button
+            onClick={generateDiagnosisHint}
+            disabled={loadingHint || !symptoms || symptoms.length === 0}
+            className="mt-6 px-6 py-3 rounded-lg font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              background: loadingHint ? '#374151' : 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              color: 'white',
+              boxShadow: loadingHint ? 'none' : '0 4px 12px rgba(139, 92, 246, 0.4)',
+              border: '1px solid rgba(167, 139, 250, 0.3)'
+            }}
+          >
+            {loadingHint ? (
+              <>
+                <span className="inline-block animate-spin mr-2">⏳</span>
+                Consulting...
+              </>
+            ) : (
+              <>💡 Give me a hint</>
+            )}
+          </button>
         </div>
+
+        {/* Hint display */}
+        {diagnosisHint && (
+          <div
+            className="p-8 rounded-xl border animate-fade-in"
+            style={{
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(124, 58, 237, 0.08) 100%)',
+              borderColor: 'rgba(167, 139, 250, 0.4)'
+            }}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-3xl">🩺</span>
+              <div className="text-sm uppercase tracking-wider text-purple-300 font-bold">Galenic Diagnosis</div>
+            </div>
+            <div
+              className="text-base text-slate-100 leading-relaxed font-serif prose prose-invert prose-purple max-w-none"
+              style={{ lineHeight: '1.8' }}
+              dangerouslySetInnerHTML={{
+                __html: diagnosisHint
+                  .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                  .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+                  .replace(/_([^_]+)_/g, '<em>$1</em>')
+              }}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -1951,12 +2183,12 @@ function DiagnosisSummaryPanel({ patient, symptoms, diagnosisData, manualHumorTe
             <span className="font-semibold text-white">Name:</span> {patient.name || 'Unknown'}
           </div>
 
-          {(patient.age || patient.gender || editableFields.occupation) && (
+          {((patient.appearance?.age || patient.age) || (patient.appearance?.gender || patient.gender) || editableFields.occupation) && (
             <div>
               <span className="font-semibold text-white">Demographics:</span>{' '}
               {[
-                patient.age ? `Age ${patient.age}` : null,
-                patient.gender,
+                (patient.appearance?.age || patient.age) ? `Age ${patient.appearance?.age || patient.age}` : null,
+                patient.appearance?.gender || patient.gender,
                 editableFields.occupation
               ].filter(Boolean).join(' • ')}
             </div>

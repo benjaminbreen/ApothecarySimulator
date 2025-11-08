@@ -38,6 +38,7 @@ import { getXPForNextLevel, getPlayerTitle } from '../../core/systems/levelingSy
 import { resolvePortrait } from '../../core/services/portraitResolver';
 import { parseNarrativeChoices } from '../../utils/narrativeParser';
 import { generateNextSteps } from '../../core/services/nextStepsGenerator';
+import { parseTravelNarrative, selectHorizonImage, getTravelModeImage } from '../../utils/travelNarrativeParser';
 import { mapNPCFactionToSystemFaction, updateFactionFromNPCInteraction } from '../../core/systems/reputationSystem';
 import { simulateLongDistanceTravel } from '../../core/agents/LongDistanceTravelAgent';
 import { checkForRandomEvent, processEventChoice, initializeEventSystem } from '../../core/events/randomEventService';
@@ -90,6 +91,9 @@ function computeMinutesBetween(prevDate, prevTime, nextDate, nextTime) {
 const sanitizePortraitFilename = (filename) => {
   if (!filename) return null;
   const trimmed = filename.trim();
+
+  // Fix: LLM sometimes returns string "null" instead of JSON null
+  if (trimmed === 'null') return null;
 
   if (trimmed.startsWith('ui/')) {
     return trimmed.replace(/^\/+/, 'ui/');
@@ -192,6 +196,8 @@ export function useGameHandlers({
   triggerGameOver,
   setCrisisState,
   setBackgroundMode, // Immersive background mode (fade UI for travel/events)
+  setTravelZoomState, // Background zoom effects for travel
+  setJourneyTransition, // Journey transition screen for long-distance travel
 
   // State values
   isLoading, // CRITICAL FIX: Loading state for double-click guard
@@ -221,6 +227,7 @@ export function useGameHandlers({
   activePatient,
   currentPatient,
   patientDialogue,
+  pendingContract, // Current pending contract offer (for textual acceptance detection)
   playerSkills,
   journal,
   pendingExitData, // Exit confirmation system state
@@ -290,6 +297,7 @@ export function useGameHandlers({
   const npcDepartedLastTurnRef = useRef(false);
   const conversationLockRef = useRef(null);
   const walkPlayerToDoorRef = useRef(null);
+  const handleListRequestRef = useRef(null); // For breaking circular dependency with navigationHandlers
 
   const clearConversationLock = useCallback(() => {
    if (conversationLockRef.current) {
@@ -348,34 +356,113 @@ export function useGameHandlers({
         updateLocation(arrivalLocation);
       }
 
-      setGameState(prev => ({
-        ...prev,
-        worldLocationId: arrivalWorldId || prev.worldLocationId
-      }));
+      setGameState(prev => {
+        const newWorldLocationId = arrivalWorldId || prev.worldLocationId;
+        const visitedLocations = prev.visitedWorldLocations || [];
 
+        // Add to visited locations if successful travel and not already visited
+        const shouldAddToVisited = (outcome === 'success' || outcome === 'delayed') &&
+                                    newWorldLocationId &&
+                                    !visitedLocations.includes(newWorldLocationId);
+
+        return {
+          ...prev,
+          worldLocationId: newWorldLocationId,
+          visitedWorldLocations: shouldAddToVisited
+            ? [...visitedLocations, newWorldLocationId]
+            : visitedLocations
+        };
+      });
+
+      // Update player position to destination's world coordinates and switch to world map
       if (outcome === 'success' || outcome === 'delayed') {
         setCurrentMapId('world-map');
+
+        // Look up destination world location to get its pixel position
+        const { WORLD_LOCATION_LOOKUP } = await import('../../features/map/data/worldLocations');
+        const destinationLocation = WORLD_LOCATION_LOOKUP[arrivalWorldId];
+
+        if (destinationLocation?.position) {
+          // Update player position to the destination's world map coordinates
+          setPlayerPosition(destinationLocation.position);
+          console.log('[useGameHandlers] Updated player position to world location:', {
+            locationId: arrivalWorldId,
+            position: destinationLocation.position
+          });
+        } else {
+          console.warn('[useGameHandlers] Destination location not found in world map:', arrivalWorldId);
+        }
       }
 
       const narrative = result?.narrative || '*The journey proceeds, but no chronicler records its details.*';
 
-      addToHistory(
-        {
-          role: 'user',
-          content: originalCommand,
-          hidden: true,
-          isMovement: true
-        },
-        {
-          role: 'assistant',
-          content: narrative,
-          responseType: 'travel',
-          travelOutcome: outcome
-        }
+      // Parse narrative into journey and arrival sections
+      const { journeySection, arrivalSection, parseSuccess } = parseTravelNarrative(narrative);
+
+      if (!parseSuccess) {
+        // Fallback: use old behavior (show full narrative in panel)
+        console.warn('[LongTravel] Narrative parsing failed, using fallback');
+        addToHistory(
+          {
+            role: 'user',
+            content: originalCommand,
+            hidden: true,
+            isMovement: true
+          },
+          {
+            role: 'assistant',
+            content: narrative,
+            responseType: 'travel',
+            travelOutcome: outcome,
+            travelMode: travelPayload?.mode?.id || null
+          }
+        );
+        setHistoryOutput(narrative);
+        setDynamicChips(null);
+        return;
+      }
+
+      // Get destination data for horizon selection
+      const { WORLD_LOCATION_LOOKUP } = await import('../../features/map/data/worldLocations');
+      const destinationLocation = WORLD_LOCATION_LOOKUP[arrivalWorldId];
+
+      // Select horizon image based on travel mode and destination
+      const horizonImage = selectHorizonImage(
+        travelPayload.mode?.id || 'wagon',
+        destinationLocation?.region || '',
+        destinationLocation?.biome || ''
       );
 
-      setHistoryOutput(narrative);
-      setDynamicChips(null);
+      // Get travel mode image
+      const modeImage = getTravelModeImage(travelPayload.mode?.id || 'wagon');
+
+      // Show journey transition screen
+      setJourneyTransition({
+        journeyText: journeySection,
+        horizonImage,
+        modeImage,
+        arrivalText: arrivalSection,
+        onComplete: () => {
+          // When user clicks "See Arrival", add arrival narrative to history
+          addToHistory(
+            {
+              role: 'user',
+              content: originalCommand,
+              hidden: true,
+              isMovement: true
+            },
+            {
+              role: 'assistant',
+              content: arrivalSection,
+              responseType: 'travel',
+              travelOutcome: outcome,
+              travelMode: travelPayload?.mode?.id || null
+            }
+          );
+          setHistoryOutput(arrivalSection);
+          setDynamicChips(null);
+        }
+      });
 
       const journalEntry = outcome === 'failure'
         ? `Attempted to travel toward ${travelPayload.destinationName}, but the journey failed: ${result?.arrival?.notes || 'obstacles arose.'}`
@@ -530,6 +617,8 @@ export function useGameHandlers({
     setTravelAnimationState,
     openLongDistanceTravelCard,
     setBackgroundMode, // Immersive background mode
+    setTravelZoomState, // Background zoom effects
+    handleListRequestRef, // Auto-generate people list on fast travel arrival (passed as ref to break circular dependency)
   });
   if (navigationHandlers.walkPlayerToDoor) {
     walkPlayerToDoorRef.current = navigationHandlers.walkPlayerToDoor;
@@ -650,8 +739,10 @@ export function useGameHandlers({
 
   // LIST REQUEST HANDLER
   // Handles generation of reference lists (people, sensory details, objects, ingredients)
-  const handleListRequest = useCallback(async (listType) => {
-    console.log('[handleListRequest] Called with listType:', listType.id);
+  // @param {object} listType - List type configuration
+  // @param {boolean} isAutoGenerated - If true, hides the user prompt in conversation history (used for auto-lists after fast travel)
+  const handleListRequest = useCallback(async (listType, isAutoGenerated = false) => {
+    console.log('[handleListRequest] Called with listType:', listType.id, 'isAutoGenerated:', isAutoGenerated);
 
     // Safety check
     if (!gameState) {
@@ -677,10 +768,7 @@ export function useGameHandlers({
       // Build merchant context for "people" list
       let merchantContext = '';
       if (listType.id === 'people' && gameState.location) {
-        // Import entityManager
-        const { entityManager } = await import('../../core/entities/EntityManager');
-
-        // Get NPCs at current location who are merchants
+        // Get NPCs at current location who are merchants (using top-level import)
         const locationMerchants = entityManager.getAll()
           .filter(e =>
             e.entityType === 'npc' &&
@@ -732,7 +820,8 @@ export function useGameHandlers({
       });
 
       // Add the list response to conversation history
-      addToHistory({ role: 'user', content: userPrompt });
+      // If auto-generated (e.g., after fast travel), hide the user prompt
+      addToHistory({ role: 'user', content: userPrompt, hidden: isAutoGenerated });
       addToHistory({ role: 'assistant', content: result.narrative });
 
       // Display the narrative (which should contain the markdown table)
@@ -794,6 +883,9 @@ export function useGameHandlers({
     setDynamicChips,
   ]);
 
+  // Update handleListRequestRef after handleListRequest is defined (for navigationHandlers)
+  handleListRequestRef.current = handleListRequest;
+
   // MAIN SUBMIT HANDLER
   const handleSubmit = useCallback(async (e, actionOverride = null, options = {}) => {
     // Prevent default only if called from form event
@@ -825,6 +917,55 @@ export function useGameHandlers({
         } catch (error) {
           console.error('[DoorShortcut] Failed to animate walk to door:', error);
         }
+      }
+    }
+
+    // TEXTUAL CONTRACT ACCEPTANCE/DECLINE: Detect if player types acceptance/refusal instead of clicking card
+    if (pendingContract && pendingContract.type !== 'null') {
+      const inputLower = originalInput.toLowerCase();
+
+      // Detect acceptance signals
+      const acceptanceKeywords = ['agree', 'accept', 'yes', 'i will', "i'll", 'very well', 'fine', 'ok', 'okay'];
+      const acceptsContract = acceptanceKeywords.some(kw => inputLower.startsWith(kw)) ||
+        inputLower.includes('make the house call') ||
+        inputLower.includes('make a house call') ||
+        (pendingContract.patientName && inputLower.includes(`treat ${pendingContract.patientName.toLowerCase()}`));
+
+      // Detect refusal signals
+      const refusalKeywords = ['decline', 'refuse', 'no', "won't", 'cannot', "can't", 'too expensive', 'not interested'];
+      const declinesContract = refusalKeywords.some(kw => inputLower.startsWith(kw));
+
+      if (acceptsContract && !declinesContract) {
+        console.log('[Contract] Textual acceptance detected, auto-accepting contract');
+        // Create patient entity from contract
+        const patientEntity = entityManager.register({
+          id: `patient_${pendingContract.patientName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
+          name: pendingContract.patientName,
+          entityType: 'patient',
+          type: 'patient',
+          description: pendingContract.patientDescription || pendingContract.ailmentDescription || 'Patient requiring treatment',
+          symptoms: [],
+          metadata: {
+            representedBy: pendingContract.isEmissary ? pendingContract.offeredBy : null,
+            offeredBy: pendingContract.offeredBy || null,
+            paymentAgreed: pendingContract.paymentOffered,
+            patientLocation: pendingContract.patientLocation || null,
+            ailmentDescription: pendingContract.ailmentDescription || pendingContract.patientDescription || null,
+            isEmissary: !!pendingContract.isEmissary,
+            contractIntent: 'treatment'
+          }
+        });
+
+        await handleAcceptTreatment(patientEntity, pendingContract.paymentOffered, pendingContract);
+        setUserInput('');
+        setIsLoading(false);
+        return; // Skip normal turn processing
+      }
+
+      if (declinesContract && !acceptsContract) {
+        console.log('[Contract] Textual refusal detected, auto-declining contract');
+        handleDeclineContract();
+        // Continue to normal turn processing to generate "Maria declines" narrative
       }
     }
 
@@ -1717,10 +1858,10 @@ export function useGameHandlers({
       newHistory.push(assistantMessage);
       const crisisSystemMessages = [];
 
+      // Only show the FIRST system announcement to avoid duplicate/redundant messages
+      // The first announcement is usually more important and player-facing
       if (result.systemAnnouncements && result.systemAnnouncements.length > 0) {
-        result.systemAnnouncements.forEach(announcement => {
-          newHistory.push({ role: 'system', content: announcement });
-        });
+        newHistory.push({ role: 'system', content: result.systemAnnouncements[0] });
       }
 
       if (crisisSystemMessages.length > 0) {
@@ -1729,16 +1870,38 @@ export function useGameHandlers({
         });
       }
 
+      // CARD ASSIGNMENT: Add cards to assistantMessage BEFORE setConversationHistory
+      // This must happen before React state update to ensure cards render
+
+      // Simple Interaction Card
+      const rawSimpleInteraction = result.simpleInteraction;
+      const simpleInteractionType = rawSimpleInteraction?.type || 'null';
+      const isMedicalSimpleInteraction = ['house_call', 'house_call_request', 'medical_diagnosis'].includes(simpleInteractionType);
+      const medicalIntents = new Set(['medical_diagnosis', 'medical_purchase', 'medical_followup', 'house_call']);
+      const currentIntent = result.interactionIntent || 'none';
+
+      let effectiveSimpleInteraction = isMedicalSimpleInteraction ? null : rawSimpleInteraction;
+      if (medicalIntents.has(currentIntent)) {
+        effectiveSimpleInteraction = null;
+      }
+
+      if (effectiveSimpleInteraction && effectiveSimpleInteraction.type && effectiveSimpleInteraction.type !== 'null') {
+        console.log('[SimpleInteraction] Detected:', simpleInteractionType, rawSimpleInteraction);
+        assistantMessage.card = {
+          type: 'simple_interaction',
+          data: effectiveSimpleInteraction
+        };
+      }
+
       // Add timestamps to all new history entries
-      const timestampedHistory = newHistory.map(entry => ({
-        ...entry,
-        timestamp: {
+      newHistory.forEach(entry => {
+        entry.timestamp = {
           time: gameState.time,
           date: gameState.date
-        }
-      }));
+        };
+      });
 
-      setConversationHistory(timestampedHistory);
+      setConversationHistory(newHistory);
       setTurnNumber(result.turnNumber || turnNumber + 1);
 
       // Handle game state updates
@@ -1902,12 +2065,14 @@ export function useGameHandlers({
             // For building entrances (entering interior), use interiorSpawn if available
             if (locationMatch.type === 'building' && locationMatch.interiorSpawn) {
               [spawnX, spawnY] = locationMatch.interiorSpawn;
-              console.log('[Location Change] Using interior spawn point:', spawnX, spawnY);
+              console.log('[Location Change] 🏢 BUILDING ENTRANCE - Using interior spawn point:', spawnX, spawnY);
+              console.log('[Location Change] Building:', locationMatch.name, 'Interior Map:', locationMatch.mapId);
             } else {
               // For rooms and exits, use the position directly
               spawnX = locationMatch.position.x;
               spawnY = locationMatch.position.y;
-              console.log('[Location Change] Using standard spawn point:', spawnX, spawnY);
+              console.log('[Location Change] 📍 ROOM/EXIT - Using standard spawn point:', spawnX, spawnY);
+              console.log('[Location Change] Location:', locationMatch.name, 'Type:', locationMatch.type);
             }
 
             // Calculate grid position from spawn point
@@ -1915,8 +2080,17 @@ export function useGameHandlers({
               ? locationMatch.gridX
               : Math.floor(spawnX / 20);
             const gridY = Number.isFinite(locationMatch.gridY)
-              ? locationMatch.gridY
+              ? locationMatch.gridY // FIX: Was incorrectly using gridX here
               : Math.floor(spawnY / 20);
+
+            console.log('[Location Change] ⚠️ SETTING PLAYER POSITION:', {
+              x: spawnX,
+              y: spawnY,
+              gridX,
+              gridY,
+              location: locationMatch.name,
+              mapId: locationMatch.mapId
+            });
 
             setPlayerPosition({
               x: spawnX,
@@ -1934,31 +2108,51 @@ export function useGameHandlers({
               position: { x: spawnX, y: spawnY, gridX, gridY }
             });
 
-            // Auto-trigger "people present" list after location change
-            setTimeout(() => {
-              const peopleListType = getListTypeById('people');
-              if (peopleListType) {
-                console.log('[Location Change] Auto-triggering people list');
-                handleListRequest(peopleListType);
-              }
-            }, 800); // Small delay to let location update propagate
+            // Auto-trigger "people present" list ONLY for marketplace locations
+            const isMarketplace = locationMatch.fullName.toLowerCase().includes('market') ||
+                                  locationMatch.fullName.toLowerCase().includes('plaza mayor');
+
+            if (isMarketplace) {
+              setTimeout(() => {
+                const peopleListType = getListTypeById('people');
+                if (peopleListType) {
+                  console.log('[Location Change] Marketplace detected - auto-triggering people list');
+                  handleListRequest(peopleListType);
+                }
+              }, 800); // Small delay to let location update propagate
+            }
           } else {
             // No match - just update text, keep current position
             console.log('[Location Change] No registry match, updating text only');
             updateLocation(result.gameState.location);
 
-            // Auto-trigger "people present" list after location change
-            setTimeout(() => {
-              const peopleListType = getListTypeById('people');
-              if (peopleListType) {
-                console.log('[Location Change] Auto-triggering people list');
-                handleListRequest(peopleListType);
-              }
-            }, 800); // Small delay to let location update propagate
+            // Auto-trigger "people present" list ONLY for marketplace locations
+            const isMarketplace = result.gameState.location.toLowerCase().includes('market') ||
+                                  result.gameState.location.toLowerCase().includes('plaza mayor');
+
+            if (isMarketplace) {
+              setTimeout(() => {
+                const peopleListType = getListTypeById('people');
+                if (peopleListType) {
+                  console.log('[Location Change] Marketplace detected - auto-triggering people list');
+                  handleListRequest(peopleListType);
+                }
+              }, 800); // Small delay to let location update propagate
+            }
           }
         } else if (result.gameState.location) {
           // Location same as before, no change needed
           console.log('[Location Change] Location unchanged:', result.gameState.location);
+      }
+
+      // NEW: Update locationType and biome from StateAgent (structured location fields)
+      if (result.gameState.locationType) {
+        setGameState(prev => ({ ...prev, locationType: result.gameState.locationType }));
+        console.log('[Location] Updated locationType:', result.gameState.locationType);
+      }
+      if (result.gameState.biome) {
+        setGameState(prev => ({ ...prev, biome: result.gameState.biome }));
+        console.log('[Location] Updated biome:', result.gameState.biome);
       }
 
       if (result.gameState.time && result.gameState.date) {
@@ -2365,27 +2559,26 @@ export function useGameHandlers({
         }
       }
 
-      // CARD PRIORITY SYSTEM: Check if simpleInteraction is active
-      // Used to prevent multiple cards appearing on same turn
-      const rawSimpleInteraction = result.simpleInteraction;
-      const simpleInteractionType = rawSimpleInteraction?.type || 'null';
-      const isMedicalSimpleInteraction = ['house_call', 'house_call_request', 'medical_diagnosis'].includes(simpleInteractionType);
-      let effectiveSimpleInteraction = isMedicalSimpleInteraction ? null : rawSimpleInteraction;
-      let hasSimpleInteraction = effectiveSimpleInteraction && effectiveSimpleInteraction.type && effectiveSimpleInteraction.type !== 'null';
+      // SIMPLE INTERACTION STATE MANAGEMENT
+      // Detection and card assignment already happened before setConversationHistory (line ~1888)
+      // This section only manages the pendingSimpleInteraction state variable
 
-      const medicalIntents = new Set(['medical_diagnosis', 'medical_purchase', 'medical_followup', 'house_call']);
-      const currentIntent = result.interactionIntent || 'none';
+      // Recompute from result (variables from earlier block are out of scope here)
+      const rawSI = result.simpleInteraction;
+      const siType = rawSI?.type || 'null';
+      const isMedicalSI = ['house_call', 'house_call_request', 'medical_diagnosis'].includes(siType);
+      const medIntents = new Set(['medical_diagnosis', 'medical_purchase', 'medical_followup', 'house_call']);
+      const curIntent = result.interactionIntent || 'none';
 
-      if (medicalIntents.has(currentIntent)) {
-        if (hasSimpleInteraction) {
-          console.log('[SimpleInteraction] Overriding simple interaction due to medical intent:', currentIntent, simpleInteractionType);
-        }
-        effectiveSimpleInteraction = null;
-        hasSimpleInteraction = false;
+      let effectiveSI = isMedicalSI ? null : rawSI;
+      if (medIntents.has(curIntent)) {
+        effectiveSI = null;
       }
 
-      if (isMedicalSimpleInteraction ||
-          (medicalIntents.has(currentIntent) && rawSimpleInteraction && rawSimpleInteraction.type && rawSimpleInteraction.type !== 'null')) {
+      const hasSimpleInteraction = effectiveSI && effectiveSI.type && effectiveSI.type !== 'null';
+
+      if (isMedicalSI ||
+          (medIntents.has(curIntent) && rawSI && rawSI.type && rawSI.type !== 'null')) {
         setPendingSimpleInteraction(null);
       }
 
@@ -2396,11 +2589,16 @@ export function useGameHandlers({
       // This ensures contracts appear when NPC makes a CLEAR REQUEST (any turn)
       // but not for vague mentions or completed transactions
       // GUARD: Skip if simpleInteraction is already handling this turn (prevent duplicate cards)
+      // GUARD: Skip on first turn (turnNumber === 1) to prevent contracts before player has oriented
       if (!hasSimpleInteraction &&
+          turnNumber > 1 &&
           result.contractOffer &&
           result.contractOffer.type &&
           result.contractOffer.type !== 'null' &&
-          result.systemAnnouncements?.some(msg => msg.toLowerCase().includes('contract'))) {
+          result.systemAnnouncements?.some(msg => {
+            const lower = msg.toLowerCase();
+            return lower.includes('contract') || lower.includes('house call');
+          })) {
 
         // Treatment contract detected
         console.log('[Contract] Offer finalized and ready for player decision:', result.contractOffer.type, result.contractOffer);
@@ -2419,6 +2617,8 @@ export function useGameHandlers({
         };
         setPendingContract(result.contractOffer);
         // Note: Modal/card is NOT auto-opened, user must click the card
+      } else if (turnNumber === 1 && result.contractOffer?.type && result.contractOffer.type !== 'null') {
+        console.log('[Contract] Skipped - turn 1 (contracts disabled on first turn)');
       } else if (hasSimpleInteraction && result.contractOffer?.type && result.contractOffer.type !== 'null') {
         console.log('[Contract] Skipped - simpleInteraction already active (prevents duplicate cards)');
       } else if (result.contractOffer && result.contractOffer.type && result.contractOffer.type !== 'null') {
@@ -2450,7 +2650,24 @@ export function useGameHandlers({
       if (result.houseCallTravel && setPendingHouseCall) {
         try {
           const travel = result.houseCallTravel;
-          const patientName = travel.patientName || 'Unnamed Patient';
+
+          // CRITICAL VALIDATION: Reject obviously invalid patient names (items, furniture, objects)
+          const invalidPatientNames = [
+            'drug cabinet', 'medicine cabinet', 'cabinet', 'shelf', 'drawer', 'counter',
+            'table', 'chair', 'mortar', 'pestle', 'jar', 'vial', 'bottle', 'box',
+            'chest', 'trunk', 'door', 'window', 'wall', 'floor', 'ceiling',
+            'medicine chest', 'apothecary cabinet', 'storage', 'cupboard'
+          ];
+
+          let patientName = travel.patientName || 'Unnamed Patient';
+          const patientNameLower = patientName.toLowerCase();
+
+          // Check if patient name is an invalid item/furniture name
+          if (invalidPatientNames.some(invalid => patientNameLower.includes(invalid))) {
+            console.warn(`[HouseCall] ❌ Invalid patient name detected: "${patientName}" (appears to be an item/furniture). Using fallback.`);
+            patientName = travel.patientDescription || 'Sick person at residence';
+          }
+
           const locationName = travel.patientLocation || 'Unknown residence';
 
           const travelKey = `${patientName}|${locationName}|${travel.paymentOffered || 0}`;
@@ -2626,7 +2843,28 @@ export function useGameHandlers({
       // Action Prompt Processing (give/sell/prescribe requests)
       // GUARD: Skip if simpleInteraction is already handling this turn (prevent duplicate cards)
       console.log('[ActionPrompt DEBUG] result.actionPrompt:', result.actionPrompt);
-      if (!hasSimpleInteraction &&
+      console.log('[ActionPrompt DEBUG] hasSimpleInteraction:', hasSimpleInteraction);
+      console.log('[ActionPrompt DEBUG] effectiveSimpleInteraction:', effectiveSimpleInteraction);
+
+      // ENHANCED GUARD: Clear actionPrompt if simpleInteraction is handling this OR if type is null
+      const shouldClearActionPrompt = hasSimpleInteraction || (result.actionPrompt && result.actionPrompt.type === 'null');
+
+      if (shouldClearActionPrompt) {
+        console.log('[ActionPrompt] Clearing - either simpleInteraction active or type is null');
+        setPendingActionPrompt(null);
+
+        // Remove action_prompt cards from conversation history
+        setConversationHistory(prev => {
+          return prev.map(msg => {
+            if (msg.role === 'assistant' && msg.card && msg.card.type === 'action_prompt') {
+              const { card, ...msgWithoutCard } = msg;
+              console.log('[ActionPrompt] Removing card from history entry');
+              return msgWithoutCard;
+            }
+            return msg;
+          });
+        });
+      } else if (!hasSimpleInteraction &&
           result.actionPrompt &&
           result.actionPrompt.type &&
           result.actionPrompt.type !== 'null') {
@@ -2645,24 +2883,6 @@ export function useGameHandlers({
         };
 
         setPendingActionPrompt(enrichedPrompt);
-      } else if (hasSimpleInteraction && result.actionPrompt?.type && result.actionPrompt.type !== 'null') {
-        console.log('[ActionPrompt] Skipped - simpleInteraction already active (prevents duplicate cards)');
-      } else if (result.actionPrompt && result.actionPrompt.type === 'null') {
-        // Clear action prompt when none is active
-        console.log('[ActionPrompt] No active prompt, clearing');
-        setPendingActionPrompt(null);
-
-        // Remove action_prompt cards from conversation history
-        setConversationHistory(prev => {
-          return prev.map(msg => {
-            if (msg.role === 'assistant' && msg.card && msg.card.type === 'action_prompt') {
-              const { card, ...msgWithoutCard } = msg;
-              console.log('[ActionPrompt] Removing card from history entry');
-              return msgWithoutCard;
-            }
-            return msg;
-          });
-        });
       }
 
       // Purchase Offer Processing (vendor selling TO Maria)
@@ -2728,19 +2948,12 @@ export function useGameHandlers({
       cleanupExpiredOpportunities();
 
       // Simple Interaction Processing
-      // Detect fast gameplay loops (service offers, donations, competitive checks, etc.)
+      // Card assignment already happened before setConversationHistory (line ~1888)
+      // This section only manages the pendingSimpleInteraction state variable
       if (effectiveSimpleInteraction &&
           effectiveSimpleInteraction.type &&
           effectiveSimpleInteraction.type !== 'null') {
-        // Keep all simpleInteractions as simpleInteraction cards (no conversion to purchaseOffer)
-        {
-          console.log('[SimpleInteraction] Detected:', simpleInteractionType, rawSimpleInteraction);
-          assistantMessage.card = {
-            type: 'simple_interaction',
-            data: effectiveSimpleInteraction
-          };
-          setPendingSimpleInteraction(effectiveSimpleInteraction);
-        }
+        setPendingSimpleInteraction(effectiveSimpleInteraction);
       } else if (rawSimpleInteraction && rawSimpleInteraction.type === 'null') {
         // Clear any previous simple interaction when none is active
         console.log('[SimpleInteraction] No active interaction, clearing previous');
@@ -2776,12 +2989,21 @@ export function useGameHandlers({
       // Random Event Processing
       // Check for random events after narrative (adds variety and fast gameplay)
       // Only trigger if no simple interaction is active (avoid stacking interactions)
-      if (!effectiveSimpleInteraction) {
+      console.log('[RandomEvent DEBUG] Reached event check. effectiveSimpleInteraction:', effectiveSimpleInteraction);
+      // FIX: Check if interaction type exists, not just if object exists
+      if (!effectiveSimpleInteraction || !effectiveSimpleInteraction.type) {
+        console.log('[RandomEvent DEBUG] Calling checkForRandomEvent with gameState:', {
+          location: gameState.location,
+          turnNumber,
+          time: gameState.time,
+          wealth: gameState.wealth || currentWealth
+        });
         const eventCard = checkForRandomEvent(
           gameState,
           reputation,
           narrativeText
         );
+        console.log('[RandomEvent DEBUG] checkForRandomEvent returned:', eventCard);
 
         if (eventCard) {
           console.log('[RandomEvent] Event triggered:', eventCard.title);
@@ -2811,7 +3033,33 @@ export function useGameHandlers({
             setPendingRandomEvent(null);
           }
         }
+      } else {
+        console.log('[RandomEvent DEBUG] Skipping event check - effectiveSimpleInteraction is active:', effectiveSimpleInteraction?.type);
       }
+
+      // CLOSING QUESTION CLEANUP: Remove "Will you X or Y?" when card UI provides choices instead
+      // Cards are attached to conversation history objects (by reference) after history is set at line 1882
+      // So we update history again here to strip closing questions from messages that have cards
+      setConversationHistory(prev => {
+        return prev.map(msg => {
+          // Only process assistant messages with cards attached
+          if (msg.role === 'assistant' && msg.card && msg.card.type && msg.card.type !== 'null') {
+            const originalContent = msg.content;
+            const strippedContent = msg.content.replace(
+              /\n\n\*\*['""]?Will you [^?]+\?\*\*\s*$/i,
+              ''
+            );
+            if (strippedContent !== originalContent) {
+              console.log(`[Card] Removed closing question (${msg.card.type} card provides choices instead)`);
+              return {
+                ...msg,
+                content: strippedContent
+              };
+            }
+          }
+          return msg;
+        });
+      });
 
       // Add journal entry
       if (result.journalEntry) {
@@ -3142,6 +3390,71 @@ export function useGameHandlers({
     const furnitureName = furnitureItem.name || furnitureItem.id;
     console.log('[GameHandlers] Furniture clicked:', furnitureName, furnitureItem);
 
+    // 🛒 MARKET STALL CLICK DETECTION
+    // Check if this is a market stall at La Merced Market
+    if (gameState.location === 'La Merced Market' && furnitureItem.id) {
+      const stallId = furnitureItem.id; // e.g., "north-stall-1", "south-stall-3"
+
+      // Check if this is a stall (matches pattern)
+      if (stallId.match(/^(north|south)-stall-\d+$/)) {
+        console.log('[GameHandlers] Market stall clicked:', stallId);
+
+        // Find merchant NPC with matching stallId
+        const allEntities = entityManager.getAll();
+        const merchantNPC = allEntities.find(entity =>
+          entity.entityType === 'npc' &&
+          entity.merchantShop === true &&
+          entity.stallId === stallId
+        );
+
+        if (merchantNPC) {
+          console.log('[GameHandlers] Found merchant for stall:', merchantNPC.name);
+
+          // Generate merchant inventory (async import)
+          import('../../features/commerce/services/merchantInventoryGenerator').then(({ generateMerchantInventory }) => {
+            // Generate merchant inventory for today
+            const inventory = generateMerchantInventory(merchantNPC, gameState.date);
+
+            console.log(`[GameHandlers] Generated ${inventory.length} items for ${merchantNPC.name}`);
+
+            // Build portrait path from image filename
+            const portraitPath = merchantNPC.image ? `/portraits/${merchantNPC.image}` : null;
+
+            // Set up merchant data for TradeModal
+            const merchantData = {
+              id: merchantNPC.id,
+              name: merchantNPC.name,
+              shopName: merchantNPC.shopName,
+              merchantType: merchantNPC.merchantType,
+              portrait: portraitPath,
+              greeting: merchantNPC.dialogue?.greeting || `Welcome to ${merchantNPC.shopName}.`,
+              shopAmbiance: merchantNPC.shopAmbiance || '',
+              offering: {
+                items: inventory
+              }
+            };
+
+            // Open TradeModal in merchant mode
+            setTradingNPC(merchantData);
+            setTradeMode('merchant');
+            setIsBuyOpen(true);
+
+            toast.success(`Browsing ${merchantNPC.shopName}...`, { duration: 2000 });
+          }).catch(error => {
+            console.error('[GameHandlers] Error loading merchant inventory:', error);
+            toast.error('Failed to load merchant inventory');
+          });
+
+          return;
+        } else {
+          console.warn('[GameHandlers] No merchant found for stall:', stallId);
+          toast.info(`This stall is currently unattended.`, { duration: 2000 });
+          return;
+        }
+      }
+    }
+
+    // 🏛️ NORMAL FURNITURE CLICK (non-stall)
     // Check if detail image exists for this furniture
     const detailImagePath = getDetailImagePathSync(furnitureName);
 
@@ -3174,7 +3487,7 @@ export function useGameHandlers({
     // Open POI modal
     setShowPOIModal(true);
 
-  }, [setShowPOIModal, setSelectedPOIEntity, toast]);
+  }, [setShowPOIModal, setSelectedPOIEntity, toast, gameState.location, gameState.date, setTradingNPC, setTradeMode, setIsBuyOpen]);
 
   /**
    * Handle time change from interactive clock

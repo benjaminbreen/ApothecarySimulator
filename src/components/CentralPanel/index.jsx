@@ -30,6 +30,7 @@ export function CentralPanel({
   activePatient,
   patientDialogue,
   onAskQuestion,
+  onDismissPatient, // Handler to dismiss patient without examining
 
   // Contract props
   pendingContract,
@@ -101,6 +102,7 @@ export function CentralPanel({
   onEntityClick,
   playerPortrait,
   toast, // Toast notification function
+  onMerchantClick, // Handler for merchant clicks from lists
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedReferenceEntry, setSelectedReferenceEntry] = useState(null);
@@ -208,6 +210,7 @@ export function CentralPanel({
               playerPortrait={playerPortrait}
               activePatient={activePatient}
               onSwitchToPatientView={() => onTabChange('patient')}
+              onDismissPatient={onDismissPatient}
               pendingPrescription={pendingPrescription}
               onOpenPrescriptionDetails={onOpenPrescriptionDetails}
               pendingContract={pendingContract}
@@ -230,6 +233,7 @@ export function CentralPanel({
               onRandomEventChoice={onRandomEventChoice}
               gameState={gameState}
               updateInventory={updateInventory}
+              onMerchantClick={onMerchantClick}
               fontSize={narrationFontSize}
               isDarkMode={narrationDarkMode}
             />

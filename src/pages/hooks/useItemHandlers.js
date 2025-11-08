@@ -6,7 +6,7 @@ import { useCallback } from 'react';
 import { useGameState } from '../../contexts/GameStateContext';
 import { createChatCompletion } from '../../core/services/llmService';
 import { entityManager } from '../../core/entities/EntityManager';
-import relationshipGraph from '../../core/entities/RelationshipGraph';
+import { relationshipGraph } from '../../core/entities/RelationshipGraph';
 import scenarioLoader from '../../core/services/scenarioLoader';
 
 /**

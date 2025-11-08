@@ -30,7 +30,7 @@ export function clearLLMCallHistory() {
 }
 
 // Gemini implementation - routes through API in production, direct call in dev
-async function geminiChatCompletion(messages, temperature = 1.0, maxTokens = 1000, responseFormat = null) {
+async function geminiChatCompletion(messages, temperature = 0.5, maxTokens = 1000, responseFormat = null) {
   try {
     // In production, use secure serverless API
     if (!isDevelopment) {

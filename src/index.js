@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
+import './utils/logger'; // Safari console.log optimization - MUST be imported early
 import HomePage from './pages/HomePage';
 import GamePage from './pages/GamePage';
 
@@ -10,10 +11,14 @@ import reportWebVitals from './reportWebVitals';
 
 // Register medical terms as highlightable entities on app startup
 import { registerMedicalTerms } from './core/data/medicalTerms';
+import { applySafariClass } from './utils/browserDetection';
 
 // Initialize medical terms for narrative highlighting
 console.log('[App] Initializing medical term entities...');
 registerMedicalTerms();
+
+// Apply Safari-specific class for CSS performance optimizations
+applySafariClass();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

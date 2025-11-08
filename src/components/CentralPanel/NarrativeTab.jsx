@@ -14,6 +14,7 @@ export function NarrativeTab({
   playerPortrait,
   activePatient,
   onSwitchToPatientView,
+  onDismissPatient = null, // Handler to dismiss patient
   pendingPrescription,
   onOpenPrescriptionDetails = null, // Handler to open prescription outcome modal
   pendingContract = null, // Contract offer
@@ -36,6 +37,7 @@ export function NarrativeTab({
   onRandomEventChoice = null, // Handler for random event
   gameState = {}, // Game state for wealth/inventory
   updateInventory = null, // Handler to update inventory quantities
+  onMerchantClick = null, // Handler for merchant clicks
   fontSize = 'text-base',
   isDarkMode = false
 }) {
@@ -51,6 +53,7 @@ export function NarrativeTab({
         playerPortrait={playerPortrait}
         activePatient={activePatient}
         onSwitchToPatientView={onSwitchToPatientView}
+        onDismissPatient={onDismissPatient}
         pendingPrescription={pendingPrescription}
         onOpenPrescriptionDetails={onOpenPrescriptionDetails}
         pendingContract={pendingContract}
@@ -73,6 +76,7 @@ export function NarrativeTab({
         onRandomEventChoice={onRandomEventChoice}
         gameState={gameState}
         updateInventory={updateInventory}
+        onMerchantClick={onMerchantClick}
         fontSize={fontSize}
         isDarkMode={isDarkMode}
       />
