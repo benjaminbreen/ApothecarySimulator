@@ -39,10 +39,13 @@ Patients vary in their emotional states - some are stoic, others anxious, some m
 
     texture: `**1680 Mexico City Specifics:**
 
+- Mexico City is LANDLOCKED efforts - no ocean or harbors
+- Water transport: barges, canoes, chinampas
+
 | Element | Examples |
 |---------|----------|
-| **People** | Nahua market women (embroidered huipils), viceregal soldiers (morion helmets), Dominican friars (black habits), criollo merchants (velvet doublets). Always be specific. |
-| **Places** | Tlatelolco market, Portal de Mercaderes, Metropolitan Cathedral (construction scaffolding since 1573), La Merced, Alameda. Name exact streets/buildings. |
+| **People** | Nahua market women (embroidered huipils), viceregal soldiers, Dominican friars (black habits), etc. Always be specific. |
+| **Places** | Tlatelolco market, Portal de Mercaderes, Metropolitan Cathedral, La Merced, Alameda, Lake Texcoco canals. Name exact streets/buildings. |
 | **Sounds** | Nahuatl/Spanish mixing, church bells  vendor cries  |
 | **Smells** | Copal incense, roasting corn/chiles, pulque, acequia, horse dung, fresh tortillas |
 | **Weather** | High-altitude sun (7,350 ft), volcanic peaks |

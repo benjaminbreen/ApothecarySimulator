@@ -1058,13 +1058,51 @@ export function useNavigationHandlers({
       setPatientDialogue([]); // Clear previous dialogue
       console.log('[Phase 3B] Set active patient:', patientEntity.name);
 
-      // 6.5. PORTRAIT FIX: Resolve and set portrait for house call patient
-      console.log('[Portrait Phase 2] House call patient now present, resolving portrait for:', patientEntity.name);
+      // 6.5. PORTRAIT FIX: Infer demographics BEFORE EntityManager enrichment
+      console.log('[Portrait Phase 2] House call patient now present, inferring demographics for:', patientEntity.name);
 
-      // Ensure patient is registered in EntityManager (required for enrichment)
+      // CRITICAL FIX: Infer missing demographics from context BEFORE registration
+      // This ensures EntityManager.inferGender() can see the occupation
+      if (!patientEntity.social) patientEntity.social = {};
+      if (!patientEntity.appearance) patientEntity.appearance = {};
+
+      // Infer casta from name patterns and house type
+      if (!patientEntity.social.casta || patientEntity.social.casta === 'unknown') {
+        // Check for Spanish nobility markers
+        if (patientEntity.name.match(/don |doña |de la |del /i) || houseCallData.destination?.match(/don |doña /i)) {
+          patientEntity.social.casta = 'español';
+          console.log('[Portrait Phase 2] Inferred casta as español from name/location');
+        } else if (finalHouseMapId === 'elite-house-interior') {
+          patientEntity.social.casta = 'criollo';
+          console.log('[Portrait Phase 2] Inferred casta as criollo from elite house');
+        } else if (finalHouseMapId === 'middling-house-interior') {
+          patientEntity.social.casta = 'mestizo';
+          console.log('[Portrait Phase 2] Inferred casta as mestizo from middling house');
+        } else {
+          patientEntity.social.casta = 'mestizo'; // Default
+          console.log('[Portrait Phase 2] Defaulted casta to mestizo');
+        }
+      }
+
+      // Infer occupation from age and context
+      if (!patientEntity.social.occupation || patientEntity.social.occupation === 'unknown') {
+        const age = patientEntity.appearance?.age || 'adult';
+        const socialClass = patientEntity.social?.class || 'common';
+
+        if (age === 'child' || age === 'young') {
+          patientEntity.social.occupation = socialClass === 'elite' ? 'Noble youth' : 'Apprentice';
+        } else if (socialClass === 'elite') {
+          patientEntity.social.occupation = 'Gentleman';
+        } else {
+          patientEntity.social.occupation = 'Commoner';
+        }
+        console.log('[Portrait Phase 2] Inferred occupation as', patientEntity.social.occupation);
+      }
+
+      // NOW register with EntityManager (lazy enrichment will see the occupation)
       let enrichedPatient = entityManager.getById(patientEntity.id);
       if (!enrichedPatient) {
-        console.log('[Portrait Phase 2] Patient not registered, registering and enriching:', patientEntity.name);
+        console.log('[Portrait Phase 2] Patient not registered, registering with demographics:', patientEntity.name);
         entityManager.register(patientEntity);
         enrichedPatient = entityManager.getById(patientEntity.id);
       }
@@ -1073,43 +1111,6 @@ export function useNavigationHandlers({
       if (!enrichedPatient) {
         console.warn('[Portrait Phase 2] Entity registration failed, using raw entity');
         enrichedPatient = patientEntity;
-      }
-
-      // CRITICAL FIX: Infer missing demographics from context before portrait resolution
-      if (!enrichedPatient.social) enrichedPatient.social = {};
-      if (!enrichedPatient.appearance) enrichedPatient.appearance = {};
-
-      // Infer casta from name patterns and house type
-      if (!enrichedPatient.social.casta || enrichedPatient.social.casta === 'unknown') {
-        // Check for Spanish nobility markers
-        if (enrichedPatient.name.match(/don |doña |de la |del /i) || houseCallData.destination?.match(/don |doña /i)) {
-          enrichedPatient.social.casta = 'español';
-          console.log('[Portrait Phase 2] Inferred casta as español from name/location');
-        } else if (finalHouseMapId === 'elite-house-interior') {
-          enrichedPatient.social.casta = 'criollo';
-          console.log('[Portrait Phase 2] Inferred casta as criollo from elite house');
-        } else if (finalHouseMapId === 'middling-house-interior') {
-          enrichedPatient.social.casta = 'mestizo';
-          console.log('[Portrait Phase 2] Inferred casta as mestizo from middling house');
-        } else {
-          enrichedPatient.social.casta = 'mestizo'; // Default
-          console.log('[Portrait Phase 2] Defaulted casta to mestizo');
-        }
-      }
-
-      // Infer occupation from age and context
-      if (!enrichedPatient.social.occupation || enrichedPatient.social.occupation === 'unknown') {
-        const age = enrichedPatient.appearance?.age || 'adult';
-        const socialClass = enrichedPatient.social?.class || 'common';
-
-        if (age === 'child' || age === 'young') {
-          enrichedPatient.social.occupation = socialClass === 'elite' ? 'Noble youth' : 'Apprentice';
-        } else if (socialClass === 'elite') {
-          enrichedPatient.social.occupation = 'Gentleman';
-        } else {
-          enrichedPatient.social.occupation = 'Commoner';
-        }
-        console.log('[Portrait Phase 2] Inferred occupation as', enrichedPatient.social.occupation);
       }
 
       // Resolve portrait using demographics (enrichment should have populated these)
@@ -1138,9 +1139,10 @@ export function useNavigationHandlers({
       try {
         // Build dynamic arrival narrative via LLM for historical flavor
         const ailmentDescription = patientEntity.metadata?.ailmentDescription || patientEntity.description || 'unknown ailment';
-        const patientAge = patientEntity.appearance?.age || 'adult';
-        const patientGender = patientEntity.appearance?.gender || 'person';
-        const socialClass = patientEntity.social?.class || 'common';
+        // Support both nested and flat entity structures
+        const patientAge = patientEntity.appearance?.age || patientEntity.age || 'adult';
+        const patientGender = patientEntity.appearance?.gender || patientEntity.gender || 'person';
+        const socialClass = patientEntity.social?.class || patientEntity.class || 'common';
 
         // Check if destination is a landmark/institutional building
         const isLandmark = houseCallData.isLandmark || false;
@@ -1280,19 +1282,55 @@ ${locationDescription}
    * Wraps up consultation, awards XP/reputation, and returns to botica
    * @param {Object} patientEntity - Optional patient entity for reputation awards
    */
-  const handleCompleteHouseCall = useCallback((patientEntity = null) => {
+  const handleCompleteHouseCall = useCallback(async (patientEntity = null) => {
     console.log('[Phase 3D] Completing house call');
 
     try {
       if (setTravelAnimationState) {
         setTravelAnimationState(null);
       }
-      // 1. Generate wrap-up narrative
-      const wrapUpNarrative = `Maria gathers her medical bag and bids farewell to the household. The consultation is complete. She makes her way back through the streets of Mexico City to her botica, reflecting on the case as she walks.`;
+
+      // 1. Generate wrap-up narrative via LLM for better context
+      let wrapUpNarrative;
+      try {
+        const patientName = patientEntity?.name || 'the patient';
+        const ailment = patientEntity?.symptoms?.[0]?.name || patientEntity?.medical?.condition || 'their ailment';
+
+        const returnPrompt = `You are narrating the conclusion of a house call in 1680 Mexico City.
+
+**Context:**
+- Maria de Lima has just finished treating ${patientName} for ${ailment}
+- The treatment interaction is complete (either successful, declined, or outcome varies)
+- Maria is now leaving the patient's residence and returning to her botica
+
+**Write a brief (2-3 sentences) return narrative in present tense that:**
+1. Shows Maria gathering her supplies and departing the household
+2. Describes her return journey through the streets back to the Botica de la Amargura
+3. Conveys her reflection on the case (professional, matter-of-fact tone)
+
+**Keep it atmospheric and period-appropriate. Focus on the journey and transition, not the medical outcome (that was already narrated).**`;
+
+        const response = await createChatCompletion(
+          [
+            { role: 'system', content: returnPrompt },
+            { role: 'user', content: `Generate the return narrative for Maria's house call to ${patientName}.` }
+          ],
+          0.7,
+          200
+        );
+
+        wrapUpNarrative = response.choices[0].message.content;
+        console.log('[Phase 3D] Generated return narrative via LLM');
+
+      } catch (error) {
+        console.error('[Phase 3D] Failed to generate return narrative, using fallback:', error);
+        // Fallback to simple template
+        wrapUpNarrative = `Maria gathers her medical bag and bids farewell to the household. She makes her way back through the winding streets of Mexico City to the Botica de la Amargura, her mind already turning to the next patient.`;
+      }
 
       setHistoryOutput(wrapUpNarrative);
       setConversationHistory(prev => [...prev,
-        { role: 'system', content: `*[HOUSE CALL COMPLETE] Maria wrapped up the consultation and returned to her botica.*` },
+        { role: 'system', content: `*[HOUSE CALL COMPLETE] Maria returned to the Botica de la Amargura.*` },
         { role: 'assistant', content: wrapUpNarrative }
       ]);
 

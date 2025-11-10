@@ -44,6 +44,102 @@ export function selectContextAwareEntity(context) {
     signJustHung = false // TRIGGER: Force patient spawn when sign just hung
   } = context;
 
+  // ===== TEST MODE: Deterministic entity selection for automated testing =====
+  // Detects [TEST:type] keywords in playerAction and returns predefined entities
+  // This bypasses all probability/pacing logic for reliable test assertions
+  const testMatch = playerAction.match(/\[TEST:(\w+)\]/i);
+  if (testMatch) {
+    const testType = testMatch[1].toLowerCase();
+    console.log(`[EntityAgent] 🧪 TEST MODE: ${testType}`);
+
+    switch (testType) {
+      case 'water_seller':
+        return {
+          id: 'test-water-seller',
+          name: 'Test Water Seller',
+          type: 'npc',
+          simpleInteractionType: 'vendor_offer',
+          demographics: { gender: 'male', age: 'adult', casta: 'mestizo', class: 'common' },
+          offer: {
+            item: 'water',
+            price: 1,
+            description: 'fresh aqueduct water',
+            quality: 'clean',
+            quantity: 1,
+            emoji: '💧'
+          }
+        };
+
+      case 'beggar':
+        return {
+          id: 'test-beggar',
+          name: 'Test Beggar',
+          type: 'npc',
+          simpleInteractionType: 'donation_request',
+          demographics: { gender: 'female', age: 'elderly', casta: 'indio', class: 'poor' },
+          request: {
+            item: 'bread',
+            reason: 'starving family',
+            urgency: 'high',
+            reputationImpact: { donate: 5, refuse: -3 }
+          }
+        };
+
+      case 'informant':
+        return {
+          id: 'test-informant',
+          name: 'Test Street Informant',
+          type: 'npc',
+          simpleInteractionType: 'information_exchange',
+          demographics: { gender: 'male', age: 'adult', casta: 'mestizo', class: 'common' },
+          information: {
+            topic: 'local gossip',
+            price: 2,
+            value: 'moderate',
+            description: 'rumors about the merchants guild'
+          }
+        };
+
+      case 'gambler':
+        return {
+          id: 'test-gambler',
+          name: 'Test Card Player',
+          type: 'npc',
+          simpleInteractionType: 'gamble_opportunity',
+          demographics: { gender: 'male', age: 'adult', casta: 'mestizo', class: 'common' },
+          gamble: {
+            gameType: 'cards',
+            wager: 5,
+            potentialWin: 10,
+            odds: 'even',
+            description: 'high-low card game'
+          }
+        };
+
+      case 'vendor':
+        return {
+          id: 'test-vendor',
+          name: 'Test Market Vendor',
+          type: 'npc',
+          simpleInteractionType: 'vendor_offer',
+          demographics: { gender: 'female', age: 'middle-aged', casta: 'mestizo', class: 'common' },
+          offer: {
+            item: 'herbs',
+            price: 3,
+            description: 'medicinal herbs from the countryside',
+            quality: 'good',
+            quantity: 1,
+            emoji: '🌿'
+          }
+        };
+
+      default:
+        console.warn(`[EntityAgent] Unknown test type: ${testType}`);
+        return null;
+    }
+  }
+  // ===== END TEST MODE =====
+
   // Query EntityManager for ALL NPCs (static + auto-generated + LLM-created)
   const allNPCs = [
     ...entityManager.getByType('npc'),

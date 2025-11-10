@@ -11,7 +11,8 @@ function PrescribeOverviewPanel({
   patient,
   patientDialogue = [],
   diagnosisData = null,
-  onOpenMixing
+  onOpenMixing,
+  prescriptionPreview = null
 }) {
   const [isQAExpanded, setIsQAExpanded] = useState(false);
   const [isDiagnosisExpanded, setIsDiagnosisExpanded] = useState(false);
@@ -220,21 +221,209 @@ function PrescribeOverviewPanel({
         </button>
       </div>
 
-      {/* Info Panel - Fixed at bottom */}
-      <div className="flex-shrink-0 p-4 border-t-2 border-ink-100 dark:border-slate-700 bg-amber-50 dark:bg-amber-900/20">
-        <div className="flex items-start gap-2">
-          <div className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500 dark:bg-amber-600 flex items-center justify-center text-white text-xs font-bold">
-            i
-          </div>
-          <div className="flex-1">
-            <div className="text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">
-              How to Prescribe
+      {/* Info Panel - Fixed at bottom - Contextual based on prescription selection */}
+      <div className="flex-shrink-0 p-4 border-t-2 border-ink-100 dark:border-slate-700"
+        style={{
+          background: prescriptionPreview
+            ? (prescriptionPreview.effectiveness >= 75 ? 'rgba(16, 185, 129, 0.1)' :
+               prescriptionPreview.effectiveness >= 50 ? 'rgba(245, 158, 11, 0.1)' :
+               prescriptionPreview.effectiveness >= 25 ? 'rgba(249, 115, 22, 0.1)' : 'rgba(220, 38, 38, 0.1)')
+            : document.documentElement.classList.contains('dark') ? 'rgba(217, 119, 6, 0.2)' : 'rgba(254, 243, 199, 1)'
+        }}
+      >
+        {/* Show "How to Prescribe" when no medicine selected */}
+        {!prescriptionPreview && (
+          <div className="flex items-start gap-2">
+            <div className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500 dark:bg-amber-600 flex items-center justify-center text-white text-xs font-bold">
+              i
             </div>
-            <div className="text-xs text-amber-700 dark:text-amber-500 leading-relaxed">
-              Drag a medicine from your inventory (bottom right) or mix a new one above, then select route and amount.
+            <div className="flex-1">
+              <div className="text-xs font-bold text-amber-800 dark:text-amber-400 mb-1">
+                How to Prescribe
+              </div>
+              <div className="text-xs text-amber-700 dark:text-amber-500 leading-relaxed">
+                Drag a medicine from your inventory (bottom right) or mix a new one above, then select route and amount.
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Show Predicted Effectiveness when medicine selected */}
+        {prescriptionPreview && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wide"
+                style={{
+                  color: prescriptionPreview.effectiveness >= 75 ? '#065f46' :
+                         prescriptionPreview.effectiveness >= 50 ? '#92400e' :
+                         prescriptionPreview.effectiveness >= 25 ? '#9a3412' : '#991b1b'
+                }}
+              >
+                Predicted Effectiveness
+              </span>
+              <span className="text-2xl font-bold"
+                style={{
+                  color: prescriptionPreview.effectiveness >= 75 ? '#10b981' :
+                         prescriptionPreview.effectiveness >= 50 ? '#f59e0b' :
+                         prescriptionPreview.effectiveness >= 25 ? '#f97316' : '#dc2626'
+                }}
+              >
+                {Math.round(prescriptionPreview.effectiveness)}/100
+              </span>
+            </div>
+
+            {/* Effectiveness breakdown */}
+            <div className="space-y-2 text-xs">
+              {prescriptionPreview.breakdown.toxicityWarning && (
+                <div className="flex items-start gap-2 p-2 rounded bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+                  <span className="text-red-600 dark:text-red-400 flex-shrink-0">⚠️</span>
+                  <span className="text-red-700 dark:text-red-300 font-semibold">
+                    {prescriptionPreview.breakdown.toxicityWarning}
+                  </span>
+                </div>
+              )}
+
+              {prescriptionPreview.breakdown.dosageWarning && (
+                <div className="flex items-start gap-2 p-2 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                  <span className="text-amber-600 dark:text-amber-400 flex-shrink-0">⚠️</span>
+                  <span className="text-amber-700 dark:text-amber-300 font-medium">
+                    {prescriptionPreview.breakdown.dosageWarning}
+                  </span>
+                </div>
+              )}
+
+              {prescriptionPreview.breakdown.routeExplanation && (
+                <div className="p-2 rounded bg-white dark:bg-slate-800 border border-ink-200 dark:border-slate-600">
+                  <span className="text-ink-700 dark:text-slate-300 leading-relaxed">
+                    {prescriptionPreview.breakdown.routeExplanation}
+                  </span>
+                </div>
+              )}
+
+              {/* HIGH PRIORITY: Contraindications - Show if present */}
+              {prescriptionPreview.breakdown.contraindications && prescriptionPreview.breakdown.contraindications.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-red-700 dark:text-red-400">
+                    ⚠️ Contraindications:
+                  </div>
+                  {prescriptionPreview.breakdown.contraindications.map((contra, idx) => (
+                    <div key={idx} className="p-2 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <div className="text-red-700 dark:text-red-300 font-semibold text-xs mb-1">
+                        {contra.warning}
+                      </div>
+                      {contra.historicalContext && (
+                        <div className="text-red-600 dark:text-red-400 text-[10px] italic">
+                          {contra.historicalContext}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Therapeutic Action Matches - Direct symptom relief */}
+              {prescriptionPreview.breakdown.therapeuticMatches && prescriptionPreview.breakdown.therapeuticMatches.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-emerald-700 dark:text-emerald-400">
+                    ✓ Therapeutic Actions:
+                  </div>
+                  {prescriptionPreview.breakdown.therapeuticMatches.slice(0, 3).map((match, idx) => (
+                    <div key={idx} className="flex items-start gap-2 p-2 rounded bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700">
+                      <span className="text-emerald-600 dark:text-emerald-400 flex-shrink-0">•</span>
+                      <div className="flex-1">
+                        <span className="text-emerald-700 dark:text-emerald-300 font-medium text-xs">
+                          {match.action}
+                        </span>
+                        <span className="text-emerald-600 dark:text-emerald-400 text-[10px] ml-1">
+                          → treats {match.symptom}
+                        </span>
+                        {match.score && (
+                          <span className="text-emerald-500 dark:text-emerald-500 text-[10px] ml-1">
+                            (+{match.score})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Ingredient Synergies - For compound medicines */}
+              {prescriptionPreview.breakdown.ingredientSynergies && prescriptionPreview.breakdown.ingredientSynergies.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-purple-700 dark:text-purple-400">
+                    ⚗️ Ingredient Interactions:
+                  </div>
+                  {prescriptionPreview.breakdown.ingredientSynergies.map((synergy, idx) => (
+                    <div key={idx} className={`flex items-start gap-2 p-2 rounded border ${
+                      synergy.type === 'synergy'
+                        ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700'
+                        : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700'
+                    }`}>
+                      <span className={`flex-shrink-0 ${
+                        synergy.type === 'synergy' ? 'text-purple-600 dark:text-purple-400' : 'text-orange-600 dark:text-orange-400'
+                      }`}>
+                        {synergy.type === 'synergy' ? '✓' : '⚠️'}
+                      </span>
+                      <div className="flex-1">
+                        <span className={`font-medium text-xs ${
+                          synergy.type === 'synergy'
+                            ? 'text-purple-700 dark:text-purple-300'
+                            : 'text-orange-700 dark:text-orange-300'
+                        }`}>
+                          {synergy.description}
+                        </span>
+                        {synergy.effect && (
+                          <div className="text-[10px] mt-0.5 opacity-80">
+                            {synergy.effect}
+                          </div>
+                        )}
+                        {synergy.bonus && (
+                          <span className={`text-[10px] ml-1 ${
+                            synergy.bonus > 0 ? 'text-purple-500' : 'text-orange-500'
+                          }`}>
+                            ({synergy.bonus > 0 ? '+' : ''}{synergy.bonus})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Historical Medical Reasoning - Educational context */}
+              {prescriptionPreview.breakdown.historicalReasoning && prescriptionPreview.breakdown.historicalReasoning.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] uppercase tracking-wider font-bold text-blue-700 dark:text-blue-400">
+                    📜 Historical Reasoning:
+                  </div>
+                  {prescriptionPreview.breakdown.historicalReasoning.slice(0, 2).map((reasoning, idx) => (
+                    <div key={idx} className="p-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
+                      <div className="text-blue-700 dark:text-blue-300 text-xs leading-relaxed">
+                        {reasoning.explanation}
+                      </div>
+                      {reasoning.authority && (
+                        <div className="text-blue-600 dark:text-blue-400 text-[10px] italic mt-1">
+                          — {reasoning.authority}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Show positive feedback for good choices */}
+              {prescriptionPreview.effectiveness >= 75 && (
+                <div className="flex items-start gap-2 p-2 rounded bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700">
+                  <span className="text-emerald-600 dark:text-emerald-400 flex-shrink-0">✓</span>
+                  <span className="text-emerald-700 dark:text-emerald-300 font-medium">
+                    This treatment is highly effective for the patient's condition
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

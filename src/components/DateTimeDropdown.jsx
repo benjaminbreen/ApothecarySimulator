@@ -19,15 +19,23 @@ const DateTimeDropdown = ({
   energy = 62,
   wealth = 11,
   // Time control props
-  onTimeChange = null // Callback when time is changed via clock
+  onTimeChange = null, // Callback when time is changed via clock
+  // Calendar notes props (v1.1.1 - per-slot storage)
+  calendarNotes = {},
+  onCalendarNotesChange = null
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [mainView, setMainView] = useState('calendar'); // 'calendar' | 'clock'
   const [calendarView, setCalendarView] = useState('month'); // 'month' | 'week' | 'year'
   const [viewedMonth, setViewedMonth] = useState(null); // { month, year } for calendar navigation
   const [selectedDate, setSelectedDate] = useState(null); // Currently viewed date
+  // Use calendarNotes from props (v1.1.1 - per-slot storage)
+  // Fallback to legacy localStorage for backward compatibility
   const [notes, setNotes] = useState(() => {
-    // Load notes from localStorage
+    if (calendarNotes && Object.keys(calendarNotes).length > 0) {
+      return calendarNotes;
+    }
+    // LEGACY: Load from global localStorage (pre-v1.1.1)
     const saved = safeLocalStorage.getItem('apothecary_calendar_notes');
     return saved ? JSON.parse(saved) : {};
   });
@@ -121,17 +129,24 @@ const DateTimeDropdown = ({
     }
   }, [gameDate, viewedMonth, selectedDate, notes]);
 
-  // Save notes to localStorage (debounced)
+  // Save notes via callback or localStorage (debounced)
   useEffect(() => {
     const timer = setTimeout(() => {
       if (selectedDate && currentNote !== (notes[selectedDate] || '')) {
         const updated = { ...notes, [selectedDate]: currentNote };
         setNotes(updated);
-        safeLocalStorage.setItem('apothecary_calendar_notes', JSON.stringify(updated));
+
+        // v1.1.1: Use callback if provided (per-slot storage)
+        if (onCalendarNotesChange) {
+          onCalendarNotesChange(updated);
+        } else {
+          // LEGACY: Fall back to global localStorage (pre-v1.1.1)
+          safeLocalStorage.setItem('apothecary_calendar_notes', JSON.stringify(updated));
+        }
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [currentNote, selectedDate, notes]);
+  }, [currentNote, selectedDate, notes, onCalendarNotesChange]);
 
   // Handle ESC key
   useEffect(() => {

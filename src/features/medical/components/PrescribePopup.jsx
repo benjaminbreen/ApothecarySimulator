@@ -65,6 +65,40 @@ function PrescribePopup({
     return key.toLowerCase().replace(/[_\s]+/g, '');
   };
 
+  /**
+   * Calculate suggested prescription price based on:
+   * - Item base cost (rarity)
+   * - Patient's social class (ability to pay)
+   * - Standard markup (2-4x for apothecary services)
+   * @param {Object} item - The prescription item
+   * @param {Object} patient - The patient entity
+   * @param {number} amount - Dosage amount
+   * @returns {number} Suggested price in reales
+   */
+  const calculateSuggestedPrice = useCallback((item, patient, amount) => {
+    if (!item || !patient) return 0;
+
+    const baseCost = item.price || 5; // Fallback if no price
+    const patientClass = patient.social?.class || patient.class || 'common';
+
+    // Class-based multiplier (ability to pay)
+    const classMultipliers = {
+      'elite': 4.0,      // Wealthy patrons pay premium
+      'middling': 2.5,   // Middle class pays standard markup
+      'common': 2.0,     // Common folk pay minimal markup
+      'poor': 1.5        // Poor pay cost + small service fee
+    };
+
+    // Get multiplier (default to middling if unknown)
+    const multiplier = classMultipliers[patientClass] || classMultipliers['middling'];
+
+    // Calculate final price: base cost × amount × class multiplier
+    const suggestedPrice = Math.round(baseCost * amount * multiplier);
+
+    // Minimum price of 1 real (never free)
+    return Math.max(1, suggestedPrice);
+  }, []);
+
   // Update selectedItem when inventory changes
   useEffect(() => {
     if (selectedItem) {
@@ -73,11 +107,12 @@ function PrescribePopup({
       );
       if (updatedItem) {
         setSelectedItem(updatedItem);
-        setBasePrice(updatedItem.price || 0);
-        setPrice(updatedItem.price || 0);
+        const suggested = calculateSuggestedPrice(updatedItem, currentPatient, amount);
+        setBasePrice(suggested);
+        setPrice(suggested);
       }
     }
-  }, [inventory, selectedItem]);
+  }, [inventory, selectedItem, currentPatient, amount, calculateSuggestedPrice]);
 
   // Auto-open inventory when popup opens
   useEffect(() => {
@@ -85,11 +120,6 @@ function PrescribePopup({
       toggleInventory(true);
     }
   }, [isOpen, toggleInventory]);
-
-  // Update price when amount changes
-  useEffect(() => {
-    setPrice(basePrice * amount);
-  }, [amount, basePrice]);
 
   // Memoize prescription analysis to prevent recalculating on every render
   const prescriptionAnalysis = useMemo(() => {
@@ -661,6 +691,17 @@ function PrescribePopup({
                     }}
                   >
                     Price (silver reales)
+                    {selectedItem && currentPatient && (
+                      <span
+                        className="ml-2 text-xs font-normal"
+                        style={{
+                          color: isDark ? '#94a3b8' : '#8b7355',
+                          fontStyle: 'italic'
+                        }}
+                      >
+                        • Suggested: {basePrice}r based on {currentPatient.social?.class || currentPatient.class || 'common'} patient
+                      </span>
+                    )}
                   </label>
                   <input
                     type="number"

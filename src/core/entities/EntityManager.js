@@ -934,6 +934,37 @@ class EntityManager {
   }
 }
 
+/**
+ * GUARD 4: Sanitize patient names to remove furniture/object words
+ * Fixes bug where "my master" + "bed" in scene → "Master Bed"
+ * @param {string} name - Patient name to sanitize
+ * @returns {string} Cleaned name
+ */
+export function sanitizePatientName(name) {
+  if (!name || typeof name !== 'string') return 'patient';
+
+  const furnitureWords = [
+    'bed', 'table', 'cabinet', 'shelf', 'chair', 'door',
+    'window', 'counter', 'wall', 'floor', 'ceiling', 'bench',
+    'stool', 'dresser', 'chest', 'wardrobe', 'mirror'
+  ];
+
+  let cleaned = name.trim();
+
+  // Remove furniture words at the end (e.g., "Master Bed" → "Master")
+  furnitureWords.forEach(word => {
+    const pattern = new RegExp(`\\s+${word}$`, 'i');
+    cleaned = cleaned.replace(pattern, '');
+  });
+
+  // If entire name was a furniture word, return generic
+  if (!cleaned || furnitureWords.includes(cleaned.toLowerCase())) {
+    return 'patient';
+  }
+
+  return cleaned;
+}
+
 // Create singleton instance
 export const entityManager = new EntityManager();
 

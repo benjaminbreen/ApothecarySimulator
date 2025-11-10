@@ -7,7 +7,7 @@ import { useGameState as useGameStateHook } from '../core/state/gameState';
 
 /**
  * Context for game state management
- * Provides: inventory, time, location, quests, player stats, etc.
+ * Provides: inventory, time, location, story NPC state, player stats, etc.
  */
 const GameStateContext = createContext(null);
 
@@ -77,17 +77,9 @@ export function useGameState() {
  * - updateLocation(newLocation): Update player location
  * - advanceTime(summaryData, playerLevel): Advance game time
  *
- * Quest Management (Legacy):
- * - startQuest(newQuest): Start a quest (old system)
- * - advanceQuestStage(questId): Advance quest stage
- * - completeQuest(questId): Complete quest
- *
- * Quest Management (New):
- * - addActiveQuest(quest): Add active quest
- * - updateQuest(questId, updates): Update quest
- * - completeActiveQuest(questId): Complete active quest
- * - failQuest(questId): Fail quest
- * - setQuestCooldown(templateId, turnNumber): Set quest cooldown
+ * Story NPC System:
+ * - updateStoryNpcStatus(npcId, updates): Persist encounter outcomes/cooldowns
+ * - resetStoryNpcStatus(): Clear all story NPC progress
  *
  * Player Stats:
  * - updateWealth(amount): Add/subtract wealth
@@ -112,6 +104,12 @@ export function useGameState() {
  * - addTradeTransaction(npcId, transaction): Log transaction
  * - getTradeHistory(npcId): Get NPC trade history
  * - cleanupExpiredOpportunities(): Remove expired trade offers
+ *
+ * Investment System:
+ * - addActiveInvestment(investment): Add new active investment
+ * - getActiveInvestments(): Get all active investments
+ * - getInvestmentHistory(): Get completed investment history
+ * - clearMaturedInvestments(): Clear maturation notifications
  *
  * Game Flow:
  * - triggerGameOver(result): Trigger game over state

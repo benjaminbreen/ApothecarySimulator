@@ -261,29 +261,25 @@ export function getInvestmentType(id) {
 
 /**
  * Check if player meets requirements for investment
+ * NOTE: Requirements are now informational only - they don't block access
  */
 export function meetsRequirements(investmentType, playerSkills, reputation) {
   const { requirements, bonuses } = investmentType;
+  const warnings = [];
 
-  // Check bookkeeping requirement
+  // Check bookkeeping requirement (informational only)
   if (requirements.bookkeeping) {
     const bookkeepingLevel = playerSkills?.knownSkills?.bookkeeping?.level || 0;
     if (bookkeepingLevel < requirements.bookkeeping) {
-      return {
-        allowed: false,
-        reason: `Requires Bookkeeping Level ${requirements.bookkeeping}`
-      };
+      warnings.push(`💡 Bookkeeping Level ${requirements.bookkeeping} recommended for better outcomes`);
     }
   }
 
-  // Check etiquette requirement (for real estate)
+  // Check etiquette requirement (informational only)
   if (requirements.etiquette) {
     const etiquetteLevel = playerSkills?.knownSkills?.etiquette?.level || 0;
     if (etiquetteLevel < requirements.etiquette) {
-      return {
-        allowed: false,
-        reason: `Requires Etiquette Level ${requirements.etiquette}`
-      };
+      warnings.push(`💡 Etiquette Level ${requirements.etiquette} recommended`);
     }
   }
 
@@ -291,11 +287,7 @@ export function meetsRequirements(investmentType, playerSkills, reputation) {
   if (bonuses?.reputationBonus) {
     const factionRep = reputation?.factions?.[bonuses.reputationBonus.faction] || 50;
     if (factionRep < bonuses.reputationBonus.threshold) {
-      // Still allowed, just note the bonus opportunity
-      return {
-        allowed: true,
-        warning: `Higher ${bonuses.reputationBonus.faction} reputation would improve chances`
-      };
+      warnings.push(`💡 Higher ${bonuses.reputationBonus.faction} reputation would improve chances`);
     }
   }
 

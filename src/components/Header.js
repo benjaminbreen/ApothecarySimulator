@@ -21,6 +21,9 @@ const Header = ({
   wealth = 11,
   // Time control
   onTimeChange,
+  // v1.1.1: Calendar notes (per-slot storage)
+  calendarNotes = {},
+  onCalendarNotesChange = null,
   // Style prop for pointer events control
   style
 }) => {
@@ -100,6 +103,8 @@ const Header = ({
                 energy={energy}
                 wealth={wealth}
                 onTimeChange={onTimeChange}
+                calendarNotes={calendarNotes}
+                onCalendarNotesChange={onCalendarNotesChange}
               />
               {/* Weather Badge - Safari: no backdrop-blur */}
               <button

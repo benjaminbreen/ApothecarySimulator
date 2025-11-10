@@ -78,7 +78,6 @@ import { generateJournalEntry } from '../journalAgent';
 import imageMap from '../imageMap';
 
 import { createChatCompletion } from '../core/services/llmService';
-import { buildSystemPrompt, buildContextSummary, buildEntityContext } from '../prompts/promptModules';
 import { orchestrateTurn } from '../core/agents/AgentOrchestrator';
 import { getEffectFromItem, applyEffect, updateEffectDurations } from '../systems/bodyEffects';
 import { NPCTracker } from '../core/agents/EntityAgent';
@@ -110,7 +109,6 @@ const GameContent = () => {
     updateLocation,
     addCompoundToInventory,
     generateNewItemDetails,
-    startQuest,
     advanceTime,
     refreshInventory,
     lastAddedItem,
@@ -134,6 +132,8 @@ const GameContent = () => {
     addTradeTransaction,
     getTradeHistory,
     cleanupExpiredOpportunities,
+    // Investment system
+    clearMaturedInvestments,
     // Document library system
     addDocument,
     markDocumentAsRead,
@@ -179,6 +179,9 @@ const GameContent = () => {
   const [historyOutput, setHistoryOutput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [turnNumber, setTurnNumber] = useState(1);
+
+  // v1.1.1: Calendar notes state (per-slot storage)
+  const [calendarNotes, setCalendarNotes] = useState({});
 
   // Transaction Manager
   const [transactionManager] = useState(() => getTransactionManager(scenarioId || '1680-mexico-city'));
@@ -263,6 +266,28 @@ const GameContent = () => {
 
     return () => clearTimeout(timer);
   }, [gameState.location]);
+
+  // Investment maturation notifications
+  useEffect(() => {
+    const maturedInvestments = gameState.investments?.maturedThisTurn || [];
+    if (maturedInvestments.length > 0) {
+      // Show toast for each matured investment
+      maturedInvestments.forEach(investment => {
+        const profitSign = investment.profit >= 0 ? '+' : '';
+        const profitColor = investment.profit >= 0 ? 'success' : 'error';
+
+        toast[profitColor](
+          `💰 ${investment.type} matured: ${investment.payout} reales (${profitSign}${investment.profit}, ${profitSign}${investment.returnPercentage}%)`,
+          { duration: 5000 }
+        );
+
+        console.log(`[Investment] Toast shown for ${investment.type}: ${investment.outcome}`);
+      });
+
+      // Clear the matured investments after showing toasts
+      clearMaturedInvestments();
+    }
+  }, [gameState.investments?.maturedThisTurn, toast, clearMaturedInvestments]);
 
   // NPC position tracking (real-time updates every 100ms)
   const {
@@ -1453,10 +1478,7 @@ const GameContent = () => {
         const transactionManager = getTransactionManager(scenarioId);
         const transactions = transactionManager.exportForSave();
 
-        // Get calendar notes from localStorage (stored by DateTimeDropdown)
-        const calendarNotesJSON = safeLocalStorage.getItem('apothecary_calendar_notes');
-        const calendarNotes = calendarNotesJSON ? JSON.parse(calendarNotesJSON) : {};
-
+        // v1.1.1: Use calendar notes from state (per-slot storage)
         const saveData = createSaveData({
           gameState,
           playerSkills,
@@ -2294,6 +2316,8 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           energy={gameState.energy}
           wealth={gameState.wealth}
           onTimeChange={handlers.handleTimeChange}
+          calendarNotes={calendarNotes}
+          onCalendarNotesChange={setCalendarNotes}
         />
 
         {/* Fading content wrapper - everything below Header */}
@@ -2467,6 +2491,8 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 onPrescriptionComplete={() => setPendingPrescription(null)}
                 pendingPrescription={pendingPrescription}
                 onOpenPrescriptionDetails={handleOpenPrescriptionDetails}
+                // House call auto-return handler (Phase 3D)
+                handleCompleteHouseCall={handleCompleteHouseCall}
                 // Narration settings props
                 narrationFontSize={narrationFontSize}
                 narrationDarkMode={narrationDarkMode}
@@ -3031,8 +3057,8 @@ function GamePageWithProvider() {
       }
 
       if (loadedSaveData.calendarNotes) {
-        // Store calendar notes in localStorage for DateTimeDropdown to load
-        safeLocalStorage.setItem('apothecary_calendar_notes', JSON.stringify(loadedSaveData.calendarNotes));
+        // v1.1.1: Restore calendar notes to state (per-slot storage)
+        setCalendarNotes(loadedSaveData.calendarNotes);
       }
 
       // Clear the pending load save

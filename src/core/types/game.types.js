@@ -4,7 +4,6 @@
  * @typedef {Object} GameState
  * @property {string} scenarioId - Current scenario ID
  * @property {InventoryItem[]} inventory - Player's inventory
- * @property {Quest[]} quests - Active and completed quests
  * @property {Compound[]} compounds - Created compounds
  * @property {string} time - Current game time (e.g., "3:45 PM")
  * @property {string} date - Current game date (e.g., "August 22, 1680")
@@ -19,6 +18,7 @@
  * @property {string} reputation - Reputation emoji
  * @property {Object|null} endQuestResult - Result of game-ending quest
  * @property {boolean} assessmentTriggered - Whether end game assessment was triggered
+ * @property {Object.<string, StoryNpcStatus>} storyNpcStatus - Dynamic story NPC encounter tracking
  */
 
 /**
@@ -50,27 +50,10 @@
  */
 
 /**
- * @typedef {Object} Quest
- * @property {number} id - Unique quest ID
- * @property {string} name - Quest name
- * @property {string} classification - Quest type ("Prologue", "Helper", "Antagonist", etc.)
- * @property {string} npc - Associated NPC name
- * @property {boolean} completed - Whether quest is completed
- * @property {number} currentStage - Current stage number (1-indexed)
- * @property {QuestStage[]} stages - Quest stages
- * @property {Function} trigger - Function to determine if quest should trigger
- */
-
-/**
- * @typedef {Object} QuestStage
- * @property {string} type - Stage type ("banner", "dialogue", "decision", "challenge")
- * @property {string} image - Image key
- * @property {string|string[]} text - Stage text content
- * @property {string[]} [npcResponses] - NPC response templates
- * @property {string[]} [playerChoices] - Player choice options
- * @property {Object[]} [buttons] - Stage buttons
- * @property {boolean} [decisionPoint] - Whether this is a decision point
- * @property {number} [maxExchanges] - Maximum dialogue exchanges
+ * @typedef {Object} StoryNpcStatus
+ * @property {string} state - Encounter state ("met", "active", "completed", "declined", etc.)
+ * @property {number} [lastTurn] - Turn number of the last interaction
+ * @property {string} [lastOutcome] - Short code describing last outcome
  */
 
 /**
@@ -108,12 +91,12 @@ export function validateGameState(state) {
     throw new Error('Inventory must be an array');
   }
 
-  if (!Array.isArray(state.quests)) {
-    throw new Error('Quests must be an array');
-  }
-
   if (typeof state.turnNumber !== 'number') {
     throw new Error('Turn number must be a number');
+  }
+
+  if (state.storyNpcStatus && typeof state.storyNpcStatus !== 'object') {
+    throw new Error('storyNpcStatus must be an object map');
   }
 
   return true;

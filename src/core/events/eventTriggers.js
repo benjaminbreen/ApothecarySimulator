@@ -96,8 +96,8 @@ export function calculateEventChance(gameState) {
     baseChance *= 0.5;
   }
 
-  // Cap at 80% max (TESTING - normally 40%)
-  return Math.min(baseChance, 0.80);
+  // Cap at 40% max to keep events from being overwhelming
+  return Math.min(baseChance, 0.40);
 }
 
 /**
@@ -159,10 +159,9 @@ export function buildEventContext(gameState, reputation) {
 export function shouldTriggerEvent(gameState, playerAction) {
   const { turnNumber } = gameState;
 
-  // TESTING MODE: Trigger from turn 2 (normally turn 3)
-  // TODO: Restore to turnNumber < 3 after testing
-  if (turnNumber < 2) {
-    console.log('[EventTriggers] Too early for events (turn < 2)');
+  // Don't trigger events too early (let player get oriented)
+  if (turnNumber < 3) {
+    console.log('[EventTriggers] Too early for events (turn < 3)');
     return false;
   }
 

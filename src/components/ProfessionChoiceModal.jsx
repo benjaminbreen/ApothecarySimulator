@@ -314,7 +314,7 @@ function ConfirmationDialog({ profession, onConfirm, onCancel }) {
                 ✓ This choice will shape your journey through Mexico City
               </p>
               <p>
-                ✓ You'll unlock unique abilities and exclusive quests
+                ✓ You'll unlock unique abilities and signature story encounters
               </p>
               <p>
                 ⚠️ Other paths will still be accessible, but at reduced efficiency
@@ -468,7 +468,7 @@ export default function ProfessionChoiceModal({
                 }}
               >
                 This choice will define your path through Mexico City. Each profession unlocks unique abilities,
-                exclusive quests, and a legendary title at Level 99. Choose wisely—this decision is permanent.
+                bespoke story encounters, and a legendary title at Level 99. Choose wisely—this decision is permanent.
               </p>
             </div>
 

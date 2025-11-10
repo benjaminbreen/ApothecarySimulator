@@ -204,6 +204,61 @@ function formatActionLabel(text) {
 }
 
 /**
+ * Detect medical context in narrative that suggests prescribing
+ * @param {string} text - Narrative text to analyze
+ * @returns {boolean} True if medical context detected
+ */
+function detectMedicalContext(text) {
+  if (!text) return false;
+
+  const medicalKeywords = [
+    // Symptoms
+    'fever', 'cough', 'pain', 'ache', 'illness', 'sick', 'ailment', 'affliction',
+    'wound', 'injury', 'burn', 'rash', 'swelling', 'bleeding', 'headache',
+    'stomach', 'nausea', 'vomit', 'dizzy', 'weak', 'fatigue', 'tired',
+    'chill', 'shiver', 'sweating', 'breathe', 'breathing',
+
+    // Medical terms
+    'symptom', 'diagnose', 'diagnosis', 'treat', 'treatment', 'cure', 'remedy',
+    'medicine', 'prescription', 'physician', 'apothecary', 'healer',
+    'patient', 'suffer', 'afflict', 'malady',
+
+    // Body parts (when mentioned with complaints)
+    'chest pain', 'sore throat', 'broken', 'sprain', 'fracture',
+    'infection', 'inflam', 'pus', 'boil', 'lesion',
+
+    // Common requests
+    'need help', 'need medicine', 'can you help', 'please help',
+    'what can you give', 'do you have something for'
+  ];
+
+  const lowerText = text.toLowerCase();
+
+  // Check for medical keywords
+  for (const keyword of medicalKeywords) {
+    if (lowerText.includes(keyword)) {
+      return true;
+    }
+  }
+
+  // Check for question patterns about health
+  const medicalQuestions = [
+    /what (?:can|should) (?:i|you) (?:do|take|give) for/i,
+    /(?:i have|suffering from|afflicted with|troubled by)/i,
+    /my (?:wife|husband|child|son|daughter|mother|father).{0,30}(?:ill|sick|fever|pain)/i,
+    /need.{0,20}(?:medicine|remedy|treatment|cure|help)/i
+  ];
+
+  for (const pattern of medicalQuestions) {
+    if (pattern.test(text)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Parse narrative text for choice patterns and extract dynamic actions
  * @param {string} narrativeText - Full narrative text from LLM
  * @returns {Array|null} Array of action chip objects, or null if no pattern detected
@@ -245,6 +300,25 @@ export function parseNarrativeChoices(narrativeText) {
       // Only return if we found 1-3 actions
       if (actions.length >= 1 && actions.length <= 3) {
         console.log('[narrativeParser] Successfully parsed choices:', actions.map(a => a.label));
+
+        // AUTO-SUGGEST PRESCRIBE: Add prescribe chip if medical context detected
+        if (detectMedicalContext(narrativeText)) {
+          // Check if prescribe action isn't already in the choices
+          const hasPrescribe = actions.some(a =>
+            a.action.includes('prescribe') || a.action.includes('medicine') || a.action.includes('treat')
+          );
+
+          if (!hasPrescribe && actions.length < 3) {
+            actions.push({
+              label: 'Prescribe',
+              icon: FaMortarPestle,
+              action: '#prescribe',
+              tooltip: 'Offer a prescription'
+            });
+            console.log('[narrativeParser] Added auto-suggest Prescribe chip (medical context detected)');
+          }
+        }
+
         return actions;
       }
     }

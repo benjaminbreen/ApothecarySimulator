@@ -2,6 +2,13 @@
  * Prescription Calculator - Deterministic outcome calculation
  * Combines humoral matching, skill checks, route appropriateness, and dosage
  *
+ * ENHANCED SYSTEM:
+ * - Direct symptom-effect matching from medicinalEffects field
+ * - Historical medical theory reasoning
+ * - Contraindication detection
+ * - Ingredient synergy analysis for compounds
+ * - Educational explanations
+ *
  * This creates a learnable system where:
  * - Players can predict outcomes
  * - Skill progression matters
@@ -10,6 +17,13 @@
  */
 
 import { calculateHumoralMatch } from './humoralMatcher.mjs';
+import {
+  parseMedicinalEffects,
+  matchActionsToSymptoms,
+  checkContraindications,
+  analyzeIngredientSynergies
+} from './medicinalEffectsParser.mjs';
+import { REFERENCE_ENTRIES } from '../../../core/data/medicalReference.js';
 
 // Temporary mock for standalone testing - will use real skillCheckSystem when integrated
 const DIFFICULTY = {
@@ -177,7 +191,14 @@ export function calculatePrescriptionOutcome(params) {
     dosageModifier: 0,
     dosageWarning: null,
     skillCheck: null,
-    toxicityWarning: toxicityCheck.warning || null
+    toxicityWarning: toxicityCheck.warning || null,
+    // ENHANCED FIELDS:
+    therapeuticMatches: [], // Direct symptom-effect matches from medicinalEffects
+    therapeuticScore: 0,
+    contraindications: [], // Warnings about medicine worsening symptoms
+    ingredientSynergies: [], // For compound medicines
+    synergyScore: 0,
+    historicalReasoning: [] // Educational context
   };
 
   // 1. HUMORAL MATCHING (0-100 points from symptoms)
@@ -189,21 +210,53 @@ export function calculatePrescriptionOutcome(params) {
 
   totalEffectiveness += humoralMatch.totalScore;
 
-  // 2. ROUTE APPROPRIATENESS (0-20 points, or negative if inappropriate)
+  // 2. THERAPEUTIC ACTION MATCHING (0-50+ points from medicinalEffects)
+  // Parse natural language medicinal effects into structured actions
+  const therapeuticActions = parseMedicinalEffects(item.medicinalEffects || '');
+  const actionMatches = matchActionsToSymptoms(therapeuticActions, symptoms);
+
+  breakdown.therapeuticMatches = actionMatches.directMatches;
+  breakdown.therapeuticScore = actionMatches.totalScore;
+  totalEffectiveness += actionMatches.totalScore;
+
+  // 2b. CONTRAINDICATION DETECTION (warnings, no score penalty - just informational)
+  const contraWarnings = checkContraindications(item, symptoms, therapeuticActions);
+  breakdown.contraindications = contraWarnings;
+
+  // Apply penalty for high severity contraindications
+  const highSeverityContras = contraWarnings.filter(w => w.severity === 'high');
+  if (highSeverityContras.length > 0) {
+    const contraPenalty = -20 * highSeverityContras.length;
+    totalEffectiveness += contraPenalty;
+    breakdown.contraindicationPenalty = contraPenalty;
+  }
+
+  // 2c. INGREDIENT SYNERGY ANALYSIS (for compounds with multiple ingredients)
+  if (item.ingredients && Array.isArray(item.ingredients) && item.ingredients.length > 1) {
+    const synergyAnalysis = analyzeIngredientSynergies(item.ingredients);
+    breakdown.ingredientSynergies = [...synergyAnalysis.synergies, ...synergyAnalysis.conflicts];
+    breakdown.synergyScore = synergyAnalysis.totalBonus;
+    totalEffectiveness += synergyAnalysis.totalBonus;
+  }
+
+  // 2d. HISTORICAL MEDICAL REASONING (educational, no score impact)
+  breakdown.historicalReasoning = generateHistoricalReasoning(item, symptoms, actionMatches.directMatches);
+
+  // 3. ROUTE APPROPRIATENESS (0-20 points, or negative if inappropriate)
   const routeResult = calculateRouteBonus(route, symptoms, item.name);
   breakdown.routeBonus = routeResult.bonus;
   breakdown.routeExplanation = routeResult.explanation;
 
   totalEffectiveness += routeResult.bonus;
 
-  // 3. DOSAGE APPROPRIATENESS (0 to -30 points for overdose)
+  // 4. DOSAGE APPROPRIATENESS (0 to -30 points for overdose)
   const dosageResult = calculateDosageModifier(item.name, amount);
   breakdown.dosageModifier = dosageResult.modifier;
   breakdown.dosageWarning = dosageResult.warning;
 
   totalEffectiveness += dosageResult.modifier;
 
-  // 4. SKILL CHECK (variable based on herbalism skill)
+  // 5. SKILL CHECK (variable based on herbalism skill)
   // Only perform skill check if playerSkills provided
   if (playerSkills) {
     const skillCheck = performSkillCheck('herbalism', playerSkills, DIFFICULTY.MODERATE);
@@ -446,6 +499,128 @@ function createDeathOutcome(reason, breakdown) {
     fatal: true,
     fatalReason: reason
   };
+}
+
+/**
+ * Generate historical medical reasoning for educational context
+ * Explains WHY treatment works according to 1680s medical theory
+ *
+ * PRIORITY: Use reference data as single source of truth when available
+ *
+ * @param {Object} item - Medicine item
+ * @param {Array} symptoms - Patient symptoms
+ * @param {Array} therapeuticMatches - Direct symptom-effect matches
+ * @returns {Array} Array of reasoning objects with historical context
+ */
+function generateHistoricalReasoning(item, symptoms, therapeuticMatches) {
+  const reasoning = [];
+
+  // FIRST: Check if this item has a reference entry (single source of truth)
+  const itemKey = item.name.toLowerCase().replace(/\s+/g, '-').replace(/['']/g, '');
+  const referenceEntry = REFERENCE_ENTRIES[itemKey];
+
+  if (referenceEntry) {
+    // USE REFERENCE DATA - The authoritative source!
+
+    // 1. HISTORICAL SOURCE QUOTE (Most important - actual primary source!)
+    if (referenceEntry.historicalSource) {
+      const source = referenceEntry.historicalSource;
+      reasoning.push({
+        type: 'historical_source',
+        explanation: source.translation || source.excerpt,
+        authority: `${source.author}, *${source.work}* (${source.year})`,
+        isPrimarySource: true
+      });
+    }
+
+    // 2. MEDICINAL USES (From reference data)
+    if (referenceEntry.uses && referenceEntry.uses.length > 0) {
+      reasoning.push({
+        type: 'uses',
+        explanation: `Traditionally used for: ${referenceEntry.uses.slice(0, 3).join('; ')}.`,
+        authority: 'Historical materia medica'
+      });
+    }
+
+    // 3. HUMORAL PROPERTIES (From reference data)
+    if (referenceEntry.properties) {
+      const props = referenceEntry.properties;
+      if (props.degree) {
+        reasoning.push({
+          type: 'humoral',
+          explanation: `Classified as ${props.degree}. ${props.qualities ? `Possesses ${props.qualities.join(', ')} qualities.` : ''}`,
+          authority: 'Galenic pharmacology'
+        });
+      }
+    }
+
+    // 4. CONTRAINDICATIONS (From reference data - critical warnings!)
+    if (referenceEntry.contraindications && referenceEntry.contraindications.length > 0) {
+      reasoning.push({
+        type: 'contraindications_ref',
+        explanation: `Historical warnings: ${referenceEntry.contraindications.join('; ')}.`,
+        authority: 'Traditional cautions',
+        isWarning: true
+      });
+    }
+
+  } else {
+    // FALLBACK: Item not in reference (likely LLM-generated compound or rare item)
+
+    // 1. Use item's medicinalEffects field if available
+    if (item.medicinalEffects) {
+      reasoning.push({
+        type: 'effects',
+        explanation: item.medicinalEffects,
+        authority: item.citation || item.provenance || 'Clinical observation'
+      });
+    }
+
+    // 2. Use therapeutic matches from parser
+    if (therapeuticMatches && therapeuticMatches.length > 0) {
+      const primaryAction = therapeuticMatches[0];
+      reasoning.push({
+        type: 'therapeutic',
+        explanation: `${item.name} is known to ${primaryAction.action} - a direct treatment for the patient's ${primaryAction.symptom}.`,
+        authority: 'Traditional practice'
+      });
+    }
+
+    // 3. Humoral properties if available
+    if (item.properties?.hot || item.properties?.cold || item.properties?.wet || item.properties?.dry) {
+      const qualities = [];
+      if (item.properties.hot > 0) qualities.push(`hot in the ${item.properties.hot}° degree`);
+      if (item.properties.cold > 0) qualities.push(`cold in the ${item.properties.cold}° degree`);
+      if (item.properties.wet > 0) qualities.push(`wet in the ${item.properties.wet}° degree`);
+      if (item.properties.dry > 0) qualities.push(`dry in the ${item.properties.dry}° degree`);
+
+      if (qualities.length > 0) {
+        reasoning.push({
+          type: 'humoral',
+          explanation: `Galenic theory classifies ${item.name} as ${qualities.join(' and ')}, countering the humoral imbalance.`,
+          authority: 'Galenic tradition'
+        });
+      }
+    }
+  }
+
+  // COMPOUND-SPECIFIC (applies to all)
+  if (item.ingredients && item.ingredients.length > 1) {
+    reasoning.push({
+      type: 'compound',
+      explanation: `This compound combines ${item.ingredients.length} ingredients. According to pharmaceutical art, properly balanced compounds achieve effects greater than their parts.`,
+      authority: 'De compositione medicamentorum'
+    });
+  }
+
+  // GENERAL DOSAGE ADVICE (applies to all)
+  reasoning.push({
+    type: 'dosage',
+    explanation: `Standard dosage: 1-3 drachms for most simples. Excess may cause humoral imbalance or toxic effects.`,
+    authority: 'Apothecary guidelines'
+  });
+
+  return reasoning;
 }
 
 /**

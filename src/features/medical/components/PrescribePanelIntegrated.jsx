@@ -10,6 +10,7 @@ import { createChatCompletion } from '../../../core/services/llmService';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import PrescriptionOutcomeModal from './PrescriptionOutcomeModal';
 import { useGameState } from '../../../contexts/GameStateContext';
+import { useNPCs } from '../../../contexts/NPCContext';
 import { MedicalRecordsManager } from '../../../core/systems/medicalRecordsManager';
 import { entityManager } from '../../../core/entities/EntityManager';
 import { generateFollowUpSchedule } from '../utils/followUpUtils';
@@ -92,15 +93,19 @@ function PrescribePanelIntegrated({
   transactionManager,
   TRANSACTION_CATEGORIES,
   toast, // Toast notification function (optional)
-  onOpenInventoryTab // Optional callback to open inventory tab
+  onOpenInventoryTab, // Optional callback to open inventory tab
+  setPrescriptionPreview, // Callback to update preview in parent (displayed in left panel)
+  handleCompleteHouseCall // House call auto-return handler (Phase 3D)
 }) {
   const { inventory = [] } = gameState;
   const {
     setGameState,
     setCrisisState,
     addScheduledFollowUp, // NEW: Helper for adding follow-ups
-    removeScheduledFollowUp // NEW: Helper for removing follow-ups
-  } = useGameState(); // For updating medical records, crisis state, and follow-ups
+    removeScheduledFollowUp, // NEW: Helper for removing follow-ups
+    updateWealth // CRITICAL: For adding prescription payments to wealth
+  } = useGameState(); // For updating medical records, crisis state, follow-ups, and wealth
+  const { activePatient } = useNPCs(); // For house call detection
   const [selectedItem, setSelectedItem] = useState(null);
   const [amount, setAmount] = useState(1);
   const [price, setPrice] = useState(0);
@@ -118,8 +123,7 @@ function PrescribePanelIntegrated({
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [mechanicsBreakdown, setMechanicsBreakdown] = useState(null);
 
-  // Preview calculation state
-  const [previewResult, setPreviewResult] = useState(null);
+  // Note: previewResult state moved to PatientViewTab and passed via setPrescriptionPreview
 
   // Bloodletting feature states
   const [includeBloodletting, setIncludeBloodletting] = useState(false);
@@ -143,6 +147,21 @@ function PrescribePanelIntegrated({
       setPendingModalOpen(false);
     }
   }, [pendingModalOpen, simulatedOutput, prescriptionData]);
+
+  // Clear preview on mount/unmount
+  useEffect(() => {
+    // Clear preview when component mounts
+    if (setPrescriptionPreview) {
+      setPrescriptionPreview(null);
+    }
+
+    // Clear preview when component unmounts
+    return () => {
+      if (setPrescriptionPreview) {
+        setPrescriptionPreview(null);
+      }
+    };
+  }, [setPrescriptionPreview]);
 
   // Update selectedItem when inventory changes
   useEffect(() => {
@@ -174,15 +193,21 @@ function PrescribePanelIntegrated({
           amount: amount,
           playerSkills: gameState.playerSkills || null
         });
-        setPreviewResult(result);
+        if (setPrescriptionPreview) {
+          setPrescriptionPreview(result);
+        }
       } catch (error) {
         console.error('[PrescribePanelIntegrated] Preview calculation failed:', error);
-        setPreviewResult(null);
+        if (setPrescriptionPreview) {
+          setPrescriptionPreview(null);
+        }
       }
     } else {
-      setPreviewResult(null);
+      if (setPrescriptionPreview) {
+        setPrescriptionPreview(null);
+      }
     }
-  }, [selectedItem, selectedRoute, amount, currentPatient, gameState.playerSkills]);
+  }, [selectedItem, selectedRoute, amount, currentPatient, gameState.playerSkills, setPrescriptionPreview]);
 
   // Handle drop of item into prescription area
   const [{ isOver, canDrop }, drop] = useDrop({
@@ -509,6 +534,12 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
         addJournalEntry(`℞ ${comprehensiveSummary}`);
       }
 
+      // CRITICAL FIX: Update wealth before logging transaction
+      if (price > 0) {
+        updateWealth(price);
+        console.log(`[PrescribePanelIntegrated] Added ${price} reales to wealth (prescription payment from ${npcName})`);
+      }
+
       // Log transaction
       if (transactionManager && TRANSACTION_CATEGORIES && price > 0) {
         transactionManager.logTransaction(
@@ -797,6 +828,22 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
     const updatedDate = gameState.date;
     advanceTime({ time: updatedTime, date: updatedDate });
 
+    // HOUSE CALL AUTO-RETURN: Trigger immediate return if this is a house call
+    // Check: activePatient exists AND we have the handler AND we're not already at botica
+    if (activePatient && typeof handleCompleteHouseCall === 'function' && gameState.location !== 'Botica de la Amargura, Mexico City') {
+      console.log('[PrescribePanelIntegrated] House call detected - triggering auto-return for', activePatient.name);
+
+      // Call auto-return AFTER closing the modal (next tick) to avoid state conflicts
+      setTimeout(async () => {
+        try {
+          await handleCompleteHouseCall(activePatient);
+          console.log('[PrescribePanelIntegrated] Auto-return completed successfully');
+        } catch (error) {
+          console.error('[PrescribePanelIntegrated] Auto-return failed:', error);
+        }
+      }, 100);
+    }
+
     // Clear the pending prescription state (removes blue card)
     if (typeof onPrescriptionComplete === 'function') {
       onPrescriptionComplete();
@@ -1053,46 +1100,7 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
             </div>
           </div>
 
-          {/* Prescription Preview - Simple inline version */}
-          {previewResult && (
-            <div className="p-3 rounded-lg border-2 transition-all" style={{
-              borderColor: previewResult.effectiveness >= 75 ? '#10b981' :
-                           previewResult.effectiveness >= 50 ? '#f59e0b' :
-                           previewResult.effectiveness >= 25 ? '#f97316' : '#dc2626',
-              backgroundColor: document.documentElement.classList.contains('dark')
-                ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.5)'
-            }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-ink-600 dark:text-slate-400 uppercase tracking-wide font-sans">
-                  Predicted Effectiveness
-                </span>
-                <span className="text-lg font-bold" style={{
-                  color: previewResult.effectiveness >= 75 ? '#10b981' :
-                         previewResult.effectiveness >= 50 ? '#f59e0b' :
-                         previewResult.effectiveness >= 25 ? '#f97316' : '#dc2626'
-                }}>
-                  {Math.round(previewResult.effectiveness)}/100
-                </span>
-              </div>
-
-              {/* Critical warnings only */}
-              {previewResult.breakdown.toxicityWarning && (
-                <p className="text-xs font-semibold text-red-700 dark:text-red-400 mt-1">
-                  {previewResult.breakdown.toxicityWarning}
-                </p>
-              )}
-              {previewResult.breakdown.dosageWarning && (
-                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                  {previewResult.breakdown.dosageWarning}
-                </p>
-              )}
-              {previewResult.breakdown.routeExplanation && (
-                <p className="text-xs text-ink-600 dark:text-slate-400 mt-1">
-                  {previewResult.breakdown.routeExplanation}
-                </p>
-              )}
-            </div>
-          )}
+          {/* Note: Prescription Preview moved to left panel (PrescribeOverviewPanel) */}
 
           {/* Bloodletting Section */}
           <div className="mt-4 p-4 rounded-lg border-2 transition-all duration-300" style={{

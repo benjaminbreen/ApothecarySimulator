@@ -844,10 +844,10 @@ export default function ReputationModal({ isOpen, onClose, reputation, initialTa
                       </div>
                     </div>
                     <div className="p-3 rounded bg-blue-50 border border-blue-200">
-                      <div className="font-bold text-blue-900 mb-1">Complete Quests</div>
+                      <div className="font-bold text-blue-900 mb-1">Honor Story Encounters</div>
                       <div className="text-xs text-blue-800">
-                        Major quests often have faction rewards. Choose quest outcomes that align with your
-                        desired reputation path.
+                        Signature NPC encounters often carry large faction swings. Resolve them in ways that
+                        reinforce your desired reputation path.
                       </div>
                     </div>
                   </div>

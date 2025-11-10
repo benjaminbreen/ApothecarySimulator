@@ -44,13 +44,6 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
     return {
       scenarioId: startingState.scenarioId,
       inventory: randomInventory,
-      quests: {
-        active: [],      // Active quests (new system)
-        completed: [],   // Completed quest IDs
-        failed: [],      // Failed quest IDs
-        cooldowns: {},   // Quest template cooldowns
-        legacy: []       // Old quest system (backward compatibility)
-      },
       compounds: [],
       time: startingState.time,
       date: startingState.date,
@@ -105,8 +98,12 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       // Investment system - track active investments and history
       investments: {
         active: [], // Active investments: [{ id, typeId, type, emoji, amount, startDate, maturityDate, duration, status, riskLevel }]
-        history: [] // Completed investments: [{ id, typeId, type, amount, payout, profit, returnPercentage, outcome, completedDate }]
+        history: [], // Completed investments: [{ id, typeId, type, amount, payout, profit, returnPercentage, outcome, completedDate }]
+        maturedThisTurn: [] // Investments that matured this turn (cleared after notification)
       },
+      // Story NPC encounters - replaces legacy quests with dynamic interactions
+      storyNpcStatus: {}, // { [npcId]: { state, lastTurn, lastOutcome } }
+
       // Long-distance travel system - tracks visited locations and routes
       playthroughSeed: Math.random().toString(36).substring(2, 15), // Unique seed for this playthrough (for randomization)
       visitedWorldLocations: ['mexico-city'], // Array of visited world location IDs
@@ -118,13 +115,6 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
     return {
       scenarioId: '1680-mexico-city',
       inventory: getRandomInventory(),
-      quests: {
-        active: [],      // Active quests (new system)
-        completed: [],   // Completed quest IDs
-        failed: [],      // Failed quest IDs
-        cooldowns: {},   // Quest template cooldowns
-        legacy: []       // Old quest system (backward compatibility)
-      },
       compounds: [],
       time: '8:00 AM',
       date: 'August 22, 1680',
@@ -177,8 +167,12 @@ const initializeGameState = (scenarioId = '1680-mexico-city') => {
       // Investment system - track active investments and history
       investments: {
         active: [], // Active investments: [{ id, typeId, type, emoji, amount, startDate, maturityDate, duration, status, riskLevel }]
-        history: [] // Completed investments: [{ id, typeId, type, amount, payout, profit, returnPercentage, outcome, completedDate }]
+        history: [], // Completed investments: [{ id, typeId, type, amount, payout, profit, returnPercentage, outcome, completedDate }]
+        maturedThisTurn: [] // Investments that matured this turn (cleared after notification)
       },
+      // Story NPC encounters
+      storyNpcStatus: {},
+
       // Long-distance travel system - tracks visited locations and routes
       playthroughSeed: Math.random().toString(36).substring(2, 15), // Unique seed for this playthrough (for randomization)
       visitedWorldLocations: ['mexico-city'], // Array of visited world location IDs
@@ -244,24 +238,6 @@ export const useGameState = (scenarioId, loadedSaveData = null) => {
     }));
   }, []);
 
-  // Start a new quest
-  const startQuest = useCallback((newQuest) => {
-    setGameState((prevState) => {
-      // Check if the quest already exists
-      const existingQuest = prevState.quests.find(quest => quest.id === newQuest.id);
-      if (existingQuest) {
-        console.warn(`Quest with ID ${newQuest.id} already started.`);
-        return prevState; // Prevent adding the same quest twice
-      }
-
-      // Add the new quest to the quests array
-      return {
-        ...prevState,
-        quests: [...prevState.quests, { ...newQuest, currentStage: 1, completed: false }],
-      };
-    });
-  }, []);
-
   // Update inventory logic
   const updateInventory = useCallback((updateItemName, quantityChange) => {
     // Safety check: prevent null/undefined errors
@@ -316,27 +292,35 @@ export const useGameState = (scenarioId, loadedSaveData = null) => {
       return;
     }
 
+    // Sanitize quantity to ensure it's a number (LLM sometimes returns strings)
+    const sanitizedCompound = {
+      ...compound,
+      quantity: typeof compound.quantity === 'string'
+        ? parseInt(compound.quantity, 10) || 1
+        : (compound.quantity || 1)
+    };
+
     setGameState((prevState) => {
       const updatedInventory = [...prevState.inventory]; // Create a new array for immutability
       const existingItemIndex = updatedInventory.findIndex(
-        (item) => item.name.toLowerCase() === compound.name.toLowerCase()
+        (item) => item.name.toLowerCase() === sanitizedCompound.name.toLowerCase()
       );
 
       if (existingItemIndex >= 0) {
-        updatedInventory[existingItemIndex].quantity += (compound.quantity || 1);
+        updatedInventory[existingItemIndex].quantity += sanitizedCompound.quantity;
       } else {
-        updatedInventory.push({ ...compound });
+        updatedInventory.push({ ...sanitizedCompound });
       }
 
       return {
         ...prevState,
         inventory: updatedInventory,
-        compounds: [...prevState.compounds, { ...compound }],
+        compounds: [...prevState.compounds, { ...sanitizedCompound }],
       };
     });
 
     // NEW: Set the last added item
-    setLastAddedItem(compound);
+    setLastAddedItem(sanitizedCompound);
   }, []);
 
   // NEW: Function to clear the last added item after it's handled
@@ -571,7 +555,8 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
         history: [
           ...(maturedInvestments || []),
           ...(prevState.investments.history || [])
-        ]
+        ],
+        maturedThisTurn: maturedInvestments // Store for toast notifications
       };
 
       // Log summary if any investments matured
@@ -590,135 +575,15 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
   });
 }, []);
 
-  // ============================================
-  // OLD QUEST SYSTEM (Legacy - backward compatibility)
-  // ============================================
-
-  // Advance quest to the next stage (OLD SYSTEM)
-  const advanceQuestStage = useCallback((questId) => {
-    setGameState(prevState => ({
-      ...prevState,
-      quests: {
-        ...prevState.quests,
-        legacy: prevState.quests.legacy.map(quest =>
-          quest.id === questId ? { ...quest, currentStage: quest.currentStage + 1 } : quest
-        )
-      }
-    }));
-  }, []);
-
-  // Complete a quest (OLD SYSTEM)
-  const completeQuest = useCallback((questId) => {
-    setGameState(prevState => ({
-      ...prevState,
-      quests: {
-        ...prevState.quests,
-        legacy: prevState.quests.legacy.map(quest =>
-          quest.id === questId ? { ...quest, completed: true } : quest
-        )
-      }
-    }));
-  }, []);
-
-  // ============================================
-  // NEW QUEST SYSTEM
-  // ============================================
-
   /**
-   * Add an active quest
-   * @param {Quest} quest - Quest object to add
+   * Clear matured investments notification
    */
-  const addActiveQuest = useCallback((quest) => {
+  const clearMaturedInvestments = useCallback(() => {
     setGameState(prev => ({
       ...prev,
-      quests: {
-        ...prev.quests,
-        active: [...prev.quests.active, quest]
-      }
-    }));
-    console.log(`[GameState] Added active quest: ${quest.id}`);
-  }, []);
-
-  /**
-   * Update a quest
-   * @param {string} questId - Quest ID
-   * @param {Object} updates - Updates to apply
-   */
-  const updateQuest = useCallback((questId, updates) => {
-    setGameState(prev => ({
-      ...prev,
-      quests: {
-        ...prev.quests,
-        active: prev.quests.active.map(q =>
-          q.id === questId ? { ...q, ...updates } : q
-        )
-      }
-    }));
-    console.log(`[GameState] Updated quest: ${questId}`);
-  }, []);
-
-  /**
-   * Complete a quest and move to completed list
-   * @param {string} questId - Quest ID to complete
-   */
-  const completeActiveQuest = useCallback((questId) => {
-    setGameState(prev => {
-      const quest = prev.quests.active.find(q => q.id === questId);
-      if (!quest) {
-        console.warn(`[GameState] Quest ${questId} not found in active quests`);
-        return prev;
-      }
-
-      return {
-        ...prev,
-        quests: {
-          ...prev.quests,
-          active: prev.quests.active.filter(q => q.id !== questId),
-          completed: [...prev.quests.completed, questId]
-        }
-      };
-    });
-    console.log(`[GameState] Completed quest: ${questId}`);
-  }, []);
-
-  /**
-   * Fail a quest and move to failed list
-   * @param {string} questId - Quest ID to fail
-   */
-  const failQuest = useCallback((questId) => {
-    setGameState(prev => {
-      const quest = prev.quests.active.find(q => q.id === questId);
-      if (!quest) {
-        console.warn(`[GameState] Quest ${questId} not found in active quests`);
-        return prev;
-      }
-
-      return {
-        ...prev,
-        quests: {
-          ...prev.quests,
-          active: prev.quests.active.filter(q => q.id !== questId),
-          failed: [...prev.quests.failed, questId]
-        }
-      };
-    });
-    console.log(`[GameState] Failed quest: ${questId}`);
-  }, []);
-
-  /**
-   * Set quest cooldown for a template
-   * @param {string} templateId - Template ID
-   * @param {number} turnNumber - Current turn number
-   */
-  const setQuestCooldown = useCallback((templateId, turnNumber) => {
-    setGameState(prev => ({
-      ...prev,
-      quests: {
-        ...prev.quests,
-        cooldowns: {
-          ...prev.quests.cooldowns,
-          [templateId]: turnNumber
-        }
+      investments: {
+        ...prev.investments,
+        maturedThisTurn: []
       }
     }));
   }, []);
@@ -756,6 +621,31 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
         reason: null,
         context: null
       }
+    }));
+  }, []);
+
+  // ============================================
+  // STORY NPC TRACKING (replaces legacy quests)
+  // ============================================
+
+  const updateStoryNpcStatus = useCallback((npcId, updates = {}) => {
+    if (!npcId) return;
+    setGameState(prev => ({
+      ...prev,
+      storyNpcStatus: {
+        ...(prev.storyNpcStatus || {}),
+        [npcId]: {
+          ...(prev.storyNpcStatus?.[npcId] || {}),
+          ...updates
+        }
+      }
+    }));
+  }, []);
+
+  const resetStoryNpcStatus = useCallback(() => {
+    setGameState(prev => ({
+      ...prev,
+      storyNpcStatus: {}
     }));
   }, []);
 
@@ -995,6 +885,50 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
   }, [gameState.documents]);
 
   // ============================================
+  // INVESTMENT MANAGEMENT
+  // ============================================
+
+  /**
+   * Add an active investment
+   * @param {Object} investment - Investment data
+   */
+  const addActiveInvestment = useCallback((investment) => {
+    setGameState((prev) => {
+      const newInvestment = {
+        id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        ...investment,
+        status: 'active'
+      };
+
+      console.log('[Investment] Adding active investment:', newInvestment);
+
+      return {
+        ...prev,
+        investments: {
+          ...prev.investments,
+          active: [...(prev.investments?.active || []), newInvestment]
+        }
+      };
+    });
+  }, []);
+
+  /**
+   * Get active investments
+   * @returns {Array} Active investments
+   */
+  const getActiveInvestments = useCallback(() => {
+    return gameState.investments?.active || [];
+  }, [gameState.investments]);
+
+  /**
+   * Get investment history
+   * @returns {Array} Completed investments
+   */
+  const getInvestmentHistory = useCallback(() => {
+    return gameState.investments?.history || [];
+  }, [gameState.investments]);
+
+  // ============================================
   // FOLLOW-UP VISIT MANAGEMENT
   // ============================================
 
@@ -1084,18 +1018,6 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
     generateNewItemDetails,
     refreshInventory,
 
-    // Legacy quest functions (OLD SYSTEM - backward compatibility)
-    startQuest,
-    advanceQuestStage,
-    completeQuest,
-
-    // New quest functions
-    addActiveQuest,
-    updateQuest,
-    completeActiveQuest,
-    failQuest,
-    setQuestCooldown,
-
     // Time & game flow
     advanceTime,
     triggerGameOver,
@@ -1110,6 +1032,8 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
     toggleShopSign,
     setCrisisState,
     clearCrisisState,
+    updateStoryNpcStatus,
+    resetStoryNpcStatus,
 
     // Core player stats
     updateWealth,
@@ -1134,6 +1058,12 @@ const advanceTime = useCallback((summaryData, playerLevel = 1) => {
     markDocumentAsRead,
     getDocuments,
     getUnreadDocumentsCount,
+
+    // Investment system
+    addActiveInvestment,
+    getActiveInvestments,
+    getInvestmentHistory,
+    clearMaturedInvestments,
 
     // Follow-up visit system
     addScheduledFollowUp,

@@ -12,11 +12,13 @@ import React, { useState } from 'react';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { isSafari } from '../utils/browserDetection';
 import { safeLocalStorage } from '../utils/safeLocalStorage';
+import { STORY_NPCS } from '../data/storyNpcs';
 import TestSuitePanel from './TestSuitePanel';
 import PortraitTestPanel from './PortraitTestPanel';
 import ProfessionTestPanel from './ProfessionTestPanel';
 import TestRunner from './TestRunner';
 import SimpleInteractionTestPanel from './SimpleInteractionTestPanel';
+import DoorOpeningTestPanel from './DoorOpeningTestPanel';
 import WeatherBackground from './WeatherBackground';
 import HorizonLine from './HorizonLine';
 import TimeAwareBackground from './TimeAwareBackground';
@@ -34,6 +36,10 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
 
   // Safari performance optimization
   const isSafariBrowser = isSafari();
+
+  const storyNpcStatus = gameState?.storyNpcStatus || {};
+  const totalStoryNpcs = STORY_NPCS.length;
+  const completedStoryNpcs = Object.values(storyNpcStatus).filter(status => status?.state === 'completed').length;
 
   // Handle smooth close with exit animation
   const handleClose = () => {
@@ -588,9 +594,9 @@ function GameSection({ scenario, gameState, health: propsHealth, energy: propsEn
             color="#3b82f6"
           />
           <MiniProgressCard
-            title="Quests"
-            current={Array.isArray(gameState?.quests) ? gameState.quests.filter(q => q.completed).length : 0}
-            max={10}
+            title="Story Encounters"
+            current={completedStoryNpcs}
+            max={totalStoryNpcs}
             color="#10b981"
           />
           <MiniProgressCard
@@ -668,6 +674,10 @@ function GameSection({ scenario, gameState, health: propsHealth, energy: propsEn
 }
 
 function ProgressSection({ gameState }) {
+  const storyNpcStatus = gameState?.storyNpcStatus || {};
+  const totalStoryNpcs = STORY_NPCS.length;
+  const completedStoryNpcs = Object.values(storyNpcStatus).filter(status => status?.state === 'completed').length;
+
   return (
     <div className="space-y-6">
       <SectionHeader title="Progress Tracking" subtitle="Your journey through history" />
@@ -680,10 +690,10 @@ function ProgressSection({ gameState }) {
           description="Alchemical techniques mastered"
         />
         <ProgressCard
-          title="Quests Completed"
-          current={Array.isArray(gameState?.quests) ? gameState.quests.filter(q => q.completed).length : 0}
-          max={10}
-          description="Story missions finished"
+          title="Story Encounters"
+          current={completedStoryNpcs}
+          max={totalStoryNpcs}
+          description="Major NPC arcs resolved"
         />
         <ProgressCard
           title="Patients Treated"
@@ -1235,6 +1245,28 @@ function DevSection({ onLoadTestPatient, onClose, gameState, setGameState, onLoa
         <SimpleInteractionTestPanel gameState={gameState} />
       </SettingCard>
 
+      <SettingCard title="🚪 Comprehensive Door Opening Test Suite">
+        <p className="text-sm mb-4" style={{
+          fontFamily: "'Inter', sans-serif",
+          color: '#5c4a3a',
+          lineHeight: '1.6'
+        }}>
+          <strong>Automated end-to-end tests for realistic gameplay scenarios.</strong> Tests 10 different scenarios starting with "open the door to see who is there" — validates portrait selection consistency, entity management, demographic tracking, StateAgent interpretation, and UI card surfacing.
+          <br /><br />
+          <strong>Generates actionable insights with recommendations</strong> for fixing recurring bugs like:
+          <ul style={{ marginTop: '8px', marginLeft: '20px', listStyleType: 'disc' }}>
+            <li>Portrait changing across conversation turns</li>
+            <li>Demographic mutations (age/gender/class changing)</li>
+            <li>Entity duplication in EntityManager</li>
+            <li>Contract offers not being detected</li>
+            <li>NPC identity inconsistencies</li>
+          </ul>
+          <br />
+          <span style={{ color: '#2563eb', fontWeight: 600 }}>⚠️ These tests make 10+ real LLM calls and will take 3-5 minutes to complete.</span>
+        </p>
+        <DoorOpeningTestPanel gameState={gameState} />
+      </SettingCard>
+
       <SettingCard title="🌅 Background & Environment Testing">
         <p className="text-sm mb-4" style={{
           fontFamily: "'Inter', sans-serif",
@@ -1540,7 +1572,7 @@ function AboutSection() {
           <FeatureCard
             icon="🎮"
             title="Emergent Gameplay"
-            desc="Dynamic world events, NPC relationships, and branching quests"
+            desc="Dynamic world events, NPC relationships, and signature story encounters"
             isDarkMode={isDarkMode}
           />
         </div>

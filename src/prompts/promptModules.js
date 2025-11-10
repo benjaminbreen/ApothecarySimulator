@@ -1,5 +1,4 @@
-// Modular Prompt System for HistoryLens DEPRECATED
-// DEPRECATED - preserved for reference, do not edit or use. This breaks the monolithic prompt into composable, maintainable modules
+// Modular Prompt System for HistoryLens 
 
 import { scenarioLoader } from '../core/services/scenarioLoader';
 import { SKILLS, SKILL_CATEGORIES, CATEGORY_LABELS } from '../core/systems/skillsSystem';

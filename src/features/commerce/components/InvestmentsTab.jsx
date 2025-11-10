@@ -34,10 +34,12 @@ export default function InvestmentsTab({
     const opportunities = getAvailableInvestments(
       playerSkills,
       reputation,
-      activeInvestments
+      activeInvestments,
+      3, // maxSlots
+      gameState // Pass gameState to check for LLM-offered investments
     );
     setAvailableOpportunities(opportunities);
-  }, [playerSkills, reputation, activeInvestments]);
+  }, [playerSkills, reputation, activeInvestments, gameState]);
 
   const handleSelectInvestment = (opportunity) => {
     setSelectedInvestment(opportunity);
@@ -245,15 +247,30 @@ function ActiveInvestmentCard({ investment, progress, isDark }) {
 function OpportunityCard({ opportunity, isDark, currentWealth, onSelect }) {
   const canAfford = currentWealth >= opportunity.suggestedCost;
   const riskColor = opportunity.riskLevel.color;
+  const isLLMOffered = opportunity.isLLMOffered;
 
   return (
     <div
-      className="p-4 rounded-lg border transition-all duration-200 hover:shadow-md"
+      className="p-4 rounded-lg border transition-all duration-200 hover:shadow-md relative"
       style={{
-        background: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.6)',
-        borderColor: isDark ? 'rgba(71, 85, 105, 0.4)' : 'rgba(209, 213, 219, 0.3)'
+        background: isLLMOffered
+          ? (isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)')
+          : (isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.6)'),
+        borderColor: isLLMOffered
+          ? (isDark ? 'rgba(59, 130, 246, 0.5)' : 'rgba(59, 130, 246, 0.4)')
+          : (isDark ? 'rgba(71, 85, 105, 0.4)' : 'rgba(209, 213, 219, 0.3)')
       }}
     >
+      {/* LLM-offered badge */}
+      {isLLMOffered && (
+        <div className="absolute top-2 right-2">
+          <span className={`text-xs font-sans font-semibold px-2 py-1 rounded-full ${
+            isDark ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'
+          }`}>
+            ✨ Recommended
+          </span>
+        </div>
+      )}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3 flex-1">
           <span className="text-3xl">{opportunity.emoji}</span>

@@ -514,7 +514,7 @@ function matchGenericPortrait(entity) {
   // If top match has a significantly higher score (100+ points), it's a clear winner - use it
   // Otherwise, randomize from top N for variety
   const CLEAR_WINNER_THRESHOLD = 100; // Points gap that indicates a definitive match
-  const TOP_N = 5;
+  const TOP_N = 3; // Reduced from 5 to avoid poor matches (e.g., male portraits for female NPCs)
 
   let selectedMatch;
   const secondBestScore = scores[1]?.score || 0;
@@ -523,8 +523,8 @@ function matchGenericPortrait(entity) {
   if (scoreDifference >= CLEAR_WINNER_THRESHOLD) {
     // Clear winner - use deterministically (e.g., direct tag match, exact occupation)
     selectedMatch = bestMatch;
-    console.log(`[Portrait Resolver] Top ${Math.min(5, scores.length)} matches for "${entity.name}":`);
-    scores.slice(0, 5).forEach((match, i) => {
+    console.log(`[Portrait Resolver] Top ${Math.min(3, scores.length)} matches for "${entity.name}":`);
+    scores.slice(0, 3).forEach((match, i) => {
       const isSelected = match.filename === selectedMatch.filename;
       const recentUse = RECENT_PORTRAIT_HISTORY.indexOf(match.filename);
       const recentLabel = recentUse !== -1 ? ` [Used ${recentUse} turns ago]` : '';
@@ -536,8 +536,8 @@ function matchGenericPortrait(entity) {
     const topMatches = scores.slice(0, Math.min(TOP_N, scores.length));
     selectedMatch = topMatches[Math.floor(Math.random() * topMatches.length)];
 
-    console.log(`[Portrait Resolver] Top ${Math.min(5, scores.length)} matches for "${entity.name}":`);
-    scores.slice(0, 5).forEach((match, i) => {
+    console.log(`[Portrait Resolver] Top ${Math.min(3, scores.length)} matches for "${entity.name}":`);
+    scores.slice(0, 3).forEach((match, i) => {
       const isSelected = match.filename === selectedMatch.filename;
       const recentUse = RECENT_PORTRAIT_HISTORY.indexOf(match.filename);
       const recentLabel = recentUse !== -1 ? ` [Used ${recentUse} turns ago]` : '';

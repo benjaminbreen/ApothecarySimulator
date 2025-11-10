@@ -213,237 +213,97 @@ function buildStaticPromptBody(currencyName) {
   "systemAnnouncements": ["string"]
 }
 
-### Core Rules
-- Wealth (${currencyName}) never drifts: set wealthChange to 0 unless payment/exchange is explicit.
-- Time/date only move forward. Conversations usually advance ~10 minutes; movement uses map timing when provided.
-- Keep status to one of the allowed adjectives; change only when the narrative clearly signals an emotional shift.
-- Location should use known names (shop rooms, city districts); if unsure, reuse previous location.
-- **locationType**: REQUIRED field that categorizes the current location type. Choose from: shop, street, market, plaza, cathedral, tavern, home, guild, fountain, outskirts, alley, indoor, outdoor. Examples:
-  * "Botica de la Amargura" → "shop"
-  * "La Merced Market" → "market"
-  * "Walking down Calle San Francisco" → "street"
-  * "Plaza Mayor" → "plaza"
-  * "Catedral Metropolitana" → "cathedral"
-  * "Maria's bedroom" → "home"
-  * "Dark alley near the market" → "alley"
-  * If location is indoors but not a specific type → "indoor"
-  * If location is outdoors but not a specific type → "outdoor"
-- **biome**: REQUIRED field that indicates the geographical biome. Choose from: city-mexico, city-colonial, city-european, coastal, mountain, desert, ocean, grassland. Examples:
-  * "Mexico City" or "Botica de la Amargura, Mexico City" → "city-mexico"
-  * "Puebla" or "Tlaxcala" → "city-colonial" (other colonial Spanish cities)
-  * "Seville" or "Madrid" → "city-european" (European cities)
-  * "Veracruz" or "Acapulco" → "coastal" (ports/harbors)
-  * "Taxco" or "Guanajuato" → "mountain" (mountain towns/mines)
-  * "Durango" or "Chihuahua" → "desert" (arid regions)
-  * "Mid-Atlantic" or sailing → "ocean"
-  * "Outskirts of Mexico City" → "grassland" (rural/countryside)
-  * Preserve previous biome if unclear from narrative
-- Use movement validation: if the grid step is invalid, keep old position; otherwise use provided new coordinates.
-- **Energy and Health Changes**: Extract these ONLY when the narrative explicitly describes changes to Maria's physical condition:
-  * energyChange: -100 to +100 (consumption, rest, exertion, sleep, eating)
-  * healthChange: -100 to +100 (injury, healing, illness, medicine, poison)
-  * Set to 0 when no physical effects occur
-  * For consumption: extract the exact values mentioned in the narrative
-  * For death/lethal effects: healthChange should be -100
-  * For severe poisoning/injury: healthChange -20 to -50
-  * For nourishment/healing: healthChange/energyChange +5 to +25
-- focusedItem: Set this to the item name if the player is ACTIVELY examining, using, mixing, or focusing on a specific item. Examples: "examine aloe" → "aloe", "mix mercury" → "mercury", "I forage for herbs" → "herbs". Set to null if no item focus.
+### Core Principles
+
+**1. Conservative Extraction**: Only change values when narrative explicitly states them. Preserve previous state when ambiguous.
+
+**2. Transactions**:
+- Bought (Maria pays): wealthChange negative, inventoryChanges action="bought" (positive quantity)
+- Sold (Maria receives): wealthChange positive, inventoryChanges action="sold" (negative quantity)
+- Set wealthChange to 0 unless payment explicitly mentioned
+
+**3. Time & Location**:
+- Time advances ~10 minutes for conversations, use map timing for movement
+- Only change location when narrative explicitly describes transition
+- locationType examples: "Botica" → "shop", "Plaza Mayor" → "plaza", "street" → "street"
+- biome examples: "Mexico City" → "city-mexico", "Veracruz" → "coastal"
+
+**4. Physical Effects** (energyChange/healthChange):
+- Only extract when narrative explicitly describes physical changes
+- Sleep/rest/eating → positive energy, exertion → negative
+- Set to 0 if no physical effects mentioned
+
+**5. Documents**: Mark isReadable=true for letters, contracts, maps, certificates, warrants
 
 ### Intent-Based Object Creation
-**CRITICAL**: Trust the interactionIntent from NarrativeAgent. Do NOT re-interpret or re-classify it. Simply create the matching objects as specified below.
+Trust the interactionIntent from NarrativeAgent. Create matching objects:
 
-**When interactionIntent is "medical_diagnosis":**
-- Create: contractOffer {type: "treatment", isEmissary: false, patientName = offeredBy = person in shop, patientLocation: null}
-- Set: actionPrompt.type = "null"
-- Rule: NEVER use names from backstory - only the person physically present
+| Intent | Create | Set to Null |
+|--------|--------|-------------|
+| house_call | contractOffer (type: "treatment", isEmissary: true, patientLocation required) | actionPrompt |
+| medical_purchase | actionPrompt (type: "prescribe" or "sell") | contractOffer |
+| medical_followup | - | contractOffer, actionPrompt |
+| vendor_offer | simpleInteraction (type: "vendor_offer") | contractOffer, actionPrompt |
+| none | - | All transaction fields |
 
-**When interactionIntent is "house_call":**
-- Create: contractOffer {type: "treatment", isEmissary: true, patientName = sick person discussed, offeredBy = messenger present, patientLocation required}
-- Set: actionPrompt.type = "null"
+**Clear simpleInteraction** (set type: "null") when:
+- Transaction completes (wealthChange + inventoryChanges present)
+- NPC departs after business (npcDeparted: true + interactionIntent: "none")
+- Player refuses offer
 
-**When interactionIntent is "medical_purchase":**
-- Create: actionPrompt {type: "sell" or "prescribe"}
-- Set: contractOffer.type = "null"
+**House Calls** (isEmissary: true):
+- offeredBy = messenger present (nun, servant)
+- patientName = sick person discussed (NOT messenger)
+- patientLocation = where patient is
 
-**When interactionIntent is "medical_followup":**
-- Set: contractOffer.type = "null", actionPrompt.type = "null" (ongoing care, no new contracts)
+### Key Examples
 
-**When interactionIntent is "vendor_offer":**
-- Create: simpleInteraction {type: "vendor_offer" or "investment_offer"}
-- Set: contractOffer.type = "null", actionPrompt.type = "null"
+**Example 1: Medical Purchase Request**
+Narrative: "Woman says 'My daughter has fever. I need medicine quickly.'"
+Intent: medical_purchase
+→ actionPrompt: {type: "prescribe", recipientName: "woman", context: "fever medicine for daughter"}
+→ contractOffer: {type: "null"}
 
-**All other intents:**
-- Set all transaction fields to "null"
+**Example 2: Vendor Offer**
+Narrative: "Fish seller says 'Fresh tilapia, 2 reales!'"
+Intent: vendor_offer
+→ simpleInteraction: {type: "vendor_offer", offer: {item: "tilapia", price: 2, quantity: 1}}
+→ contractOffer: {type: "null"}, actionPrompt: {type: "null"}
 
-### When to Clear simpleInteraction (Set type: "null")
-Clear simpleInteraction when the interaction is COMPLETE:
-- Transaction finished (wealthChange present + inventoryChanges with action: "bought")
-- NPC departed after business concluded (npcDeparted: true AND interactionIntent: "none")
-- Player refused/declined offer
+**Example 3: Sale Transaction Complete**
+Narrative: "You hand over 80 reales. Diego gives you spices and departs."
+→ wealthChange: -80
+→ inventoryChanges: [{action: "bought", item: "spices", quantity: 1, price: 80}]
+→ simpleInteraction: {type: "null"}
 
-**Example - Transaction Complete:**
-Narrative: "You hand over 80 reales. Diego departs with a curt bow."
-Response: {simpleInteraction: {type: "null"}, npcDeparted: true, wealthChange: -80, inventoryChanges: [{action: "bought", ...}]}
+**Example 4: House Call Request**
+Narrative: "Servant says 'Father Anselmo is gravely ill at the monastery.'"
+Intent: house_call
+→ contractOffer: {type: "treatment", isEmissary: true, offeredBy: "servant", patientName: "Father Anselmo", patientLocation: "monastery"}
+→ actionPrompt: {type: "null"}
 
-**Example - Offer Refused:**
-Narrative: "You decline the offer. The merchant shrugs and walks away."
-Response: {simpleInteraction: {type: "null"}, npcDeparted: true, interactionIntent: "none"}
-
-### House Call Field Requirements
-When interactionIntent is "house_call":
-- Set contractOffer with **isEmissary: true** (critical flag for travel flow)
-- offeredBy = messenger present (nun, servant, family member)
-- patientName = sick person NOT present (NEVER items/furniture)
-- patientLocation = where patient is ("Church of San Francisco", "estate", infer from patient role if not stated)
-- ailmentDescription = condition mentioned ("fever", "bedridden", "breathing poorly")
-
-**CRITICAL - patientName Validation:**
-- Use ONLY human names or social titles: "Father Anselmo", "Don Esteban", "the master", "nobleman", "sick child"
-- NEVER combine titles with furniture words: ❌ "Master Bed", ❌ "Don Table", ❌ "Doña Cabinet"
-- If surname unknown, use title only: "the master" NOT "Master Bed"
-- If dialogue says "my master is sick" and scene mentions "bed" → patientName: "the master" (NOT "Master Bed")
-
-**Examples:**
-- "A nun arrives. 'Father Anselmo has taken a sudden turn. Please come!'" → {isEmissary: true, offeredBy: "nun", patientName: "Father Anselmo", patientDescription: "elderly priest", patientDemographics: {gender: "male", age: "middle-aged", casta: "criollo", class: "religious"}, patientLocation: "Church of San Francisco"}
-- "Servant: 'My master cannot rise from bed.'" → {isEmissary: true, offeredBy: "servant", patientName: "the master", patientDescription: "nobleman", patientDemographics: {gender: "male", age: "adult", casta: "español", class: "elite"}, patientLocation: "master's residence"} ← NOT "Master Bed"!
-
-### Vendor Offers (SimpleInteraction)
-When interaction intent is "vendor_offer", use simpleInteraction ONLY. Do NOT populate actionPrompt or purchaseOffer.
-
-**CRITICAL - Correct Structure:**
-The "offer" field MUST be a NESTED OBJECT, not a string or flat structure:
-✓ CORRECT: offer: {item: "fish", price: 2, description: "fresh from lake", quantity: 1}
-✗ WRONG: offer: "fish", price: 2 (flat structure - fields at root level)
-✗ WRONG: offer: "Fresh fish from Xochimilco" (string instead of object)
-✗ WRONG: offeredItem: "fish" (wrong field name)
-
-**Example 1 - Weaver Selling Tapestry:**
-Narrative: "Citlali, a weaver, stands at your door clutching a rolled bundle. 'Doña Maria, I have fine work from Texcoco. This tapestry, woven with indigo and cochineal, twelve reales.'"
-SimpleInteraction: {type: "vendor_offer", npcName: "Citlali", npcPortrait: null, npcRole: "weaver from Texcoco", context: "offers a tapestry woven with indigo and cochineal", offer: {item: "tapestry", price: 12, description: "woven with indigo and cochineal from Texcoco", quality: "fine", quantity: 1}}
-ActionPrompt: {type: "null", ...}
-ContractOffer: {type: "null"}
-
-**Example 1b - Fish Seller:**
-Narrative: "Carmen the fish seller appears at the door, holding fresh tilapia. 'Doña Maria! The best catch from Xochimilco this morning! Two reales per string!'"
-SimpleInteraction: {type: "vendor_offer", npcName: "Carmen the Fish Seller", npcPortrait: null, npcRole: "fish seller", context: "offers fresh fish from Xochimilco", offer: {item: "tilapia", price: 2, description: "fresh fish from Xochimilco lake", quality: "fresh", quantity: 1, emoji: "🐟"}}
-ActionPrompt: {type: "null", ...}
-ContractOffer: {type: "null"}
-
-**CRITICAL - vendor_offer Transaction Direction:**
-When type is "vendor_offer", NPC is selling TO Maria (Maria is buyer):
-- wealthChange MUST be negative (Maria pays vendor)
-- inventoryChanges MUST show action: "bought" (Maria receives item)
-- NEVER positive wealthChange (that would mean Maria is selling, which is wrong for vendor_offer)
-
-**Example 2 - Investment Offer:**
-Narrative: "Rodrigo Mendoza enters, brushing dust from his coat. 'This silver is from a new vein near Zacatecas. A consortium needs capital—one hundred reales. They offer twelve percent return within the year.'"
-SimpleInteraction: {type: "investment_offer", npcName: "Rodrigo Mendoza", npcPortrait: "/portraits/manonhorse.jpg", npcRole: "Investor", context: "presents silver mining opportunity", offer: null, request: null, competitive: null, information: null, social: null, extortion: null, gamble: null, investment: {investmentType: "silver_mining", amount: 100, expectedReturn: {min: 112, max: 124}, duration: 365, riskLevel: "high", description: "New vein near Zacatecas seeking discreet capital", emoji: "⛏️"}}
-ActionPrompt: {type: "null", ...}
-ContractOffer: {type: "null"}
-
-### Gamble Opportunities
-When narrative describes gambling, games of chance, betting, or wagers, use type "gamble_opportunity" with gamble field.
-
-**Default Wagers** (when narrative doesn't specify exact amounts):
-- "Small wager", "friendly game", "pocket change" → wager: 2, potentialWin: 4
-- Standard game, no qualifier → wager: 5, potentialWin: 10
-- "High stakes", "serious money" → wager: 10, potentialWin: 20
-- "Substantial sum" → wager: 20, potentialWin: 40
-
-**Game Types**: taba (knucklebone), cards (Spanish deck high/low), dice (2d6), cockfight (rooster betting), wager (generic)
-
-**Example:**
-Narrative: "Don Esteban invites you to play Taba, a friendly game with the local silversmith."
-SimpleInteraction: {type: "gamble_opportunity", npcName: "Don Esteban", npcRole: "Lottery Seller", context: "Taba game at the fountain", gamble: {gameType: "taba", wager: 2, potentialWin: 4, odds: "even", description: "Friendly game of knucklebone toss"}}
-
-### Object Creation Examples by Intent
-
-**Example 1 - interactionIntent: "medical_diagnosis"**
-Narrative: "Elderly man enters shop, coughing heavily. He sits down. 'Doña Maria, can you examine me?'"
-Create: contractOffer {type: "treatment", isEmissary: false, offeredBy: "elderly man", patientName: "elderly man", patientDescription: "elderly common man", patientDemographics: {gender: "male", age: "elderly", casta: "unknown", class: "common"}, ailmentDescription: "persistent cough"}
-Set: actionPrompt.type = "null"
-
-**Example 2 - interactionIntent: "medical_purchase"**
-Narrative: "Woman: 'My daughter has fever. I need medicine quickly.'"
-Create: actionPrompt {type: "prescribe", recipientName: "woman", context: "fever remedy for daughter"}
-Set: contractOffer.type = "null"
-
-**Example 3 - Third-party contract (parent for child)**
-Narrative: "Carmen Flores, a fish-seller, enters: 'Will you look at my son's scrape? He cries so loud it frightens the neighbors.'"
+**Example 5: Medical Diagnosis (In-Shop)**
+Narrative: "Elderly man enters, coughing. 'Doña Maria, can you examine me?'"
 Intent: medical_diagnosis
-Create: contractOffer {type: "treatment", isEmissary: false, offeredBy: "Carmen Flores", offeredByDescription: "fish-seller", patientName: "Carmen's son", patientDescription: "young boy with scrape", patientDemographics: {gender: "male", age: "child", casta: "mestizo", class: "common"}, ailmentDescription: "scrape causing distress"}
-Note: Infer child demographics from context clues (mother's casta/class, pronouns "he/his", behavior "cries")
+→ contractOffer: {type: "treatment", isEmissary: false, patientName: "elderly man", ailmentDescription: "cough"}
+→ actionPrompt: {type: "null"}
 
-**Example 4 - Context confusion (AVOID)**
-Narrative: "Earlier, Don Luis left. Now, Doña Isabel enters: 'I need tincture for fluxion.'"
-Intent: medical_diagnosis
-CORRECT: {patientName: "Doña Isabel"} (person present NOW)
-WRONG: {patientName: "Don Luis"} (from earlier context) - NEVER extract names from backstory!
+**Example 6: Investment Offer**
+Narrative: "Merchant says 'Silver mine needs 100 reales capital. Returns 120-200 reales in a year.'"
+Intent: vendor_offer
+→ simpleInteraction: {type: "investment_offer", investment: {investmentType: "silver_mining", amount: 100, expectedReturn: {min: 120, max: 200}, duration: 365, riskLevel: "high", emoji: "⛏️"}}
+→ contractOffer: {type: "null"}, actionPrompt: {type: "null"}
 
-### ActionPrompt Usage
-Use actionPrompt ONLY for immediate, clear requests to transfer items:
-- type "give": NPC explicitly asks Maria to donate/gift an item for free (charity, helping poor). NEVER use during house call negotiations.
-- type "sell": NPC wants to buy a specific item from Maria's inventory.
-- type "prescribe": NPC asks for medicine but doesn't specify which one (Maria must choose).
-- type "null": Default. Use when no immediate item transfer is being requested.
+### Additional Notes
+- **Relationships**: Track meaningful emotional beats (+/-1 to 20)
+- **Documents**: Mark isReadable=true for letters/contracts, use specific names ("Inquisition warrant" not "document")
+- **ActionPrompt context**: 10 words max, factual only ("fever remedy for daughter" not "you must decide")
+- **Bargaining**: When NPC negotiates, set actionPrompt.type = "null" (captured in narrative)
+- **Prescription outcomes**: Only populate when NPC decides to accept/decline Maria's offer
+- **System announcements**: Highlight actionable beats, don't restate narrative
+- **Journal**: One sentence summary with date/time/location
 
-**CRITICAL - Context Field:**
-- Brief factual statement (10 words max). State ONLY what NPC needs and why.
-- Do NOT include decision prompts or narrative instructions to Maria.
-- Good: "corporal fell from horse, needs draught for unsettled humors"
-- Bad: "needs draught. You must decide whether to invite him in or suggest remedy"
-
-**CRITICAL - Bargaining Behavior:**
-- When NPC haggles/negotiates/counters price on an existing offer, set actionPrompt.type = "null"
-- The bargaining is captured in narrative and relationshipChanges, not via actionPrompt
-- DO NOT create new actionPrompt with type "bargain" - this is not a valid type
-- Example: Maria offers medicine for 9 reales, NPC says "Can you do 7?" → actionPrompt.type = "null", describe haggling in narrative only
-
-### Inventory & Documents
-- Record only concrete item exchanges. If Maria merely inspects an item, leave inventoryChanges empty.
-- Mark isReadable true for obvious letters, codices, maps, recipes, contracts, summons, warrants, complaints, or any other readable documents mentioned in the narrative. Leave metadata fields null when details are unavailable; downstream code enriches them.
-- **CRITICAL - Document Names:** When an NPC hands/presents/gives/extends a document to Maria, the "item" name MUST accurately describe the document's content and purpose. Use specific, contextual names (e.g., "Royal Court debt summons", "Letter from Father Anselmo", "Inquisition warrant"). DO NOT use generic placeholder names.
-  - Example format: Lawyer presents summons → {"item": "[Specific Court Name] summons regarding [topic]", "quantity": 1, "action": "received", "isReadable": true, "documentType": "document", "metadata": {"giver": "[NPC name]", "author": "[Issuing authority]", "purpose": "[Brief purpose]"}}.
-
-### Wealth Changes (CRITICAL - Common Error)
-**When Maria SELLS an item to an NPC:**
-- inventoryChanges: action = "sold", quantity is NEGATIVE (item leaves inventory)
-- gameState.wealthChange: POSITIVE number (Maria GAINS money)
-- Example: Maria sells sugar for 5 reales → wealthChange = +5, wealth increases by 5
-- Prescription sales: Merchant pays 12 reales for red coral → wealthChange = +12, wealth increases by 12
-
-**When Maria BUYS an item from an NPC:**
-- inventoryChanges: action = "bought", quantity is POSITIVE (item enters inventory)
-- gameState.wealthChange: NEGATIVE number (Maria LOSES money)
-- Example: Maria buys herbs for 3 reales → wealthChange = -3, wealth decreases by 3
-
-**CRITICAL - Direction of Payment:**
-If NPC "pays", "counts out coins", "hands over money" to Maria → Maria SELLS → wealthChange is POSITIVE (+)
-If Maria "pays", "hands over coins", "gives money" to NPC → Maria BUYS → wealthChange is NEGATIVE (-)
-
-**REMEMBER: SOLD = Maria gains money (+), BOUGHT = Maria loses money (-)**
-
-### Relationships & Reputation
-- Add relationshipChanges for notable emotional beats (+/-1 to 10). Extreme events (betrayal, rescue) may reach +/-20.
-- Convert faction-level consequences into reputationEvents with concise reasons. Leave empty when there is no meaningful shift.
-
-### System Messaging
-- systemAnnouncements highlight actionable beats (e.g., "A treatment contract is being discussed (payment: X reales)."), never restate the entire narrative.
-- journalEntry should summarize the turn in a single sentence: "**Date, Time, Location**: summary..."
-
-### Prescription Offer Outcomes
-- Populate prescriptionOfferOutcome when narrative describes Maria offering a prescription to an NPC (via action prompt, NOT patient tab treatment) and shows the NPC's decision.
-- Set occurred = true only if the narrative clearly shows the NPC's response to Maria's specific offer (medicine, route, price).
-- outcome = "accepted": NPC pays and takes medicine. Keywords: pays/accepts/buys/hands over reales
-- outcome = "declined": NPC refuses. Keywords: refuses/declines/too expensive/cannot afford/storms off
-- outcome = "bargained": NPC negotiates price. Keywords: counter-offer/haggles/offers less/argues about price
-- Extract finalPrice from narrative (use original price if accepted immediately, lower price if bargained and accepted, 0 if declined)
-- Set includeBloodletting = true only if narrative mentions phlebotomy/bloodletting was part of the offer
-- Do NOT populate this field for regular patient tab prescriptions administered via PrescribePanel - only for action prompt prescription offers where NPC must decide whether to buy
-- If outcome is unclear or NPC's decision is deferred ("I'll think about it"), set occurred = false
-- When occurred = true, set actionPrompt.type = "null" (request is resolved)
-
-If data is missing or ambiguous, preserve the previous state rather than guessing.`;
+When data is unclear, preserve previous state rather than guessing.`;
 }
 
 /**
@@ -523,8 +383,6 @@ ${availableLocations.map(loc => `- ${loc.fullName}`).join('\n')}
 ` : ''}
 
 Player Action: ${playerAction}
-
-${selectedEntity ? `NPC Involved: ${selectedEntity.name}` : ''}
 
 ${primaryNPC ? `
 ### Primary NPC (Person Physically Present):

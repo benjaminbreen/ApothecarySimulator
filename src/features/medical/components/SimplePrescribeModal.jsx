@@ -103,9 +103,9 @@ function SimplePrescribeModal({
     }
   }, [amount, selectedItem]);
 
-  // Drop zone for inventory items
+  // Drop zone for inventory items (including custom compounds)
   const [{ isOver }, drop] = useDrop({
-    accept: 'INVENTORY_ITEM',
+    accept: ['INVENTORY_ITEM', 'inventoryItem', 'compoundItem'],
     drop: (item) => {
       setSelectedItem(item);
       setAmount(1);
@@ -183,7 +183,12 @@ function SimplePrescribeModal({
     : 1;
 
   const canDispense = selectedItem && selectedRoute && !isLoading;
-  const insufficientQuantity = selectedItem && inventory.find(i => i.name.toLowerCase() === selectedItem.name.toLowerCase())?.quantity < amount;
+
+  // Check if we have insufficient quantity
+  // Note: Use the selectedItem's quantity directly if inventory lookup fails (for freshly mixed compounds)
+  const inventoryItem = selectedItem ? inventory.find(i => i.name.toLowerCase() === selectedItem.name.toLowerCase()) : null;
+  const availableQuantity = inventoryItem?.quantity ?? selectedItem?.quantity ?? 0;
+  const insufficientQuantity = selectedItem && availableQuantity < amount;
 
   return (
     <>

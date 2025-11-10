@@ -1155,7 +1155,7 @@ const potentialInventoryItems = {
         latinName: 'Mumia vera',
         spanishName: 'Mumia',
         price: 40,
-        quantity: 1, // This will be given to Maria during the quest
+        quantity: 1, // Reserved for a future story encounter
         humoralQualities: 'Warm & Moist',
         medicinalEffects: 'For bruises, internal bleeding, and general healing.',
         description: 'The remains of Egyptian mummies. Potent healing properties. But can it be trusted to be real?',

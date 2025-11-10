@@ -421,7 +421,7 @@ Return strict JSON (no markdown fencing, no prose outside the object).
 {
   "narrative": [
     "A woman's sharp voice calls through the door. \\"Open this at once, apothecary! I have urgent need.\\"",
-    "**Will you open the door immediately, or call out first?**"
+    "**Will you ask for more information, or suggest a prescription?**"
   ],
   "responseType": "narration",
   "primaryNPC": null,
@@ -511,6 +511,7 @@ Set intent when NPC makes OR is still waiting for a request. When NPC pays/accep
 - Format: **"Will you [specific action A], or [specific action B]?"** or **"Will you [A], [B], or [C]?"**
 - The question must always be the final sentence.
 - Make it propell the narrative forward in a realistic way.
+- use the word "prescribe" or "prescription" in one option if you think Maria might plausibly prescribe something in response to the turn
 - Even when NPCs depart or complete transactions, the question is about MARIA's next action, not the NPC's.
 
 **GOOD EXAMPLES**:
@@ -599,6 +600,27 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
     "potentialWin": 10,
     "odds": "even",
     "description": "high-low card game"
+  }
+}
+
+**investment_offer** - NPC offering investment opportunity TO Maria:
+{
+  "type": "investment_offer",
+  "npcName": "Spanish Merchant",
+  "npcPortrait": null,
+  "npcRole": "merchant investor",
+  "context": "offers share in silver mining venture",
+  "investment": {
+    "investmentType": "silver_mining",  // church_bond, manila_galleon, cacao_plantation, real_estate, apothecary_syndicate
+    "amount": 100,  // Capital required (positive integer 50-500)
+    "expectedReturn": {
+      "min": 120,
+      "max": 200
+    },
+    "duration": 365,  // Days until payout (90-1095)
+    "riskLevel": "high",  // low, medium, high
+    "description": "silver mine in Zacatecas needs investor",
+    "emoji": "⛏️"  // ⛪ bonds, 🚢 galleon, 🌱 cacao, 🏠 estate, ⚗️ syndicate
   }
 }
 

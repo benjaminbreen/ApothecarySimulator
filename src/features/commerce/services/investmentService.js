@@ -20,9 +20,10 @@ import { createChatCompletion } from '../../../core/services/llmService';
  * @param {Object} reputation - Player's reputation
  * @param {Array} activeInvestments - Currently active investments
  * @param {number} maxSlots - Maximum allowed active investments
+ * @param {Object} gameState - Current game state (to check for LLM-offered investments)
  * @returns {Array} Available investment opportunities
  */
-export function getAvailableInvestments(playerSkills, reputation, activeInvestments = [], maxSlots = 3) {
+export function getAvailableInvestments(playerSkills, reputation, activeInvestments = [], maxSlots = 3, gameState = null) {
   const allTypes = getAllInvestmentTypes();
 
   // Filter to investments player can access
@@ -43,8 +44,50 @@ export function getAvailableInvestments(playerSkills, reputation, activeInvestme
     })
     .filter(inv => inv.eligibility.allowed);
 
+  // Check if there's an LLM-offered investment from simpleInteraction
+  let llmOffered = null;
+  if (gameState?.simpleInteraction?.type === 'investment_offer' && gameState.simpleInteraction.investment) {
+    const investment = gameState.simpleInteraction.investment;
+    console.log('[InvestmentService] Found LLM-offered investment:', investment);
+
+    // Look up the type definition
+    const typeDefinition = allTypes.find(t => t.id === investment.investmentType);
+
+    if (typeDefinition) {
+      // Map LLM investment to opportunity format
+      const riskLevel = typeDefinition.riskLevel;
+      const minReturn = investment.expectedReturn?.min || investment.amount * 1.2;
+      const maxReturn = investment.expectedReturn?.max || investment.amount * 2.0;
+
+      llmOffered = {
+        ...typeDefinition,
+        suggestedCost: investment.amount,
+        suggestedDuration: investment.duration,
+        eligibility: { allowed: true, reasons: [] }, // LLM-offered are always available
+        expectedReturn: (minReturn + maxReturn) / 2,
+        returnRange: {
+          min: minReturn,
+          max: maxReturn,
+          minPercent: ((minReturn / investment.amount - 1) * 100).toFixed(0),
+          maxPercent: ((maxReturn / investment.amount - 1) * 100).toFixed(0)
+        },
+        // Override description with LLM's specific context
+        description: investment.description || typeDefinition.description,
+        // Mark as LLM-offered so UI can highlight it
+        isLLMOffered: true
+      };
+
+      console.log('[InvestmentService] Mapped LLM investment to opportunity:', llmOffered);
+    } else {
+      console.warn('[InvestmentService] Unknown investment type from LLM:', investment.investmentType);
+    }
+  }
+
+  // Combine LLM-offered (first) with other available investments
+  const opportunities = llmOffered ? [llmOffered, ...available] : available;
+
   return {
-    opportunities: available,
+    opportunities,
     slotsAvailable: maxSlots - activeInvestments.length,
     maxSlots
   };

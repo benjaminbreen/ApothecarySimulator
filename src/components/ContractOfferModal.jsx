@@ -130,10 +130,15 @@ function ContractOfferModal({
           metadata: {}
         };
       } else {
-        // Extract demographics from description
-        const extractedDemographics = extractDemographicsFromDescription(offer.patientDescription || '');
+        // Extract demographics from BOTH name and description (name often contains age/gender clues)
+        const combinedText = `${offer.patientName} ${offer.patientDescription || ''}`;
+        const extractedDemographics = extractDemographicsFromDescription(combinedText);
 
-        // Create patient entity with extracted demographics
+        // CRITICAL: Use offer.patientDemographics from StateAgent if available (more accurate than text extraction)
+        const demographics = offer.patientDemographics || {};
+
+        // Create patient entity with StateAgent demographics (preferred) or extracted demographics (fallback)
+        // NOTE: Treat "unknown" as missing data - prefer extracted demographics when StateAgent says "unknown"
         patientEntity = {
           id: `patient_${offer.patientName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
           name: offer.patientName,
@@ -142,21 +147,58 @@ function ContractOfferModal({
           description: offer.patientDescription || 'Patient requiring treatment',
           symptoms: extractSymptoms(offer.patientDescription),
           social: {
-            class: 'unknown',
-            casta: 'unknown'
+            class: (demographics.class && demographics.class !== 'unknown') ? demographics.class : 'unknown',
+            casta: (demographics.casta && demographics.casta !== 'unknown') ? demographics.casta : 'unknown'
           },
           appearance: {
-            gender: extractedDemographics.gender,
-            age: extractedDemographics.age
+            gender: (demographics.gender && demographics.gender !== 'unknown') ? demographics.gender : extractedDemographics.gender,
+            age: (demographics.age && demographics.age !== 'unknown') ? demographics.age : extractedDemographics.age
           },
           metadata: {}
         };
-        console.log('[ContractModal] Created patient entity with extracted demographics:', extractedDemographics);
+        console.log('[ContractModal] Created patient entity - using StateAgent demographics:', demographics, 'fallback:', extractedDemographics);
       }
 
       // Register with EntityManager
       patientEntity = entityManager.register(patientEntity);
       console.log('[ContractModal] Registered patient entity:', patientEntity.name);
+    }
+
+    // CRITICAL VALIDATION: Ensure patient name matches contract
+    if (patientEntity.name !== offer.patientName) {
+      console.error('[ContractModal] CRITICAL ERROR: Patient entity name mismatch!');
+      console.error('[ContractModal] Expected:', offer.patientName);
+      console.error('[ContractModal] Got:', patientEntity.name);
+      console.error('[ContractModal] Correcting name...');
+      patientEntity.name = offer.patientName;
+    }
+
+    // Ensure patient demographics from StateAgent are preserved (don't lose accurate data)
+    // NOTE: Only update with non-"unknown" values to preserve extracted demographics
+    if (offer.patientDemographics) {
+      if (!patientEntity.social) patientEntity.social = {};
+      if (!patientEntity.appearance) patientEntity.appearance = {};
+
+      // Update with StateAgent's accurate demographics (skip "unknown" values)
+      if (offer.patientDemographics.class && offer.patientDemographics.class !== 'unknown') {
+        patientEntity.social.class = offer.patientDemographics.class;
+      }
+      if (offer.patientDemographics.casta && offer.patientDemographics.casta !== 'unknown') {
+        patientEntity.social.casta = offer.patientDemographics.casta;
+      }
+      if (offer.patientDemographics.gender && offer.patientDemographics.gender !== 'unknown') {
+        patientEntity.appearance.gender = offer.patientDemographics.gender;
+      }
+      if (offer.patientDemographics.age && offer.patientDemographics.age !== 'unknown') {
+        patientEntity.appearance.age = offer.patientDemographics.age;
+      }
+
+      console.log('[ContractModal] Updated patient demographics from StateAgent:', offer.patientDemographics, '→ final:', {
+        class: patientEntity.social.class,
+        casta: patientEntity.social.casta,
+        gender: patientEntity.appearance.gender,
+        age: patientEntity.appearance.age
+      });
     }
 
     // Ensure patient metadata reflects latest contract details (even if entity already existed)

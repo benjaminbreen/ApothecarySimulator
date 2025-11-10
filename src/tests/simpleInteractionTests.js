@@ -13,7 +13,7 @@ export const TEST_SCENARIOS = [
     name: 'Water Seller - Purchase',
     description: 'Tests that buying water generates continuation narrative',
     turns: [
-      { action: 'walk outside', expectedBehavior: 'Trigger water seller interaction' }
+      { action: '[TEST:water_seller] walk outside', expectedBehavior: 'Trigger water seller interaction (deterministic)' }
     ],
     simpleInteractionChoice: 'buy',
     checks: [
@@ -28,7 +28,7 @@ export const TEST_SCENARIOS = [
     name: 'Water Seller - Refuse',
     description: 'Tests that refusing water generates dismissal narrative',
     turns: [
-      { action: 'go into the streets', expectedBehavior: 'Trigger water seller interaction' }
+      { action: '[TEST:water_seller] go into the streets', expectedBehavior: 'Trigger water seller interaction (deterministic)' }
     ],
     simpleInteractionChoice: 'refuse',
     checks: [
@@ -43,7 +43,7 @@ export const TEST_SCENARIOS = [
     name: 'Beggar - Give Charity',
     description: 'Tests charity interaction generates positive continuation',
     turns: [
-      { action: 'walk through the plaza', expectedBehavior: 'Trigger beggar interaction' }
+      { action: '[TEST:beggar] walk through the plaza', expectedBehavior: 'Trigger beggar interaction (deterministic)' }
     ],
     simpleInteractionChoice: 'give',
     checks: [
@@ -58,7 +58,7 @@ export const TEST_SCENARIOS = [
     name: 'Beggar - Refuse Charity',
     description: 'Tests refusing beggar generates negative continuation',
     turns: [
-      { action: 'walk around the market', expectedBehavior: 'Trigger beggar interaction' }
+      { action: '[TEST:beggar] walk around the market', expectedBehavior: 'Trigger beggar interaction (deterministic)' }
     ],
     simpleInteractionChoice: 'refuse',
     checks: [
@@ -73,7 +73,7 @@ export const TEST_SCENARIOS = [
     name: 'Information Exchange - Pay',
     description: 'Tests paying for information generates reveal + continuation',
     turns: [
-      { action: 'look for gossip in the plaza', expectedBehavior: 'Trigger information seller' }
+      { action: '[TEST:informant] look for gossip in the plaza', expectedBehavior: 'Trigger information seller (deterministic)' }
     ],
     simpleInteractionChoice: 'pay',
     checks: [
@@ -89,7 +89,7 @@ export const TEST_SCENARIOS = [
     name: 'Information Exchange - Refuse',
     description: 'Tests refusing information generates continuation',
     turns: [
-      { action: 'approach the street informant', expectedBehavior: 'Trigger information offer' }
+      { action: '[TEST:informant] approach the street informant', expectedBehavior: 'Trigger information offer (deterministic)' }
     ],
     simpleInteractionChoice: 'refuse',
     checks: [

@@ -5,7 +5,7 @@
  * Blue gradient for service offers, other colors for other interaction types
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function SimpleInteractionCard({
   interaction,
@@ -32,7 +32,33 @@ export default function SimpleInteractionCard({
 
   if (!interaction || interaction.type === 'null' || !interaction.type) return null;
 
-  const { type, npcName, npcPortrait } = interaction;
+  const { type, npcName, npcPortrait, portraitList } = interaction;
+  const portraitCandidates = (portraitList && portraitList.length > 0)
+    ? portraitList
+    : (npcPortrait ? [npcPortrait] : []);
+  const [portraitIndex, setPortraitIndex] = useState(0);
+  const [selectedDonationItem, setSelectedDonationItem] = useState('');
+
+  useEffect(() => {
+    setPortraitIndex(0);
+  }, [interactionKey]);
+
+  useEffect(() => {
+    if (type !== 'donation_request') {
+      setSelectedDonationItem('');
+      return;
+    }
+    const requestedName = interaction.request?.item?.toLowerCase?.() || '';
+    const physicalInventory = (inventory || []).filter(item => item.quantity > 0);
+    const matchingItem = physicalInventory.find(item => item.name?.toLowerCase() === requestedName);
+    const defaultItem = matchingItem || physicalInventory[0];
+    setSelectedDonationItem(defaultItem ? defaultItem.name : '');
+  }, [interactionKey, type, interaction.request, inventory]);
+
+  const currentPortrait = portraitCandidates[portraitIndex] || null;
+  const handlePortraitError = () => {
+    setPortraitIndex(prev => Math.min(prev + 1, portraitCandidates.length));
+  };
 
   // Helper: Check if player has item
   const hasItem = (itemName) => {
@@ -151,6 +177,28 @@ export default function SimpleInteractionCard({
 
   const colors = colorSchemes[type] || colorSchemes.service_offer;
 
+  const renderPortrait = ({
+    icon = colors.icon,
+    borderClass = 'border-white/40',
+    backgroundClass = 'bg-white/20'
+  } = {}) => (
+    <div className={`flex-shrink-0 w-12 h-12 rounded-full border-2 ${borderClass} overflow-hidden ${backgroundClass} flex items-center justify-center`}>
+      {currentPortrait ? (
+        <img
+          src={currentPortrait}
+          alt={npcName}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            handlePortraitError();
+            e.target.style.display = 'none';
+          }}
+        />
+      ) : (
+        <div className="text-2xl">{icon}</div>
+      )}
+    </div>
+  );
+
   // Render based on interaction type
 
   // Vendor offer (merchant/peddler selling goods to Maria)
@@ -192,20 +240,7 @@ export default function SimpleInteractionCard({
           <div className="p-4">
             <div className="flex items-center gap-3">
               {/* NPC Portrait */}
-              <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/20 flex items-center justify-center">
-                {npcPortrait ? (
-                  <img
-                    src={npcPortrait}
-                    alt={npcName}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.outerHTML = '<div class="text-2xl">' + displayIcon + '</div>';
-                    }}
-                  />
-                ) : (
-                  <div className="text-2xl">{displayIcon}</div>
-                )}
-              </div>
+              {renderPortrait({ icon: displayIcon })}
 
               {/* Content */}
               <div className="flex-1 text-left">
@@ -308,20 +343,7 @@ export default function SimpleInteractionCard({
           <div className="p-4">
             <div className="flex items-center gap-3">
               {/* NPC Portrait */}
-              <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/20 flex items-center justify-center">
-                {npcPortrait ? (
-                  <img
-                    src={npcPortrait}
-                    alt={npcName}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.outerHTML = '<div class="text-2xl">' + displayIcon + '</div>';
-                    }}
-                  />
-                ) : (
-                  <div className="text-2xl">{displayIcon}</div>
-                )}
-              </div>
+              {renderPortrait({ icon: displayIcon })}
 
               {/* Content */}
               <div className="flex-1 text-left">
@@ -410,27 +432,16 @@ export default function SimpleInteractionCard({
   if (type === 'donation_request' && interaction.request) {
     const { item, reason, urgency, reputationImpact } = interaction.request;
     const isAbstract = isAbstractDonation(item);
-    const hasTheItem = isAbstract ? true : hasItem(item); // Abstract donations always available
+    const physicalInventory = (inventory || []).filter(inv => inv.quantity > 0);
+    const selectedInventoryItem = selectedDonationItem && physicalInventory.find(inv => inv.name === selectedDonationItem);
+    const canDonate = isAbstract || (selectedInventoryItem && hasItem(selectedInventoryItem.name));
 
     return (
       <div className="animate-fade-in mb-4">
         <div className={`w-full p-4 bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder}`}>
           <div className="flex items-center gap-3">
             {/* NPC Portrait */}
-            <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
-              {npcPortrait ? (
-                <img
-                  src={npcPortrait}
-                  alt={npcName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.outerHTML = '<div class="text-2xl">' + colors.icon + '</div>';
-                  }}
-                />
-              ) : (
-                <div className="text-2xl">{colors.icon}</div>
-              )}
-            </div>
+            {renderPortrait({})}
 
             {/* Content */}
             <div className="flex-1 text-left">
@@ -448,13 +459,28 @@ export default function SimpleInteractionCard({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex-shrink-0 flex items-center gap-2">
+            <div className="flex-shrink-0 flex flex-col gap-2 min-w-[200px]">
+              {!isAbstract && (
+                <select
+                  value={selectedDonationItem}
+                  onChange={(e) => setSelectedDonationItem(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-white text-slate-700 text-sm font-medium border border-amber-200 shadow-sm disabled:opacity-70"
+                  disabled={physicalInventory.length === 0}
+                >
+                  {physicalInventory.length === 0 && <option value="">No items available</option>}
+                  {physicalInventory.length > 0 && physicalInventory.map(invItem => (
+                    <option key={invItem.name} value={invItem.name}>
+                      {invItem.name} (x{invItem.quantity})
+                    </option>
+                  ))}
+                </select>
+              )}
               <button
-                onClick={() => onChoice('donate', interaction)}
-                disabled={!hasTheItem}
+                onClick={() => onChoice('donate', interaction, { itemName: isAbstract ? null : selectedDonationItem })}
+                disabled={!canDonate}
                 className={`px-4 py-2 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                Donate {isAbstract ? '' : item}
+                {isAbstract ? 'Donate' : selectedDonationItem ? `Donate ${selectedDonationItem}` : 'Select item'}
               </button>
               <button
                 onClick={() => onChoice('refuse', interaction)}
@@ -463,6 +489,17 @@ export default function SimpleInteractionCard({
                 Refuse
               </button>
             </div>
+          </div>
+
+          <div className="text-white/80 text-xs leading-relaxed mt-3">
+            <p className="font-semibold text-white/90">
+              {reason || 'Offering charity can improve your standing among the poorer residents.'}
+            </p>
+            {!isAbstract && physicalInventory.length === 0 && (
+              <p className="text-red-200 mt-1">
+                You have no items in your inventory to donate.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -488,21 +525,8 @@ export default function SimpleInteractionCard({
         <div className={`w-full bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder}`}>
           <div className="p-4">
             <div className="flex items-center gap-3 mb-3">
-              {/* NPC Portrait */}
-              <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
-                {npcPortrait ? (
-                  <img
-                    src={npcPortrait}
-                    alt={npcName}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.outerHTML = '<div class="text-2xl">' + colors.icon + '</div>';
-                    }}
-                  />
-                ) : (
-                  <div className="text-2xl">{colors.icon}</div>
-                )}
-              </div>
+            {/* NPC Portrait */}
+            {renderPortrait({ backgroundClass: 'bg-white/10' })}
 
               {/* Content */}
               <div className="flex-1 text-left">
@@ -590,20 +614,7 @@ export default function SimpleInteractionCard({
         <div className={`w-full p-4 bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder}`}>
           <div className="flex items-center gap-3">
             {/* NPC Portrait */}
-            <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
-              {npcPortrait ? (
-                <img
-                  src={npcPortrait}
-                  alt={npcName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.outerHTML = '<div class="text-2xl">' + colors.icon + '</div>';
-                  }}
-                />
-              ) : (
-                <div className="text-2xl">{colors.icon}</div>
-              )}
-            </div>
+            {renderPortrait({})}
 
             {/* Content */}
             <div className="flex-1 text-left">
@@ -649,20 +660,7 @@ export default function SimpleInteractionCard({
         <div className={`w-full p-4 bg-gradient-to-r ${colors.gradient} ${colors.darkGradient} rounded-xl shadow-lg border-2 ${colors.border} ${colors.darkBorder}`}>
           <div className="flex items-center gap-3">
             {/* NPC Portrait */}
-            <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
-              {npcPortrait ? (
-                <img
-                  src={npcPortrait}
-                  alt={npcName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.outerHTML = '<div class="text-2xl">' + colors.icon + '</div>';
-                  }}
-                />
-              ) : (
-                <div className="text-2xl">{colors.icon}</div>
-              )}
-            </div>
+            {renderPortrait({ backgroundClass: 'bg-white/10' })}
 
             {/* Content */}
             <div className="flex-1 text-left">
@@ -755,20 +753,7 @@ export default function SimpleInteractionCard({
         <div className={`w-full p-4 bg-gradient-to-r ${threatInfo.bg} rounded-xl shadow-lg border-2 ${threatStyle.border}`}>
           <div className="flex items-start gap-3">
             {/* NPC Portrait */}
-            <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-black/20 flex items-center justify-center">
-              {npcPortrait ? (
-                <img
-                  src={npcPortrait}
-                  alt={npcName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.outerHTML = '<div class="text-2xl">' + threatInfo.icon + '</div>';
-                  }}
-                />
-              ) : (
-                <div className="text-2xl">{threatInfo.icon}</div>
-              )}
-            </div>
+            {renderPortrait({ icon: threatInfo.icon, backgroundClass: 'bg-black/20' })}
 
             {/* Content */}
             <div className="flex-1 text-left">
@@ -1132,20 +1117,7 @@ export default function SimpleInteractionCard({
         <div className="w-full p-4 bg-gradient-to-r from-purple-600/80 to-pink-600/80 rounded-xl shadow-lg border-2 border-purple-400/60">
           <div className="flex items-start gap-3">
             {/* NPC Portrait */}
-            <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/10 flex items-center justify-center">
-              {npcPortrait ? (
-                <img
-                  src={npcPortrait}
-                  alt={npcName}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.outerHTML = '<div class="text-2xl">🎲</div>';
-                  }}
-                />
-              ) : (
-                <div className="text-2xl">🎲</div>
-              )}
-            </div>
+            {renderPortrait({ icon: '🎲', backgroundClass: 'bg-white/10' })}
 
             {/* Content */}
             <div className="flex-1 text-left">
@@ -1342,14 +1314,19 @@ export default function SimpleInteractionCard({
                     </>
                   )}
 
-                  {gameType === 'wager' && (
+                  {/* Generic bet button for any game type not specifically handled above */}
+                  {!['taba', 'cards', 'dice', 'cockfight'].includes(gameType) && (
                     <div className="flex gap-2">
                       <button
                         onClick={handleBet}
                         disabled={!canAfford}
                         className="flex-1 px-4 py-3 bg-gradient-to-r from-yellow-500/80 to-orange-500/80 hover:from-yellow-500/90 hover:to-orange-500/90 text-white font-bold rounded-lg transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
                       >
-                        {canAfford ? `🎲 Place Bet (${wager} reales)` : `Cannot Afford (need ${wager})`}
+                        {canAfford ? (
+                          gameType === 'lottery' ? `🎫 Purchase Ticket (${wager} reales)` : `🎲 Place Bet (${wager} reales)`
+                        ) : (
+                          `Cannot Afford (need ${wager})`
+                        )}
                       </button>
                     </div>
                   )}
@@ -1538,20 +1515,7 @@ export default function SimpleInteractionCard({
           <div className="p-4">
             <div className="flex items-center gap-3">
               {/* NPC Portrait */}
-              <div className="flex-shrink-0 w-12 h-12 rounded-full border-2 border-white/40 overflow-hidden bg-white/20 flex items-center justify-center">
-                {npcPortrait ? (
-                  <img
-                    src={npcPortrait}
-                    alt={npcName}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.outerHTML = '<div class="text-2xl">' + displayIcon + '</div>';
-                    }}
-                  />
-                ) : (
-                  <div className="text-2xl">{displayIcon}</div>
-                )}
-              </div>
+              {renderPortrait({ icon: displayIcon })}
 
               {/* Content */}
               <div className="flex-1 text-left">
@@ -1631,11 +1595,30 @@ export default function SimpleInteractionCard({
                   </div>
                   <div className="flex-shrink-0 flex flex-col gap-2">
                     <button
-                      onClick={() => onChoice('view_details', interaction)}
-                      className={`px-6 py-3 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md flex items-center gap-2`}
+                      onClick={() => onChoice('invest', interaction)}
+                      disabled={!canAfford}
+                      className={`px-6 py-3 font-semibold rounded-lg transition-all shadow-md flex items-center gap-2 ${
+                        canAfford
+                          ? `${colors.buttonPrimary} hover:scale-105 transform`
+                          : 'bg-gray-500/50 text-white/50 cursor-not-allowed'
+                      }`}
                     >
-                      <span>📊</span>
-                      <span>View at Consulado</span>
+                      <span>💰</span>
+                      <div className="text-left">
+                        <div>{canAfford ? 'Invest Now' : 'Cannot Afford'}</div>
+                        <div className="text-xs opacity-75">{amount} reales</div>
+                      </div>
+                    </button>
+                    {!canAfford && (
+                      <div className="text-red-300 text-xs text-center px-2">
+                        Need {amount - currentWealth} more reales
+                      </div>
+                    )}
+                    <button
+                      onClick={() => onChoice('view_details', interaction)}
+                      className={`px-6 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold rounded-lg transition-colors border border-white/30`}
+                    >
+                      📊 View at Consulado
                     </button>
                     <button
                       onClick={() => onChoice('maybe_later', interaction)}

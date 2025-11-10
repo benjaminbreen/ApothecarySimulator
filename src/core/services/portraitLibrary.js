@@ -586,8 +586,8 @@ export const PORTRAIT_LIBRARY = {
     age: 'adult',
     casta: ['español', 'criollo'],
     class: 'middling',
-    occupation: ['soldier', 'night watch', 'guard'],
-    tags: ['military', 'vigilant', 'threatening']
+    occupation: ['soldier', 'night watch', 'city watch'],
+    tags: ['military', 'vigilant', 'city watch',]
   },
   'frontiersoldier.jpg': {
     gender: 'male',
@@ -2007,7 +2007,7 @@ export const PORTRAIT_LIBRARY = {
   // === NEW PORTRAITS (November 2024) ===
 
   'middleagedcriollofoodvendor.jpg': {
-    gender: 'male',
+    gender: 'female',
     age: 'middle-aged',
     casta: 'criollo',
     class: 'common',

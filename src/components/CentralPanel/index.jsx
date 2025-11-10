@@ -85,6 +85,7 @@ export function CentralPanel({
   onPrescriptionComplete, // Callback when prescription outcome is accepted
   pendingPrescription, // Current pending prescription data
   onOpenPrescriptionDetails, // Callback to open prescription outcome modal
+  handleCompleteHouseCall, // House call auto-return handler (Phase 3D)
 
   // Narration settings props
   narrationFontSize,
@@ -275,6 +276,7 @@ export function CentralPanel({
               onOpenMixing={onOpenMixing}
               onPrescriptionPending={onPrescriptionPending}
               onPrescriptionComplete={onPrescriptionComplete}
+              handleCompleteHouseCall={handleCompleteHouseCall}
               toast={toast}
             />
           )}

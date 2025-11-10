@@ -25,7 +25,7 @@ import { orchestrateTurn } from '../../core/agents/AgentOrchestrator';
 import { processPatientDialogue } from '../../core/agents/PatientDialogueAgent';
 import { extractPatientContext } from '../../core/agents/PatientContextExtractor';
 import { enrichPatientData } from '../../core/entities/PatientEnrichment';
-import { entityManager } from '../../core/entities/EntityManager';
+import { entityManager, sanitizePatientName } from '../../core/entities/EntityManager';
 import { calculateTemperament } from '../../core/entities/entitySchema';
 import { createChatCompletion } from '../../core/services/llmService';
 import { buildSystemPrompt } from '../../prompts/promptModules';
@@ -50,6 +50,7 @@ import { getTransactionManager, TRANSACTION_CATEGORIES } from '../../core/system
 import { MedicalRecordsManager } from '../../core/systems/medicalRecordsManager';
 import { interpolatePrompt, getListTypeById } from '../../core/config/listTypes.config';
 import { checkAndTriggerConsequences } from '../../systems/consequenceSystem';
+import { selectStoryNpcEncounter, forceStoryNpcEncounter } from '../../features/narrative/storyNpcSystem';
 
 // PHASE 2.1: Specialized navigation handlers hook
 import { useNavigationHandlers } from './useNavigationHandlers';
@@ -887,6 +888,91 @@ export function useGameHandlers({
   handleListRequestRef.current = handleListRequest;
 
   // MAIN SUBMIT HANDLER
+  const narrateStoryNpcIntro = useCallback(async (npc, arrivalText = '') => {
+    if (!npc) return arrivalText || '';
+    const location = gameState.location || 'the botica in Mexico City';
+    const time = gameState.time || 'midday';
+    const date = gameState.date || 'August 22, 1680';
+    const summary = npc.summary || npc.description || '';
+    const arrival = arrivalText || npc.arrivalText || '';
+
+    const systemPrompt = `You are the narrative voice for an educational RPG set in 1680 Mexico City. Your job is to introduce notable NPCs when they arrive in the scene.`;
+    const userPrompt = `Describe in 2-3 sentences how ${npc.name} enters the scene at ${location} on ${date} around ${time}.
+NPC summary: ${summary}
+Arrival detail to weave in: ${arrival}
+- Mention the atmosphere and visual cues of their arrival.
+- Do NOT include Maria's response yet.
+- Keep it immersive, grounded in 17th-century Mexico City.`;
+
+    try {
+      const response = await createChatCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        0.6,
+        220,
+        null,
+        { agent: 'StoryNpcIntro' }
+      );
+      return response.choices?.[0]?.message?.content?.trim() || arrivalText || '';
+    } catch (error) {
+      console.error('[StoryEncounter] Failed to generate intro:', error);
+      return arrivalText || '';
+    }
+  }, [gameState.location, gameState.time, gameState.date]);
+
+  const triggerForcedStoryNpcEncounter = useCallback(async (source = 'forced_encounter') => {
+    const encounter = forceStoryNpcEncounter(gameState);
+
+    if (encounter) {
+      setPendingSimpleInteraction(encounter.interaction);
+      const arrivalText = encounter.arrivalText || `${encounter.npc.name} steps into the scene.`;
+      const introText = await narrateStoryNpcIntro(encounter.npc, arrivalText);
+
+      setConversationHistory(prev => [
+        ...prev,
+        {
+          role: 'system',
+          content: `*[STORY ENCOUNTER] ${arrivalText}*`
+        },
+        ...(introText ? [{
+          role: 'assistant',
+          content: introText
+        }] : [])
+      ]);
+
+      setGameState(prev => ({
+        ...prev,
+        storyNpcStatus: {
+          ...(prev.storyNpcStatus || {}),
+          [encounter.npc.id]: {
+            ...(prev.storyNpcStatus?.[encounter.npc.id] || {}),
+            state: 'active',
+            lastOutcome: source,
+            lastTurn: turnNumber
+          }
+        }
+      }));
+      return true;
+    }
+
+    const message = '*No story encounters are available right now.*';
+    addToHistory({ role: 'assistant', content: message });
+    setHistoryOutput(message);
+    return false;
+  }, [
+    addToHistory,
+    forceStoryNpcEncounter,
+    gameState,
+    narrateStoryNpcIntro,
+    setConversationHistory,
+    setGameState,
+    setHistoryOutput,
+    setPendingSimpleInteraction,
+    turnNumber
+  ]);
+
   const handleSubmit = useCallback(async (e, actionOverride = null, options = {}) => {
     // Prevent default only if called from form event
     if (e && typeof e.preventDefault === 'function') {
@@ -909,6 +995,8 @@ export function useGameHandlers({
     // Use override if provided (from chip clicks), otherwise fall back to userInput state
     const originalInput = (actionOverride || userInput).trim();
 
+    const normalizedInput = originalInput.toLowerCase();
+
     if (!actionOverride && DOOR_COMMAND_REGEX.test(originalInput)) {
       const doorMover = walkPlayerToDoorRef.current;
       if (typeof doorMover === 'function') {
@@ -920,59 +1008,20 @@ export function useGameHandlers({
       }
     }
 
-    // TEXTUAL CONTRACT ACCEPTANCE/DECLINE: Detect if player types acceptance/refusal instead of clicking card
-    if (pendingContract && pendingContract.type !== 'null') {
-      const inputLower = originalInput.toLowerCase();
+    const isWaitChipCommand = actionOverride && actionOverride.toLowerCase() === 'wait and observe';
+    if (isWaitChipCommand) {
+      await triggerForcedStoryNpcEncounter('wait_chip');
+      setUserInput('');
+      setIsLoading(false);
+      return;
+    }
 
-      // Detect acceptance signals
-      const acceptanceKeywords = ['agree', 'accept', 'yes', 'i will', "i'll", 'very well', 'fine', 'ok', 'okay'];
-      const acceptsContract = acceptanceKeywords.some(kw => inputLower.startsWith(kw)) ||
-        inputLower.includes('make the house call') ||
-        inputLower.includes('make a house call') ||
-        (pendingContract.patientName && inputLower.includes(`treat ${pendingContract.patientName.toLowerCase()}`));
-
-      // Detect refusal signals
-      const refusalKeywords = ['decline', 'refuse', 'no', "won't", 'cannot', "can't", 'too expensive', 'not interested'];
-      const declinesContract = refusalKeywords.some(kw => inputLower.startsWith(kw));
-
-      if (acceptsContract && !declinesContract) {
-        console.log('[Contract] Textual acceptance detected, auto-accepting contract');
-        // Create patient entity from contract
-        const demographics = pendingContract.patientDemographics || {};
-        const patientEntity = entityManager.register({
-          id: `patient_${pendingContract.patientName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
-          name: pendingContract.patientName,
-          entityType: 'patient',
-          type: 'patient',
-          description: pendingContract.patientDescription || pendingContract.ailmentDescription || 'Patient requiring treatment',
-          symptoms: [],
-          // Add demographics from contract for portrait matching
-          gender: demographics.gender || 'unknown',
-          age: demographics.age || 'adult',
-          casta: demographics.casta || 'unknown',
-          class: demographics.class || 'common',
-          metadata: {
-            representedBy: pendingContract.isEmissary ? pendingContract.offeredBy : null,
-            offeredBy: pendingContract.offeredBy || null,
-            paymentAgreed: pendingContract.paymentOffered,
-            patientLocation: pendingContract.patientLocation || null,
-            ailmentDescription: pendingContract.ailmentDescription || pendingContract.patientDescription || null,
-            isEmissary: !!pendingContract.isEmissary,
-            contractIntent: 'treatment'
-          }
-        });
-
-        await handleAcceptTreatment(patientEntity, pendingContract.paymentOffered, pendingContract);
-        setUserInput('');
-        setIsLoading(false);
-        return; // Skip normal turn processing
-      }
-
-      if (declinesContract && !acceptsContract) {
-        console.log('[Contract] Textual refusal detected, auto-declining contract');
-        handleDeclineContract();
-        // Continue to normal turn processing to generate "Maria declines" narrative
-      }
+    if (!actionOverride && normalizedInput === 'seek adventure') {
+      console.log('[StoryNPC] Forcing encounter via SEEK ADVENTURE command');
+      await triggerForcedStoryNpcEncounter('seek_adventure');
+      setUserInput('');
+      setIsLoading(false);
+      return;
     }
 
     if (originalInput.startsWith('#long_travel ')) {
@@ -989,6 +1038,27 @@ export function useGameHandlers({
         setUserInput('');
         setIsLoading(false);
       }
+      return;
+    }
+
+    // CHECK FOR NPC DEPARTURE FROM PRESCRIPTION: Look for system messages with npcDeparted flag
+    const lastMessage = conversationHistory[conversationHistory.length - 1];
+    if (lastMessage?.npcDeparted && activePatient && currentMapId !== 'botica-interior') {
+      console.log('[House Call] Detected NPC departure from prescription - triggering auto-return');
+
+      // Clear the NPC departed flag to prevent repeated triggers
+      setConversationHistory(prev => {
+        const updated = [...prev];
+        if (updated[updated.length - 1]?.npcDeparted) {
+          updated[updated.length - 1] = { ...updated[updated.length - 1], npcDeparted: false };
+        }
+        return updated;
+      });
+
+      // Trigger auto-return immediately
+      await handleCompleteHouseCall(activePatient);
+      setUserInput('');
+      setIsLoading(false);
       return;
     }
 
@@ -1580,33 +1650,75 @@ export function useGameHandlers({
                        personalityTraits.some(t => ['calm', 'stable', 'confident'].includes(t)) ? 30 : 50
         };
 
-        const npcEntity = {
-          name: result.primaryNPC.name,
-          id: `npc_${result.primaryNPC.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
-          entityType: 'npc',
-          type: 'npc',
-          llmProvided: true, // Flag to prevent procedural override
-          description: result.primaryNPC.description,
-          age: result.primaryNPC.age,
-          gender: result.primaryNPC.gender,
-          appearance: result.primaryNPC.appearance, // Keep as string from LLM
-          personality: {
-            traits: personalityTraits,
-            bigFive: bigFive,
-            temperament: calculateTemperament(bigFive)
-          },
-          social: {
-            class: result.primaryNPC.class,
-            casta: result.primaryNPC.casta,
-            occupation: result.primaryNPC.occupation
-          },
-          tier: 'recurring' // LLM-generated NPCs are recurring by default
-        };
+        // FIXED: Check if entity already exists by name (stable ID without timestamp)
+        const normalizedName = result.primaryNPC.name.toLowerCase().replace(/\s+/g, '_');
+        const existingEntity = entityManager.getByName(result.primaryNPC.name);
+
+        let npcEntity;
+        if (existingEntity) {
+          // Entity exists - update it with new LLM data (preserve ID and portrait)
+          console.log('[Primary NPC] Found existing entity, updating:', existingEntity.name);
+          npcEntity = {
+            ...existingEntity,
+            // Update with new LLM-provided data
+            description: result.primaryNPC.description,
+            age: result.primaryNPC.age,
+            gender: result.primaryNPC.gender,
+            appearance: result.primaryNPC.appearance,
+            personality: {
+              traits: personalityTraits,
+              bigFive: bigFive,
+              temperament: calculateTemperament(bigFive)
+            },
+            social: {
+              class: result.primaryNPC.class,
+              casta: result.primaryNPC.casta,
+              occupation: result.primaryNPC.occupation
+            },
+            llmProvided: true
+          };
+
+          // CRITICAL: Preserve cached portrait (non-enumerable property lost in spread)
+          if (existingEntity._portraitPath) {
+            Object.defineProperty(npcEntity, '_portraitPath', {
+              value: existingEntity._portraitPath,
+              writable: true,
+              enumerable: false,
+              configurable: true
+            });
+            console.log('[Primary NPC] Preserved cached portrait:', existingEntity._portraitPath);
+          }
+        } else {
+          // New entity - create with stable ID (no timestamp)
+          console.log('[Primary NPC] Creating new entity:', result.primaryNPC.name);
+          npcEntity = {
+            name: result.primaryNPC.name,
+            id: `npc_${normalizedName}`, // FIXED: Stable ID without timestamp
+            entityType: 'npc',
+            type: 'npc',
+            llmProvided: true,
+            description: result.primaryNPC.description,
+            age: result.primaryNPC.age,
+            gender: result.primaryNPC.gender,
+            appearance: result.primaryNPC.appearance,
+            personality: {
+              traits: personalityTraits,
+              bigFive: bigFive,
+              temperament: calculateTemperament(bigFive)
+            },
+            social: {
+              class: result.primaryNPC.class,
+              casta: result.primaryNPC.casta,
+              occupation: result.primaryNPC.occupation
+            },
+            tier: 'recurring'
+          };
+        }
 
         // Register or update entity
         try {
           const registered = entityManager.register(npcEntity);
-          console.log('[Primary NPC] Registered:', registered.name);
+          console.log('[Primary NPC] Registered:', registered.name, registered.id);
         } catch (error) {
           console.error('[Primary NPC] Registration error:', error);
         }
@@ -1789,6 +1901,16 @@ export function useGameHandlers({
           console.warn('[NPC Departure] npcDeparted=true but no NPC in tracker to remove');
         }
 
+        // HOUSE CALL AUTO-RETURN: If in active house call, automatically return to botica
+        if (activePatient && currentMapId !== 'botica-interior') {
+          console.log('[House Call] Treatment complete - auto-returning to botica');
+
+          // Schedule return to botica after a brief delay to let the narrative display
+          setTimeout(() => {
+            handleCompleteHouseCall(activePatient);
+          }, 1500); // 1.5 second delay to let player read the outcome
+        }
+
         // Track that NPC departed for next turn (prevents continuation detection)
         npcDepartedLastTurnRef.current = true;
         clearConversationLock();
@@ -1879,11 +2001,178 @@ export function useGameHandlers({
       // CARD ASSIGNMENT: Add cards to assistantMessage BEFORE setConversationHistory
       // This must happen before React state update to ensure cards render
 
+      // ===== PHASE 1 GUARDS: State validation before card assignment =====
+
+      // GUARD 2: Auto-create actionPrompt if missing for medical_purchase intent
+      if (result.interactionIntent === 'medical_purchase' &&
+          (!result.actionPrompt || result.actionPrompt.type === 'null') &&
+          result.primaryNPC?.name) {
+        console.warn('[Guard 2] Auto-creating missing actionPrompt for medical_purchase intent');
+        result.actionPrompt = {
+          type: 'prescribe',
+          recipientName: result.primaryNPC.name,
+          npcId: result.primaryNPC.name.toLowerCase().replace(/\s+/g, '-'),
+          context: result.patientContext?.reason || 'medical request',
+          suggestedItems: [],
+          priceOffered: 0,
+          ailmentDescription: result.patientContext?.reason || null
+        };
+      }
+
+      // GUARD 2B: Auto-create actionPrompt if narrative mentions prescribing
+      if ((!result.actionPrompt || result.actionPrompt.type === 'null') && result.narrative) {
+        // Get last sentence of narrative (usually the question to the player)
+        const sentences = result.narrative.split(/[.!?]+/).filter(s => s.trim().length > 0);
+        const lastSentence = sentences[sentences.length - 1]?.toLowerCase() || '';
+
+        // Check if last sentence contains prescribe/prescription keywords
+        if (lastSentence.includes('prescribe') || lastSentence.includes('prescription')) {
+          console.warn('[Guard 2B] Auto-creating prescribe actionPrompt from narrative keyword');
+
+          // Extract recipient name from primaryNPC or fallback to "patient"
+          const recipientName = result.primaryNPC?.name ||
+                               result.selectedEntity?.name ||
+                               'patient';
+
+          result.actionPrompt = {
+            type: 'prescribe',
+            recipientName: recipientName,
+            npcId: recipientName.toLowerCase().replace(/\s+/g, '-'),
+            context: result.patientContext?.reason || 'requesting prescription',
+            suggestedItems: [],
+            priceOffered: 0,
+            ailmentDescription: result.patientContext?.reason || null
+          };
+        }
+      }
+
+      // GUARD 2C: Auto-create actionPrompt if system message mentions prescribing
+      if ((!result.actionPrompt || result.actionPrompt.type === 'null') &&
+          result.systemAnnouncements && result.systemAnnouncements.length > 0) {
+        const systemMessage = result.systemAnnouncements[0].toLowerCase();
+
+        // Check for prescribe-related keywords
+        const hasPrescribeKeyword = systemMessage.includes('prescribe') ||
+                                   systemMessage.includes('prescription') ||
+                                   systemMessage.includes('prepare') ||
+                                   systemMessage.includes('preparing');
+
+        if (hasPrescribeKeyword) {
+          console.warn('[Guard 2C] Auto-creating prescribe actionPrompt from system message keyword');
+
+          // Extract recipient name from primaryNPC or fallback to "patient"
+          const recipientName = result.primaryNPC?.name ||
+                               result.selectedEntity?.name ||
+                               'patient';
+
+          result.actionPrompt = {
+            type: 'prescribe',
+            recipientName: recipientName,
+            npcId: recipientName.toLowerCase().replace(/\s+/g, '-'),
+            context: result.patientContext?.reason || 'requesting prescription',
+            suggestedItems: [],
+            priceOffered: 0,
+            ailmentDescription: result.patientContext?.reason || null
+          };
+        }
+      }
+
+      // GUARD 3: Auto-clear simpleInteraction when transaction completes OR user dismisses
+      if (result.simpleInteraction?.type && result.simpleInteraction.type !== 'null') {
+        const hasTransaction = (result.gameState?.wealthChange !== 0) || (result.inventoryChanges?.length > 0);
+
+        // Check if user is going somewhere to review/discuss BEFORE dismissing
+        const goingToReview = narrativeText && (
+          /\b(go|accompany|travel|visit|walk).+(to|toward).+(review|discuss|see|learn|examine|explore)/i.test(narrativeText) ||
+          /\b(review|discuss|learn|examine).+(detail|further|more)/i.test(narrativeText)
+        );
+
+        // Only consider it a dismissal if they're not planning to review first
+        const userDismissed = !goingToReview && narrativeText && (
+          /\b(not interested|decline|dismiss|see .* out|send .* away|no thanks|refuse)\b/i.test(narrativeText)
+        );
+
+        const npcLeft = result.npcDeparted === true;
+
+        if ((hasTransaction && npcLeft) || userDismissed) {
+          console.log('[Guard 3] Auto-clearing simpleInteraction:', {
+            hasTransaction,
+            userDismissed,
+            npcLeft,
+            goingToReview,
+            reason: userDismissed ? 'user dismissed' : 'transaction completed'
+          });
+          result.simpleInteraction = { type: 'null' };
+        }
+      }
+
+      // GUARD 5: Prevent multiple transaction types active simultaneously
+      if (result.contractOffer?.type && result.contractOffer.type !== 'null' &&
+          result.actionPrompt?.type && result.actionPrompt.type !== 'null') {
+        console.warn('[Guard 5] Multiple transaction types active, resolving conflict');
+
+        // Medical intents prefer contractOffer
+        if (result.interactionIntent?.includes('medical')) {
+          result.actionPrompt.type = 'null';
+        } else {
+          result.contractOffer.type = 'null';
+        }
+      }
+
+      // GUARD 4: Sanitize patient names to prevent furniture word bugs
+      if (result.contractOffer?.patientName) {
+        const originalName = result.contractOffer.patientName;
+        const sanitizedName = sanitizePatientName(originalName);
+        if (originalName !== sanitizedName) {
+          console.warn(`[Guard 4] Sanitized patient name: "${originalName}" → "${sanitizedName}"`);
+          result.contractOffer.patientName = sanitizedName;
+        }
+      }
+
+      // GUARD 6: Investment offer validation with smart defaults
+      if (result.simpleInteraction?.type === 'investment_offer' &&
+          result.simpleInteraction.investment) {
+        const inv = result.simpleInteraction.investment;
+
+        // Check if LLM failed to extract numeric details
+        if (inv.amount === 0 || !inv.amount) {
+          console.warn('[Guard 6] Investment offer missing amount, applying smart defaults');
+
+          // Smart defaults based on risk level and type
+          const defaults = {
+            silver_mining: { amount: 100, min: 120, max: 200, duration: 365, risk: 'high' },
+            manila_galleon: { amount: 150, min: 180, max: 300, duration: 180, risk: 'high' },
+            church_bond: { amount: 50, min: 55, max: 60, duration: 365, risk: 'low' },
+            cacao_plantation: { amount: 80, min: 96, max: 160, duration: 730, risk: 'medium' },
+            real_estate: { amount: 200, min: 220, max: 280, duration: 1095, risk: 'medium' },
+            apothecary_syndicate: { amount: 120, min: 144, max: 180, duration: 365, risk: 'medium' }
+          };
+
+          const typeDefaults = defaults[inv.investmentType] || defaults.silver_mining;
+
+          // Apply defaults
+          result.simpleInteraction.investment = {
+            ...inv,
+            amount: typeDefaults.amount,
+            expectedReturn: {
+              min: inv.expectedReturn?.min || typeDefaults.min,
+              max: inv.expectedReturn?.max || typeDefaults.max
+            },
+            duration: inv.duration || typeDefaults.duration,
+            riskLevel: inv.riskLevel || typeDefaults.risk
+          };
+
+          console.log('[Guard 6] Applied defaults:', result.simpleInteraction.investment);
+        }
+      }
+
+      // ===== END PHASE 1 GUARDS =====
+
       // Simple Interaction Card
       const rawSimpleInteraction = result.simpleInteraction;
       const simpleInteractionType = rawSimpleInteraction?.type || 'null';
       const isMedicalSimpleInteraction = ['house_call', 'house_call_request', 'medical_diagnosis'].includes(simpleInteractionType);
-      const medicalIntents = new Set(['medical_diagnosis', 'medical_purchase', 'medical_followup', 'house_call']);
+      const medicalIntents = new Set(['medical_purchase', 'medical_followup', 'house_call']);
       const currentIntent = result.interactionIntent || 'none';
 
       let effectiveSimpleInteraction = isMedicalSimpleInteraction ? null : rawSimpleInteraction;
@@ -2980,6 +3269,37 @@ export function useGameHandlers({
         });
       }
 
+      if (!hasSimpleInteraction && turnNumber > 1) {
+        const storyEncounter = selectStoryNpcEncounter(gameState);
+        if (storyEncounter) {
+        setPendingSimpleInteraction(storyEncounter.interaction);
+        const arrivalText = storyEncounter.arrivalText || `${storyEncounter.npc.name} arrives with a request.`;
+        const introText = await narrateStoryNpcIntro(storyEncounter.npc, arrivalText);
+        setConversationHistory(prev => [
+          ...prev,
+          {
+            role: 'system',
+            content: `*[STORY ENCOUNTER] ${arrivalText}*`
+          },
+          ...(introText ? [{
+            role: 'assistant',
+            content: introText
+          }] : [])
+        ]);
+          setGameState(prev => ({
+            ...prev,
+            storyNpcStatus: {
+              ...(prev.storyNpcStatus || {}),
+              [storyEncounter.npc.id]: {
+                state: 'active',
+                lastTurn: turnNumber,
+                lastOutcome: 'encounter_started'
+              }
+            }
+          }));
+        }
+      }
+
       // Offer Prompt Detection
       // When narrative prompts player to offer an item from inventory
       if (result.offerPrompt && result.offerPrompt.triggered) {
@@ -3174,6 +3494,7 @@ export function useGameHandlers({
     cleanupExpiredOpportunities, // Used for trade cleanup
     setPendingSimpleInteraction, // Used for simple interactions
     setPendingRandomEvent, // Used for random events
+    narrateStoryNpcIntro,
     toggleShopSign, // Used for shop sign toggle
     navigationHandlers, // Used for fast travel
     toast, // Used throughout for notifications
@@ -3187,7 +3508,8 @@ export function useGameHandlers({
     addToHistory, // Used for conversation history
     clearConversationLock,
     setCrisisState,
-    triggerGameOver
+    triggerGameOver,
+    triggerForcedStoryNpcEncounter
   ]);
 
   // PHASE 2.3: Initialize commerce handlers hook

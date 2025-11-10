@@ -86,6 +86,7 @@ export function PatientViewTab({
   onOpenMixing, // New prop for mixing modal
   onPrescriptionPending, // Callback when prescription is being processed
   onPrescriptionComplete, // Callback when prescription outcome is accepted
+  handleCompleteHouseCall, // House call auto-return handler (Phase 3D)
   toast // Toast notification function
 }) {
   const [currentQuestion, setCurrentQuestion] = useState('');
@@ -109,6 +110,9 @@ export function PatientViewTab({
   const timelineRefs = useRef({});
   const focusResetTimer = useRef(null);
   const [activeMedicalTab, setActiveMedicalTab] = useState('body'); // 'body', 'symptoms', or 'diagnosis'
+
+  // Prescription effectiveness preview state (lifted from PrescribePanelIntegrated)
+  const [prescriptionPreview, setPrescriptionPreview] = useState(null);
 
   // Initialize manual values from patient data on mount/patient change
   useEffect(() => {
@@ -916,6 +920,7 @@ export function PatientViewTab({
           patientDialogue={patientDialogue}
           diagnosisData={diagnosisData}
           onOpenMixing={onOpenMixing}
+          prescriptionPreview={prescriptionPreview}
         />
       ) : (
       <div className="flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-ink-100 dark:border-slate-700 shadow-md overflow-hidden">
@@ -1569,7 +1574,9 @@ export function PatientViewTab({
               TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
               onPrescriptionPending={onPrescriptionPending}
               onPrescriptionComplete={onPrescriptionComplete}
+              handleCompleteHouseCall={handleCompleteHouseCall}
               toast={toast}
+              setPrescriptionPreview={setPrescriptionPreview}
             />
           </div>
           {/* End Prescribe Mode */}

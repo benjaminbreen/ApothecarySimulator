@@ -10,6 +10,8 @@ import { createChatCompletion } from '../../core/services/llmService';
 import { mapNPCFactionToSystemFaction } from '../../core/systems/reputationSystem';
 import { MedicalRecordsManager } from '../../core/systems/medicalRecordsManager';
 import { getTransactionManager, TRANSACTION_CATEGORIES, TRANSACTION_OUTCOMES } from '../../core/systems/transactionManager';
+import { resolveStoryNpcOutcome } from '../../features/narrative/storyNpcSystem';
+import { RISK_LEVELS } from '../../features/commerce/data/investmentTypes';
 
 /**
  * Helper: Check if donation is abstract (non-physical)
@@ -210,7 +212,7 @@ export function useCommerceHandlers({
   clearConversationLock,
 }) {
   // Context hooks
-  const { updateInventory, updateWealth } = useGameState();
+  const { updateInventory, updateWealth, unlockMethod, addActiveInvestment } = useGameState();
   const { setPendingContract, setPrimaryPortraitFile } = useNPCs();
 
   /**
@@ -356,10 +358,44 @@ export function useCommerceHandlers({
    * Processes service offers, donations, competitive checks, info exchange, social visits
    * This is the largest commerce handler
    */
-  const handleSimpleInteractionChoice = useCallback(async (action, interaction) => {
+  const handleSimpleInteractionChoice = useCallback(async (action, interaction, extra = {}) => {
     console.log('[SimpleInteraction] Player chose:', action, interaction);
 
     const { type, npcName } = interaction;
+    const { itemName: overrideItemName } = extra || {};
+    const storyNpcId = interaction.storyNpcId;
+
+    const applyStoryEffect = (effect = {}) => {
+      switch (effect.type) {
+        case 'unlock_method':
+          if (effect.method) {
+            unlockMethod(effect.method);
+          }
+          break;
+        case 'reputation':
+          if (effect.faction && typeof updateReputation === 'function') {
+            updateReputation(effect.faction, effect.amount || 0, `Story encounter with ${npcName}`);
+          }
+          break;
+        case 'inventory':
+          if (effect.item) {
+            updateInventory(effect.item, effect.quantity || 1, `story encounter: ${npcName}`);
+          }
+          break;
+        case 'wealth':
+          if (effect.amount) {
+            updateWealth(effect.amount);
+          }
+          break;
+        case 'xp':
+          if (typeof awardXP === 'function') {
+            awardXP(effect.amount || 1, `story_npc_${storyNpcId || 'encounter'}`);
+          }
+          break;
+        default:
+          break;
+      }
+    };
 
     // ALL simple interactions are one-and-done brief encounters
     // After any action (buy, refuse, donate, gamble, etc.), the NPC should depart
@@ -405,17 +441,34 @@ export function useCommerceHandlers({
       case 'donation_request': {
         const { item, reputationImpact } = interaction.request;
         if (action === 'donate') {
-          // Check if donation is abstract (non-physical)
           const isAbstract = isAbstractDonation(item);
+          let donatedItemName = item;
 
-          // Only deduct from inventory if it's a physical item
           if (!isAbstract) {
-            updateInventory(item, -1, `donated to ${npcName}`);
+            donatedItemName = overrideItemName || item;
+
+            if (!donatedItemName) {
+              toast.error('Select an item to donate.', { duration: 2500 });
+              return;
+            }
+
+            const inventoryItem = (gameState.inventory || []).find(inv =>
+              inv.name?.toLowerCase() === donatedItemName.toLowerCase()
+            );
+
+            if (!inventoryItem || inventoryItem.quantity <= 0) {
+              toast.error(`You do not have ${donatedItemName} in your inventory.`, { duration: 3000 });
+              return;
+            }
+
+            updateInventory(donatedItemName, -1, `donated to ${npcName}`);
           }
 
           reputationChange = reputationImpact.donate;
-          journalText = `Donated ${item} to ${npcName}. A small act of charity.`;
-          toast.success(`Donated ${item}. Reputation +${reputationChange}`, { duration: 2500 });
+          journalText = isAbstract
+            ? `Offered assistance to ${npcName}. A small act of charity.`
+            : `Donated ${donatedItemName} to ${npcName}.`;
+          toast.success(`Donation accepted. Reputation +${reputationChange}`, { duration: 2500 });
         } else {
           reputationChange = reputationImpact.refuse;
           journalText = `Refused ${npcName}'s request for charity.`;
@@ -541,6 +594,13 @@ export function useCommerceHandlers({
       case 'vendor_offer': {
         const { item, price, quantity = 1 } = interaction.offer;
         if (action === 'buy') {
+          // GUARD 1: Validate transaction direction (vendor_offer means Maria is buyer)
+          if (price > 0) {
+            // Buying: Maria should lose money (negative wealth change)
+            // This guard catches StateAgent errors where transaction direction is reversed
+            console.log(`[Guard 1] Vendor purchase: ${item} for ${price} reales (Maria pays)`);
+          }
+
           // Deduct wealth
           updateWealth(-price);
           // Add item to inventory
@@ -921,7 +981,61 @@ export function useCommerceHandlers({
         };
         const investmentDisplayName = investmentTypeNames[investmentType] || investmentType;
 
-        if (action === 'view_details') {
+        if (action === 'invest') {
+          // Player invests immediately from the card
+          updateWealth(-amount);
+
+          // Calculate maturity date
+          const startDate = new Date(gameState.date);
+          const maturityDate = new Date(startDate);
+          maturityDate.setDate(maturityDate.getDate() + duration);
+
+          const formattedMaturityDate = maturityDate.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+          });
+
+          // Get proper risk level object
+          const riskLevelId = interaction.investment?.riskLevel || 'medium';
+          const riskLevelObj = Object.values(RISK_LEVELS).find(r => r.id === riskLevelId) || RISK_LEVELS.MEDIUM;
+
+          // Add to active investments array
+          addActiveInvestment({
+            typeId: investmentType,
+            type: investmentDisplayName,
+            emoji: interaction.investment?.emoji || '💰',
+            amount: amount,
+            startDate: gameState.date,
+            maturityDate: formattedMaturityDate,
+            duration: duration,
+            expectedReturn: expectedReturn,
+            riskLevel: riskLevelObj,
+            npcPartner: npcName
+          });
+
+          // Create investment record (journal and toast)
+          journalText = `Invested ${amount} reales in ${investmentDisplayName} with ${npcName}. Returns ${expectedReturn.min}-${expectedReturn.max} reales in ${duration} days (matures ${formattedMaturityDate}).`;
+          toast.success(`💰 Invested ${amount} reales in ${investmentDisplayName}`, { duration: 3000 });
+
+          // Log transaction to ledger
+          const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+          const currentWealth = (gameState.wealth || 0) - amount;
+          transactionManager.logTransaction(
+            'expense',
+            TRANSACTION_CATEGORIES.OTHER,
+            `Invested in ${investmentDisplayName}`,
+            amount,
+            currentWealth,
+            gameState.date,
+            gameState.time
+          );
+          console.log(`[Ledger] Logged investment of ${amount} reales in ${investmentDisplayName}`);
+          console.log(`[Investment] Added to active investments, matures on ${formattedMaturityDate}`);
+
+          reputationChange = +2; // Reputation boost for having capital to invest
+          xpAmount = 3; // Good XP for making investment
+        } else if (action === 'view_details') {
           // Player wants to visit El Consulado to see investment details
           // Change location to El Consulado interior and open TradeModal with investments tab preselected
           journalText = `Agreed to visit El Consulado de Mercaderes with ${npcName} to review the ${investmentDisplayName} opportunity.`;
@@ -940,6 +1054,11 @@ export function useCommerceHandlers({
           console.log('[InvestmentOffer] Opened TradeModal with investments tab preselected');
 
           xpAmount = 1; // Small XP for investigating opportunity
+
+          // CRITICAL: Return early - don't trigger narrative turn
+          // The simpleInteraction needs to stay active so InvestmentsTab can see it
+          console.log('[InvestmentOffer] Skipping narrative turn to preserve investment data');
+          return;
         } else if (action === 'decline' || action === 'maybe_later') {
           // Player declined or deferred the investment opportunity
           const declinedText = action === 'decline'
@@ -961,6 +1080,28 @@ export function useCommerceHandlers({
       default:
         console.warn('[SimpleInteraction] Unknown interaction type:', type);
         journalText = `Interaction with ${npcName} complete.`;
+    }
+
+    if (storyNpcId) {
+      const storyOutcome = resolveStoryNpcOutcome(storyNpcId, action);
+      const outcomeState = storyOutcome?.state || 'met';
+      (storyOutcome?.rewards || []).forEach(applyStoryEffect);
+      (storyOutcome?.penalties || []).forEach(applyStoryEffect);
+      if (storyOutcome?.journal) {
+        journalText = storyOutcome.journal;
+      }
+      setGameState(prev => ({
+        ...prev,
+        storyNpcStatus: {
+          ...(prev.storyNpcStatus || {}),
+          [storyNpcId]: {
+            ...(prev.storyNpcStatus?.[storyNpcId] || {}),
+            state: outcomeState,
+            lastOutcome: action,
+            lastTurn: turnNumber
+          }
+        }
+      }));
     }
 
     // Apply faction-based reputation change
@@ -1126,7 +1267,19 @@ export function useCommerceHandlers({
         }
         break;
       case 'investment_offer':
-        if (action === 'view_details') {
+        if (action === 'invest') {
+          const investmentTypeNames = {
+            church_bond: 'Church Bond',
+            cacao_plantation: 'Cacao Plantation',
+            apothecary_syndicate: 'Apothecary Syndicate',
+            real_estate: 'Real Estate',
+            manila_galleon: 'Manila Galleon',
+            silver_mining: 'Silver Mining'
+          };
+          const investmentName = investmentTypeNames[interaction.investment?.investmentType] || 'investment';
+          const amount = interaction.investment?.amount || 0;
+          simulatedAction = `agree to invest ${amount} reales in ${npcName}'s ${investmentName} opportunity and finalize the terms`;
+        } else if (action === 'view_details') {
           const investmentTypeNames = {
             church_bond: 'Church Bond',
             cacao_plantation: 'Cacao Plantation',
@@ -1178,7 +1331,9 @@ export function useCommerceHandlers({
     previousPortraitEntityRef,
     toast,
     handleSubmit,
-    clearConversationLock
+    clearConversationLock,
+    setGameState,
+    unlockMethod
   ]);
 
   /**
@@ -1553,7 +1708,13 @@ export function useCommerceHandlers({
 Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-3 sentences. Show their physical response and decision.
 
 ## CRITICAL: Treatment Appropriateness Check
-**BEFORE accepting, check if the treatment makes sense for the ailment:**
+
+**STEP 1: CHECK CONVERSATION HISTORY FIRST**
+- **DID THE NPC SPECIFICALLY REQUEST THIS ITEM?** Look at the previous turn(s) in the conversation.
+- If ${recipientNameCapitalized} explicitly asked for "${item.name}" (e.g., "I need Willow Bark"), they MUST accept it with gratitude or mild negotiation.
+- DO NOT reject an item the NPC specifically requested - that creates nonsensical dialogue.
+
+**STEP 2: If NOT requested, check if the treatment makes sense for the ailment:**
 
 ### Common Nonsensical Prescriptions (MUST DECLINE with anger):
 - **Enemas for external injuries** (burns, cuts, bruises, skin rashes)
@@ -1588,6 +1749,7 @@ Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-
    - Price is reasonable OR patient is desperate enough to pay
    - Set simpleInteraction.outcome = "accepted" or "accepted_with_doubt"
    - Set simpleInteraction.reputationChange = +1 to +3 (good treatment = small boost)
+   - **CRITICAL**: Set npcDeparted = true (transaction complete, NPC departs with medicine)
 
 ## Context:
 - ${price} reales is ${price > 50 ? 'extremely expensive (several months of wages for a common laborer)' : price > 20 ? 'moderately expensive (2-3 weeks of wages)' : 'affordable (a few days of wages)'} for ${recipientName.includes('Don') || recipientName.includes('Doña') ? 'a wealthy patron' : 'a common person (note: sailors earn ~80-100 reales/month)'}.

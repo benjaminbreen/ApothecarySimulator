@@ -972,44 +972,44 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   "name": "Captain Rodrigo Duarte",
   "age": 50,
   "gender": "male",
-  "occupation": "Sea Captain",
+  "occupation": "Barge Captain",
   "birthplace": "Lisbon, Portugal",
-  "currentResidence": "Mexico City, near the harbor",
+  "currentResidence": "Mexico City, near the canals of Lake Texcoco",
   "casta": "Portuguese",
   "class": "Upper middle class",
   "symptoms": [
     {
-      "name": "Chronic seasickness",
+      "name": "Motion sickness",
       "location": "stomach",
       "severity": "moderate",
       "type": "other",
-      "description": "Despite all my years at sea, the waves still churn my stomach, leaving me weak and nauseous."
+      "description": "Despite all my years on the water, the rocking of the barge still churns my stomach, leaving me weak and nauseous."
     },
     {
       "name": "Arthritis",
       "location": "hands",
       "severity": "severe",
       "type": "pain",
-      "description": "The sea has taken its toll on my bones, every joint aching with the weight of countless voyages."
+      "description": "The water has taken its toll on my bones, every joint aching with the weight of countless journeys across the lake."
     },
     {
       "name": "Cough",
       "location": "chest",
       "severity": "moderate",
       "type": "other",
-      "description": "A cough has taken root in my chest, perhaps the sea air is no longer my friend."
+      "description": "A cough has taken root in my chest, perhaps the lake air is no longer my friend."
     }
   ],
-  "diagnosis": "Chronic seasickness and arthritis due to years at sea",
-  "contemporaryTheory": "An excess of cold, wet humors aggravated by the harsh conditions of maritime life",
-  "socialContext": "Despite his successful career, Captain Duarte's ailments have led him to consider retiring, though he fears the land may be as unforgiving as the sea.",
+  "diagnosis": "Chronic motion sickness and arthritis due to years on the water",
+  "contemporaryTheory": "An excess of cold, wet humors aggravated by the harsh conditions of life on Lake Texcoco",
+  "socialContext": "A former ocean-going captain, Duarte retired to Mexico City and now operates barges on the canals and lake. His ailments persist despite leaving the sea behind.",
   "urgency": "Medium",
   "image": "rodrigoduarte.jpg",
-  "caption": "Rodrigo Duarte, a sea captain",
-  "description": "Captain Rodrigo Duarte, a veteran of countless voyages, finds himself battling seasickness and the effects of a life spent at sea.",
+  "caption": "Rodrigo Duarte, a barge captain",
+  "description": "Captain Rodrigo Duarte, a veteran of ocean voyages who now commands barges on Lake Texcoco's canals, finds himself battling persistent motion sickness and the effects of a life spent on water.",
   "astrologicalSign": "Sagittarius",
-  "secret": "Captain Duarte is considering one last voyage, but he knows his body may not survive it. He is in Mexico City to see his sister who married a Spanish conquistador.",
-  "imgdescription": "A weathered man in a 1680s naval uniform, his face lined with the toll of years at sea. His hands rest on a cane, and his eyes scan the horizon with a mixture of longing and weariness."
+  "secret": "Captain Duarte misses his days at sea commanding Spanish galleons. He came to Mexico City after a falling out with his former crew and now quietly ferries goods across the lake, a far cry from his former glory.",
+  "imgdescription": "A weathered man in a 1680s sailor's coat, his face lined with the toll of years on water. His hands rest on a cane, and his eyes scan the lake with a mixture of longing and weariness."
 },
 {
   "entityType": "patient",
@@ -1587,12 +1587,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   astrologicalSign: "Scorpio",
   secret: "Antonius Philalethes is secretly working to create the Philosopher's Stone using various forbidden substances. He is willing to pay handsomely for help, but his involvement with dangerous alchemy could bring unwanted attention from the authorities. He had a child in Greece out of wedlock, who he abandoned, prompting his flight to Spain.",
   faction: "Elite Society",
-  questTrigger: "afterFirstPrescribe", // Triggered the turn after the first #prescribe command is used
-  questDetails: {
-    unlocks: "Sublimation mixing method",
-    stages: 3,
-    reward: "knowledge_of_sublimation"
-   },
   imgdescription: "Antonius, a black-haired Greek man of 40, wears a dark wool doublet, cut close to the body, with plain linen cuffs and a high collar. His attire is modest but of good quality, fitting for an educated man. His breeches are of heavy fabric, ending just below the knee, and he wears plain leather shoes, well-worn from years of use. His hands are often clasped behind his back, betraying faint traces of soot from his clandestine alchemical work."
 },
 {
@@ -1626,11 +1620,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   description: "Tlacaelel is a Nahuatl scribe and herbalist who carries an ancient codex filled with knowledge of medicinal herbs. The codex, passed down through generations, contains images of plants that were once used for healing. Tlacaelel seeks Maria's help in deciphering the codex to preserve this knowledge, which he fears could be lost.",
   astrologicalSign: "Aquarius",
   secret: "The codex holds the secret to powerful herbs, capable of both healing and harm. Tlacaelel is conflicted about sharing this knowledge, fearing it could be exploited by outsiders.",
-  questTrigger: "afterMarketVisit", // Triggered after entering the 'market' or 'marketplace' location
-  questDetails: {
-    stages: 3,
-    reward: "aztec_remedy"
-  },
   imgdescription: "Tlacaelel wears a simple cotton tunic dyed in earthy tones, with a *tilmatli* cloak draped over one shoulder. His sandals, made of leather strips, are worn from travel, and a small leather pouch hangs at his waist, filled with plants and herbs gathered from the countryside. His demeanor is quiet and thoughtful, his movements deliberate."
 },
 {
@@ -1647,10 +1636,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   description: "Alonso García is a talented artisan known for his beautiful and intricate signs. He offers to create a new sign for Maria's apothecary, but his true motives are questionable. Alonso is secretly working for Maria's rival, Juan Braga, gathering information to undermine her business.",
   astrologicalSign: "Leo",
   secret: "Alonso is actually a spy for Juan Braga, Maria's rival. He hopes to gather intelligence that will give Braga an advantage in their ongoing competition.",
-  questTrigger: "afterJuanBragaVisit", // Triggered after Juan Braga visits, on turn 8 or 15
-  questDetails: {
-    stages: 3
-  },
   imgdescription: "Alonso, a handsome man, dresses in a wrinkled linen shirt, with a string belt securing his breeches, which are made of sturdy cloth suited to his profession. His woven apron is often spotted with traces of paint and wood shavings, a testament to his work as a sign maker. His appearance is humble, but his sharp eyes reveal a calculating nature."
 },
 {
@@ -1667,11 +1652,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   description: "Licenciado Rodrigo Ramírez is a cunning and ruthless lawyer representing the Physicians' Guild in their lawsuit against Maria for practicing medicine without a license. He harbors a personal grudge against unlicensed healers, driven by the death of his brother at the hands of one. He is determined to see Maria punished, no matter the cost.",
   astrologicalSign: "Libra",
   secret: "Licenciado Ramírez's vendetta against unlicensed healers stems from a deep personal loss. He will stop at nothing to see Maria brought to justice.",
-  questTrigger: "turn20", // Automatically triggered on turn 20
-  questDetails: {
-    failureOutcome: "Game over due to arrest",
-    stages: 4
-  },
   imgdescription: "Licenciado Ramírez wears a black doublet over a white linen shirt, with finely tailored breeches that reach just below the knee. His black shoes are polished but practical, and he carries a small leather portfolio containing legal documents. His face is clean-shaven, with a stern, unforgiving expression."
 },
 
@@ -2370,11 +2350,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   secret: "The ancient codex she possesses contains knowledge of powerful herbs that could heal or harm. She fears this knowledge being exploited by outsiders.",
   relationshipToPlayer: "potential ally or rival",
   firstAppearanceTurn: 20,
-  questTrigger: "afterMarketVisit",
-  questDetails: {
-    stages: 3,
-    reward: "indigenous_remedy"
-  },
   imgdescription: "Beatriz is an elderly criolla woman with silver-streaked hair, weathered hands stained with herb pigments, and piercing intelligent eyes. She wears traditional clothing with a woven *rebozo*, and her small leather pouch is filled with herbs and remedies. Her demeanor is no-nonsense but fair."
 },
 
@@ -2463,11 +2438,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   secret: "Miguel is torn between his duty to the Crown and his empathy for the common people he polices. He knows Maria is a converso but hasn't reported her... yet.",
   relationshipToPlayer: "ambiguous - potential ally or threat",
   firstAppearanceTurn: 18,
-  questTrigger: "afterNightPatrol",
-  questDetails: {
-    stages: 3,
-    reward: "militia_protection"
-  },
   imgdescription: "Miguel is a mulatto man in his mid-thirties wearing militia uniform with a weathered leather vest. He bears a prominent scar on his left shoulder, and his eyes are constantly watchful. His face shows both discipline and inner conflict, his hand never far from the sword at his belt."
 },
 
@@ -2510,11 +2480,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   secret: "Don Rodrigo has witnessed corruption at the highest levels of colonial administration and is conflicted about his own complicity. He also suspects Maria's converso heritage and is testing her.",
   relationshipToPlayer: "potential patron or enemy",
   firstAppearanceTurn: 30,
-  questTrigger: "afterEliteReferral",
-  questDetails: {
-    stages: 4,
-    reward: "elite_patronage_or_condemnation"
-  },
   imgdescription: "Don Rodrigo is an elderly peninsular nobleman with gray beard, aristocratic bearing, and sharp eyes that miss nothing. He wears fine black clothing with gold embroidery, a silver-headed walking cane always in hand. His face shows both pain from illness and the imperious confidence of a lifetime of privilege and power."
 },
 
@@ -2575,11 +2540,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
     greeting: "Ah, Doña Maria! I've heard such interesting things about your little botica. Tell me, do you have anything for these dreadful headaches? They're interfering with my bookkeeping, and one simply cannot afford mistakes in business.",
     afterTreatment: "You know, Doña Maria, a woman like yourself - skilled, intelligent, discreet - could go far in this city. With the right connections, of course. I know everyone worth knowing.",
     questHook: "I have certain... associates... who arrive on the Manila galleons. They sometimes carry medicinal ingredients not easily found in the markets here. Perhaps we could come to a mutually beneficial arrangement?"
-  },
-  questTrigger: "afterSuccessfulTreatment",
-  questDetails: {
-    stages: 3,
-    reward: "access_to_rare_asian_ingredients"
   },
   portraitImage: "criollofemalemerchant.jpg",
   imgdescription: "Leonor is a well-dressed criolla woman in her early forties, with sharp, intelligent eyes that miss nothing. She wears fine silk clothing that advertises her trade, with gold jewelry at her throat and wrists. Her hair is elaborately arranged, and she carries herself with the confidence of someone who knows her worth in society."
@@ -2650,11 +2610,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
     afterTreatment: "May the Virgin bless you, child. You have a gift - not just for medicine, but for seeing people as they truly are. My abuela, she had hands like yours. Healing hands.",
     questHook: "There are things my grandmother taught me, child. Plants that grow here that she recognized from home, from before the ships. Ways of using them that the Spanish don't know. If you're interested... if you're willing to listen to an old woman's stories..."
   },
-  questTrigger: "afterCharitableTreatment",
-  questDetails: {
-    stages: 2,
-    reward: "african_medicinal_knowledge"
-  },
   portraitImage: "elderlyafricanofeemalepeasant.jpg",
   imgdescription: "Tía Makeda is an elderly African woman with deeply lined skin that speaks of a long, hard life. Her hair is covered by a simple cloth wrap, and she wears worn, patched clothing that is nonetheless scrupulously clean. Her hands are gnarled and swollen with arthritis, but her eyes are clear, kind, and wise. Despite her pain and poverty, she carries herself with immense dignity."
 },
@@ -2717,11 +2672,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
     afterTreatment: "You're good at your work. Discreet, too. That's... that's worth knowing. Listen, if you ever need anything - information about the roads, about what's happening outside the city - you can ask. And if you ever need... well. The roads go many places.",
     questHook: "I know people along my routes. Some of them... they know plants, remedies, things you won't find in the city markets. Mountain herbs, coastal remedies. I could bring you things. For a reasonable arrangement, of course."
   },
-  questTrigger: "afterEstablishingTrust",
-  questDetails: {
-    stages: 3,
-    reward: "smuggled_ingredients_and_escape_route"
-  },
   portraitImage: "middleagedmalemeleteer.jpg",
   imgdescription: "Esteban is a weathered mestizo man in his late forties, with sun-darkened skin and deep lines around his eyes from squinting into sun and wind. He wears practical travel clothing - sturdy leather vest, worn boots, wide-brimmed hat. His hands are calloused and strong. He has the lean, muscular build of someone who works with animals and cargo. His expression is guarded but not unfriendly, and he has the watchful awareness of someone who has learned to read situations quickly."
 },
@@ -2768,11 +2718,6 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
     greeting: "I am Xochiquetzal. I have been a ticitl - a healer - since before your mother was born. I heard there is a woman here who mixes medicines. I came to see if you are one who listens, or one who thinks she already knows everything because she learned from Spanish books.",
     afterTreatment: "You have good hands. Good eyes. But your Spanish teachers only taught you half of what grows in this land. The plants were here long before the Spanish came. We knew their secrets. Some of us still do.",
     questHook: "There is a plant that grows in the mountains. Very rare. The Spanish don't know it, but my people used it for hundreds of years. For fever, for pain, for spirit sickness. If you want to learn... I could teach you. But you must show me you are worthy. That you respect the old knowledge."
-  },
-  questTrigger: "afterMutualRespect",
-  questDetails: {
-    stages: 4,
-    reward: "indigenous_medicinal_knowledge_and_rare_plants"
   },
   portraitImage: "elderlyfemaleindiohealer.jpg",
   imgdescription: "Xochiquetzal is an elderly Indigenous woman with deeply lined bronze skin and long gray-streaked black hair worn in traditional braids. She wears a mix of Indigenous and Spanish clothing - a huipil (traditional embroidered tunic) under a Spanish-style shawl. She carries a woven bag that contains her healing implements and herbs. Her hands are gnarled but skilled, and her dark eyes are sharp and assessing. She has the bearing of someone who commands respect in her community and expects it from others."

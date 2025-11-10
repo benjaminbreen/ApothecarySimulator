@@ -11,7 +11,7 @@
 
 import { safeLocalStorage, setJSON, getJSON } from '../../utils/safeLocalStorage';
 
-const SAVE_VERSION = '1.1.0';
+const SAVE_VERSION = '1.1.1';
 const SAVE_KEY_PREFIX = 'apothecary_save_slot_';
 const AUTOSAVE_KEY = 'apothecary_autosave';
 const MAX_MANUAL_SLOTS = 3;
@@ -41,6 +41,7 @@ export function getAllSaveSlotKeys() {
  * @param {Array} params.npcPositions - NPC map positions
  * @param {Object} params.calendarNotes - Player calendar notes
  * @param {Array} params.transactions - Transaction history
+ * @param {Array} params.discoveredBooks - Discovered books from Study tab
  * @param {string} params.slotName - Custom name for this save
  * @returns {Object} Save data ready for storage
  */
@@ -55,6 +56,7 @@ export function createSaveData({
   npcPositions = [],
   calendarNotes = {},
   transactions = [],
+  discoveredBooks = [],
   slotName = 'Untitled Save'
 }) {
   // Trim conversation history to last 20 messages to save space
@@ -80,7 +82,8 @@ export function createSaveData({
       // NEW: Enhanced metadata
       entityCount: entities.length,
       npcCount: entities.filter(e => e.type === 'npc').length,
-      transactionCount: transactions.length
+      transactionCount: transactions.length,
+      booksDiscovered: discoveredBooks.length
     },
 
     // Core game data (v1.0.0)
@@ -94,7 +97,8 @@ export function createSaveData({
     entities,
     npcPositions,
     calendarNotes,
-    transactions
+    transactions,
+    discoveredBooks
   };
 }
 
@@ -372,13 +376,42 @@ const MIGRATIONS = {
       npcPositions: saveData.npcPositions || [],
       calendarNotes: saveData.calendarNotes || {},
       transactions: saveData.transactions || [],
+      discoveredBooks: saveData.discoveredBooks || [],
       // Update metadata with new fields
       metadata: {
         ...saveData.metadata,
         entityCount: (saveData.entities || []).length,
         npcCount: (saveData.entities || []).filter(e => e.type === 'npc').length,
-        transactionCount: (saveData.transactions || []).length
+        transactionCount: (saveData.transactions || []).length,
+        booksDiscovered: (saveData.discoveredBooks || []).length
       }
+    };
+  },
+
+  '1.1.1': (saveData) => {
+    console.log('[SaveManager] Migrating save from v1.1.0 to v1.1.1');
+
+    // BREAKING CHANGE: Calendar notes moved from global to per-slot
+    // Import global calendar notes if save doesn't have them yet
+    let calendarNotes = saveData.calendarNotes || {};
+
+    if (!saveData.calendarNotes || Object.keys(saveData.calendarNotes).length === 0) {
+      // Try to import from global localStorage key (old system)
+      const globalNotesJSON = safeLocalStorage.getItem('apothecary_calendar_notes');
+      if (globalNotesJSON) {
+        try {
+          calendarNotes = JSON.parse(globalNotesJSON);
+          console.log('[SaveManager] Imported calendar notes from global storage');
+        } catch (error) {
+          console.error('[SaveManager] Failed to parse global calendar notes:', error);
+        }
+      }
+    }
+
+    return {
+      ...saveData,
+      version: '1.1.1',
+      calendarNotes
     };
   }
 };

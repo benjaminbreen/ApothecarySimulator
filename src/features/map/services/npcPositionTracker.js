@@ -22,8 +22,8 @@ class NPCPositionTracker {
     // Movement speed (pixels per second)
     this.movementSpeed = 50;
 
-    // Load saved positions from localStorage
-    this.loadFromStorage();
+    // Note: Positions are loaded via loadFromSave() when game loads from saveManager
+    // No localStorage operations in constructor
   }
 
   /**
@@ -307,20 +307,6 @@ class NPCPositionTracker {
     } catch (error) {
       console.error('[NPCPositionTracker] ❌ Failed to load positions from save:', error);
     }
-  }
-
-  /**
-   * @deprecated Use exportForSave() instead. localStorage operations moved to saveManager.
-   */
-  saveToStorage() {
-    console.warn('[NPCPositionTracker] saveToStorage() is deprecated. Use exportForSave() and saveManager instead.');
-  }
-
-  /**
-   * @deprecated Use loadFromSave() instead. localStorage operations moved to saveManager.
-   */
-  loadFromStorage() {
-    console.warn('[NPCPositionTracker] loadFromStorage() is deprecated. Use loadFromSave() and saveManager instead.');
   }
 
   /**

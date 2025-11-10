@@ -369,14 +369,16 @@ const InputArea = ({
             );
           })}
 
-          {/* Keyboard hint on same line */}
-          <div className="flex items-center gap-1.5 text-xs text-ink-500 dark:text-slate-400 ml-auto transition-colors duration-300">
-            <span className="font-sans">Press</span>
-            <kbd className="px-2 py-0.5 bg-parchment-100 dark:bg-slate-700 border border-parchment-300 dark:border-slate-600 rounded text-ink-700 dark:text-parchment-200 font-mono font-semibold shadow-sm text-[0.65rem] transition-colors duration-300">
-              Enter ↵
-            </kbd>
-            <span className="font-sans">to continue</span>
-          </div>
+          {/* Keyboard hint on same line - only show when there's text */}
+          {hasText && (
+            <div className="flex items-center gap-1.5 text-xs text-ink-500 dark:text-slate-400 ml-auto transition-colors duration-300">
+              <span className="font-sans">Press</span>
+              <kbd className="px-2 py-0.5 bg-parchment-100 dark:bg-slate-700 border border-parchment-300 dark:border-slate-600 rounded text-ink-700 dark:text-parchment-200 font-mono font-semibold shadow-sm text-[0.65rem] transition-colors duration-300">
+                Enter ↵
+              </kbd>
+              <span className="font-sans">to continue</span>
+            </div>
+          )}
         </div>
       </form>
 

@@ -109,7 +109,7 @@ export default function ActionPromptCard({
 
   // Drop zone for inventory items
   const [{ isOver }, drop] = useDrop({
-    accept: 'INVENTORY_ITEM',
+    accept: ['INVENTORY_ITEM', 'inventoryItem', 'compoundItem'], // Accept all item types including compounds
     drop: (item) => {
       setSelectedItem(item);
       setAmount(1);
@@ -247,11 +247,16 @@ export default function ActionPromptCard({
       return;
     }
 
+    // Check quantity - first try to find in inventory, fallback to item's own quantity
     const itemInInventory = inventory.find(
       i => i.name.toLowerCase() === selectedItem.name.toLowerCase()
     );
 
-    if (!itemInInventory || itemInInventory.quantity < amount) {
+    // Get available quantity from inventory OR from the item itself (for compounds)
+    const availableQuantity = itemInInventory?.quantity ?? selectedItem?.quantity ?? 0;
+    const numericAvailableQuantity = Number(availableQuantity); // Handle string quantities from LLM
+
+    if (numericAvailableQuantity < amount) {
       alert(`You don't have enough ${selectedItem.name}!`);
       return;
     }

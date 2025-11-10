@@ -74,7 +74,7 @@ Meanwhile, the street outside comes to life. Servants hurry past with baskets of
 
 Suddenly, a knock at the door announces the day's first visitor.
 
-**Will you see who is there, or ignore them?**`,
+**Will you open the door to see who is there, or ignore them?**`,
 
   debts: {
     'Don Luis (Moneylender)': {
