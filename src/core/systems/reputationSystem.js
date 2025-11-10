@@ -175,6 +175,7 @@ export function updateFactionReputation(reputation, faction, delta, reason = '')
   const newOverall = Math.round(factionScores.reduce((a, b) => a + b, 0) / factionScores.length);
 
   console.log(`[Reputation] ${FACTION_INFO[faction].name}: ${reputation.factions[faction]} → ${newFactionScore} (${delta > 0 ? '+' : ''}${delta}) - ${reason}`);
+  console.log(`[Reputation] Overall recalculated: ${reputation.overall} → ${newOverall}`);
 
   return {
     overall: newOverall,
@@ -278,8 +279,16 @@ export function updateFactionFromNPCInteraction(reputation, npc, relationshipDel
   // Get NPC's faction (check nested first, then flat for backward compatibility)
   const npcFaction = npc?.social?.faction || npc?.faction;
   if (!npcFaction) {
-    console.log('[Reputation] NPC has no faction, skipping faction update');
-    return reputation;
+    // Fallback: Update overall reputation directly if NPC has no faction
+    // Scale: -15 relationship = -5 overall, -30 = -10 overall
+    const overallDelta = Math.round(relationshipDelta / 3.0);
+    const newOverall = Math.max(0, Math.min(100, reputation.overall + overallDelta));
+    console.log(`[Reputation] NPC has no faction - updating overall directly: ${reputation.overall} → ${newOverall} (${overallDelta > 0 ? '+' : ''}${overallDelta}) - ${reason}`);
+
+    return {
+      ...reputation,
+      overall: newOverall
+    };
   }
 
   // Map to system faction

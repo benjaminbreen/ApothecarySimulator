@@ -154,9 +154,34 @@ export default function SimpleInteractionCard({
   // Render based on interaction type
 
   // Vendor offer (merchant/peddler selling goods to Maria)
-  if (type === 'vendor_offer' && interaction.offer) {
+  if (type === 'vendor_offer') {
     const { context, npcRole, offer } = interaction;
-    const { item, price, description, quality, quantity, emoji } = offer;
+
+    // FIX: Handle both nested object structure and flat structure (defensive programming)
+    // Correct structure: offer: {item, price, description, ...}
+    // Flat structure (LLM error): offer: "string", price: "string" at root level
+    let item, price, description, quality, quantity, emoji;
+
+    if (typeof offer === 'object' && offer !== null) {
+      // Correct nested structure
+      ({ item, price, description, quality, quantity, emoji } = offer);
+    } else {
+      // Flat structure fallback - use offer as item name, look for price at root level
+      console.warn('[SimpleInteractionCard] vendor_offer has flat structure (LLM error), using fallback:', interaction);
+      item = typeof offer === 'string' ? offer : interaction.offeredItem || 'goods';
+      price = interaction.price || 0;
+      description = interaction.description || null;
+      quality = interaction.quality || null;
+      quantity = interaction.quantity || 1;
+      emoji = interaction.emoji || null;
+
+      // Parse price if it's a string like "2 reales per string"
+      if (typeof price === 'string') {
+        const match = price.match(/(\d+)\s*reales?/i);
+        price = match ? parseInt(match[1]) : 0;
+      }
+    }
+
     const canAfford = currentWealth >= price;
     const displayIcon = emoji || colors.icon; // Use offer emoji if present, otherwise default icon
 

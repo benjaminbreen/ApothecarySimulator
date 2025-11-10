@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useDrag } from 'react-dnd';
+import {
+  getItemRarity,
+  getItemQuality,
+  getRarityColors,
+  shouldShowQualityBadge
+} from '../core/systems/itemRarity';
 
 const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
   const [iconPath, setIconPath] = useState(null);
@@ -65,66 +71,145 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
       collect: (monitor) => ({
         isDragging: monitor.isDragging()
       }),
-      canDrag: !isDisabled
+      canDrag: !isDisabled,
+      isDragging: (monitor) => {
+        const item = monitor.getItem();
+        if (item && item.id === simple.id) {
+          // Clear hover state when dragging starts
+          if (onLeave) onLeave();
+        }
+        return item && item.id === simple.id;
+      }
     }),
-    [simple, isDisabled]
+    [simple, isDisabled, onLeave]
   );
+
+  // Get rarity and quality for styling
+  const rarity = getItemRarity(simple);
+  const quality = getItemQuality(simple);
+  const showQuality = shouldShowQualityBadge(simple);
+  const colors = getRarityColors(rarity);
+  const isDarkMode = document.documentElement.classList.contains('dark');
 
   return (
     <div
       ref={drag}
       className={`
-        group relative bg-gradient-to-br from-slate-200 via-slate-100 to-slate-200
-        dark:from-slate-700 dark:via-slate-600 dark:to-slate-700
-        border-2 border-slate-300 dark:border-slate-500
-        rounded-xl p-3 transition-all duration-200
+        group relative
+        rounded-xl p-1.5 pt-3 pb-1.5 transition-all duration-300
         ${isDragging
           ? 'opacity-30 scale-95'
           : isDisabled
           ? 'opacity-50 cursor-not-allowed'
-          : 'cursor-grab hover:cursor-grabbing hover:scale-105 hover:shadow-xl hover:border-amber-400 dark:hover:border-amber-500 active:scale-95 hover:z-50'
+          : 'cursor-grab hover:cursor-grabbing hover:scale-110 active:scale-95 hover:z-50'
         }
-        ${!isDisabled && 'hover:from-amber-50 hover:via-amber-100 hover:to-amber-50 dark:hover:from-amber-900/30 dark:hover:via-amber-800/30 dark:hover:to-amber-900/30'}
       `}
+      style={{
+        background: isDarkMode
+          ? 'linear-gradient(135deg, rgba(51, 65, 85, 0.95) 0%, rgba(30, 41, 59, 0.9) 50%, rgba(15, 23, 42, 0.85) 100%)'
+          : 'linear-gradient(135deg, rgba(255, 255, 255, 0.99) 0%, rgba(252, 250, 247, 0.99) 50%, rgba(249, 245, 235, 0.95) 100%)',
+        backdropFilter: 'blur(12px) saturate(110%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(120%)',
+        border: isDarkMode ? '1.5px solid rgba(71, 85, 105, 0.5)' : '1.5px solid rgba(180, 175, 165, 0.5)',
+        boxShadow: isDarkMode
+          ? '0 3px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.3)'
+          : '0 3px 12px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(209, 213, 219, 0.15)'
+      }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => !isDisabled && onLeave && onLeave()}
     >
-      {/* Quantity badge */}
+      {/* Rarity-colored hover glow */}
+      {!isDisabled && (
+        <div
+          className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+          style={{
+            background: `radial-gradient(circle at 50% 30%, ${colors.glow} 0%, ${colors.bg} 30%, transparent 70%)`,
+            backdropFilter: 'blur(16px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(16px) saturate(150%)'
+          }}
+        />
+      )}
+
+      {/* Quantity badge - rarity-colored with 3D effect */}
       {simple.quantity > 1 && (
-        <div className="absolute -top-2 -right-2 bg-gradient-to-br from-botanical-500 to-botanical-700 dark:from-emerald-600 dark:to-emerald-800 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold border-2 border-white dark:border-slate-800 shadow-lg z-10">
+        <div
+          className="absolute top-1 right-1 z-20 min-w-[1.15rem] h-[1.1rem] px-1 flex items-center justify-center rounded-xl text-[0.7rem] font-mono font-semibold shadow-lg opacity-80"
+          style={{
+            background: `linear-gradient(135deg, ${colors.light} 0%, ${colors.primary} 100%)`,
+            color: '#fff',
+            border: `1px solid ${colors.light}`,
+            boxShadow: `0 3px 8px ${colors.glow}, inset 0 1px 2px rgba(255, 255, 255, 0.5), inset 0 -1px 1px rgba(0, 0, 0, 0.2)`,
+            textShadow: '0 1px 2px rgba(0, 0, 0, 0.4)'
+          }}
+        >
           {simple.quantity}
         </div>
       )}
 
       {/* Icon or Emoji */}
-      <div className="mb-2 text-center flex items-center justify-center" style={{ height: '3rem' }}>
+      <div className="text-center flex items-center justify-center relative z-10" style={{ height: '2.75rem' }}>
         {hasIcon ? (
           <img
             src={iconPath}
             alt={simple.name}
-            className="max-w-[3rem] max-h-[3rem] object-contain filter drop-shadow-lg transition-transform duration-200 group-hover:scale-110"
+            className="max-w-[3rem] max-h-[3rem] object-contain transition-transform duration-300 group-hover:scale-125"
+            style={{
+              filter: isDarkMode
+                ? `drop-shadow(0 0 6px ${colors.glow})`
+                : `drop-shadow(0 0 4px ${colors.glow})`
+            }}
           />
         ) : (
-          <span className="text-4xl filter drop-shadow-lg transition-transform duration-200 group-hover:scale-110">
+          <span
+            className="text-2xl transition-transform duration-300 group-hover:scale-125"
+            style={{
+              filter: isDarkMode
+                ? `drop-shadow(0 0 6px ${colors.glow})`
+                : `drop-shadow(0 0 4px ${colors.glow})`
+            }}
+          >
             {simple.emoji}
           </span>
         )}
       </div>
 
-      {/* Name */}
-      <p className="text-sm font-serif font-semibold text-ink-900 dark:text-amber-50 text-center leading-tight truncate">
-        {simple.name}
-      </p>
+      {/* Name with quality prefix */}
+      <div className="text-center w-full relative z-10 mt-0.5">
+        <p
+          className="text-[0.68rem] font-serif font-semibold text-ink-900 dark:text-parchment-100 leading-tight drop-shadow-sm transition-colors duration-300"
+          style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: '1',
+            minHeight: '1.33rem'
+          }}
+        >
+          {showQuality && quality === 'high_quality' && (
+            <span style={{ color: '#a855f7' }}>Quality </span>
+          )}
+          {showQuality && quality === 'exceptional' && (
+            <span style={{ color: '#a855f7' }}>Exceptional </span>
+          )}
+          {simple.name}
+        </p>
+      </div>
 
-      {/* Subtle glow effect on hover */}
-      <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-        style={{
-          boxShadow: '0 0 20px rgba(251, 191, 36, 0.3)'
-        }}
-      ></div>
+      {/* Rarity-colored border glow on hover */}
+      {!isDisabled && (
+        <div
+          className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+          style={{
+            boxShadow: `0 0 24px ${colors.glow}, inset 0 0 20px rgba(255, 255, 255, 0.4)`,
+            border: `2px solid ${colors.light}`
+          }}
+        />
+      )}
 
       {/* Hover Tooltip - flips position to avoid clipping on edges */}
-      {!isDisabled && (
+      {!isDisabled && !isDragging && (
         <div
           className={`absolute opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 min-w-[200px] max-w-[240px] ${
             // Horizontal positioning

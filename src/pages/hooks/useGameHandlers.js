@@ -938,6 +938,7 @@ export function useGameHandlers({
       if (acceptsContract && !declinesContract) {
         console.log('[Contract] Textual acceptance detected, auto-accepting contract');
         // Create patient entity from contract
+        const demographics = pendingContract.patientDemographics || {};
         const patientEntity = entityManager.register({
           id: `patient_${pendingContract.patientName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
           name: pendingContract.patientName,
@@ -945,6 +946,11 @@ export function useGameHandlers({
           type: 'patient',
           description: pendingContract.patientDescription || pendingContract.ailmentDescription || 'Patient requiring treatment',
           symptoms: [],
+          // Add demographics from contract for portrait matching
+          gender: demographics.gender || 'unknown',
+          age: demographics.age || 'adult',
+          casta: demographics.casta || 'unknown',
+          class: demographics.class || 'common',
           metadata: {
             representedBy: pendingContract.isEmissary ? pendingContract.offeredBy : null,
             offeredBy: pendingContract.offeredBy || null,
@@ -2656,7 +2662,8 @@ export function useGameHandlers({
             'drug cabinet', 'medicine cabinet', 'cabinet', 'shelf', 'drawer', 'counter',
             'table', 'chair', 'mortar', 'pestle', 'jar', 'vial', 'bottle', 'box',
             'chest', 'trunk', 'door', 'window', 'wall', 'floor', 'ceiling',
-            'medicine chest', 'apothecary cabinet', 'storage', 'cupboard'
+            'medicine chest', 'apothecary cabinet', 'storage', 'cupboard',
+            'bed', 'master bed', 'dining table', 'desk', 'bench', 'stool'
           ];
 
           let patientName = travel.patientName || 'Unnamed Patient';

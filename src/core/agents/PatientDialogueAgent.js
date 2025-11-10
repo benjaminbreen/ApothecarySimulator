@@ -86,7 +86,7 @@ You must describe the animal's PHYSICAL RESPONSES, BODY LANGUAGE, and SOUNDS. DO
 {
   "dialogue": "Description of the animal's physical response, behavior, and sounds (2-3 sentences max)",
   "patientDataUpdates": {
-    "vitals": {"pulse": "rapid/slow/normal", "temperature": "hot/normal/cold", "urine": "cloudy/clear/dark/normal"},
+    "vitals": {"pulse": "rapid/slow/normal", "temperature": "hot/normal/cold", "respiration": "labored/rapid/normal", "urine": "cloudy/clear/dark/normal", "tongue": "pale/red/swollen/normal"},
     "symptoms": [{"name": "...", "location": "...", "severity": "...", "type": "...", "description": "..."}],
     "behaviorNotes": "Any notable behavioral observations"
   }
@@ -119,13 +119,44 @@ You must describe what Maria observes during the examination in **bold text** as
 - Be clinically descriptive and realistic for 1680s medical knowledge
 - Describe what Maria sees, feels, hears, or measures
 
-## Examples:
-- "check the patient's pulse" → "**The pulse is rapid and thready, beating approximately 110 times per minute - a sign of fever or blood loss.**"
-- "examine the patient's tongue" → "**The tongue appears dry and coated with a thick yellowish film, indicating dehydration and possible excess of yellow bile.**"
-- "inspect the patient's skin" → "**The skin is pale and clammy to the touch, with no visible rashes or lesions. The patient shows signs of anemia or humoral imbalance.**"
-- "listen to the patient's breathing" → "**Wet, rattling sounds emanate from the chest with each labored breath - clear signs of phlegmatic obstruction in the lungs.**"
-- "feel the patient's forehead" → "**The forehead is burning hot to the touch, confirming the presence of a violent fever.**"
-- "examine the patient's urine" → "**The urine is cloudy and dark amber in color, with a strong odor - signs of excess yellow bile and possible kidney inflammation.**"
+## Examples (CRITICAL - Follow these formats exactly):
+- "check the patient's pulse" → **EXTRACT**: vitals.pulse = "rapid" | "slow" | "steady"
+  → "**The pulse is rapid and thready, beating approximately 110 times per minute - a sign of fever or blood loss.**"
+
+- "examine the patient's tongue" → **EXTRACT**: symptoms if abnormal
+  → "**The tongue appears dry and coated with a thick yellowish film, indicating dehydration and possible excess of yellow bile.**"
+
+- "inspect the patient's skin" → **EXTRACT**: symptoms if abnormal
+  → "**The skin is pale and clammy to the touch, with no visible rashes or lesions. The patient shows signs of anemia or humoral imbalance.**"
+
+- "listen to the patient's breathing" → **EXTRACT**: vitals.respiration = "rapid" | "slow" | "labored" | "normal"
+  → "**Wet, rattling sounds emanate from the chest with each labored breath - clear signs of phlegmatic obstruction in the lungs.**"
+
+- "check respiration rate" → **EXTRACT**: vitals.respiration
+  → "**The patient breathes rapidly, approximately 30 breaths per minute - well above normal.**"
+
+- "feel the patient's forehead" → **EXTRACT**: vitals.temperature = "hot" | "cold" | "neutral"
+  → "**The forehead is burning hot to the touch, confirming the presence of a violent fever.**"
+
+- "examine the patient's urine" → **EXTRACT**: vitals.urine = "clear" | "cloudy" | "dark" | "reddish"
+  → "**The urine is cloudy and dark amber in color, with a strong odor - signs of excess yellow bile and possible kidney inflammation.**"
+
+- "examine the patient's tongue" → **EXTRACT**: vitals.tongue = "coated" | "white-coated" | "yellow-coated" | "pale" | "red" | "swollen" | "normal"
+  → "**The tongue is thickly coated with a yellowish film, indicating excess yellow bile and digestive heat.**"
+
+- "look at the tongue" → **EXTRACT**: vitals.tongue
+  → "**The tongue appears pale and dry, suggesting deficiency of blood and vital fluids.**"
+
+## MANDATORY VITAL EXTRACTION RULES:
+1. ALWAYS populate vitals fields when relevant:
+   - Pulse examination → vitals.pulse MUST be set to one of: "rapid" | "slow" | "steady"
+   - Breathing/chest examination → vitals.respiration MUST be set to one of: "rapid" | "slow" | "labored" | "normal"
+   - Fever/forehead/temperature examination → vitals.temperature MUST be set to one of: "hot" | "cold" | "neutral"
+   - Urine examination → vitals.urine MUST be set to one of: "clear" | "cloudy" | "dark" | "reddish"
+   - Tongue examination → vitals.tongue MUST be set to one of: "coated" | "white-coated" | "yellow-coated" | "pale" | "red" | "swollen" | "normal"
+2. Use ONLY these exact values listed above - no variations or new values
+3. If uncertain, choose the closest match from the allowed values - DO NOT invent new values
+4. If examining multiple vitals, extract ALL relevant fields
 
 ## Diagnosis Detection:
 If Maria's action contains diagnostic language (e.g., "diagnose", "you have", "this is", "suffering from"), extract:
@@ -139,7 +170,7 @@ If Maria's action contains diagnostic language (e.g., "diagnose", "you have", "t
 {
   "dialogue": "**Bold examination finding description**",
   "patientDataUpdates": {
-    "vitals": {"pulse": "rapid", "temperature": "hot", "urine": "cloudy/clear/dark/reddish/normal"},
+    "vitals": {"pulse": "rapid", "temperature": "hot", "respiration": "labored", "urine": "cloudy", "tongue": "yellow-coated"},
     "symptoms": [{"name": "...", "location": "...", "severity": "...", "type": "...", "description": "..."}],
     "diagnosis": "diagnosed condition (only if Maria states a diagnosis)",
     "confidence": "low | medium | high (only if Maria states a diagnosis)"

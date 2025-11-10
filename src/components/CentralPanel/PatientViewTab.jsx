@@ -694,6 +694,30 @@ export function PatientViewTab({
         steady: 1,
         labored: 2
       }
+    },
+    tongue: {
+      label: 'Tongue',
+      fallback: { value: 'Unknown', status: 'Not examined', color: 'text-ink-400' },
+      valueMap: {
+        coated: { value: 'Coated', status: 'Unhealthy', color: 'text-yellow-400' },
+        'white-coated': { value: 'White Coated', status: 'Cold humor', color: 'text-blue-300' },
+        'yellow-coated': { value: 'Yellow Coated', status: 'Hot humor', color: 'text-orange-400' },
+        pale: { value: 'Pale', status: 'Deficient', color: 'text-blue-300' },
+        red: { value: 'Red', status: 'Inflamed', color: 'text-red-400' },
+        swollen: { value: 'Swollen', status: 'Excess fluid', color: 'text-orange-400' },
+        normal: { value: 'Normal', status: 'Healthy', color: 'text-emerald-300' },
+        pink: { value: 'Pink', status: 'Healthy', color: 'text-emerald-300' }
+      },
+      historyScale: {
+        pale: 0,
+        'white-coated': 0.3,
+        coated: 0.5,
+        normal: 1,
+        pink: 1,
+        'yellow-coated': 1.5,
+        red: 1.8,
+        swollen: 2
+      }
     }
   };
 
@@ -871,21 +895,6 @@ export function PatientViewTab({
     }
   };
 
-  const formatDiscoveredAt = (value) => {
-    if (!value) return null;
-    if (typeof value === 'number') {
-      return `Turn ${value}`;
-    }
-    const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    }
-    if (typeof value === 'string') {
-      return value;
-    }
-    return null;
-  };
-
   const hoveredSymptomSource = hoveredSymptom ? describeSymptomSource(hoveredSymptom) : null;
   const hoveredSymptomLoggedAt = hoveredSymptom
     ? formatDiscoveredAt(hoveredSymptom.discoveredAt || hoveredSymptom.timestamp || currentResponse?.timestamp)
@@ -1014,6 +1023,7 @@ export function PatientViewTab({
                 key={idx}
                 onClick={() => handleQuickQuestion(q)}
                 disabled={isAsking || isPromptRecentlyAsked(q)}
+                title={isPromptRecentlyAsked(q) ? "Already asked recently - wait before asking again" : undefined}
                 className={`group px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   isPromptRecentlyAsked(q)
                     ? 'bg-amber-50 border border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-700/50 dark:text-amber-300'
@@ -1023,7 +1033,7 @@ export function PatientViewTab({
                 <span>{q}</span>
                 {isPromptRecentlyAsked(q) && (
                   <span className="ml-2 inline-flex items-center text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                    Recent
+                    Asked
                   </span>
                 )}
               </button>
@@ -1037,6 +1047,7 @@ export function PatientViewTab({
                 key={idx}
                 onClick={() => handleExamine(exam.command)}
                 disabled={isAsking || isPromptRecentlyAsked(exam.command)}
+                title={isPromptRecentlyAsked(exam.command) ? "Already examined recently - wait before checking again" : undefined}
                 className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   isPromptRecentlyAsked(exam.command)
                     ? 'bg-amber-50 border border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-800/40 dark:text-amber-200'
@@ -1046,7 +1057,7 @@ export function PatientViewTab({
                 {exam.label}
                 {isPromptRecentlyAsked(exam.command) && (
                   <span className="ml-2 inline-flex items-center text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                    Recent
+                    Done
                   </span>
                 )}
               </button>
@@ -1074,16 +1085,16 @@ export function PatientViewTab({
       </div>
       )}
 
-      {/* RIGHT COLUMN - MEDICAL VISUALIZATION (60%) - Scrollable HUD Panel */}
-      <div className="flex flex-col bg-white dark:bg-slate-800 rounded-xl shadow-lg overflow-hidden border border-ink-100 dark:border-slate-700">
+      {/* RIGHT COLUMN - MEDICAL VISUALIZATION (60%) - HUD-STYLE DARK PANEL */}
+      <div className="flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl shadow-2xl overflow-hidden border border-cyan-500/20 shadow-cyan-500/10">
 
-        {/* QUICK ACTIONS TOOLBAR */}
-        <div className="flex-shrink-0 bg-gradient-to-r from-parchment-50 to-amber-50/50 dark:from-slate-900/95 dark:to-slate-800/95 backdrop-blur-sm border-b border-ink-200 dark:border-white/10 px-5 py-3 flex items-center gap-3 sticky top-0 z-10">
+        {/* QUICK ACTIONS TOOLBAR - HUD Style */}
+        <div className="flex-shrink-0 bg-gradient-to-r from-slate-900/95 to-slate-800/90 backdrop-blur-sm border-b border-cyan-400/20 shadow-lg px-5 py-3 flex items-center gap-3 sticky top-0 z-10">
           {/* Status Badge */}
-          <div className={`px-3 py-1.5 rounded-lg border font-semibold text-xs flex items-center gap-2 ${
+          <div className={`px-3 py-1.5 rounded-lg border font-semibold text-xs flex items-center gap-2 shadow-lg ${
             diagnosisData
-              ? 'bg-emerald-50 border-emerald-400 text-emerald-700 dark:bg-emerald-500/20 dark:border-emerald-400/40 dark:text-emerald-300'
-              : 'bg-amber-50 border-amber-400 text-amber-700 dark:bg-amber-500/20 dark:border-amber-400/40 dark:text-amber-300'
+              ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-300 shadow-emerald-500/20'
+              : 'bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-amber-500/20'
           }`}>
             {diagnosisData ? '✓ Diagnosed' : '⏳ Examining'}
           </div>
@@ -1094,7 +1105,7 @@ export function PatientViewTab({
               <button
                 onClick={() => setViewMode('diagnose')}
                 disabled={!diagnosisData && patientDialogue.length < 3}
-                className="ml-auto px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-ink-200 disabled:text-ink-400 border border-emerald-700 disabled:border-ink-300 rounded-lg text-white disabled:cursor-not-allowed transition-all text-xs font-semibold flex items-center gap-2 shadow-sm"
+                className="ml-auto px-4 py-1.5 bg-emerald-600/90 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 border border-emerald-400/50 disabled:border-slate-600 rounded-lg text-white disabled:cursor-not-allowed transition-all text-xs font-semibold flex items-center gap-2 shadow-lg disabled:shadow-none shadow-emerald-500/30"
               >
                 {diagnosisData ? '🩺 Revise Diagnosis' : '🩺 Make Diagnosis'}
               </button>
@@ -1102,7 +1113,7 @@ export function PatientViewTab({
               {diagnosisData && (
                 <button
                   onClick={() => setViewMode('prescribe')}
-                  className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 rounded-lg text-white transition-all text-xs font-semibold flex items-center gap-2 shadow-md"
+                  className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 rounded-lg text-white transition-all text-xs font-semibold flex items-center gap-2 shadow-lg shadow-emerald-500/40"
                 >
                   ℞ Prescribe
                 </button>
@@ -1114,22 +1125,22 @@ export function PatientViewTab({
           {viewMode === 'prescribe' && (
             <button
               onClick={() => setViewMode('examine')}
-              className="px-4 py-1.5 bg-ink-100 border border-ink-300 rounded-lg text-ink-700 hover:bg-ink-200 dark:bg-white/10 dark:border-white/20 dark:text-white dark:hover:bg-white/15 transition-all text-xs font-semibold flex items-center gap-2"
+              className="px-4 py-1.5 bg-slate-700/80 border border-slate-500/50 rounded-lg text-slate-300 hover:bg-slate-600 hover:text-white transition-all text-xs font-semibold flex items-center gap-2"
             >
               ← Back to Examine
             </button>
           )}
         </div>
 
-        {/* TAB NAVIGATION - Only show in examine mode */}
+        {/* TAB NAVIGATION - HUD Style */}
         {viewMode !== 'prescribe' && (
-          <div className="flex-shrink-0 flex border-b border-ink-200 dark:border-white/10 bg-parchment-50/30 dark:bg-slate-900/50">
+          <div className="flex-shrink-0 flex border-b border-cyan-400/20 bg-slate-900/60 backdrop-blur-sm">
             <button
               onClick={() => setActiveMedicalTab('body')}
               className={`flex-1 px-4 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                 activeMedicalTab === 'body'
-                  ? 'text-emerald-700 border-b-2 border-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-400 dark:bg-emerald-500/10'
-                  : 'text-ink-500 hover:text-ink-700 hover:bg-parchment-50 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-white/5'
+                  ? 'text-cyan-300 border-b-2 border-cyan-400 bg-cyan-500/10 shadow-lg shadow-cyan-500/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
               🫀 Body & Vitals
@@ -1138,8 +1149,8 @@ export function PatientViewTab({
               onClick={() => setActiveMedicalTab('symptoms')}
               className={`flex-1 px-4 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                 activeMedicalTab === 'symptoms'
-                  ? 'text-emerald-700 border-b-2 border-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-400 dark:bg-emerald-500/10'
-                  : 'text-ink-500 hover:text-ink-700 hover:bg-parchment-50 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-white/5'
+                  ? 'text-cyan-300 border-b-2 border-cyan-400 bg-cyan-500/10 shadow-lg shadow-cyan-500/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
               📋 Symptoms
@@ -1148,8 +1159,8 @@ export function PatientViewTab({
               onClick={() => setActiveMedicalTab('diagnosis')}
               className={`flex-1 px-4 py-3 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                 activeMedicalTab === 'diagnosis'
-                  ? 'text-emerald-700 border-b-2 border-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:border-emerald-400 dark:bg-emerald-500/10'
-                  : 'text-ink-500 hover:text-ink-700 hover:bg-parchment-50 dark:text-slate-400 dark:hover:text-slate-300 dark:hover:bg-white/5'
+                  ? 'text-cyan-300 border-b-2 border-cyan-400 bg-cyan-500/10 shadow-lg shadow-cyan-500/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`}
             >
               🩺 Diagnosis
@@ -1165,28 +1176,28 @@ export function PatientViewTab({
           {/* BODY & VITALS TAB */}
           {activeMedicalTab === 'body' && (
             <div className="animate-fade-in">
-          {/* Body Diagram Section */}
-          <div className="body-diagram-container bg-gradient-to-br from-parchment-50 to-amber-50/30 dark:bg-white/5 dark:backdrop-blur-xl border border-ink-200 dark:border-white/10 rounded-2xl p-6 relative mb-6">
+          {/* Body Diagram Section - HUD Style */}
+          <div className="body-diagram-container bg-gradient-to-br from-slate-800/40 via-slate-900/60 to-slate-800/40 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-6 relative mb-6 shadow-xl shadow-cyan-500/10">
             {/* Patient Header - Full Width */}
-            <div className="flex items-center gap-4 pb-4 mb-4 border-b border-ink-200 dark:border-white/10">
+            <div className="flex items-center gap-4 pb-4 mb-4 border-b border-cyan-400/30 shadow-lg shadow-cyan-500/5">
               <div className="flex items-center gap-3">
-                <div className="text-2xl font-serif font-bold text-ink-900 dark:text-white">
+                <div className="text-2xl font-serif font-bold text-white drop-shadow-lg">
                   {patient.name || 'Unknown Patient'}
                 </div>
                 {diagnosisData && (
-                  <span className="px-3 py-1 rounded-full text-xs bg-emerald-100 border border-emerald-400 text-emerald-700 dark:bg-emerald-500/20 dark:border-emerald-400/40 dark:text-emerald-200 max-w-[240px] truncate">
+                  <span className="px-3 py-1 rounded-full text-xs bg-emerald-500/20 border border-emerald-400/60 text-emerald-200 shadow-lg shadow-emerald-500/20 max-w-[240px] truncate">
                     Diagnosed: {diagnosisData.diagnosis}
                   </span>
                 )}
               </div>
               <div className="flex gap-3 text-xs font-sans font-semibold">
-                <span className="px-3 py-1.5 bg-parchment-100 dark:bg-white/5 border border-ink-200 dark:border-white/10 rounded text-ink-600 dark:text-ink-300">
+                <span className="px-3 py-1.5 bg-slate-700/50 border border-cyan-400/30 rounded text-cyan-200 shadow-md">
                   Age {patient.appearance?.age || patient.age || '?'}
                 </span>
-                <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded text-ink-300">
+                <span className="px-3 py-1.5 bg-slate-700/50 border border-cyan-400/30 rounded text-cyan-200 shadow-md">
                   {patient.appearance?.gender || patient.gender || 'Unknown'}
                 </span>
-                <span className="px-3 py-1.5 bg-white/5 border border-white/10 rounded text-ink-300">
+                <span className="px-3 py-1.5 bg-slate-700/50 border border-cyan-400/30 rounded text-cyan-200 shadow-md">
                   {patient.occupation || 'Unknown'}
                 </span>
               </div>
@@ -1254,7 +1265,7 @@ export function PatientViewTab({
                     <div className="text-sm font-semibold text-emerald-300 mb-1">
                       {hoveredSymptom.name || 'Recorded Symptom'}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide text-ink-200">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide text-slate-300">
                       <span className={`px-2 py-0.5 rounded ${getSeverityBadgeClasses(hoveredSymptom.severity)}`}>
                         {hoveredSymptom.severity || 'Unknown'}
                       </span>
@@ -1265,11 +1276,11 @@ export function PatientViewTab({
                         <span>Logged {hoveredSymptomLoggedAt}</span>
                       )}
                     </div>
-                    <div className="font-serif italic leading-relaxed mt-2">
+                    <div className="font-serif italic leading-relaxed mt-2 text-slate-200">
                       "{hoveredSymptom.description}"
                     </div>
                     {hoveredSymptom.location && (
-                      <div className="mt-2 text-xs text-ink-200 font-medium">
+                      <div className="mt-2 text-xs text-slate-200 font-medium">
                         📍 {hoveredSymptom.location}
                       </div>
                     )}
@@ -1303,7 +1314,7 @@ export function PatientViewTab({
                     <option value="Aquarius" className="bg-slate-800">♒ Aquarius</option>
                     <option value="Pisces" className="bg-slate-800">♓ Pisces</option>
                   </select>
-                  <div className="text-[9px] text-center text-ink-400 mt-1">
+                  <div className="text-[9px] text-center text-slate-400 mt-1">
                     Ask for birth date or set manually
                   </div>
                 </div>
@@ -1313,7 +1324,7 @@ export function PatientViewTab({
                   <div className="grid grid-cols-2 gap-1 mt-1.5">
                     {/* Temperature Dropdown */}
                     <div className="text-center p-1 bg-white/5 rounded">
-                      <div className="text-[8px] text-ink-400 uppercase tracking-wide mb-0.5">Temp</div>
+                      <div className="text-[8px] text-slate-400 uppercase tracking-wide mb-0.5">Temp</div>
                       <select
                         value={manualHumorTemp || ''}
                         onChange={(e) => handleHumorUpdate('temperature', e.target.value)}
@@ -1327,7 +1338,7 @@ export function PatientViewTab({
                     </div>
                     {/* Moisture Dropdown */}
                     <div className="text-center p-1 bg-white/5 rounded">
-                      <div className="text-[8px] text-ink-400 uppercase tracking-wide mb-0.5">Moisture</div>
+                      <div className="text-[8px] text-slate-400 uppercase tracking-wide mb-0.5">Moisture</div>
                       <select
                         value={manualHumorMoisture || ''}
                         onChange={(e) => handleHumorUpdate('moisture', e.target.value)}
@@ -1346,7 +1357,7 @@ export function PatientViewTab({
                     const humoralInfo = getHumoralInfo(manualHumorTemp, manualHumorMoisture);
                     if (!humoralInfo) {
                       return (
-                        <div className="text-[8px] text-center text-ink-400 mt-1.5">
+                        <div className="text-[8px] text-center text-slate-400 mt-1.5">
                           Ask patient or set manually
                         </div>
                       );
@@ -1363,7 +1374,7 @@ export function PatientViewTab({
                         <div className="space-y-0.5">
                           {/* Humor - Most prominent */}
                           <div className="mb-1">
-                            <span className="text-[8px] font-bold uppercase tracking-wide text-ink-400 block mb-0.5">HUMOR:</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 block mb-0.5">HUMOR:</span>
                             <span
                               className="text-sm font-bold font-serif block"
                               style={{ color: humoralInfo.color }}
@@ -1374,28 +1385,28 @@ export function PatientViewTab({
 
                           {/* Temperament */}
                           <div>
-                            <span className="text-[8px] font-bold uppercase text-ink-400">TEMPERAMENT:</span>{' '}
-                            <span className="text-[10px] text-ink-200">
+                            <span className="text-[10px] font-bold uppercase text-slate-400">TEMPERAMENT:</span>{' '}
+                            <span className="text-xs text-slate-200">
                               {humoralInfo.temperament}
                             </span>
                           </div>
-                          <div className="text-[9px] text-ink-400 italic pl-2">
+                          <div className="text-[10px] text-slate-400 italic pl-2">
                             ({humoralInfo.temperamentDesc})
                           </div>
 
                           {/* Compact list */}
                           <div className="pt-1 space-y-0.5">
                             <div>
-                              <span className="text-[8px] font-bold uppercase text-ink-400">ELEMENT:</span>{' '}
-                              <span className="text-[10px] text-ink-200">{humoralInfo.element}</span>
+                              <span className="text-[10px] font-bold uppercase text-slate-400">ELEMENT:</span>{' '}
+                              <span className="text-xs text-slate-200">{humoralInfo.element}</span>
                             </div>
                             <div>
-                              <span className="text-[8px] font-bold uppercase text-ink-400">QUALITIES:</span>{' '}
-                              <span className="text-[10px] text-ink-200">{humoralInfo.qualities}</span>
+                              <span className="text-[10px] font-bold uppercase text-slate-400">QUALITIES:</span>{' '}
+                              <span className="text-xs text-slate-200">{humoralInfo.qualities}</span>
                             </div>
                             <div>
-                              <span className="text-[8px] font-bold uppercase text-ink-400">SEASON:</span>{' '}
-                              <span className="text-[10px] text-ink-200">{humoralInfo.season}</span>
+                              <span className="text-[10px] font-bold uppercase text-slate-400">SEASON:</span>{' '}
+                              <span className="text-xs text-slate-200">{humoralInfo.season}</span>
                             </div>
                           </div>
                         </div>
@@ -1410,6 +1421,19 @@ export function PatientViewTab({
           {/* Vitals Grid - In Body & Vitals Tab */}
           <div className="mt-6">
             <SectionTitle>VITAL SIGNS</SectionTitle>
+
+            {/* Empty State Guidance */}
+            {vitalCards.every(v => v.value === 'Unknown') && (
+              <div className="mb-3 p-2.5 rounded-lg bg-slate-800/60 border border-slate-600/40">
+                <div className="flex items-center gap-2">
+                  <span className="text-base opacity-60">💡</span>
+                  <p className="text-[11px] text-slate-300 flex-1">
+                    <span className="font-semibold">No vitals recorded.</span> Use examination buttons to check pulse, temperature, respiration, tongue, and urine.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
               {vitalCards.map((vital, idx) => (
                 <VitalCard
@@ -1892,6 +1916,23 @@ function SymptomCard({ symptom, draggable = false, isFocused = false }) {
     </div>
   );
 }
+
+// Utility function to format discovered/logged timestamps
+// Moved outside PatientViewTab so VitalCard can use it
+const formatDiscoveredAt = (value) => {
+  if (!value) return null;
+  if (typeof value === 'number') {
+    return `Turn ${value}`;
+  }
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return null;
+};
 
 function VitalCard({ label, value, status, statusColor, valueSize = 'text-xl', history = [], trend = 'stable' }) {
   const chartWidth = 160;

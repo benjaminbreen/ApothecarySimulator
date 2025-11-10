@@ -2,11 +2,17 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { useDrop } from 'react-dnd';
 
-const MethodDropZone = ({ method, ingredients = [], onDrop, isLoading }) => {
+const MethodDropZone = ({ method, ingredients = [], onDrop, onRemove, isLoading }) => {
   const [{ isOver, canDrop }, drop] = useDrop(
     () => ({
       accept: 'simple',
-      drop: (item) => onDrop(item, method),
+      drop: (item) => {
+        onDrop(item, method);
+        // Add haptic feedback on drop
+        if (navigator.vibrate) {
+          navigator.vibrate(50);
+        }
+      },
       collect: (monitor) => ({
         isOver: monitor.isOver(),
         canDrop: monitor.canDrop()
@@ -35,11 +41,22 @@ const MethodDropZone = ({ method, ingredients = [], onDrop, isLoading }) => {
         </div>
       )}
 
-      {/* Method Name Only */}
+      {/* Method Name + Costs */}
       <div className="mb-3 bg-gradient-to-r from-amber-100/50 via-amber-50/30 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/30 dark:to-slate-800/50 rounded-lg px-3 py-2 border border-amber-300/30 dark:border-amber-600/20">
-        <h4 className="font-display text-xl font-bold text-ink-900 dark:text-amber-100 tracking-wide text-center">
+        <h4 className="font-display text-xl font-bold text-ink-900 dark:text-amber-100 tracking-wide text-center mb-1">
           {method.name}
         </h4>
+        <div className="flex items-center justify-center gap-3 text-xs text-ink-600 dark:text-amber-300/70 font-sans">
+          <span className="flex items-center gap-1">
+            <span>⚡</span>
+            <span>{method.energyCost} energy</span>
+          </span>
+          <span className="text-ink-400 dark:text-amber-500/50">•</span>
+          <span className="flex items-center gap-1">
+            <span>⏱️</span>
+            <span>{method.timeCost}h</span>
+          </span>
+        </div>
       </div>
 
       {/* Drop Zone */}
@@ -69,24 +86,53 @@ const MethodDropZone = ({ method, ingredients = [], onDrop, isLoading }) => {
             : 'from-ink-900/70 via-ink-900/30 to-transparent group-hover:from-ink-900/60'
         }`}></div>
 
-        {/* Ingredients Display */}
+        {/* Ingredients Display with Remove Buttons */}
         {hasIngredients ? (
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <div className="flex gap-3 flex-wrap justify-center p-4">
               {ingredients.map((ing, i) => (
                 <div
                   key={i}
-                  className="text-7xl animate-float drop-shadow-2xl"
-                  style={{
-                    animationDelay: `${i * 0.2}s`,
-                    textShadow: `
-                      0 0 20px rgba(255, 255, 255, 0.8),
-                      0 0 40px rgba(255, 165, 0, 0.6),
-                      0 0 60px rgba(255, 140, 0, 0.4)
-                    `
-                  }}
+                  className="relative group/ingredient"
                 >
-                  {ing.emoji}
+                  <div
+                    className="text-7xl animate-float animate-ingredient-pop-in drop-shadow-2xl cursor-default"
+                    style={{
+                      animationDelay: `${i * 0.2}s`,
+                      textShadow: `
+                        0 0 20px rgba(255, 255, 255, 0.8),
+                        0 0 40px rgba(255, 165, 0, 0.6),
+                        0 0 60px rgba(255, 140, 0, 0.4)
+                      `
+                    }}
+                  >
+                    {ing.emoji}
+                  </div>
+                  {/* Sparkle effect on drop */}
+                  <div
+                    className="absolute -top-2 -right-2 text-3xl animate-sparkle pointer-events-none"
+                    style={{ animationDelay: `${i * 0.2}s` }}
+                  >
+                    ✨
+                  </div>
+                  <div
+                    className="absolute -bottom-2 -left-2 text-2xl animate-sparkle pointer-events-none"
+                    style={{ animationDelay: `${i * 0.2 + 0.1}s` }}
+                  >
+                    ✨
+                  </div>
+                  {/* Remove button - appears on hover */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemove && onRemove(method.name, i);
+                    }}
+                    className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-bold shadow-lg opacity-0 group-hover/ingredient:opacity-100 transition-opacity duration-200 flex items-center justify-center border-2 border-white z-20"
+                    title={`Remove ${ing.name}`}
+                    disabled={isLoading}
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
@@ -154,6 +200,7 @@ MethodDropZone.propTypes = {
   }).isRequired,
   ingredients: PropTypes.array,
   onDrop: PropTypes.func.isRequired,
+  onRemove: PropTypes.func,
   isLoading: PropTypes.bool
 };
 

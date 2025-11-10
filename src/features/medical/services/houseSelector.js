@@ -130,6 +130,70 @@ export function calculateTravelTime(distance) {
 }
 
 /**
+ * Detect if destination is a landmark/institutional building (not a residential household)
+ *
+ * @param {string} destination - Destination location name
+ * @returns {Object|null} - Landmark info or null if residential
+ */
+function detectLandmark(destination) {
+  if (!destination) return null;
+
+  const lower = destination.toLowerCase();
+
+  // Holy Office / Inquisition
+  if (lower.includes('holy office') || lower.includes('inquisition')) {
+    return {
+      type: 'holy-office',
+      name: 'Holy Office',
+      description: 'imposing stone building housing the Inquisition tribunal',
+      category: 'institutional'
+    };
+  }
+
+  // Churches and Cathedral
+  if (lower.includes('cathedral') || lower.includes('metropolitan cathedral')) {
+    return {
+      type: 'cathedral',
+      name: 'Metropolitan Cathedral',
+      description: 'vast sacred edifice dominating the plaza',
+      category: 'religious'
+    };
+  }
+
+  if (lower.includes('church of') || lower.includes('iglesia')) {
+    return {
+      type: 'church',
+      name: destination,
+      description: 'stone church with vaulted ceilings and religious iconography',
+      category: 'religious'
+    };
+  }
+
+  // Convents and Monasteries
+  if (lower.includes('convent') || lower.includes('monastery')) {
+    return {
+      type: 'convent',
+      name: destination,
+      description: 'walled religious compound with cloistered quarters',
+      category: 'religious'
+    };
+  }
+
+  // Government buildings
+  if (lower.includes('palace') || lower.includes('palacio')) {
+    return {
+      type: 'palace',
+      name: destination,
+      description: 'grand colonial palace with imposing architecture',
+      category: 'institutional'
+    };
+  }
+
+  // No landmark detected - must be a residential household
+  return null;
+}
+
+/**
  * Get complete house call data for a patient
  *
  * @param {Object} patient - Patient entity
@@ -137,25 +201,52 @@ export function calculateTravelTime(distance) {
  * @returns {Object} - Complete house call data
  */
 export function getHouseCallData(patient, destination) {
-  const { mapId, houseName } = selectHouseTemplate(patient);
   const distance = calculateDistanceToLocation(destination);
   const travelTime = calculateTravelTime(distance);
 
-  // Determine house type from mapId
-  const houseType = mapId.includes('humble') ? 'humble' : 'middling';
+  // Check if destination is a landmark/institutional building
+  const landmark = detectLandmark(destination);
 
-  // Select random building position for zoom target
-  const positions = BUILDING_POSITIONS[houseType] || BUILDING_POSITIONS.middling;
-  const targetLocation = positions[Math.floor(Math.random() * positions.length)];
+  if (landmark) {
+    // Landmark destination (Holy Office, Church, etc.)
+    // Still use a map template for interior, but mark it as a landmark
+    const { mapId } = selectHouseTemplate(patient); // Use appropriate map based on patient class
 
-  return {
-    patientEntity: patient,
-    houseMapId: mapId,
-    houseName,
-    destination,
-    distance,
-    travelTime,
-    originalMapId: 'botica-interior', // Always return to botica
-    targetLocation // X position (%) for zoom effect
-  };
+    return {
+      patientEntity: patient,
+      houseMapId: mapId,
+      houseName: landmark.name, // Use landmark name, not "Middling House"
+      destination,
+      distance,
+      travelTime,
+      originalMapId: 'botica-interior',
+      targetLocation: 50, // Center position for landmarks
+      isLandmark: true, // FLAG: This is NOT a residential household
+      landmarkType: landmark.type,
+      landmarkDescription: landmark.description,
+      landmarkCategory: landmark.category
+    };
+  } else {
+    // Normal residential house call
+    const { mapId, houseName } = selectHouseTemplate(patient);
+
+    // Determine house type from mapId
+    const houseType = mapId.includes('humble') ? 'humble' : 'middling';
+
+    // Select random building position for zoom target
+    const positions = BUILDING_POSITIONS[houseType] || BUILDING_POSITIONS.middling;
+    const targetLocation = positions[Math.floor(Math.random() * positions.length)];
+
+    return {
+      patientEntity: patient,
+      houseMapId: mapId,
+      houseName,
+      destination,
+      distance,
+      travelTime,
+      originalMapId: 'botica-interior', // Always return to botica
+      targetLocation, // X position (%) for zoom effect
+      isLandmark: false
+    };
+  }
 }

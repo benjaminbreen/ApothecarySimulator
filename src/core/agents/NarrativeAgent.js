@@ -439,9 +439,10 @@ Return strict JSON (no markdown fencing, no prose outside the object).
   * ✗ "Man enters coughing, help me" (he's here = diagnosis) | ✗ "Can I buy medicine?" (purchase)
 
 **CRITICAL - Timing Rule:**
-Set intent only when NPC MAKES a NEW request this turn. When NPC pays/accepts/departs (completing a previous request), set intent to "none".
+Set intent when NPC makes OR is still waiting for a request. When NPC pays/accepts/departs (completing request), set intent to "none".
 - Request turn: "My wife has fever, I need medicine" → medical_purchase ✓
-- Resolution turn: NPC pays 6 reales and departs with vial → "none" ✓ (NOT medical_purchase)
+- Waiting turn: NPC stands waiting for Maria's prescription → medical_purchase ✓ (request still active)
+- Resolution turn: NPC pays 6 reales and departs with vial → "none" ✓ (request completed)
 
 **Non-Medical:**
 - **nonmedical_request** = Favors/errands unrelated to medicine (harvesting, deliveries, social visits)
@@ -535,7 +536,7 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
 
 | Type | Use Case | Emoji Examples |
 |------|----------|----------------|
-| vendor_offer | NPC selling TO Maria | 💧 water, 🪵 firewood, 🌿 herbs |
+| vendor_offer | NPC selling TO Maria | 💧 water, 🪵 firewood, 🌿 herbs, 🐟 fish |
 | service_offer | Services TO Maria | 🔨 repairs, 📜 scribing |
 | donation_request | Church/charity | ⛪ alms, 💒 offerings |
 | competitive_check | Rival scouting | 💊 other apothecary |
@@ -543,9 +544,67 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
 | gamble_opportunity | Betting invite | 🎲 dice, 🃏 cards |
 | investment_offer | Investment TO Maria | ⛪ church bonds (10%, low risk), 🚢 galleon (120-200%, high risk), 🏔️ mining (70-200%, high risk) |
 
+**CRITICAL - Nested Object Structure (REQUIRED):**
+
+**vendor_offer** - NPC selling goods TO Maria:
+{
+  "type": "vendor_offer",
+  "npcName": "Carmen the Fish Seller",
+  "npcPortrait": null,
+  "npcRole": "fish seller",
+  "context": "offers fresh fish from Xochimilco",
+  "offer": {
+    "item": "fish",
+    "price": 2,  // MUST be positive integer (1-1000), NEVER 0/"variable"/null. Use asking price even if negotiable.
+    "description": "fresh catch from lake",
+    "quality": "fresh",
+    "quantity": 1,
+    "emoji": "🐟"
+  }
+}
+
+**service_offer** - NPC offering services TO Maria:
+{
+  "type": "service_offer",
+  "npcName": "Water Seller",
+  "offer": {
+    "item": "water delivery",
+    "price": 1,
+    "description": "daily water delivery for one week",
+    "stock": 10,
+    "quality": "clean",
+    "emoji": "💧"
+  }
+}
+
+**donation_request** - NPC asking for charity:
+{
+  "type": "donation_request",
+  "npcName": "Beggar",
+  "request": {
+    "item": "bread",
+    "reason": "starving family",
+    "urgency": "high",
+    "reputationImpact": {"donate": 5, "refuse": -3}
+  }
+}
+
+**gamble_opportunity** - NPC inviting Maria to gamble:
+{
+  "type": "gamble_opportunity",
+  "npcName": "Card Player",
+  "gamble": {
+    "gameType": "cards",
+    "wager": 5,
+    "potentialWin": 10,
+    "odds": "even",
+    "description": "high-low card game"
+  }
+}
+
 **Gambling odds**: favorable (60%) if NPC drunk/unskilled, even (50%) for fair game, unfavorable (40%) if NPC skilled/cheating.
 
-When SIMPLE MODE active, fill simpleInteraction object with specifics (prices, items, odds, investment details).`;
+**CRITICAL**: Always use nested "offer", "request", "gamble", or "investment" objects. NEVER use flat structure with fields at root level.`;
 
     const crisisActive = gameState?.crisis?.active;
     const crisisResolutionSection = crisisActive ? `### Crisis Context

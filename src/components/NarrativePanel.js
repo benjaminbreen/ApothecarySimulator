@@ -549,7 +549,7 @@ function boldQuotedDialogue(content) {
   if (typeof content !== 'string') return content;
 
   // Match text within straight quotes "..." or curly quotes "..."
-  // Wrap the entire quoted portion (including quotes) with ** markers
+  // Wrap the entire quoted portion (including quotes) with ** markers (standard markdown)
   return content
     .replace(/"([^"]+)"/g, '**"$1"**')  // Straight quotes
     .replace(/"([^"]+)"/g, '**"$1"**'); // Curly quotes
@@ -692,7 +692,16 @@ function createEntityHighlightingComponents(recentNPCs = []) {
         }
         return child;
       });
-      return <strong {...props}>{processedChildren}</strong>;
+
+      // Check if this is dialogue (enclosed in quotes)
+      const firstChild = Array.isArray(children) ? children[0] : children;
+      const textContent = typeof firstChild === 'string' ? firstChild.trim() : '';
+      const isDialogue = textContent && (
+        (textContent.startsWith('"') && textContent.endsWith('"')) ||
+        (textContent.startsWith('"') && textContent.endsWith('"'))
+      );
+
+      return <strong {...props} className={isDialogue ? 'dialogue' : ''}>{processedChildren}</strong>;
     },
 
     // Italic text (from *text* or _text_)
@@ -2141,14 +2150,25 @@ const NarrativePanel = ({
             text-underline-offset: 3px;
           }
 
-          /* Bold text (dialogue) - Warm parchment color */
+          /* Regular bold text - same color as body text */
           .prose strong {
-            color: #261409;
+            color: #2d1810;  /* Same as body text */
             font-weight: 600;
           }
 
           .dark .prose strong {
-            color: #d4c5a9;
+            color: #f5e6d3;  /* Same as body text in dark mode */
+            font-weight: 600;
+          }
+
+          /* Dialogue (quoted text) - Warmer and slightly lighter than body text */
+          .prose strong.dialogue {
+            color: #4a3828;  /* Warmer brown, less pale, more chocolatey */
+            font-weight: 600;
+          }
+
+          .dark .prose strong.dialogue {
+            color: #f7ede0;  /* Warmer cream, less pale, more golden */
             font-weight: 600;
           }
 

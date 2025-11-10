@@ -190,7 +190,7 @@ function buildStaticPromptBody(currencyName) {
   "inventoryChanges": [{"item": "string", "quantity": number, "action": "bought|sold|used|foraged|received|lost", "price": number, "isReadable": boolean, "documentType": "letter|document|codex|note|contract|recipe|map|certificate|null", "metadata": {"author": "string|null", "giver": "string|null", "purpose": "string|null"}}],
   "relationshipChanges": [{"npcName": "string", "delta": -20 to 20, "reason": "string"}],
   "reputationEvents": [{"faction": "church|elite|common_folk|indigenous|guild|merchants", "delta": -50 to 50, "reason": "string"}],
-  "contractOffer": {"type": "treatment|null", "offeredBy": "string", "offeredByDescription": "string", "patientName": "HUMAN name (NEVER items/furniture like 'Drug Cabinet', 'Shelf', etc.)", "patientDescription": "string", "patientLocation": "string|null", "paymentOffered": number, "ailmentDescription": "string", "isEmissary": boolean},
+  "contractOffer": {"type": "treatment|null", "offeredBy": "string", "offeredByDescription": "string", "patientName": "HUMAN name (NEVER items/furniture like 'Drug Cabinet', 'Shelf', etc.)", "patientDescription": "string", "patientDemographics": {"gender": "male|female|unknown", "age": "child|young|adult|middle-aged|elderly", "casta": "español|peninsular|criollo|mestizo|indio|mulato|negro|unknown", "class": "elite|middling|common|poor|religious|unknown"}, "patientLocation": "string|null", "paymentOffered": number, "ailmentDescription": "string", "isEmissary": boolean},
   "actionPrompt": {"type": "give|sell|prescribe|null", "recipientName": "string", "npcId": "kebab-case", "npcPortrait": "/portraits/filename.jpg|null", "context": "string (10 words max: what NPC needs and why)", "suggestedItems": ["string"], "priceOffered": number, "ailmentDescription": "string|null"},
   "simpleInteraction": {
     "type": "vendor_offer|service_offer|donation_request|competitive_check|information_exchange|social_visit|extortion_demand|gamble_opportunity|investment_offer|null",
@@ -205,7 +205,7 @@ function buildStaticPromptBody(currencyName) {
     "social": {"purpose": "string", "mood": "friendly|concerned|urgent"} OR null,
     "extortion": {"demandType": "protection|silence|information|access", "amount": number, "threatLevel": "veiled|direct|violent", "threatener": "gang|official|inquisition_proxy|rival", "consequence": "string describing what happens if refused", "difficulty": "easy|medium|hard"} OR null,
     "gamble": {"gameType": "taba|cards|dice|cockfight|wager", "wager": number, "potentialWin": number, "odds": "favorable|even|unfavorable", "description": "string"} OR null,
-    "investment": {"opportunityType": "string", "amount": number, "potentialReturn": "string", "riskLevel": "low|medium|high", "backer": "string|null"} OR null
+    "investment": {"investmentType": "church_bond|cacao_plantation|apothecary_syndicate|real_estate|manila_galleon|silver_mining", "amount": number, "expectedReturn": {"min": number, "max": number}, "duration": number, "riskLevel": "low|medium|high", "description": "string", "emoji": "emoji|null"} OR null
   },
   "journalEntry": "string",
   "crisisResolution": {"status": "ongoing|escaped|surrendered|captured|bribed|killed", "gameOver": boolean, "gameOverReason": "string|null", "wealthChange": number, "reputationDelta": number},
@@ -275,20 +275,47 @@ function buildStaticPromptBody(currencyName) {
 **All other intents:**
 - Set all transaction fields to "null"
 
+### When to Clear simpleInteraction (Set type: "null")
+Clear simpleInteraction when the interaction is COMPLETE:
+- Transaction finished (wealthChange present + inventoryChanges with action: "bought")
+- NPC departed after business concluded (npcDeparted: true AND interactionIntent: "none")
+- Player refused/declined offer
+
+**Example - Transaction Complete:**
+Narrative: "You hand over 80 reales. Diego departs with a curt bow."
+Response: {simpleInteraction: {type: "null"}, npcDeparted: true, wealthChange: -80, inventoryChanges: [{action: "bought", ...}]}
+
+**Example - Offer Refused:**
+Narrative: "You decline the offer. The merchant shrugs and walks away."
+Response: {simpleInteraction: {type: "null"}, npcDeparted: true, interactionIntent: "none"}
+
 ### House Call Field Requirements
 When interactionIntent is "house_call":
 - Set contractOffer with **isEmissary: true** (critical flag for travel flow)
 - offeredBy = messenger present (nun, servant, family member)
-- patientName = sick person NOT present (NEVER items/furniture like "Drug Cabinet", "Shelf")
+- patientName = sick person NOT present (NEVER items/furniture)
 - patientLocation = where patient is ("Church of San Francisco", "estate", infer from patient role if not stated)
 - ailmentDescription = condition mentioned ("fever", "bedridden", "breathing poorly")
 
+**CRITICAL - patientName Validation:**
+- Use ONLY human names or social titles: "Father Anselmo", "Don Esteban", "the master", "nobleman", "sick child"
+- NEVER combine titles with furniture words: ❌ "Master Bed", ❌ "Don Table", ❌ "Doña Cabinet"
+- If surname unknown, use title only: "the master" NOT "Master Bed"
+- If dialogue says "my master is sick" and scene mentions "bed" → patientName: "the master" (NOT "Master Bed")
+
 **Examples:**
-- "A nun arrives. 'Father Anselmo has taken a sudden turn. Please come!'" → {isEmissary: true, offeredBy: "nun", patientName: "Father Anselmo", patientLocation: "Church of San Francisco"}
-- "Servant: 'Don Esteban cannot rise from bed.'" → {isEmissary: true, offeredBy: "servant", patientName: "Don Esteban", patientLocation: "Don Esteban's estate"}
+- "A nun arrives. 'Father Anselmo has taken a sudden turn. Please come!'" → {isEmissary: true, offeredBy: "nun", patientName: "Father Anselmo", patientDescription: "elderly priest", patientDemographics: {gender: "male", age: "middle-aged", casta: "criollo", class: "religious"}, patientLocation: "Church of San Francisco"}
+- "Servant: 'My master cannot rise from bed.'" → {isEmissary: true, offeredBy: "servant", patientName: "the master", patientDescription: "nobleman", patientDemographics: {gender: "male", age: "adult", casta: "español", class: "elite"}, patientLocation: "master's residence"} ← NOT "Master Bed"!
 
 ### Vendor Offers (SimpleInteraction)
 When interaction intent is "vendor_offer", use simpleInteraction ONLY. Do NOT populate actionPrompt or purchaseOffer.
+
+**CRITICAL - Correct Structure:**
+The "offer" field MUST be a NESTED OBJECT, not a string or flat structure:
+✓ CORRECT: offer: {item: "fish", price: 2, description: "fresh from lake", quantity: 1}
+✗ WRONG: offer: "fish", price: 2 (flat structure - fields at root level)
+✗ WRONG: offer: "Fresh fish from Xochimilco" (string instead of object)
+✗ WRONG: offeredItem: "fish" (wrong field name)
 
 **Example 1 - Weaver Selling Tapestry:**
 Narrative: "Citlali, a weaver, stands at your door clutching a rolled bundle. 'Doña Maria, I have fine work from Texcoco. This tapestry, woven with indigo and cochineal, twelve reales.'"
@@ -296,9 +323,23 @@ SimpleInteraction: {type: "vendor_offer", npcName: "Citlali", npcPortrait: null,
 ActionPrompt: {type: "null", ...}
 ContractOffer: {type: "null"}
 
+**Example 1b - Fish Seller:**
+Narrative: "Carmen the fish seller appears at the door, holding fresh tilapia. 'Doña Maria! The best catch from Xochimilco this morning! Two reales per string!'"
+SimpleInteraction: {type: "vendor_offer", npcName: "Carmen the Fish Seller", npcPortrait: null, npcRole: "fish seller", context: "offers fresh fish from Xochimilco", offer: {item: "tilapia", price: 2, description: "fresh fish from Xochimilco lake", quality: "fresh", quantity: 1, emoji: "🐟"}}
+ActionPrompt: {type: "null", ...}
+ContractOffer: {type: "null"}
+
+**CRITICAL - vendor_offer Transaction Direction:**
+When type is "vendor_offer", NPC is selling TO Maria (Maria is buyer):
+- wealthChange MUST be negative (Maria pays vendor)
+- inventoryChanges MUST show action: "bought" (Maria receives item)
+- NEVER positive wealthChange (that would mean Maria is selling, which is wrong for vendor_offer)
+
 **Example 2 - Investment Offer:**
-Narrative: "Don Fernando proposes investing 200 pesos in silver futures from Zacatecas. 'The Consulado manages the venture. Returns could be substantial, though it carries risk.'"
-SimpleInteraction: {type: "investment_offer", npcName: "Don Fernando", context: "silver futures investment from Zacatecas", offer: null, investment: {opportunityType: "silver futures", amount: 200, potentialReturn: "substantial returns", riskLevel: "medium", backer: "Consulado"}}
+Narrative: "Rodrigo Mendoza enters, brushing dust from his coat. 'This silver is from a new vein near Zacatecas. A consortium needs capital—one hundred reales. They offer twelve percent return within the year.'"
+SimpleInteraction: {type: "investment_offer", npcName: "Rodrigo Mendoza", npcPortrait: "/portraits/manonhorse.jpg", npcRole: "Investor", context: "presents silver mining opportunity", offer: null, request: null, competitive: null, information: null, social: null, extortion: null, gamble: null, investment: {investmentType: "silver_mining", amount: 100, expectedReturn: {min: 112, max: 124}, duration: 365, riskLevel: "high", description: "New vein near Zacatecas seeking discreet capital", emoji: "⛏️"}}
+ActionPrompt: {type: "null", ...}
+ContractOffer: {type: "null"}
 
 ### Gamble Opportunities
 When narrative describes gambling, games of chance, betting, or wagers, use type "gamble_opportunity" with gamble field.
@@ -319,7 +360,7 @@ SimpleInteraction: {type: "gamble_opportunity", npcName: "Don Esteban", npcRole:
 
 **Example 1 - interactionIntent: "medical_diagnosis"**
 Narrative: "Elderly man enters shop, coughing heavily. He sits down. 'Doña Maria, can you examine me?'"
-Create: contractOffer {type: "treatment", isEmissary: false, offeredBy: "elderly man", patientName: "elderly man", ailmentDescription: "persistent cough"}
+Create: contractOffer {type: "treatment", isEmissary: false, offeredBy: "elderly man", patientName: "elderly man", patientDescription: "elderly common man", patientDemographics: {gender: "male", age: "elderly", casta: "unknown", class: "common"}, ailmentDescription: "persistent cough"}
 Set: actionPrompt.type = "null"
 
 **Example 2 - interactionIntent: "medical_purchase"**
@@ -327,7 +368,13 @@ Narrative: "Woman: 'My daughter has fever. I need medicine quickly.'"
 Create: actionPrompt {type: "prescribe", recipientName: "woman", context: "fever remedy for daughter"}
 Set: contractOffer.type = "null"
 
-**Example 3 - Context confusion (AVOID)**
+**Example 3 - Third-party contract (parent for child)**
+Narrative: "Carmen Flores, a fish-seller, enters: 'Will you look at my son's scrape? He cries so loud it frightens the neighbors.'"
+Intent: medical_diagnosis
+Create: contractOffer {type: "treatment", isEmissary: false, offeredBy: "Carmen Flores", offeredByDescription: "fish-seller", patientName: "Carmen's son", patientDescription: "young boy with scrape", patientDemographics: {gender: "male", age: "child", casta: "mestizo", class: "common"}, ailmentDescription: "scrape causing distress"}
+Note: Infer child demographics from context clues (mother's casta/class, pronouns "he/his", behavior "cries")
+
+**Example 4 - Context confusion (AVOID)**
 Narrative: "Earlier, Don Luis left. Now, Doña Isabel enters: 'I need tincture for fluxion.'"
 Intent: medical_diagnosis
 CORRECT: {patientName: "Doña Isabel"} (person present NOW)
@@ -363,11 +410,16 @@ Use actionPrompt ONLY for immediate, clear requests to transfer items:
 - inventoryChanges: action = "sold", quantity is NEGATIVE (item leaves inventory)
 - gameState.wealthChange: POSITIVE number (Maria GAINS money)
 - Example: Maria sells sugar for 5 reales → wealthChange = +5, wealth increases by 5
+- Prescription sales: Merchant pays 12 reales for red coral → wealthChange = +12, wealth increases by 12
 
 **When Maria BUYS an item from an NPC:**
 - inventoryChanges: action = "bought", quantity is POSITIVE (item enters inventory)
 - gameState.wealthChange: NEGATIVE number (Maria LOSES money)
 - Example: Maria buys herbs for 3 reales → wealthChange = -3, wealth decreases by 3
+
+**CRITICAL - Direction of Payment:**
+If NPC "pays", "counts out coins", "hands over money" to Maria → Maria SELLS → wealthChange is POSITIVE (+)
+If Maria "pays", "hands over coins", "gives money" to NPC → Maria BUYS → wealthChange is NEGATIVE (-)
 
 **REMEMBER: SOLD = Maria gains money (+), BOUGHT = Maria loses money (-)**
 

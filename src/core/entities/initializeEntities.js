@@ -122,7 +122,8 @@ export function isEntitySystemInitialized() {
 
 export default {
   initializeEntitySystem,
-  saveEntitiesToLocalStorage,
+  exportEntitiesForSave,
+  loadEntitiesFromSave,
   resetEntitySystem,
   isEntitySystemInitialized
 };

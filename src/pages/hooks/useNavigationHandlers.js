@@ -1142,6 +1142,25 @@ export function useNavigationHandlers({
         const patientGender = patientEntity.appearance?.gender || 'person';
         const socialClass = patientEntity.social?.class || 'common';
 
+        // Check if destination is a landmark/institutional building
+        const isLandmark = houseCallData.isLandmark || false;
+        const landmarkDescription = houseCallData.landmarkDescription || null;
+
+        // Build location description based on type
+        let locationDescription;
+        if (isLandmark) {
+          // Institutional/landmark destination
+          locationDescription = `**Location Type:** INSTITUTIONAL/LANDMARK (NOT a residential household)
+- Destination: ${destination}
+- Building: ${landmarkDescription}
+- CRITICAL: This is ${destination}, NOT a "middling household" or "merchant's home"`;
+        } else {
+          // Residential household
+          locationDescription = `**Location Type:** Residential household
+- Destination: ${destination}
+- House type: ${houseName.includes('Humble') ? 'humble dwelling (single room, dirt floor, sparse furnishings)' : 'middling household (4 rooms, modest furnishings, middle-class residence)'}`;
+        }
+
         const arrivalPrompt = `You are narrating Maria de Lima's arrival at a house call in 1680 Mexico City.
 
 **Context:**
@@ -1149,11 +1168,11 @@ export function useNavigationHandlers({
 - She is treating ${patientEntity.name}, a ${patientAge} ${patientGender} of ${socialClass} status
 - Patient condition: ${ailmentDescription}
 - Patient severity: ${positionData.severity}
-- House type: ${houseName.includes('Humble') ? 'humble dwelling (single room, dirt floor)' : 'middling household (4 rooms, modest furnishings)'}
+${locationDescription}
 - Patient position: ${positionData.furnitureName} (${positionData.severity === 'critical' ? 'bedridden' : positionData.severity === 'moderate' ? 'seated' : 'standing'})
 
 **Write a brief (3-4 sentences) arrival narrative in present tense that:**
-1. Describes Maria's arrival at the location (NOT just "Middling House" - describe the actual place: "a merchant's household near the cathedral", "a modest dwelling on a narrow lane", etc.)
+1. Describes Maria's arrival at ${destination} (${isLandmark ? 'describe the institutional building accurately - use the exact destination name' : 'describe the household type - humble dwelling or middling merchant/artisan home'})
 2. Mentions the journey (heat/dust/crowds in streets, time taken)
 3. Shows Maria entering and immediately observing the patient's condition and position
 4. Conveys historical atmosphere (colonial architecture, religious imagery, social class markers)
@@ -1174,10 +1193,21 @@ export function useNavigationHandlers({
 
       } catch (error) {
         console.error('[Phase 3B] Failed to generate arrival narrative, using fallback:', error);
-        // Fallback to improved template (no longer says "in their household")
-        const locationDesc = destination === 'their household' || destination === 'a nearby residence'
-          ? `${houseName.includes('Humble') ? 'a humble dwelling' : 'a middling household'} on a narrow street`
-          : destination;
+        // Fallback to improved template
+        let locationDesc;
+        const isLandmark = houseCallData.isLandmark || false;
+
+        if (isLandmark) {
+          // Landmark - use exact destination name
+          locationDesc = destination;
+        } else if (destination === 'their household' || destination === 'a nearby residence') {
+          // Generic residential - use house type description
+          locationDesc = `${houseName.includes('Humble') ? 'a humble dwelling' : 'a middling household'} on a narrow street`;
+        } else {
+          // Specific residential destination - use as-is
+          locationDesc = destination;
+        }
+
         const placementNarrative = getPlacementNarrative(positionData, patientEntity);
         arrivalNarrative = `Maria arrives at ${locationDesc} after ${travelTime} minutes through the winding streets of Mexico City. ${placementNarrative}`;
       }

@@ -393,9 +393,11 @@ export function useCommerceHandlers({
           updateInventory(item, 1, `purchased from ${npcName}`);
           journalText = `Purchased ${item} from ${npcName} for ${price} reales.`;
           toast.success(`Bought ${item} for ${price} reales`, { duration: 2000 });
+          reputationChange = +1; // Small reputation boost for supporting vendors
         } else {
           journalText = `Declined to purchase ${item} from ${npcName}.`;
           toast.info('Purchase declined', { duration: 1500 });
+          // No reputation penalty for politely declining
         }
         break;
       }
@@ -512,6 +514,7 @@ export function useCommerceHandlers({
             }
           }
           xpAmount = 2; // Extra XP for gaining knowledge
+          reputationChange = +1; // Small reputation boost for engaging with informants
 
           // Generate follow-up narrative revealing the information
           // This is a CRITICAL fix - information_exchange needs continuation narrative
@@ -522,6 +525,7 @@ export function useCommerceHandlers({
         } else {
           journalText = `Refused to pay ${npcName} for information about ${topic}.`;
           toast.info('Declined information', { duration: 1500 });
+          reputationChange = -1; // Small reputation hit for refusing informants
         }
         break;
       }
@@ -558,7 +562,14 @@ export function useCommerceHandlers({
 
           journalText = `Purchased ${item} from ${npcName} for ${price} reales.`;
           toast.success(`Bought ${item} for ${price} reales`, { duration: 2000 });
+          reputationChange = +1; // Small reputation boost for supporting vendors
         } else if (action === 'haggle') {
+          // Guard: Can't haggle with undefined/zero price
+          if (!price || price === 0) {
+            toast.error('Price not set - cannot haggle', { duration: 2000 });
+            return; // Exit early, don't trigger narrative turn
+          }
+
           // Haggling attempt - simple skill check
           const baseSuccessRate = 0.5; // 50% base success rate
           const roll = Math.random();
@@ -1541,10 +1552,47 @@ export function useCommerceHandlers({
       const llmInstructions = `
 Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-3 sentences. Show their physical response and decision.
 
-Context:
+## CRITICAL: Treatment Appropriateness Check
+**BEFORE accepting, check if the treatment makes sense for the ailment:**
+
+### Common Nonsensical Prescriptions (MUST DECLINE with anger):
+- **Enemas for external injuries** (burns, cuts, bruises, skin rashes)
+- **Topical treatments for internal issues** (fever, stomach pain, breathing problems)
+- **Bloodletting for blood loss** (wounds, nosebleeds, menstruation)
+- **Stimulants for insomnia** (pepper, cinnamon for sleep issues)
+- **Cooling herbs for chills** (mint, cucumber for cold/shivering)
+- **Hot spices for fever** (pepper, ginger for burning fever)
+- **Wrong body part** (eye salve for foot injury, ear drops for headache)
+
+**Current prescription:** ${amount} drachm(s) of ${item.name} via **${route}** for **${ailmentText}**
+
+### Decision Logic:
+1. **DECLINE IMMEDIATELY** (80% chance) if treatment is nonsensical:
+   - NPC gets angry, confused, or disgusted
+   - They question Maria's competence
+   - They may threaten to report her to authorities or spread bad rumors
+   - They leave WITHOUT paying
+   - Example: "Pepper in my backside for a BURN?! Are you mad, woman? I'll tell everyone at the plaza about this mockery!"
+   - **CRITICAL**: Set simpleInteraction.outcome = "declined_angry" or "declined_confused"
+   - **CRITICAL**: Set simpleInteraction.reputationChange = -3 to -10 (severe nonsense = bigger penalty)
+   - **CRITICAL**: Set npcDeparted = true (they storm out)
+
+2. **BARGAIN** (15% chance) if treatment seems odd but price is too high:
+   - NPC is skeptical but desperate enough to negotiate
+   - They question why it's so expensive
+   - Set simpleInteraction.outcome = "bargaining"
+   - No reputation change yet
+
+3. **ACCEPT** (5% chance) only if BOTH conditions met:
+   - Treatment is appropriate AND sensible for the ailment
+   - Price is reasonable OR patient is desperate enough to pay
+   - Set simpleInteraction.outcome = "accepted" or "accepted_with_doubt"
+   - Set simpleInteraction.reputationChange = +1 to +3 (good treatment = small boost)
+
+## Context:
 - ${price} reales is ${price > 50 ? 'extremely expensive (several months of wages for a common laborer)' : price > 20 ? 'moderately expensive (2-3 weeks of wages)' : 'affordable (a few days of wages)'} for ${recipientName.includes('Don') || recipientName.includes('Doña') ? 'a wealthy patron' : 'a common person (note: sailors earn ~80-100 reales/month)'}.
-- ${recipientNameCapitalized} can ACCEPT (pay and take the medicine gratefully), BARGAIN (counter-offer with less money, create tension), or DECLINE (refuse, possibly offended by the price or skeptical of the treatment - this is the most common outcome and will always happen, with patient getting angry or insulting, if the player offers a nonsensical prescription or one that is different from what was discussed).
-- Make their decision realistic based on their social class, the price, and their desperation level.`;
+- ${recipientNameCapitalized} is a realistic 1680s person who expects treatments they've heard of or understand
+- Make their reaction dramatic and realistic - confusion, anger, or walking out in disgust are NORMAL responses to bad medicine`;
 
       setPendingActionPrompt(null);
 

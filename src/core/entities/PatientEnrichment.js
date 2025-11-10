@@ -2,6 +2,7 @@
 // Handles intelligent merging of symptoms, family history, and medical data
 
 import { calculateZodiacSign, calculateAge } from '../utils/astrologyCalculator';
+import { normalizeVital } from '../utils/vitalNormalizer';
 
 /**
  * Calculate string similarity (Levenshtein distance)
@@ -165,17 +166,36 @@ function mergeMedicalHistory(existing, newInfo) {
 
 /**
  * Merge vital signs (always prefer most recent)
+ * Normalizes LLM variations and tracks history for trend indicators
  * @param {Object} existing - Existing vitals
  * @param {Object} newVitals - New vital signs
- * @returns {Object} Merged vitals with timestamp
+ * @returns {Object} Merged vitals with timestamp and history
  */
 function mergeVitals(existing, newVitals) {
   if (!newVitals) return existing;
 
+  const timestamp = new Date().toISOString();
+
+  // Normalize all vital values (maps "fast"→"rapid", "burning"→"hot", etc.)
+  const normalized = {};
+  for (const [key, value] of Object.entries(newVitals)) {
+    normalized[key] = normalizeVital(key, value);
+  }
+
+  // Initialize history array if missing
+  const history = existing?.history || [];
+
+  // Add current vitals as a snapshot for trend tracking
+  history.push({
+    timestamp,
+    values: { ...existing, ...normalized }
+  });
+
   return {
     ...existing,
-    ...newVitals, // New values override old
-    lastExamined: new Date().toISOString()
+    ...normalized, // New normalized values override old
+    history: history.slice(-10), // Keep last 10 readings only
+    lastExamined: timestamp
   };
 }
 

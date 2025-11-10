@@ -27,6 +27,7 @@ export function TravelCard({ houseCallData, gameTime, onArrival, onCancel, onTra
   const [narrative, setNarrative] = useState('');
   const [pathData, setPathData] = useState(null);
   const cleanupTimerRef = useRef(null);
+  const hasCalledArrivalRef = useRef(false); // FIX: Guard flag to prevent duplicate onArrival calls
 
   const {
     patientEntity,
@@ -137,12 +138,13 @@ export function TravelCard({ houseCallData, gameTime, onArrival, onCancel, onTra
   }, [patientEntity, destination, distance, travelTime, gameTime]);
 
   // Auto-advance after completion
-  // FIXED: Use single timer to prevent duplicate onArrival calls
+  // FIXED: Use guard flag + single timer to prevent duplicate onArrival calls
+  // Race condition fix: currentDirection can update after isComplete=true, causing effect to re-run
   useEffect(() => {
-    if (isComplete) {
+    if (isComplete && !hasCalledArrivalRef.current) {
       console.log('[TravelCard] Animation complete, scheduling arrival in 800ms');
 
-      // Clear any existing timer
+      // Clear any existing timer (from previous effect runs)
       if (cleanupTimerRef.current) {
         clearTimeout(cleanupTimerRef.current);
         cleanupTimerRef.current = null;
@@ -150,7 +152,15 @@ export function TravelCard({ houseCallData, gameTime, onArrival, onCancel, onTra
 
       // Single timer to call onArrival once
       cleanupTimerRef.current = setTimeout(() => {
+        // Double-check guard flag (in case of race condition)
+        if (hasCalledArrivalRef.current) {
+          console.warn('[TravelCard] onArrival already called, skipping duplicate');
+          return;
+        }
+
         console.log('[TravelCard] Calling onArrival callback');
+        hasCalledArrivalRef.current = true; // Mark as called BEFORE calling (prevent re-entry)
+
         try {
           // Send final state update before arrival
           if (onTravelUpdateRef.current) {

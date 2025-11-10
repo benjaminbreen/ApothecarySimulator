@@ -1303,7 +1303,7 @@ export const PORTRAIT_LIBRARY = {
     casta: 'animal',
     class: 'animal',
     occupation: ['frog', 'amphibian'],
-    tags: ['animal', 'frog', 'amphibian', 'small creature']
+    tags: ['animal', 'frog', 'amphibian', 'small creature', 'wild']
   },
   'horse.jpg': {
     gender: 'animal',
@@ -1385,14 +1385,6 @@ export const PORTRAIT_LIBRARY = {
     occupation: ['crab', 'sea creature'],
     tags: ['animal', 'crab', 'sea creature', 'crustacean']
   },
-  'frog.jpg': {
-    gender: 'animal',
-    age: 'adult',
-    casta: 'animal',
-    class: 'animal',
-    occupation: ['frog', 'amphibian'],
-    tags: ['animal', 'frog', 'amphibian', 'wild']
-  },
 
   // Auto-generated entries from sync script
   'artisaninworkshop.jpg': {
@@ -1427,14 +1419,7 @@ export const PORTRAIT_LIBRARY = {
     occupation: 'unknown',
     tags: ['female', 'middle-aged', 'criollo']
   },
-  'criollafemaleservantyoung.jpg': {
-    gender: 'female',
-    age: 'young',
-    casta: 'criollo',
-    class: 'common',
-    occupation: 'servant',
-    tags: ['servant', 'female', 'young', 'criollo']
-  },
+
   'criollofemaleseamstressmiddleaged.jpg': {
     gender: 'female',
     age: 'middle-aged',
@@ -1659,14 +1644,7 @@ export const PORTRAIT_LIBRARY = {
     occupation: 'any',
     tags: ['female', 'middle-aged', 'poor', 'peasant', 'rural']
   },
-  'middleagedtheologianorscholar.jpg': {
-    gender: 'male',
-    age: 'middle-aged',
-    casta: ['español', 'criollo'],
-    class: 'middling',
-    occupation: 'scholar',
-    tags: ['scholar', 'theologian', 'male', 'middle-aged', 'educated', 'clerical']
-  },
+
   'mulattonyoungman.jpg': {
     gender: 'male',
     age: 'young',
@@ -1835,13 +1813,13 @@ export const PORTRAIT_LIBRARY = {
     occupation: 'unknown',
     tags: ['female', 'español']
   },
-  'womanhand.jpg': {
+  'tejedora.jpg': {
     gender: 'female',
     age: 'adult',
     casta: ['español', 'criollo', 'mestizo'],
     class: 'common',
     occupation: 'any',
-    tags: ['female', 'hands', 'worker', 'labor']
+    tags: ['female', 'tejedora', 'weaver', 'labor']
   },
 
   'youngcavalier.jpg': {
@@ -2028,7 +2006,7 @@ export const PORTRAIT_LIBRARY = {
 
   // === NEW PORTRAITS (November 2024) ===
 
-  'middleagedcriollofoodvendor.png': {
+  'middleagedcriollofoodvendor.jpg': {
     gender: 'male',
     age: 'middle-aged',
     casta: 'criollo',

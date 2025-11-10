@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import PropTypes from 'prop-types';
 
 const CompoundResultCard = ({ compound, onClose }) => {
-  const isSuccess = compound.name !== 'Unusable Sludge';
+  // Failure detection based on price (failures have price <= 2)
+  const isSuccess = compound.price > 2;
 
   // Keyboard shortcuts - ESC and Enter to close
   useEffect(() => {
@@ -111,10 +112,12 @@ const CompoundResultCard = ({ compound, onClose }) => {
           </div>
 
           {/* Description Quote */}
-          <div className="bg-white/60 dark:bg-slate-900/40 rounded-xl p-5 border-2 border-dashed border-ink-300 dark:border-slate-600">
-            <p className="text-base text-ink-700 dark:text-amber-200 font-serif italic leading-relaxed">
-              "{compound.description}"
+          <div className="bg-white/60 dark:bg-slate-900/40 rounded-xl p-5 border-2 border-dashed border-ink-300 dark:border-slate-600 relative">
+            <div className="absolute top-2 left-3 text-2xl text-amber-600/30 dark:text-amber-500/30 leading-none">"</div>
+            <p className="text-base text-ink-700 dark:text-amber-200 font-serif italic leading-relaxed px-4">
+              {compound.description}
             </p>
+            <div className="absolute bottom-1 right-3 text-2xl text-amber-600/30 dark:text-amber-500/30 leading-none">"</div>
           </div>
         </div>
 
@@ -129,27 +132,29 @@ const CompoundResultCard = ({ compound, onClose }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
             {/* Latin Name */}
             <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-ink-200 dark:border-slate-600 backdrop-blur-sm">
-              <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
+              <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Nomen Latinum
               </span>
-              <p className="font-serif italic text-lg text-ink-900 dark:text-amber-100">
+              <p className="font-serif italic text-lg text-ink-900 dark:text-amber-100"
+                 style={{ fontFamily: "'EB Garamond', 'Crimson Text', Georgia, serif" }}>
                 {compound.latinName || 'N/A'}
               </p>
             </div>
 
             {/* Spanish Name */}
             <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-ink-200 dark:border-slate-600 backdrop-blur-sm">
-              <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
+              <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Nombre Español
               </span>
-              <p className="font-serif italic text-lg text-ink-900 dark:text-amber-100">
+              <p className="font-serif italic text-lg text-ink-900 dark:text-amber-100"
+                 style={{ fontFamily: "'EB Garamond', 'Crimson Text', Georgia, serif" }}>
                 {compound.spanishName || 'N/A'}
               </p>
             </div>
 
             {/* Humoral Qualities */}
             <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-ink-200 dark:border-slate-600 backdrop-blur-sm">
-              <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
+              <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Humoral Qualities
               </span>
               <p className="font-display text-lg font-bold text-botanical-700 dark:text-emerald-400">
@@ -159,10 +164,10 @@ const CompoundResultCard = ({ compound, onClose }) => {
 
             {/* Value */}
             <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-ink-200 dark:border-slate-600 backdrop-blur-sm">
-              <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
+              <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Market Value
               </span>
-              <p className="font-display text-2xl font-bold text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
+              <p className="font-display text-3xl font-bold text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
                 <span>💰</span>
                 {compound.price} reales
               </p>
@@ -171,7 +176,7 @@ const CompoundResultCard = ({ compound, onClose }) => {
 
           {/* Medicinal Effects */}
           <div className="bg-gradient-to-r from-potion-50/80 via-potion-100/60 to-potion-50/80 dark:from-purple-900/20 dark:via-purple-800/20 dark:to-purple-900/20 rounded-xl p-4 border border-potion-300 dark:border-purple-700/30 mb-4">
-            <span className="block text-sm uppercase tracking-wider text-potion-700 dark:text-purple-300 font-serif font-semibold mb-2">
+            <span className="block text-sm uppercase tracking-widest text-potion-700 dark:text-purple-300 font-serif font-semibold mb-2">
               Medicinal Effects
             </span>
             <p className="text-lg text-ink-800 dark:text-amber-100 font-serif leading-relaxed">
@@ -179,44 +184,15 @@ const CompoundResultCard = ({ compound, onClose }) => {
             </p>
           </div>
 
-          {/* Citation & Historical Accuracy */}
-          <div className="border-t-2 border-ink-200 dark:border-slate-700 pt-2">
-            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-              <div className="flex-1">
-                <span className="block text-sm uppercase tracking-wider text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-2">
-                  Historical Source
-                </span>
-                <p className="text-sm text-ink-600 dark:text-amber-300/80 font-serif italic leading-relaxed">
-                  📜 {compound.citation || 'Unknown source'}
-                </p>
-              </div>
-
-              {/* Historical Accuracy Score */}
-              {isSuccess && compound.historicalAccuracyScore && (
-                <div className="flex-shrink-0 text-center sm:text-right">
-                  <span className="block text-xs uppercase tracking-wider text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-1">
-                    Authenticity
-                  </span>
-                  <div className="relative">
-                    <div className="text-2xl font-bold font-display" style={{
-                      color: compound.historicalAccuracyScore >= 86 ? '#f59e0b' :
-                             compound.historicalAccuracyScore >= 61 ? '#a855f7' :
-                             compound.historicalAccuracyScore >= 31 ? '#3b82f6' : '#64748b'
-                    }}>
-                      {compound.historicalAccuracyScore}
-                      <span className="text-sm">/100</span>
-                    </div>
-                    <p className="text-xs text-ink-500 dark:text-amber-400/70 mt-1 font-sans">
-                      {compound.historicalAccuracyScore >= 86 ? 'Legendary' :
-                       compound.historicalAccuracyScore >= 61 ? 'Sophisticated' :
-                       compound.historicalAccuracyScore >= 31 ? 'Well-documented' : 'Common'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-
+          {/* Citation */}
+          <div className="border-t-2 border-ink-200 dark:border-slate-700 pt-4">
+            <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-2">
+              Historical Source
+            </span>
+            <p className="text-sm text-ink-600 dark:text-amber-300/80 font-serif italic leading-relaxed flex items-start gap-2">
+              <span className="flex-shrink-0">📜</span>
+              <span>{compound.citation || 'Unknown source'}</span>
+            </p>
           </div>
         </div>
       </div>
@@ -253,9 +229,7 @@ CompoundResultCard.propTypes = {
     medicinalEffects: PropTypes.string,
     description: PropTypes.string,
     citation: PropTypes.string,
-    rarity: PropTypes.oneOf(['common', 'scarce', 'rare', 'legendary']),
-    historicalAccuracyScore: PropTypes.number,
-    historicalAccuracyRationale: PropTypes.string
+    rarity: PropTypes.oneOf(['common', 'scarce', 'rare', 'legendary'])
   }).isRequired,
   onClose: PropTypes.func.isRequired
 };

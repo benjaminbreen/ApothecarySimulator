@@ -16,6 +16,9 @@ import {
   createSaveData
 } from '../core/services/saveManager';
 import { safeLocalStorage } from '../utils/safeLocalStorage';
+import { exportEntitiesForSave } from '../core/entities/initializeEntities';
+import npcPositionTracker from '../features/map/services/npcPositionTracker';
+import { getTransactionManager } from '../core/systems/transactionManager';
 
 export default function SaveLoadModal({
   isOpen,
@@ -50,10 +53,6 @@ export default function SaveLoadModal({
 
   const handleSave = (slotKey, slotName) => {
     // Gather all game state for v1.1.0 save system
-    const { exportEntitiesForSave } = require('../core/entities/initializeEntities');
-    const npcPositionTracker = require('../features/map/services/npcPositionTracker').default;
-    const { getTransactionManager } = require('../core/systems/transactionManager');
-
     const entities = exportEntitiesForSave();
     const npcPositions = npcPositionTracker.exportForSave();
     const transactionManager = getTransactionManager(scenarioId);

@@ -16,7 +16,7 @@ import {
   canPreventSludge
 } from '../core/systems/professionAbilities';
 import MedicineTypeBadge from './MedicineTypeBadge';
-import { getAllMedicineTypes, inferMedicineType } from '../core/config/medicineCategories';
+import { getAllMedicineTypes, inferMedicineType, getMedicineType } from '../core/config/medicineCategories';
 
 // Method images
 import distillImage from '../assets/distill.jpg';
@@ -162,6 +162,30 @@ const MixingWorkshop = ({
     setError(null);
   };
 
+  const handleRemoveIngredient = (methodName, ingredientIndex) => {
+    setSelectedSimples(prev => {
+      const updatedIngredients = [...(prev[methodName] || [])];
+      updatedIngredients.splice(ingredientIndex, 1);
+
+      // If no ingredients left in this method, remove the method key
+      if (updatedIngredients.length === 0) {
+        const newSimples = { ...prev };
+        delete newSimples[methodName];
+        return newSimples;
+      }
+
+      return {
+        ...prev,
+        [methodName]: updatedIngredients
+      };
+    });
+
+    // Check if any ingredients remain in any method
+    setIsMixButtonEnabled(
+      Object.values(selectedSimples).some(ingredients => ingredients && ingredients.length > 0)
+    );
+  };
+
   const handleMixing = async () => {
     const selectedMethod = Object.keys(selectedSimples).find(method => selectedSimples[method].length > 0);
     const ingredients = selectedSimples[selectedMethod];
@@ -175,55 +199,104 @@ const MixingWorkshop = ({
     const systemPrompt = `
 CRITICAL: You must respond with ONLY a valid JSON object. No markdown, no code fences, no explanatory text - ONLY the raw JSON object.
 
-You are a 1680s iatrochemist tasked with simulating the process of creating compound drugs based on real principles of "chymical medicine." Some potential compound drug names: Balsamum Lucatelli, Elixir Proprietatis, Theriac, Sal Volatile Oleosum, Aurum Potabile, Emetic Wine, Gascon's Powder, Tinctura Antimonii, Elixir de Paracelso, Balsamo Peruviano, Salt of Mallow, Pulvis Cephalico, Hysteric Water, Cinnamon Water, Aqua Celestis, Camphorated Wine Spirit, Volatile Spirit, Aqua Vitae, Tinctura Opii Crocata, Plague Water, Mercurius Dulcis, Balsam of Sulphur, Aqua Mercurialis, Camphorated Oil, Quicksilver Liniment, Mithridate.
+You are simulating 17th century pharmaceutical practice as practiced in Mexico City, 1680. Channel William Salmon's Pharmacopoeia Londinensis (1678) - mix Latin pharmaceutical terms with practical English and Spanish vernacular.
 
-When provided with two or more simple ingredients (materia medica) and a compounding method, you must generate a historically plausible compound drug. Mention if it is toxic in the description. Toxic drugs can be usable purgatives (classified as "Vomitorios").
+NAMING CONVENTIONS (authentic 1680s apothecary style):
 
-Guide for mixing (other combos work too - this is just a guide to general logic):
-Quicksilver: Calcination of quicksilver ALWAYS yields toxic but highly valuable red precipitate of mercury (used in ointments); distillation yields distilled quicksilver, other methods nothing, as quicksilver is volatile and not suited for these methods. Distillation yields Distilled Quicksilver which is toxic and usually produces toxic compounds (not unusable sludge - actual named compounds with toxic properties) when mixed.
-Camphor: Distillation yields camphor oil (medicinal), Confectioning produces Trochisci de Camphora (lozenges); Decoction destroys camphor's volatile properties, creating ineffective residue.
-Rose Water: Distillation for Aqua Rosae (calming); Confectioning with improper ingredients can result in bitter, ineffective syrup.
-Opium: Distillation produces forms of Laudanum (for instance, opium distilled with saffron = Sydenham's Laudanum, while opium distilled with alchemical products like quicksilver produces Laudanum Paracelsi) or variant; Decoction makes ineffective solution, as opium must be distilled for potency. Opiate compound drugs are highly potent and can be toxic. Mixing opium with any spirits or alcohol creates laudanum.
-Powdered Millipedes: Confection for Pulvis Millepedum (skin treatment), decoction with any plant or herb for asthma treatment.
-Powdered Crab's Eyes: Calcination yields various valuable alchemical elemental products.
-Crocus Metallorum yields valuable compounds when decocted with wine (yielding valuable Emeting Wine), or when distilled with other alchemical products like quicksilver.
-Saffron distilled with other herbs makes valuable Hysteric Water.
-Sugar: Confectioning alone makes Syrupus Simplex; with other simples makes various juleps and treacles. Calcined sugar = molasses. Distillation makes an alcoholic spirit which varies depending on other ingredients; distilled sugar = rum, distilled wine = brandy, and so forth.
-Laudanum mixed with other simples can be toxic, especially when mixed with alcoholic simples.
-Senna: Decoction for Decoctum Sennae (laxative); Confectioning weakens potency, creating ineffective cheap compound.
-White Horehound: Makes tea when decocted alone, or horehound ale when decocted with sugar. Creates valuable balsams when distilled in herbal compounds, and mithridate when distilled with laudanum or opium.
-Decoction works with most every plant but not with alchemical substances. Nettle, Chamomile, saffron, mint, pennyroyal and other herbs ALWAYS create usable medicine via Decoction method; a tea or infusion if used alone, a cordial if used with rosewater or sugar.
-Calcination of all substances breaks them down into simpler elemental material, of the sort alchemists used, like potash, sal ammoniac, magnesia (highly valuable), salt of tartar, vegetable salts, calx of vitriol.
-Confectioning almost always works with everything, as long as you use sugar or honey.
-Honey can be distilled into various products or will make unguents and treacles if confectioned. Decocting honey makes honey water, useful for mixing more valuable drugs. Decocting wine makes vinegar, which if combined with honey makes oxymel.
-Compounds can be distilled with additional ingredients to create more valuable ones; two or more compounds distilled with make a form of mithridate.
-Distilling cinchona or quina or guaiacum produces a highly valuable febrifuge "Agua" like "Agua da Inglaterra."
-Sal Ammoniac can be distilled or calcined with other drugs, but may produce semi-toxic or unusual alchemical compounds. Sal Ammoniac: calcination = Calx Ammoniaci or Vaporis Pulmonalis; distillation: Spiritus Ammoniaci. Can be mixed with rosewater, syrups and sugars, and herbs. If mixed with quicksilver, it makes a deadly poison called "Alchemist's Fulminate."
-Animals and animal products can ALWAYS be distilled and calcined. For instance, if Maria buys an iguana, she can calcinate it to make "iguana ash" or distill it to make "spiritus iguanae" or "iguana licqueur". Confectioning animal ashes with any plant or herb can produce an extremely valuable item, either the Bezoartico, the Lapis de Goa, or the Artificial Snakestone, depending on the admixtures. Lapis de Goa requires gold and is valued at over 200 reales.
-Remember that calcination of most products = alchemical raw materials. Always. Ashes, but also other things like potash. These can sometimes be valuable and interesting.
-Sublimation produces valuable, rare and unusual compounds with unusual and unexpected properties. They are often alchemical and even almost mystical or magical in nature. Be creative here.
-Always observe rules above. Another option is for a drug to become something weaker, i.e., decoction of opium might create weaker, cheaper "poppy water."
+Vernacular Names (common, descriptive):
+- English: Plague Water, Hysteric Water, Snail Water, Spirit of Scurvy-Grass, Oil of Swallows, Syrup of Poppies, Powder of Sympathy, Venice Treacle, London Treacle
+- Spanish: Agua de Azahar, Jarabe de Violetas, Aceite de Almendras, Ungüento Populeon
+
+Latin Pharmaceutical Terms:
+- Tinctura Opii, Decoctum Sennae, Aqua Vitae, Spiritus Vini Rectificatus, Sal Volatile Oleosum, Magistery of Pearl, Calx Antimonii, Flores Sulphuris
+
+Mixed Vernacular + Latin:
+- Balsam of Peru / Balsamum Peruvianum, Jesuit's Powder, Cardinal's Powder, English Saffron Pills, Dutch Drops
+
+Practitioner/Geographic Attribution:
+- Named after physicians: Sydenham's Laudanum, Riverius's Powder, Paracelsus's Arcanum
+- Regional origin: Hungarian Water, Carmelite Water, Barbados Tar, Agua da Inglaterra
+
+GALENIC PRINCIPLES (apply these - don't memorize rigid recipes):
+- Cold substances counter hot conditions (fever, inflammation)
+- Dry substances counter moist conditions (phlegm, diarrhea)
+- Hot substances counter cold conditions (chills, lethargy)
+- Moist substances counter dry conditions (constipation, dry cough)
+
+CREATIVE NAMING GUIDELINES - VARY YOUR APPROACH:
+
+AVOID formulaic patterns like "Decoctum [X] cum [Y]" or "Tincture of [X]" every time. Mix these approaches:
+
+1. GEOGRAPHIC/CULTURAL (30% of the time):
+   - "Agua da Inglaterra" (English Water - cinchona preparation)
+   - "Hungarian Water" (rosemary cordial)
+   - "Barbados Tar" (molasses-based medicine)
+   - "Carmelite Water" (melissa balm)
+   - "Sevillian Balsam," "Venetian Cordial," "Lima Remedy"
+
+2. EFFECT-BASED POETIC (25% of the time):
+   - "Hysteric Water" (calming preparation)
+   - "Carminative Elixir" (digestive aid)
+   - "Restorative Cordial," "Soporific Draught"
+   - "Febrifuge Water," "Stomachic Wine"
+
+3. PRACTITIONER ATTRIBUTION (20% of the time):
+   - "Sydenham's Laudanum" (opium + saffron + wine)
+   - "Paracelsus's Arcanum" (alchemical preparation)
+   - "Riverius's Powder," "Gascon's Remedy"
+   - Invent plausible historical names: "Valles's Tincture," "Monardes's Extract"
+
+4. TRADITIONAL/MYTHIC (15% of the time):
+   - "Venice Treacle," "London Treacle" (complex theriac variants)
+   - "Plague Water" (prophylactic compound)
+   - "Powder of Sympathy," "Elixir Proprietatis"
+   - "Aqua Celestis," "Divine Balsam"
+
+5. DESCRIPTIVE PHARMACEUTICAL (10% of the time only):
+   - "Decoctum Sennae" (plain senna decoction)
+   - "Tinctura Opii" (opium tincture)
+   - Use ONLY for very simple, single-ingredient preparations
+
+METHOD-SPECIFIC NAMING TIPS:
+Distillation → Favor "Waters" (Aqua, Agua), "Spirits," geographic names
+Decoction → Favor effect-based ("Febrifuge," "Emetic"), wine-based names
+Calcination → Favor Latin terms ("Calx," "Sal," "Flores"), alchemical names
+Confection → Favor sweet names ("Conserve," "Electuary," "Trochisci"), condition-based
+Sublimation → Favor mystical/alchemical names ("Flowers of...," "Quintessence," rare terms)
+
+FAILURES (realistic, named properly - NOT "Unusable Sludge"):
+- "Weak Tincture" / "Tinctura Debilis" (too dilute, low potency, worth 1-2 reales)
+- "Burnt Syrup" (overheated confection, acrid taste, worth 0-1 reales)
+- "Precipitate" (crystallized, needs redissolving, worth 1-2 reales)
+- "Empyreumatic Oil" (smoky, burnt distillation, worth 0-1 reales)
+- "Acrid Vinegar" (soured preparation, worth 0 reales)
+
+TOXIC BUT USABLE (label clearly in medicinalEffects):
+- "Mercurial Purgative - TOXIC, use sparingly"
+- "Antimony Emetic - violent vomiting, dangerous in excess"
+- "Corrosive Sublimate - deadly poison, external use only"
+
+CRITICAL: Be CREATIVE with names! Follow the percentages above - favor geographic, effect-based, and practitioner names over boring descriptive ones. A cinchona+balsam decoction could be:
+- "Lima Febrifuge" (geographic) ✓
+- "Peruvian Remedy" (cultural) ✓
+- "Restorative Balsam" (effect-based) ✓
+NOT just "Decoction of Quina with Balsam" ✗
+
+Same ingredients should produce DIFFERENT names on repeated mixing. Vary your approach! Be historically plausible but imaginative.
 
 When provided with ingredients and a compounding method, return a JSON object with the following fields:
 
 {
-  "name": "Name of the compound",
-  "latinName": "The Latin name of the compound (be creative)",
+  "name": "Name of the compound (following naming conventions above)",
+  "latinName": "The Latin name of the compound",
   "spanishName": "The name of the compound in Spanish",
-  "humoralQualities": "Two word description of humoral qualities: warm and moist, cold and dry, cold and moist, or warm and dry.",
+  "humoralQualities": "Temperature in Xth degree, Moisture in Yth degree (e.g., 'Cold in 4th degree, Dry in 3rd degree' for opium, or 'Warm in 1st degree, Moist in 2nd degree' for chamomile). Use degrees 1-4 to indicate intensity.",
   "medicinalEffects": "The specific effects it has on health and the body - defined in a phrase, like 'soporific and resolutive, but potentially toxic'",
-  "description": "Brief, pithy, witty description of the process and result (no more than a single short sentence or phrase)",
-  "price": Number of reales in value,
-  "emoji": "A single HISTORICALLY ACCURATE and CREATIVE emoji to represent the result (Unusable Sludge is always ☠️)",
-  "citation": "Real primary source or historical reference which mentions it or something like it",
-  "quantity": "1",
-  "historicalAccuracyScore": A number from 1-100 rating the historical accuracy and thoughtfulness of this combination, where:
-    - 1-30: Common, mundane combination (e.g., simple decoctions, basic syrups)
-    - 31-60: Somewhat sophisticated, scarce compound (e.g., lesser-known cordials, regional remedies)
-    - 61-85: Rare, highly sophisticated compound (e.g., complex alchemical preparations, exotic imports)
-    - 86-100: Legendary, extremely rare and historically significant (e.g., Theriac, Aurum Potabile, Philosopher's Stone preparations)
-    Consider: ingredient rarity, method complexity, historical documentation, therapeutic sophistication,
-  "historicalAccuracyRationale": "A single concise sentence (max 120 characters) explaining the score with SPECIFIC reference to a real historical source, practitioner, or text. Examples: 'Mentioned in Culpeper's 1653 Complete Herbal as a standard purgative.' or 'Paracelsus described this mercurial preparation in Archidoxis (1570).' or 'Common preparation found in Spanish pharmacopoeias of the period.' Be specific with dates, names, and titles."
+  "description": "Brief, pithy description of the process and result (no more than a single short sentence)",
+  "price": Number of reales in value (failures: 0-2, simple preparations: 3-8, complex: 10-30, rare: 40-100, legendary: 150+),
+  "emoji": "A single HISTORICALLY ACCURATE emoji to represent the result",
+  "citation": "Real primary source or historical reference which mentions it or something like it (e.g., 'Salmon's Pharmacopoeia Londinensis, 1678' or 'Culpeper's Complete Herbal, 1653')",
+  "quantity": "1"
 }
 
 CRITICAL REMINDER: Return ONLY the raw JSON object above. Do not wrap it in markdown code fences (no \`\`\`json), do not add explanatory text, and do not include comments. Your entire response must be valid JSON that can be parsed directly.
@@ -279,76 +352,61 @@ Compounding Method: ${selectedMethod}
         throw new Error('Invalid JSON');
       }
 
-      // Apply Alchemist L25/L30 ability: Prevent sludge
-      let compoundName = compoundData.name || 'Unusable Sludge';
+      // Apply Alchemist L25/L30 ability: Prevent failures
+      let compoundName = compoundData.name || 'Weak Tincture';
       // CRITICAL: Parse price as number (LLM sometimes returns string instead of number)
       let compoundPrice = parseInt(compoundData.price, 10) || 0;
 
       if (canPreventSludge(gameState.chosenProfession, gameState.playerLevel)) {
-        if (compoundName === 'Unusable Sludge') {
+        // Master Alchemist can salvage failures into weak but usable preparations
+        if (compoundPrice <= 2) {
           compoundName = 'Experimental Tincture';
-          compoundPrice = Math.max(1, Math.floor(Math.random() * 5) + 1); // 1-5 reales
-          console.log('[Alchemist] Master Alchemist ability prevented sludge!');
+          compoundPrice = Math.max(3, Math.floor(Math.random() * 5) + 3); // 3-8 reales
+          console.log('[Alchemist] Master Alchemist ability salvaged a failure!');
         }
       }
 
-      // RARITY CALCULATION SYSTEM
-      // Uses LLM's historical accuracy score + randomness to determine rarity
-      // Probabilities: Common ~50-60%, Scarce ~25-30%, Rare ~10-15%, Legendary ~1-2%
-      const calculateRarity = (accuracyScore) => {
-        // Unusable sludge never gets rarity
-        if (compoundName === 'Unusable Sludge') {
-          return { tier: 'common', multiplier: 1.0 };
-        }
+      // RARITY CALCULATION SYSTEM (DETERMINISTIC)
+      // Based on ingredient count + method complexity (no RNG)
+      const calculateRarity = (ingredientCount, methodName) => {
+        // Method complexity bonuses
+        const methodBonus = {
+          'Sublimate': 30,   // Rarest, most complex
+          'Distill': 20,     // Complex, requires apparatus
+          'Calcinate': 15,   // Requires heat control
+          'Decoct': 5,       // Common, simple
+          'Confection': 0    // Most basic
+        };
 
-        // Base probabilities (add up to ~100%)
-        // These shift based on accuracy score
-        const baseRoll = Math.random() * 100;
+        // Calculate complexity score
+        let complexity = ingredientCount * 10; // Each ingredient = 10 points
+        complexity += methodBonus[methodName] || 0;
 
-        // Score ranges and their probability modifiers
-        // Low score (1-30): 70% common, 25% scarce, 4.5% rare, 0.5% legendary
-        // Medium score (31-60): 50% common, 30% scarce, 15% rare, 5% legendary
-        // High score (61-85): 20% common, 30% scarce, 40% rare, 10% legendary
-        // Very high score (86-100): 5% common, 15% scarce, 50% rare, 30% legendary
-
-        if (accuracyScore <= 30) {
-          // Common/mundane combinations
-          if (baseRoll < 70) return { tier: 'common', multiplier: 1.0 };
-          if (baseRoll < 95) return { tier: 'scarce', multiplier: 1.5 };
-          if (baseRoll < 99.5) return { tier: 'rare', multiplier: 2.5 };
+        // Determine tier based on complexity thresholds
+        if (complexity >= 70) {
+          // 5+ ingredients + Sublimate, or 7+ ingredients + Distill
           return { tier: 'legendary', multiplier: 5.0 };
-        } else if (accuracyScore <= 60) {
-          // Sophisticated combinations
-          if (baseRoll < 50) return { tier: 'common', multiplier: 1.0 };
-          if (baseRoll < 80) return { tier: 'scarce', multiplier: 1.5 };
-          if (baseRoll < 95) return { tier: 'rare', multiplier: 2.5 };
-          return { tier: 'legendary', multiplier: 5.0 };
-        } else if (accuracyScore <= 85) {
-          // Rare, sophisticated combinations
-          if (baseRoll < 20) return { tier: 'common', multiplier: 1.0 };
-          if (baseRoll < 50) return { tier: 'scarce', multiplier: 1.5 };
-          if (baseRoll < 90) return { tier: 'rare', multiplier: 2.5 };
-          return { tier: 'legendary', multiplier: 5.0 };
+        } else if (complexity >= 45) {
+          // 3+ ingredients + Distill, or 5+ ingredients + Calcinate
+          return { tier: 'rare', multiplier: 2.5 };
+        } else if (complexity >= 25) {
+          // 2+ ingredients + Calcinate, or 3+ ingredients + Decoct
+          return { tier: 'scarce', multiplier: 1.5 };
         } else {
-          // Legendary combinations
-          if (baseRoll < 5) return { tier: 'common', multiplier: 1.0 };
-          if (baseRoll < 20) return { tier: 'scarce', multiplier: 1.5 };
-          if (baseRoll < 70) return { tier: 'rare', multiplier: 2.5 };
-          return { tier: 'legendary', multiplier: 5.0 };
+          // Simple preparations (1-2 ingredients, basic methods)
+          return { tier: 'common', multiplier: 1.0 };
         }
       };
 
-      // Calculate rarity based on LLM's historical accuracy score
-      // CRITICAL: Parse accuracy score as number (LLM sometimes returns string)
-      const accuracyScore = parseInt(compoundData.historicalAccuracyScore, 10) || 30; // Default to common range
-      const rarity = calculateRarity(accuracyScore);
+      // Calculate rarity based on ingredient count and method
+      const rarity = calculateRarity(ingredients.length, selectedMethod);
 
       // Apply rarity multiplier to price
       compoundPrice = Math.ceil(compoundPrice * rarity.multiplier);
 
-      console.log(`[Mixing] Historical accuracy score: ${accuracyScore}`);
+      console.log(`[Mixing] Ingredients: ${ingredients.length}, Method: ${selectedMethod}`);
       console.log(`[Mixing] Determined rarity: ${rarity.tier} (${rarity.multiplier}x multiplier)`);
-      console.log(`[Mixing] Adjusted price: ${compoundPrice} reales`);
+      console.log(`[Mixing] Final price: ${compoundPrice} reales`);
 
       // Apply Alchemist L20/L30 ability: Double batch chance
       // CRITICAL: Parse quantity as number (LLM sometimes returns string "1" instead of number 1)
@@ -369,21 +427,21 @@ Compounding Method: ${selectedMethod}
         price: compoundPrice,
         humoralQualities: compoundData.humoralQualities || 'N/A',
         medicinalEffects: compoundData.medicinalEffects || 'N/A',
-        description: compoundData.description || 'The mixing process failed, resulting in an unusable sludge.',
+        description: compoundData.description || 'The mixing process failed.',
         citation: compoundData.citation || 'N/A',
         quantity: compoundQuantity,
-        rarity: rarity.tier, // Add rarity tier
-        historicalAccuracyScore: accuracyScore, // Store for reference
-        historicalAccuracyRationale: compoundData.historicalAccuracyRationale || null // LLM explanation of score
+        rarity: rarity.tier // Rarity tier based on complexity
       };
 
       // Add compound to inventory
       addCompoundToInventory(newCompound);
 
       // Generate journal entry
-      if (newCompound.name === 'Unusable Sludge') {
-        addJournalEntry("Maria created a worthless compound called **Unusable Sludge**. This was a failed experiment - better luck next time!");
+      if (newCompound.price <= 2) {
+        // Failure (low value indicates failed preparation)
+        addJournalEntry(`Maria's attempt to create a compound resulted in **${newCompound.name}**. ${newCompound.description}`);
       } else {
+        // Success
         addJournalEntry(`Maria created a new compound named **${newCompound.name}** using the ${selectedMethod} method. The compound is ${newCompound.humoralQualities} with ${newCompound.medicinalEffects} effects and is worth ${newCompound.price} silver coins.`);
       }
 
@@ -403,8 +461,9 @@ Compounding Method: ${selectedMethod}
       }
 
       // Award alchemy skill XP - also scales with rarity
+      // Failures still give some XP (you learn from mistakes)
       const alchemySkillXP = {
-        'common': newCompound.name === 'Unusable Sludge' ? 3 : 8,
+        'common': newCompound.price <= 2 ? 3 : 8,  // Failures give reduced XP
         'scarce': 12,
         'rare': 18,
         'legendary': 30
@@ -456,26 +515,29 @@ Compounding Method: ${selectedMethod}
 
     } catch (error) {
       console.error('Error generating compound:', error);
-      const unusableSludge = {
+      const failedPreparation = {
         id: new Date().getTime(),
-        name: 'Unusable Sludge',
-        emoji: '☠️',
+        name: 'Burnt Residue',
+        latinName: 'Residuum Combustum',
+        spanishName: 'Residuo Quemado',
+        emoji: '🔥',
         price: 0,
-        humoralQualities: 'N/A',
-        medicinalEffects: 'N/A',
-        description: 'The mixing process failed, resulting in an unusable sludge.',
-        citation: 'N/A',
-        quantity: 1
+        humoralQualities: 'Hot in 3rd degree, Dry in 4th degree',
+        medicinalEffects: 'Acrid and useless for medicine',
+        description: 'The preparation was ruined - likely from excessive heat or incompatible ingredients.',
+        citation: 'Common failure mode in pharmaceutical practice',
+        quantity: 1,
+        rarity: 'common'
       };
 
-      addCompoundToInventory(unusableSludge);
-      addJournalEntry("Maria's attempt to create a new compound failed, resulting in an unusable sludge. Better luck next time!");
+      addCompoundToInventory(failedPreparation);
+      addJournalEntry("Maria's preparation failed, leaving only **Burnt Residue**. A costly mistake.");
 
       ingredients.forEach(ingredient => {
         updateInventory(ingredient.name, -1);
       });
 
-      setCompoundResult(unusableSludge);
+      setCompoundResult(failedPreparation);
       setSelectedSimples({});
       setIsMixButtonEnabled(false);
     } finally {
@@ -695,11 +757,27 @@ Compounding Method: ${selectedMethod}
                     method={method}
                     ingredients={selectedSimples[method.name] || []}
                     onDrop={handleDrop}
+                    onRemove={handleRemoveIngredient}
                     isLoading={isLoading}
                   />
                 ))}
               </div>
             </div>
+
+            {/* Predicted Medicine Type */}
+            {predictedMedicineType && isMixButtonEnabled && (
+              <div className="text-center mb-4">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-100/80 to-amber-50/80 dark:from-amber-900/30 dark:to-amber-800/30 border border-amber-300/50 dark:border-amber-600/30 shadow-sm">
+                  <span className="text-lg">{getMedicineType(predictedMedicineType.typeId).emoji}</span>
+                  <span className="font-serif text-sm text-ink-700 dark:text-amber-200">
+                    Creating: <span className="font-semibold">{getMedicineType(predictedMedicineType.typeId).name}</span>
+                  </span>
+                  <span className="text-xs text-ink-500 dark:text-amber-400/70 italic">
+                    ({predictedMedicineType.reason})
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Inventory Section - Paginated */}
             <div className="bg-ink-50/50 dark:bg-slate-800/30 rounded-xl p-3 border border-ink-200/30 dark:border-slate-600/30 shadow-sm">
@@ -711,49 +789,19 @@ Compounding Method: ${selectedMethod}
                   </span>
                 </h3>
 
-                {/* Medicine Type Filter Buttons - Now inline with header */}
-                <div className="flex flex-wrap gap-1 flex-1 justify-center">
-                  <button
-                    onClick={() => setMedicineTypeFilter('all')}
-                    className="text-xs px-2 py-1 rounded-md transition-all duration-150 font-sans font-normal"
-                    title="Show all materia medica"
-                    style={{
-                      background: medicineTypeFilter === 'all'
-                        ? (isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)')
-                        : (isDark ? 'rgba(71, 85, 105, 0.1)' : 'rgba(229, 231, 235, 0.3)'),
-                      color: medicineTypeFilter === 'all'
-                        ? (isDark ? '#10b981' : '#059669')
-                        : (isDark ? '#94a3b8' : '#6b7280'),
-                      border: medicineTypeFilter === 'all'
-                        ? (isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(16, 185, 129, 0.2)')
-                        : '1px solid transparent'
-                    }}
-                  >
-                    All ({medicineCountsByType.all})
-                  </button>
+                {/* Medicine Type Filter Dropdown */}
+                <select
+                  value={medicineTypeFilter}
+                  onChange={(e) => setMedicineTypeFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-lg border border-ink-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-ink-800 dark:text-amber-100 font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 transition-all cursor-pointer hover:border-amber-500 dark:hover:border-amber-400"
+                >
+                  <option value="all">All Types ({medicineCountsByType.all})</option>
                   {getAllMedicineTypes().map(type => (
-                    <button
-                      key={type.id}
-                      onClick={() => setMedicineTypeFilter(type.id)}
-                      className="text-xs px-2 py-1 rounded-md transition-all duration-150 font-sans font-normal flex items-center gap-1"
-                      title={type.description}
-                      style={{
-                        background: medicineTypeFilter === type.id
-                          ? `${type.color}20`
-                          : (isDark ? 'rgba(71, 85, 105, 0.1)' : 'rgba(229, 231, 235, 0.3)'),
-                        color: medicineTypeFilter === type.id
-                          ? type.color
-                          : (isDark ? '#94a3b8' : '#6b7280'),
-                        border: medicineTypeFilter === type.id
-                          ? `1px solid ${type.color}40`
-                          : '1px solid transparent'
-                      }}
-                    >
-                      <span style={{ fontSize: '0.95rem' }}>{type.emoji}</span>
-                      <span>{medicineCountsByType[type.id] || 0}</span>
-                    </button>
+                    <option value={type.id} key={type.id}>
+                      {type.emoji} {type.name} ({medicineCountsByType[type.id] || 0})
+                    </option>
                   ))}
-                </div>
+                </select>
 
                 {filteredSimples.length > 14 && (
                   <div className="flex items-center gap-2">
@@ -795,7 +843,7 @@ Compounding Method: ${selectedMethod}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-9 gap-3 p-2 auto-rows-fr">
+                <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3 p-2 auto-rows-fr">
                   {filteredSimples.slice(inventoryPage * 18, (inventoryPage + 1) * 18).map(simple => (
                     <DraggableIngredient
                       key={simple.id}
@@ -815,9 +863,11 @@ Compounding Method: ${selectedMethod}
           <div className="px-6 py-3 border-t border-amber-700/30 dark:border-amber-500/20 bg-gradient-to-r from-amber-100/50 via-parchment-100/50 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/50 dark:to-slate-800/50 flex justify-between items-center shadow-inner">
             <button
               onClick={resetSelection}
-              className="px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 dark:from-slate-600 dark:to-slate-700 dark:hover:from-slate-700 dark:hover:to-slate-800 text-white rounded-xl font-sans text-base font-semibold shadow-md hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-95"
+              className="px-3 py-1.5 text-sm font-sans text-ink-600 dark:text-amber-300/70 hover:text-ink-900 dark:hover:text-amber-100 transition-colors duration-200 flex items-center gap-1"
+              title="Clear all selected ingredients"
             >
-              Reset
+              <span className="text-base">↺</span>
+              <span>Reset</span>
             </button>
 
             <button

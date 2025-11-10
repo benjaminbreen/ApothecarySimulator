@@ -91,7 +91,8 @@ function PrescribePanelIntegrated({
   theme = 'light',
   transactionManager,
   TRANSACTION_CATEGORIES,
-  toast // Toast notification function (optional)
+  toast, // Toast notification function (optional)
+  onOpenInventoryTab // Optional callback to open inventory tab
 }) {
   const { inventory = [] } = gameState;
   const {
@@ -116,6 +117,9 @@ function PrescribePanelIntegrated({
   const [prescriptionData, setPrescriptionData] = useState(null);
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [mechanicsBreakdown, setMechanicsBreakdown] = useState(null);
+
+  // Preview calculation state
+  const [previewResult, setPreviewResult] = useState(null);
 
   // Bloodletting feature states
   const [includeBloodletting, setIncludeBloodletting] = useState(false);
@@ -158,6 +162,27 @@ function PrescribePanelIntegrated({
   useEffect(() => {
     setPrice(basePrice * amount);
   }, [amount, basePrice]);
+
+  // Calculate prescription preview
+  useEffect(() => {
+    if (selectedItem && selectedRoute && currentPatient) {
+      try {
+        const result = calculatePrescriptionOutcome({
+          item: selectedItem,
+          patient: currentPatient,
+          route: selectedRoute,
+          amount: amount,
+          playerSkills: gameState.playerSkills || null
+        });
+        setPreviewResult(result);
+      } catch (error) {
+        console.error('[PrescribePanelIntegrated] Preview calculation failed:', error);
+        setPreviewResult(null);
+      }
+    } else {
+      setPreviewResult(null);
+    }
+  }, [selectedItem, selectedRoute, amount, currentPatient, gameState.playerSkills]);
 
   // Handle drop of item into prescription area
   const [{ isOver, canDrop }, drop] = useDrop({
@@ -897,15 +922,42 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
                   )}
                 </div>
               ) : (
-                <div className={`transition-all duration-300 ${isOver && canDrop ? 'scale-110' : 'scale-100'}`}>
-                  <div className={`text-4xl mb-2 transition-all duration-300 ${isOver && canDrop ? 'opacity-100 animate-bounce' : 'opacity-40'}`}>
-                    {isOver && canDrop ? '⬇️' : ''}
-                  </div>
-                  <p className={`text-center text-sm font-sans transition-colors duration-300 ${
-                    isOver && canDrop ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-ink-400 dark:text-slate-500'
-                  }`}>
-                    {isOver && canDrop ? 'Drop here to select' : 'Drag an item from inventory to prescribe'}
-                  </p>
+                <div className={`transition-all duration-300 ${isOver && canDrop ? 'scale-105' : 'scale-100'}`}>
+                  {isOver && canDrop ? (
+                    // Hover state - drop to select
+                    <>
+                      <div className="text-5xl mb-2 animate-bounce">
+                        ⬇️
+                      </div>
+                      <p className="text-center text-base font-semibold text-emerald-600 dark:text-emerald-400 font-sans">
+                        Drop here to select
+                      </p>
+                    </>
+                  ) : (
+                    // Empty state - clear instructions
+                    <>
+                      <div className="text-6xl mb-3 opacity-30">
+                        🏺
+                      </div>
+                      <p className="text-center text-base font-semibold text-ink-700 dark:text-slate-300 mb-2 font-sans">
+                        Select a Medicine
+                      </p>
+                      <p className="text-center text-xs text-ink-500 dark:text-slate-400 font-sans">
+                        Drag medicine from your inventory
+                      </p>
+                      {onOpenInventoryTab && (
+                        <div className="flex items-center justify-center gap-2 text-xs text-ink-400 dark:text-slate-500 mt-2">
+                          <span>or</span>
+                          <button
+                            onClick={onOpenInventoryTab}
+                            className="underline hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors font-sans"
+                          >
+                            Open Inventory
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1000,6 +1052,47 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
               ))}
             </div>
           </div>
+
+          {/* Prescription Preview - Simple inline version */}
+          {previewResult && (
+            <div className="p-3 rounded-lg border-2 transition-all" style={{
+              borderColor: previewResult.effectiveness >= 75 ? '#10b981' :
+                           previewResult.effectiveness >= 50 ? '#f59e0b' :
+                           previewResult.effectiveness >= 25 ? '#f97316' : '#dc2626',
+              backgroundColor: document.documentElement.classList.contains('dark')
+                ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.5)'
+            }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-ink-600 dark:text-slate-400 uppercase tracking-wide font-sans">
+                  Predicted Effectiveness
+                </span>
+                <span className="text-lg font-bold" style={{
+                  color: previewResult.effectiveness >= 75 ? '#10b981' :
+                         previewResult.effectiveness >= 50 ? '#f59e0b' :
+                         previewResult.effectiveness >= 25 ? '#f97316' : '#dc2626'
+                }}>
+                  {Math.round(previewResult.effectiveness)}/100
+                </span>
+              </div>
+
+              {/* Critical warnings only */}
+              {previewResult.breakdown.toxicityWarning && (
+                <p className="text-xs font-semibold text-red-700 dark:text-red-400 mt-1">
+                  {previewResult.breakdown.toxicityWarning}
+                </p>
+              )}
+              {previewResult.breakdown.dosageWarning && (
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                  {previewResult.breakdown.dosageWarning}
+                </p>
+              )}
+              {previewResult.breakdown.routeExplanation && (
+                <p className="text-xs text-ink-600 dark:text-slate-400 mt-1">
+                  {previewResult.breakdown.routeExplanation}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Bloodletting Section */}
           <div className="mt-4 p-4 rounded-lg border-2 transition-all duration-300" style={{
