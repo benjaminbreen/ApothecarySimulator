@@ -119,19 +119,19 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
       )}
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2 min-h-0">
 
-        {/* Evidence Section */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
+        {/* Evidence Section - Grows to fill available space */}
+        <div className="flex flex-col min-h-0 flex-shrink-0">
+          <div className="flex items-center gap-2 mb-1.5">
             <span className="text-base"></span>
-            <h3 className="text-base font-bold text-ink-900 uppercase tracking-wide font-sans">
+            <h3 className="text-xs font-bold text-ink-900 uppercase tracking-wide font-sans">
               Clinical Evidence
             </h3>
           </div>
 
-          {/* Scrollable Evidence Cards Container */}
-          <div className="max-h-[140px]  overflow-y-auto custom-scrollbar space-y-1 pr-1 mb-2">
+          {/* Responsive Evidence Cards Container - grows with available space */}
+          <div className="overflow-y-auto custom-scrollbar space-y-1 pr-1 mb-1.5 max-h-[200px]">
             {evidenceCards.map((card) => (
               <EvidenceCard
                 key={card.id}
@@ -145,7 +145,7 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
 
           <button
             onClick={handleAddCard}
-            className="w-full px-3 py-2 rounded-lg text-sm font-semibold transition-all font-sans"
+            className="w-full px-2 py-1.5 rounded-lg text-xs font-semibold transition-all font-sans"
             style={{
               background: 'rgba(209, 213, 219, 0.15)',
               color: '#059669',
@@ -157,10 +157,10 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
         </div>
 
         {/* Diagnosis Section */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
+        <div className="flex-shrink-0">
+          <div className="flex items-center gap-2 mb-1.5">
             <span className="text-base"></span>
-            <h3 className="text-base font-bold text-ink-900 uppercase tracking-wide font-sans">
+            <h3 className="text-xs font-bold text-ink-900 uppercase tracking-wide font-sans">
               Your Diagnosis
             </h3>
           </div>
@@ -168,9 +168,9 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
           <textarea
             value={diagnosis}
             onChange={(e) => setDiagnosis(e.target.value)}
-            placeholder="Enter your medical diagnosis based on the evidence...&#10;e.g., 'Considering the patient's persistent headache and melancholic humors, I diagnose an excess of black bile...'"
-            className="shadow-inner w-full px-4 ml-1 py-3 rounded-lg border resize-none font-serif leading-relaxed"
-            rows={3}
+            placeholder="Enter your medical diagnosis based on the evidence...&#10;e.g., 'Considering the patient's melancholic humors, I diagnose an excess of black bile...'"
+            className="shadow-inner w-full px-3 ml-1 py-2 rounded-lg border resize-none font-serif leading-relaxed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:border-emerald-400"
+            rows={2}
             style={{
               background: 'rgba(255, 255, 255, 0.8)',
               borderColor: 'rgba(209, 213, 219, 0.5)',
@@ -181,16 +181,16 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
         </div>
 
         {/* Confidence Meter */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
+        <div className="flex-shrink-0">
+          <div className="flex items-center gap-2 mb-1.5">
             <span className="text-base"></span>
-            <h3 className="text-base font-bold text-ink-900 uppercase tracking-wide font-sans">
+            <h3 className="text-xs font-bold text-ink-900 uppercase tracking-wide font-sans">
               Diagnostic Certainty
             </h3>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex gap-2">
+          <div className="space-y-1.5">
+            <div className="flex gap-1.5">
               {[
                 { value: 'low', label: 'Low', emoji: '❓', color: '#f59e0b', description: 'Uncertain, requires more examination' },
                 { value: 'medium', label: 'Medium', emoji: '⚖️', color: '#3b82f6', description: 'Reasonably confident based on evidence' },
@@ -199,7 +199,7 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
                 <button
                   key={option.value}
                   onClick={() => setConfidence(option.value)}
-                  className="flex-1 px-4 py-3 rounded-lg transition-all duration-300 font-sans relative overflow-hidden group"
+                  className="flex-1 px-2 py-1.5 rounded-lg transition-all duration-300 font-sans relative overflow-hidden group"
                   style={{
                     background: confidence === option.value
                       ? `linear-gradient(135deg, ${option.color}22 0%, ${option.color}33 100%)`
@@ -224,10 +224,10 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
                     />
                   )}
 
-                  <div className="relative flex flex-col items-center gap-1">
-                    <span className="text-xl">{option.emoji}</span>
+                  <div className="relative flex flex-col items-center gap-0.5">
+                    <span className="text-base">{option.emoji}</span>
                     <span
-                      className="text-sm font-bold"
+                      className="text-[10px] font-bold"
                       style={{
                         color: confidence === option.value ? option.color : '#6b7280'
                       }}
@@ -237,7 +237,7 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
                   </div>
 
                   {/* Hover tooltip */}
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap text-xs font-sans"
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1.5 px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap text-[10px] font-sans"
                     style={{
                       background: 'rgba(31, 27, 20, 0.95)',
                       color: 'white',
@@ -253,19 +253,19 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
 
             {/* Visual Confidence Meter */}
             {confidence && (
-              <div className="rounded-lg p-4 transition-all duration-500" style={{
+              <div className="rounded-lg p-2 transition-all duration-500" style={{
                 background: 'rgba(255, 255, 255, 0.6)',
                 border: '1px solid rgba(209, 213, 219, 0.3)'
               }}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-ink-700 uppercase tracking-wide font-sans">Certainty Level</span>
-                  <span className="text-xs font-bold font-sans" style={{
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9px] font-bold text-ink-700 uppercase tracking-wide font-sans">Certainty</span>
+                  <span className="text-[9px] font-bold font-sans" style={{
                     color: confidence === 'high' ? '#10b981' : confidence === 'medium' ? '#3b82f6' : '#f59e0b'
                   }}>
                     {confidence === 'high' ? '85-100%' : confidence === 'medium' ? '50-84%' : '0-49%'}
                   </span>
                 </div>
-                <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-700 ease-out"
                     style={{
@@ -290,11 +290,11 @@ export function DiagnosisPanel({ patient, onBack, onSubmitDiagnosis }) {
       </div>
 
       {/* Submit Button */}
-      <div className="pt-4 mt-4" style={{ borderTop: '2px solid rgba(209, 213, 219, 0.3)' }}>
+      <div className="pt-2 mt-2 flex-shrink-0" style={{ borderTop: '2px solid rgba(209, 213, 219, 0.3)' }}>
         <button
           onClick={handleSubmit}
           disabled={!diagnosis.trim()}
-          className="w-full px-6 py-3 text-sm font-semibold transition-all rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-sans"
+          className="w-full px-4 py-2 text-xs font-semibold transition-all rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-sans"
           style={{
             background: diagnosis.trim()
               ? 'linear-gradient(to bottom, #10b981, #059669)'
@@ -350,7 +350,7 @@ function EvidenceCard({ card, onRemove, onUpdate, onDrop }) {
     const symptom = card.content;
     return (
       <div
-        className="relative rounded-lg p-3 transition-all"
+        className="relative rounded-lg p-2 transition-all"
         style={{
           background: 'rgba(255, 255, 255, 0.7)',
           border: '2px solid rgba(209, 213, 219, 0.4)',
@@ -359,28 +359,28 @@ function EvidenceCard({ card, onRemove, onUpdate, onDrop }) {
       >
         <button
           onClick={onRemove}
-          className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full transition-all font-sans"
+          className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center rounded-full transition-all font-sans"
           style={{
             background: 'rgba(239, 68, 68, 0.1)',
             color: '#dc2626',
-            fontSize: '12px'
+            fontSize: '11px'
           }}
         >
           ×
         </button>
 
         <div className="flex items-start gap-2">
-          <span className="text-lg">{getSymptomEmoji(symptom.type)}</span>
-          <div className="flex-1">
-            <h4 className="text-sm font-bold text-ink-900 mb-1 font-serif">{symptom.name}</h4>
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wide font-sans ${getSeverityColor(symptom.severity)}`}>
+          <span className="text-base">{getSymptomEmoji(symptom.type)}</span>
+          <div className="flex-1 pr-4">
+            <h4 className="text-xs font-bold text-ink-900 mb-0.5 font-serif">{symptom.name}</h4>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wide font-sans ${getSeverityColor(symptom.severity)}`}>
                 {symptom.severity}
               </span>
             </div>
-            <p className="text-xs text-ink-600 font-sans">📍 {symptom.location}</p>
+            <p className="text-[10px] text-ink-600 font-sans">📍 {symptom.location}</p>
             {symptom.description && (
-              <p className="text-xs text-ink-500 italic mt-1 font-serif">"{symptom.description}"</p>
+              <p className="text-[10px] text-ink-500 italic mt-0.5 font-serif line-clamp-2">"{symptom.description}"</p>
             )}
           </div>
         </div>
@@ -392,7 +392,7 @@ function EvidenceCard({ card, onRemove, onUpdate, onDrop }) {
   if (card.type === 'manual' && card.content) {
     return (
       <div
-        className="relative rounded-lg p-3 transition-all"
+        className="relative rounded-lg p-2 transition-all"
         style={{
           background: 'rgba(255, 255, 255, 0.7)',
           border: '2px solid rgba(209, 213, 219, 0.4)',
@@ -401,19 +401,19 @@ function EvidenceCard({ card, onRemove, onUpdate, onDrop }) {
       >
         <button
           onClick={onRemove}
-          className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full transition-all font-sans"
+          className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center rounded-full transition-all font-sans"
           style={{
             background: 'rgba(239, 68, 68, 0.1)',
             color: '#dc2626',
-            fontSize: '12px'
+            fontSize: '11px'
           }}
         >
           ×
         </button>
 
-        <div className="flex items-start gap-2">
-          <span className="text-lg">📝</span>
-          <p className="flex-1 text-sm text-ink-700 font-sans">{card.content}</p>
+        <div className="flex items-start gap-2 pr-4">
+          <span className="text-base">📝</span>
+          <p className="flex-1 text-xs text-ink-700 font-sans">{card.content}</p>
         </div>
       </div>
     );
@@ -423,7 +423,7 @@ function EvidenceCard({ card, onRemove, onUpdate, onDrop }) {
   if (isEditing) {
     return (
       <div
-        className="rounded-lg p-3"
+        className="rounded-lg p-2"
         style={{
           background: 'rgba(255, 255, 255, 0.5)',
           border: '2px solid rgba(209, 213, 219, 0.4)'
@@ -440,7 +440,7 @@ function EvidenceCard({ card, onRemove, onUpdate, onDrop }) {
           onBlur={handleTextSubmit}
           placeholder="Type evidence and press Enter..."
           autoFocus
-          className="w-full px-2 py-1 text-sm rounded border-none focus:outline-none font-sans"
+          className="w-full px-2 py-1 text-xs rounded border-none focus:outline-none font-sans"
           style={{
             background: 'rgba(255, 255, 255, 0.9)',
             color: '#1f1b14'
@@ -454,7 +454,7 @@ function EvidenceCard({ card, onRemove, onUpdate, onDrop }) {
     <div
       ref={drop}
       onClick={handleClick}
-      className="rounded-lg p-4 transition-all cursor-pointer"
+      className="rounded-lg p-2.5 transition-all cursor-pointer"
       style={{
         background: isOver ? 'rgba(251, 191, 36, 0.1)' : 'rgba(255, 255, 255, 0.3)',
         border: isOver
@@ -463,7 +463,7 @@ function EvidenceCard({ card, onRemove, onUpdate, onDrop }) {
         boxShadow: isOver ? '0 4px 16px rgba(245, 158, 11, 0.2)' : 'none'
       }}
     >
-      <p className="text-center text-xs text-ink-400 font-sans">
+      <p className="text-center text-[10px] text-ink-400 font-sans">
         {isOver ? '📦 Drop symptom here' : 'Click to type or drag symptom here'}
       </p>
     </div>

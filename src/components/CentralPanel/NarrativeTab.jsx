@@ -30,6 +30,8 @@ export function NarrativeTab({
   pendingActionPrompt = null, // Action prompt (give/sell/prescribe)
   onProposeAction = null, // Handler to propose action
   onDeclineAction = null, // Handler to decline action
+  onDismissAction = null, // Handler to silently dismiss action (no narrative)
+  actionPromptLoading = null, // Loading state for action prompts
   pendingMixingDecision = null, // Mixing decision
   onOpenMixingWorkshop = null, // Handler to open mixing workshop
   onAbandonMixing = null, // Handler to abandon mixing
@@ -69,6 +71,8 @@ export function NarrativeTab({
         pendingActionPrompt={pendingActionPrompt}
         onProposeAction={onProposeAction}
         onDeclineAction={onDeclineAction}
+        onDismissAction={onDismissAction}
+        actionPromptLoading={actionPromptLoading}
         pendingMixingDecision={pendingMixingDecision}
         onOpenMixingWorkshop={onOpenMixingWorkshop}
         onAbandonMixing={onAbandonMixing}

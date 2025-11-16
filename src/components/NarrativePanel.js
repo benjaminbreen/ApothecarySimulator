@@ -20,6 +20,143 @@ import { FaListUl, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import { getListTypeLabel } from '../core/config/listTypes.config';
 
 /**
+ * Parse prescription outcome score from narrative text
+ * Looks for patterns like "Result: 😐 3/10 Ineffective" or "**3/10**"
+ */
+function parsePrescriptionScore(content) {
+  if (!content || typeof content !== 'string') return null;
+
+  // Match patterns like "Result: 😐 3/10" or "3/10" or "Score: 8/10"
+  const scorePatterns = [
+    /Result:\s*[^\d]*(\d+)\/10/i,
+    /Score:\s*\*{0,2}(\d+)\/10\*{0,2}/i,
+    /\*{0,2}(\d+)\/10\*{0,2}/
+  ];
+
+  for (const pattern of scorePatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      const score = parseInt(match[1], 10);
+      if (score >= 0 && score <= 10) {
+        return score;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Parse score rationale (the explanation after the score)
+ * Looks for "Score: X/10 — explanation" or "Score: X/10** — explanation"
+ */
+function parseScoreRationale(content) {
+  if (!content || typeof content !== 'string') return null;
+
+  // Match "Score: X/10** — explanation" or "Score: X/10 — explanation"
+  // Also handles em dash (—), en dash (–), and regular hyphen (-)
+  const rationalePattern = /Score:\s*\*{0,2}\d+\/10\*{0,2}\s*[—–-]\s*(.+?)(?:\n|$)/i;
+  const match = content.match(rationalePattern);
+
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+
+  return null;
+}
+
+/**
+ * Get prescription outcome theme based on score (1-10)
+ * Returns colors and emoji matching PrescriptionOutcomeModal
+ */
+function getPrescriptionTheme(score) {
+  if (score === null || score === undefined) {
+    return {
+      emoji: '℞',
+      borderColor: 'border-purple-400/40 dark:border-purple-600/40',
+      bgGradient: 'from-purple-50/50 to-white dark:from-purple-900/20 dark:to-slate-900',
+      iconBg: 'bg-purple-500',
+      textColor: 'text-purple-700 dark:text-purple-400'
+    };
+  }
+
+  // Score 1: Fatal (black/gray)
+  if (score <= 1) {
+    return {
+      emoji: '☠️',
+      borderColor: 'border-gray-900/60 dark:border-black',
+      bgGradient: 'from-gray-100 to-gray-200 dark:from-gray-900 dark:to-black',
+      iconBg: 'bg-gray-900 dark:bg-black',
+      textColor: 'text-gray-900 dark:text-gray-100'
+    };
+  }
+
+  // Score 2-3: Severe complications (dark red)
+  if (score <= 3) {
+    return {
+      emoji: '🩸',
+      borderColor: 'border-red-900/60 dark:border-red-950',
+      bgGradient: 'from-red-50 to-red-100 dark:from-red-950 dark:to-black',
+      iconBg: 'bg-red-900 dark:bg-red-950',
+      textColor: 'text-red-900 dark:text-red-100'
+    };
+  }
+
+  // Score 4: Moderate harm (red)
+  if (score <= 4) {
+    return {
+      emoji: '🤕',
+      borderColor: 'border-red-600/60 dark:border-red-800',
+      bgGradient: 'from-red-50 to-orange-50 dark:from-red-800 dark:to-red-900',
+      iconBg: 'bg-red-600 dark:bg-red-800',
+      textColor: 'text-red-700 dark:text-red-200'
+    };
+  }
+
+  // Score 5: Unpleasant (orange)
+  if (score <= 5) {
+    return {
+      emoji: '🤢',
+      borderColor: 'border-orange-500/60 dark:border-orange-700',
+      bgGradient: 'from-orange-50 to-yellow-50 dark:from-orange-700 dark:to-orange-800',
+      iconBg: 'bg-orange-500 dark:bg-orange-700',
+      textColor: 'text-orange-700 dark:text-orange-200'
+    };
+  }
+
+  // Score 6: Ineffective (yellow)
+  if (score <= 6) {
+    return {
+      emoji: '😐',
+      borderColor: 'border-yellow-500/60 dark:border-yellow-700',
+      bgGradient: 'from-yellow-50 to-amber-50 dark:from-yellow-700 dark:to-yellow-800',
+      iconBg: 'bg-yellow-500 dark:bg-yellow-700',
+      textColor: 'text-yellow-900 dark:text-yellow-200'
+    };
+  }
+
+  // Score 7-8: Effective (green)
+  if (score <= 8) {
+    return {
+      emoji: '✓',
+      borderColor: 'border-green-500/60 dark:border-green-700',
+      bgGradient: 'from-green-50 to-emerald-50 dark:from-green-700 dark:to-green-800',
+      iconBg: 'bg-green-500 dark:bg-green-700',
+      textColor: 'text-green-700 dark:text-green-200'
+    };
+  }
+
+  // Score 9-10: Excellent (emerald)
+  return {
+    emoji: '✨',
+    borderColor: 'border-emerald-500/60 dark:border-emerald-700',
+    bgGradient: 'from-emerald-50 to-green-50 dark:from-emerald-700 dark:to-green-800',
+    iconBg: 'bg-emerald-500 dark:bg-emerald-600',
+    textColor: 'text-emerald-700 dark:text-emerald-200'
+  };
+}
+
+/**
  * Font size mapping
  * Maps semantic font size values to responsive Tailwind classes
  * Mobile: Always text-base (16px) for readability
@@ -1034,28 +1171,51 @@ const NarrativeEntry = React.memo(({
     );
   }
 
+  // Detect prescription outcome and parse score for dynamic theming
+  const isPrescription = entry.actionResultType === 'prescribe' ||
+                         (content && content.includes('prescribed') && content.includes('drachm'));
+  const prescriptionScore = isPrescription ? parsePrescriptionScore(content) : null;
+  const scoreRationale = isPrescription ? parseScoreRationale(content) : null;
+  const prescriptionTheme = isPrescription ? getPrescriptionTheme(prescriptionScore) : null;
+
   // Action result styling (for give/sell/prescribe completions)
   const actionResultStyles = {
     give: {
       borderColor: 'border-emerald-400/40 dark:border-emerald-600/40',
       bgColor: 'bg-emerald-50/50 dark:bg-emerald-900/20',
+      bgGradient: 'from-emerald-50/50 to-white dark:from-emerald-900/20 dark:to-slate-900',
       icon: '🎁',
       iconBg: 'bg-emerald-500',
-      label: 'Given'
+      label: 'Given',
+      textColor: 'text-emerald-700 dark:text-emerald-400'
     },
     sell: {
       borderColor: 'border-amber-400/40 dark:border-amber-600/40',
       bgColor: 'bg-amber-50/50 dark:bg-amber-900/20',
+      bgGradient: 'from-amber-50/50 to-white dark:from-amber-900/20 dark:to-slate-900',
       icon: '💰',
       iconBg: 'bg-amber-500',
-      label: 'Sold'
+      label: 'Sold',
+      textColor: 'text-amber-700 dark:text-amber-400'
     },
-    prescribe: {
+    prescribe: prescriptionTheme ? {
+      // Dynamic prescription theme based on outcome score
+      borderColor: prescriptionTheme.borderColor,
+      bgColor: 'bg-transparent',
+      bgGradient: prescriptionTheme.bgGradient,
+      icon: prescriptionTheme.emoji,
+      iconBg: prescriptionTheme.iconBg,
+      label: prescriptionScore !== null ? `Prescribed (${prescriptionScore}/10)` : 'Prescribed',
+      textColor: prescriptionTheme.textColor
+    } : {
+      // Fallback for prescriptions without detected score
       borderColor: 'border-purple-400/40 dark:border-purple-600/40',
       bgColor: 'bg-purple-50/50 dark:bg-purple-900/20',
+      bgGradient: 'from-purple-50/50 to-white dark:from-purple-900/20 dark:to-slate-900',
       icon: '⚕️',
       iconBg: 'bg-purple-500',
-      label: 'Prescribed'
+      label: 'Prescribed',
+      textColor: 'text-purple-700 dark:text-purple-400'
     }
   };
 
@@ -1063,17 +1223,118 @@ const NarrativeEntry = React.memo(({
 
   return (
     <div className="narrative-entry-animated space-y-2" data-entry-index={index} data-primary-portrait={entry.primaryPortrait || ''} data-primary-npc-name={entry.primaryNPCName || ''}>
-      {/* Action Result Header - Special styling for give/sell/prescribe completions */}
-      {actionStyle && (
+      {/* Action Result Header - Enhanced styling for give/sell/prescribe completions */}
+      {actionStyle && entry.actionResultType === 'prescribe' && prescriptionScore !== null ? (
+        /* ENHANCED PRESCRIPTION OUTCOME - with stars, progress bar, and historical styling */
+        <div className={`rounded-xl border-2 ${actionStyle.borderColor} bg-gradient-to-br ${actionStyle.bgGradient} p-4 shadow-lg animate-fade-in space-y-3 transition-all duration-300`}>
+          {/* Top row - Icon, Score, and Label */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 ${actionStyle.iconBg} rounded-full flex items-center justify-center text-white text-xl shadow-md`}>
+                {actionStyle.icon}
+              </div>
+              <div className="flex-1">
+                <div className="text-xs font-semibold uppercase tracking-wider opacity-70">
+                  Prescription Result
+                </div>
+                <div className={`text-2xl font-bold font-serif ${actionStyle.textColor} mb-1`}>
+                  {prescriptionScore}/10
+                </div>
+                {scoreRationale && (
+                  <div className={`text-xs ${actionStyle.textColor} opacity-80 italic max-w-xs leading-tight`}>
+                    {scoreRationale}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Clickable details link */}
+            {onOpenPrescriptionDetails && (
+              <button
+                onClick={() => onOpenPrescriptionDetails(index)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${actionStyle.textColor} border-2 ${actionStyle.borderColor} hover:bg-white/20 dark:hover:bg-black/20 transition-all hover:scale-105 shadow-sm`}
+                title="View full prescription details"
+              >
+                View Details
+              </button>
+            )}
+          </div>
+
+          {/* Star Rating */}
+          <div className="flex items-center gap-0.5">
+            {[1, 2, 3, 4, 5].map((star) => {
+              const isFilled = prescriptionScore >= star * 2;
+              const isHalfFilled = prescriptionScore >= (star * 2 - 1) && prescriptionScore < star * 2;
+
+              return (
+                <svg
+                  key={star}
+                  className="w-5 h-5 transition-all duration-300"
+                  fill={isFilled ? 'currentColor' : isHalfFilled ? 'url(#half-fill)' : 'none'}
+                  stroke="currentColor"
+                  strokeWidth={isFilled || isHalfFilled ? 0 : 1.5}
+                  viewBox="0 0 24 24"
+                  style={{
+                    color: isFilled || isHalfFilled ?
+                      (prescriptionScore <= 3 ? '#fca5a5' :
+                       prescriptionScore <= 5 ? '#fdba74' :
+                       prescriptionScore <= 6 ? '#fde047' :
+                       prescriptionScore <= 8 ? '#86efac' : '#6ee7b7') :
+                      'rgba(100, 100, 100, 0.3)'
+                  }}
+                >
+                  <defs>
+                    <linearGradient id="half-fill">
+                      <stop offset="50%" stopColor="currentColor" />
+                      <stop offset="50%" stopColor="transparent" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              );
+            })}
+          </div>
+
+          {/* Progress Bar */}
+          <div className="relative w-full h-2 bg-white/30 dark:bg-black/30 rounded-full overflow-hidden shadow-inner">
+            <div
+              className="absolute top-0 left-0 h-full rounded-full transition-all duration-500 ease-out"
+              style={{
+                width: `${prescriptionScore * 10}%`,
+                background: prescriptionScore <= 1 ? 'linear-gradient(to right, #1f2937, #111827)' :
+                           prescriptionScore <= 3 ? 'linear-gradient(to right, #dc2626, #991b1b)' :
+                           prescriptionScore <= 4 ? 'linear-gradient(to right, #ea580c, #c2410c)' :
+                           prescriptionScore <= 5 ? 'linear-gradient(to right, #f59e0b, #d97706)' :
+                           prescriptionScore <= 6 ? 'linear-gradient(to right, #eab308, #ca8a04)' :
+                           prescriptionScore <= 8 ? 'linear-gradient(to right, #22c55e, #16a34a)' :
+                           'linear-gradient(to right, #10b981, #059669)'
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+            </div>
+          </div>
+
+          {/* Outcome label */}
+          <div className="flex justify-between items-center text-xs font-semibold">
+            <span className={actionStyle.textColor}>{prescriptionScore * 10}% Effective</span>
+            <span className={actionStyle.textColor}>
+              {prescriptionScore <= 3 ? 'Poor Outcome' :
+               prescriptionScore <= 5 ? 'Suboptimal' :
+               prescriptionScore <= 6 ? 'Mediocre' :
+               prescriptionScore <= 8 ? 'Good Result' : 'Excellent!'}
+            </span>
+          </div>
+        </div>
+      ) : actionStyle ? (
+        /* SIMPLE ACTION RESULT for give/sell (original design) */
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 ${actionStyle.borderColor} ${actionStyle.bgColor} animate-fade-in`}>
-          <div className={`w-6 h-6 ${actionStyle.iconBg} rounded-full flex items-center justify-center text-white text-sm`}>
+          <div className={`w-6 h-6 ${actionStyle.iconBg} rounded-full flex items-center justify-center text-white text-sm shadow-sm`}>
             {actionStyle.icon}
           </div>
-          <span className="text-sm font-semibold text-ink-700 dark:text-parchment-200">
+          <span className={`text-sm font-semibold ${actionStyle.textColor || 'text-ink-700 dark:text-parchment-200'}`}>
             {actionStyle.label}
           </span>
         </div>
-      )}
+      ) : null}
 
       <div className={`${isSystem ? '' : 'flex items-start gap-3'} relative group ${isUser ? 'flex-row-reverse' : ''} ${actionStyle ? actionStyle.borderColor + ' border-l-4 pl-2' : ''}`}>
         {/* NPC Mini Portrait - show for dialogue, positioned inside container */}
@@ -1197,7 +1458,7 @@ const NarrativeEntry = React.memo(({
                       remarkPlugins={[remarkGfm, remarkSmartypants]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300`}
+                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-50 font-serif transition-colors duration-300`}
                     >
                       {normalizeNewlines(content)}
                     </ReactMarkdown>
@@ -1217,7 +1478,7 @@ const NarrativeEntry = React.memo(({
                       remarkPlugins={[remarkGfm, remarkSmartypants]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300`}
+                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-50 font-serif transition-colors duration-300`}
                     >
                       {normalizeNewlines(content)}
                     </ReactMarkdown>
@@ -1231,7 +1492,7 @@ const NarrativeEntry = React.memo(({
                       remarkPlugins={[remarkGfm, remarkSmartypants]}
                       rehypePlugins={[rehypeRaw]}
                       components={entityComponents}
-                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300`}
+                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-50 font-serif transition-colors duration-300`}
                     >
                       {boldQuotedDialogue(normalizeNewlines(content))}
                     </ReactMarkdown>
@@ -1239,13 +1500,38 @@ const NarrativeEntry = React.memo(({
                 </div>
               ) : (
                 // Regular narrative description - serif in bubble, LARGER
-                <div className="bg-gradient-to-br from-white to-parchment-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-4 border border-ink-200 dark:border-slate-600 shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300">
+                // Prescription outcomes get dynamic color-coded backgrounds
+                <div className={`bg-gradient-to-br ${prescriptionTheme ? prescriptionTheme.bgGradient : 'from-white to-parchment-50 dark:from-slate-800 dark:to-slate-900'} rounded-2xl p-4 border-2 ${prescriptionTheme ? prescriptionTheme.borderColor : 'border-ink-200 dark:border-slate-600'} shadow-elevation-1 dark:shadow-dark-elevation-1 transition-all duration-300`}>
                   <div className="prose prose-lg max-w-none">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkSmartypants]}
                       rehypePlugins={[rehypeRaw]}
-                      components={entityComponents}
-                      className={`${fontSizeClasses} text-ink-800 dark:text-parchment-100 font-serif transition-colors duration-300`}
+                      components={prescriptionTheme ? {
+                        // Custom prescription outcome styling with score banner
+                        ...entityComponents,
+                        h3: ({ node, children, ...props }) => (
+                          <div className={`flex items-center gap-3 px-4 py-3 mb-4 mt-0 rounded-xl border-2 ${prescriptionTheme.borderColor} bg-gradient-to-r ${prescriptionTheme.bgGradient}`}>
+                            <div className="text-4xl">{prescriptionTheme.emoji}</div>
+                            <h3 className={`text-2xl font-bold ${prescriptionTheme.textColor} font-serif m-0`} {...props}>
+                              {children}
+                            </h3>
+                          </div>
+                        ),
+                        h5: ({ node, children, ...props }) => (
+                          <div className={`flex items-center gap-3 px-4 py-3 mb-4 mt-0 rounded-xl border-2 ${prescriptionTheme.borderColor} bg-gradient-to-r ${prescriptionTheme.bgGradient}`}>
+                            <div className="text-4xl">{prescriptionTheme.emoji}</div>
+                            <h5 className={`text-xl font-bold ${prescriptionTheme.textColor} font-serif m-0`} {...props}>
+                              {children}
+                            </h5>
+                          </div>
+                        ),
+                        p: ({ node, children, ...props }) => (
+                          <p className={`${fontSizeClasses} ${prescriptionTheme.textColor} font-serif leading-relaxed mb-4`} {...props}>
+                            {children}
+                          </p>
+                        ),
+                      } : entityComponents}
+                      className={`${fontSizeClasses} ${prescriptionTheme ? prescriptionTheme.textColor : 'text-ink-800 dark:text-parchment-50'} font-serif transition-colors duration-300`}
                     >
                       {boldQuotedDialogue(normalizeNewlines(content))}
                     </ReactMarkdown>
@@ -1449,6 +1735,8 @@ const NarrativePanel = ({
   pendingActionPrompt = null, // Action prompt (give/sell/prescribe)
   onProposeAction = null, // Handler to propose action
   onDeclineAction = null, // Handler to decline action
+  onDismissAction = null, // Handler to silently dismiss action (no narrative)
+  actionPromptLoading = null, // Loading state for action prompts {type, recipientName, item, amount, route, price}
   pendingMixingDecision = null, // Mixing decision (craft remedy prompt)
   onOpenMixingWorkshop = null, // Handler to open mixing workshop
   onAbandonMixing = null, // Handler to abandon mixing opportunity
@@ -1898,6 +2186,34 @@ const NarrativePanel = ({
 
               {/* Sale Inquiry Card - DEPRECATED: Replaced by actionPrompt system */}
 
+              {/* Action Prompt Loading Card - Shows while prescription is being offered */}
+              {actionPromptLoading && (
+                <div className="mb-4 animate-fade-in">
+                  <div className="rounded-xl border-2 border-purple-300 dark:border-purple-700 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 p-6 shadow-lg">
+                    <div className="flex items-center space-x-4">
+                      {/* Spinner */}
+                      <div className="flex-shrink-0">
+                        <div className="w-12 h-12 border-4 border-purple-300 dark:border-purple-600 border-t-purple-600 dark:border-t-purple-300 rounded-full animate-spin"></div>
+                      </div>
+
+                      {/* Loading message */}
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100 mb-2">
+                          Offering Prescription...
+                        </h3>
+                        <p className="text-purple-800 dark:text-purple-200">
+                          {actionPromptLoading.type === 'prescribe' && (
+                            <>
+                              Maria offers <strong>{actionPromptLoading.recipientName}</strong> {actionPromptLoading.amount} {actionPromptLoading.amount === 1 ? 'drachm' : 'drachms'} of <strong>{actionPromptLoading.item}</strong> ({actionPromptLoading.route}) for <strong>{actionPromptLoading.price} reales</strong>...
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Action Prompt Card - Give/Sell/Prescribe Requests */}
               {pendingActionPrompt && onProposeAction && onDeclineAction && (
                 <div className="mb-4 animate-fade-in">
@@ -1906,6 +2222,7 @@ const NarrativePanel = ({
                     inventory={gameState.inventory || []}
                     onPropose={onProposeAction}
                     onDecline={onDeclineAction}
+                    onDismiss={onDismissAction}
                     onMix={onOpenMixingWorkshop}
                     isDark={isDarkMode}
                   />

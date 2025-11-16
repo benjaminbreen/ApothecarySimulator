@@ -12,12 +12,134 @@ import ReadableTextModal from './ReadableTextModal';
 import ReactMarkdown from 'react-markdown';
 import { RippleButton } from './RippleButton';
 
+/**
+ * Helper component to render source lists with Google Scholar buttons (inline version)
+ */
+const InlineSourceListRenderer = ({ content, mode, isDark }) => {
+  // Parse content to separate sections (Primary Sources, Secondary Sources)
+  const lines = content.split('\n').filter(line => line.trim());
+
+  const renderSourceLine = (line, index) => {
+    // Match bullet points or numbered lists
+    const sourceMatch = line.match(/^[\-\*\d]+\.?\s+(.+)$/);
+    if (!sourceMatch) return null;
+
+    const sourceText = sourceMatch[1].trim();
+
+    // Extract the main citation text (remove markdown formatting and parenthetical glosses for search)
+    const cleanText = sourceText
+      .replace(/\*\*/g, '') // Remove bold
+      .replace(/\*/g, '')   // Remove italic
+      .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Remove markdown links
+      .replace(/\s*\([^)]*\)/g, ''); // Remove parenthetical glosses like "(Mexico)" or "(Various 17th-century decrees...)"
+
+    // Build Google Scholar URL
+    const scholarUrl = `https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=${encodeURIComponent(cleanText)}&btnG=`;
+
+    // Mode-specific colors
+    const getColors = () => {
+      if (mode === 'fact-check') {
+        return {
+          bg: isDark ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+          text: isDark ? 'rgb(52, 211, 153)' : 'rgb(16, 185, 129)'
+        };
+      } else if (mode === 'context') {
+        return {
+          bg: isDark ? 'rgba(251, 191, 36, 0.15)' : 'rgba(251, 191, 36, 0.1)',
+          text: isDark ? 'rgb(251, 191, 36)' : 'rgb(217, 119, 6)'
+        };
+      } else {
+        return {
+          bg: isDark ? 'rgba(168, 85, 247, 0.15)' : 'rgba(168, 85, 247, 0.1)',
+          text: isDark ? 'rgb(196, 181, 253)' : 'rgb(126, 34, 206)'
+        };
+      }
+    };
+
+    const colors = getColors();
+
+    // Render markdown in source text (for italics, bold, etc.)
+    const renderMarkdown = (text) => {
+      return text
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') // Bold
+        .replace(/\*(.+?)\*/g, '<em>$1</em>'); // Italic
+    };
+
+    return (
+      <div key={index} className="flex items-start gap-2 mb-1.5 group text-xs">
+        <span className="flex-shrink-0 text-parchment-500 dark:text-parchment-400">•</span>
+        <span
+          className="flex-1 text-parchment-700 dark:text-parchment-300 leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(sourceText) }}
+        />
+        <a
+          href={scholarUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-shrink-0 px-1.5 py-0.5 text-[9px] font-semibold rounded transition-all opacity-0 group-hover:opacity-100"
+          style={{
+            backgroundColor: colors.bg,
+            color: colors.text
+          }}
+          title="Search on Google Scholar"
+        >
+          🔍 Scholar
+        </a>
+      </div>
+    );
+  };
+
+  let currentSection = null;
+  const sections = [];
+  let currentSectionContent = [];
+
+  lines.forEach((line) => {
+    // Check if this is a section header
+    if (line.match(/^\*\*Primary Sources?:\*\*/i)) {
+      if (currentSection) {
+        sections.push({ title: currentSection, content: currentSectionContent });
+      }
+      currentSection = 'Primary Sources';
+      currentSectionContent = [];
+    } else if (line.match(/^\*\*Secondary Sources?:\*\*/i)) {
+      if (currentSection) {
+        sections.push({ title: currentSection, content: currentSectionContent });
+      }
+      currentSection = 'Secondary Sources';
+      currentSectionContent = [];
+    } else if (currentSection && line.trim()) {
+      currentSectionContent.push(line);
+    }
+  });
+
+  // Add last section
+  if (currentSection && currentSectionContent.length > 0) {
+    sections.push({ title: currentSection, content: currentSectionContent });
+  }
+
+  return (
+    <div className="space-y-3 mt-3">
+      {sections.map((section, idx) => (
+        <div key={idx}>
+          <h5 className="font-sans text-[10px] font-bold mb-1.5 uppercase tracking-wider text-parchment-600 dark:text-parchment-400">
+            {section.title}
+          </h5>
+          <div className="space-y-0.5">
+            {section.content.map((line, lineIdx) => renderSourceLine(line, lineIdx))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const ContextPanel = ({
   location = 'Mexico City',
   locationDetails = "Botica de la Amargura",
   onActionClick,
   recentNPCs = [], // Direct NPC data from game state
   primaryPortraitFile = null, // PHASE 1: LLM-selected portrait filename
+  primaryNpcName = null, // Primary NPC name (conversation partner)
   currentNarrative, // Fallback for narrative parsing
   recentNarrativeTurn = '', // Most recent narrative turn for LLM analysis
   scenario = null, // Scenario config for maps and historical context
@@ -40,6 +162,7 @@ const ContextPanel = ({
   onBookClick = null, // Callback when book is clicked
   documents = [], // Document library (letters, codices, etc.)
   onDocumentClick = null, // Callback when document is clicked
+  onSaveToJournal = null, // Callback to save content to journal
   onFurnitureClick = null, // Callback when furniture is clicked on map
   onPlayerTeleport = null, // Callback for Ctrl+Click teleport
   onAnimationComplete = null, // Callback when map animation completes (for journey narration)
@@ -112,23 +235,61 @@ Historical period: ${scenario.setting?.era || 'Colonial New Spain'}
 
       let systemPrompt = '';
       if (mode === 'fact-check') {
-        systemPrompt = `You are a historian providing quick fact-checking for a historical game. Be concise and provide 2-3 key points. Keep response under 150 words.
+        systemPrompt = `You are a historian with a PhD specializing in 1680s Mexico and Colonial New Spain. You are extremely well-versed in the historical literature and primary sources from this period. Your role is to provide hyper-accurate, stringently realistic fact-checking.
+
+Your responses must be:
+- VERY well-informed, skeptical, and succinct, and perhaps a bit barbed 
+- Focused on what is historically inaccurate or anachronistic
+- Based on actual scholarship and primary sources
+- Professional but direct
+
+Include secondary sources as needed:
+        **Secondary Sources:**
+- [2-3 relevant academic books or journal articles that illuminate this specific event/topic]
+- Format: Author, *Title* (Publisher, Year) or Author, "Article Title," *Journal Name* vol. X (Year): pages
 
 ${scenarioContext}
 
-Format as a bulleted list with brief explanations.`;
+If the narrative is historically accurate, briefly confirm this. If there are issues, point them out concisely. Format as a bulleted list with brief explanations.`;
       } else if (mode === 'context') {
-        systemPrompt = `You are a historical educator. Provide brief educational context about the historical setting, people, or events mentioned in this narrative. Keep response under 150 words.
+        systemPrompt = `You are a historian providing accessible historical context for a game set in 1680s Mexico. Provide 3-4 sentences of clear historical context that helps players understand the period, followed by curated lists of primary and secondary sources.
 
 ${scenarioContext}
 
-Format as 2-3 brief paragraphs.`;
+**CRITICAL REQUIREMENTS:**
+
+1. **PRIMARY SOURCES = documents from 1680s or earlier** (archival docs, contemporary chronicles, letters)
+   - Ideally documents that would be available online like public domain books, letters, etc 
+  - Ok for them to be in Spanish, English, or any other language
+
+2. **SECONDARY SOURCES = modern academic books/articles ONLY**
+   - Must be REAL publications you can verify exist
+   - NO archives, NO colonial-era sources
+   - If uncertain, cite broader works on colonial Mexico
+
+3. **DO NOT hallucinate** - only cite sources you're confident exist
+
+Format as:
+- 3-4 sentences of context
+
+**Primary Sources:**
+- Archive/Author, *Title* (Date) - [1-3 sources]
+
+**Secondary Sources:**
+- Author, *Title* (Year) - [2-3 REAL academic sources only]
+
+Keep total under 250 words.`;
       } else if (mode === 'counternarrative') {
-        systemPrompt = `You are a critical historian examining perspectives often excluded from traditional narratives.
+        systemPrompt = `You are a professional historian specializing in early modern history and history of medicine, deeply alert to agnotology (the study of culturally-induced ignorance). However you are not given to stating the obvious and you avoid cliched or pat assertions about what is missing ("this discussion effaces the role of indigenous healers" is for instance cliched and a boring/not precise enough thought). You are more astute and distinctive than that. 
+
+Your role is to critique the narrative from a historical perspective, asking:
+- What assumptions are being made here that might not be true?
+- How can we know what is true about this setting? What sources are available and what might they exclude?
+- What do we NOT know because of destruction of records?
 
 ${scenarioContext}
 
-Analyze this narrative from the perspective of marginalized groups (indigenous peoples, enslaved peoples, women, lower classes). Provide 2-3 brief points about whose voices might be missing. Keep response under 150 words.`;
+Write 2-3 thoughtful paragraphs that identify gaps in the historical record and interesting "paths not taken". Be scholarly but accessible.`;
       }
 
       const response = await createChatCompletion(
@@ -136,8 +297,8 @@ Analyze this narrative from the perspective of marginalized groups (indigenous p
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `Narrative turn:\n\n${recentNarrativeTurn}` }
         ],
-        0.7,
-        200
+        0.6,
+        mode === 'context' ? 1050 : 1000 // Increased tokens for context mode to accommodate sources
       );
 
       setInlineContent(response.choices[0].message.content);
@@ -350,26 +511,29 @@ Example format:
   }, [enrichedEntities, inlineContent, isLoadingInline]);
 
   // Get the most recent NPC from game state
+  // DEPRECATED: latestNPC from recentNPCs array (includes location NPCs)
   const latestNPC = recentNPCs.length > 0 ? recentNPCs[recentNPCs.length - 1] : null;
 
   // Get full NPC data from EntityManager (primary) or EntityList (fallback)
+  // Use primaryNpcName (conversation partner only) instead of latestNPC (includes ambient NPCs)
   const npcEntity = React.useMemo(() => {
-    if (!latestNPC) return null;
+    const lookupName = primaryNpcName || latestNPC;
+    if (!lookupName) return null;
 
     // Try EntityManager first
-    const fromManager = entityManager.getByName(latestNPC);
+    const fromManager = entityManager.getByName(lookupName);
     if (fromManager) {
       console.log('[ContextPanel] Found entity in EntityManager:', fromManager.name);
       return fromManager;
     }
 
     // Fallback to EntityList for backward compatibility
-    const fromList = EntityList.find(npc => npc.name === latestNPC);
+    const fromList = EntityList.find(npc => npc.name === lookupName);
     if (fromList) {
       console.log('[ContextPanel] Fallback to EntityList:', fromList.name);
     }
     return fromList;
-  }, [latestNPC]);
+  }, [primaryNpcName, latestNPC]);
 
   // FIX #4: Choose display entity based on active tab OR active patient portrait match
   // When Patient View tab is active, OR when portrait matches patient, show patient's data
@@ -418,9 +582,42 @@ Example format:
       console.log('[ContextPanel] ⚠ Patient has no portrait, falling back to primaryPortraitFile');
     }
 
-    // Otherwise use LLM-provided portrait
+    // FIX: Check if this is the primary/active NPC - if so, use LLM-selected portrait
+    // (matches NPC Modal logic for consistency)
+    // Use primaryNpcName (from LLM) instead of latestNPC (from location NPCs - includes ambient characters)
+    if (displayEntity && primaryNpcName && displayEntity.name === primaryNpcName && primaryPortraitFile) {
+      console.log('[ContextPanel] ✓ Using LLM-selected portrait for primary NPC:', primaryNpcName, '→', primaryPortraitFile);
+
+      // Special case: UI images (like boticaentrance.png) are in /ui/, not /portraits/
+      if (primaryPortraitFile.startsWith('ui/')) {
+        return `/${primaryPortraitFile}`;
+      }
+
+      // Normal portraits are in /portraits/
+      return `/portraits/${primaryPortraitFile}`;
+    }
+
+    // Check if entity has a named portrait (for non-primary NPCs)
+    if (displayEntity) {
+      // First check if entity already has a stored portrait (from house calls, etc.)
+      const storedPortrait = displayEntity.image || displayEntity.visual?.image;
+      if (storedPortrait) {
+        const portraitPath = storedPortrait.startsWith('/') ? storedPortrait : `/portraits/${storedPortrait}`;
+        console.log('[ContextPanel] ✓ Using stored entity portrait:', portraitPath);
+        return portraitPath;
+      }
+
+      // Otherwise, resolve portrait from demographics
+      const entityPortrait = resolvePortrait(displayEntity);
+      if (entityPortrait && !entityPortrait.includes('generic_')) {
+        console.log('[ContextPanel] ✓ Using entity demographic portrait for background NPC:', entityPortrait);
+        return entityPortrait;
+      }
+    }
+
+    // Fallback: Use LLM-provided portrait
     if (primaryPortraitFile) {
-      console.log('[ContextPanel] ✓ Using LLM portrait:', primaryPortraitFile);
+      console.log('[ContextPanel] ✓ Using LLM portrait (fallback):', primaryPortraitFile);
 
       // Special case: UI images (like boticaentrance.png) are in /ui/, not /portraits/
       if (primaryPortraitFile.startsWith('ui/')) {
@@ -433,14 +630,14 @@ Example format:
 
     console.log('[ContextPanel] ∅ No portrait provided - map will be shown');
     return null;
-  }, [primaryPortraitFile, activeTab, activePatient]);
+  }, [primaryPortraitFile, activeTab, activePatient, displayEntity, primaryNpcName]);
 
   // Show portrait if:
-  // 1. There's a display entity with a portrait, OR
-  // 2. There's a UI scene image (like boticaentrance.png) even without an NPC
+  // 1. There's a portrait URL (from LLM or entity), OR
+  // 2. There's a UI scene image (like boticaentrance.png)
   const isUIImage = getPortraitUrl && getPortraitUrl.startsWith('/ui/');
-  const currentNPC = (displayEntity?.name && getPortraitUrl) || isUIImage ? {
-    name: displayEntity?.name || latestNPC || 'Scene',
+  const currentNPC = getPortraitUrl ? {
+    name: displayEntity?.name || primaryNpcName || 'Scene',
     url: getPortraitUrl
   } : null;
 
@@ -836,31 +1033,76 @@ Example format:
                         {activeInlineMode === 'context' && 'Educational Context'}
                         {activeInlineMode === 'counternarrative' && 'Alternative Perspectives'}
                       </h3>
-                      <button
-                        onClick={() => {
-                          setModalMode(activeInlineMode === 'context' ? 'learn-more' : activeInlineMode);
-                          setIsModalOpen(true);
-                        }}
-                        className="text-[10px] px-2 py-0.5 rounded-md transition-all font-semibold"
-                        style={{
-                          backgroundColor: activeInlineMode === 'fact-check'
-                            ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.15)')
-                            : activeInlineMode === 'context'
-                              ? (isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(251, 191, 36, 0.15)')
-                              : (isDark ? 'rgba(168, 85, 247, 0.2)' : 'rgba(168, 85, 247, 0.15)'),
-                          color: activeInlineMode === 'fact-check'
-                            ? (isDark ? 'rgb(52, 211, 153)' : 'rgb(16, 185, 129)')
-                            : activeInlineMode === 'context'
-                              ? (isDark ? 'rgb(251, 191, 36)' : 'rgb(217, 119, 6)')
-                              : (isDark ? 'rgb(196, 181, 253)' : 'rgb(126, 34, 206)')
-                        }}
-                      >
-                        View full →
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            if (onSaveToJournal && inlineContent) {
+                              const sourceLabel = activeInlineMode === 'fact-check' ? 'Fact Check' :
+                                                activeInlineMode === 'context' ? 'Historical Context' :
+                                                'Counter-Narrative';
+                              onSaveToJournal(inlineContent, activeInlineMode, sourceLabel);
+                            }
+                          }}
+                          className="text-[10px] px-2 py-0.5 rounded-md transition-all font-semibold"
+                          style={{
+                            backgroundColor: activeInlineMode === 'fact-check'
+                              ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.15)')
+                              : activeInlineMode === 'context'
+                                ? (isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(251, 191, 36, 0.15)')
+                                : (isDark ? 'rgba(168, 85, 247, 0.2)' : 'rgba(168, 85, 247, 0.15)'),
+                            color: activeInlineMode === 'fact-check'
+                              ? (isDark ? 'rgb(52, 211, 153)' : 'rgb(16, 185, 129)')
+                              : activeInlineMode === 'context'
+                                ? (isDark ? 'rgb(251, 191, 36)' : 'rgb(217, 119, 6)')
+                                : (isDark ? 'rgb(196, 181, 253)' : 'rgb(126, 34, 206)')
+                          }}
+                        >
+                          💾 Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setModalMode(activeInlineMode === 'context' ? 'learn-more' : activeInlineMode);
+                            setIsModalOpen(true);
+                          }}
+                          className="text-[10px] px-2 py-0.5 rounded-md transition-all font-semibold"
+                          style={{
+                            backgroundColor: activeInlineMode === 'fact-check'
+                              ? (isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.15)')
+                              : activeInlineMode === 'context'
+                                ? (isDark ? 'rgba(251, 191, 36, 0.2)' : 'rgba(251, 191, 36, 0.15)')
+                                : (isDark ? 'rgba(168, 85, 247, 0.2)' : 'rgba(168, 85, 247, 0.15)'),
+                            color: activeInlineMode === 'fact-check'
+                              ? (isDark ? 'rgb(52, 211, 153)' : 'rgb(16, 185, 129)')
+                              : activeInlineMode === 'context'
+                                ? (isDark ? 'rgb(251, 191, 36)' : 'rgb(217, 119, 6)')
+                                : (isDark ? 'rgb(196, 181, 253)' : 'rgb(126, 34, 206)')
+                          }}
+                        >
+                          View full →
+                        </button>
+                      </div>
                     </div>
                     {/* Content with Markdown */}
                     <div className="text-sm leading-relaxed text-parchment-800 dark:text-parchment-200 font-serif prose prose-sm dark:prose-invert max-w-none" style={{ lineHeight: '1.75' }}>
-                      <ReactMarkdown>{inlineContent}</ReactMarkdown>
+                      {(() => {
+                        // Split content into main text and sources
+                        const parts = inlineContent.split(/(?=\*\*(?:Primary|Secondary) Sources?:\*\*)/i);
+                        const mainText = parts[0];
+                        const sourcesText = parts.slice(1).join('');
+
+                        return (
+                          <>
+                            <ReactMarkdown>{mainText}</ReactMarkdown>
+                            {sourcesText && (
+                              <InlineSourceListRenderer
+                                content={sourcesText}
+                                mode={activeInlineMode}
+                                isDark={isDark}
+                              />
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     {/* Hint */}
                     <p className="text-[10px] text-parchment-500 dark:text-parchment-400 italic text-center pt-2 border-t border-parchment-200 dark:border-slate-700">

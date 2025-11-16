@@ -7,9 +7,12 @@
  * - LLM-powered negotiation responses
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { entityManager } from '../core/entities/EntityManager';
 import { createChatCompletion } from '../core/services/llmService';
+import { useTooltip } from '../hooks/useTooltip';
+import HelperTooltip from './HelperTooltip';
+import { useGameState } from '../contexts/GameStateContext';
 
 function ContractOfferModal({
   offer,
@@ -31,6 +34,39 @@ function ContractOfferModal({
   const [counterOffer, setCounterOffer] = useState('');
   const [negotiationResponse, setNegotiationResponse] = useState(null);
   const [isProcessingNegotiation, setIsProcessingNegotiation] = useState(false);
+  const [isRefReady, setIsRefReady] = useState(false);
+
+  // Tooltip system
+  const acceptButtonRef = useRef(null);
+  const { gameState } = useGameState();
+
+  // Track when the accept button ref is mounted
+  useEffect(() => {
+    if (isOpen && acceptButtonRef.current) {
+      // Small delay to ensure modal entrance animation completes
+      const timer = setTimeout(() => {
+        setIsRefReady(true);
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setIsRefReady(false);
+    }
+  }, [isOpen, offer?.type]);
+
+  // Memoize tooltip config to prevent re-evaluation on every render
+  const tooltipGameState = useMemo(() => ({
+    ...gameState,
+    activePatient: offer?.type === 'treatment' ? offer.patientName : null
+  }), [gameState, offer?.type, offer?.patientName]);
+
+  // TOOLTIP 6: First patient - shows when first patient contract offered (once per game)
+  const patientTooltip = useTooltip('first-patient', {
+    content: "Accept to start treatment. Click their portrait anytime to examine symptoms",
+    trigger: 'immediate',
+    gameState: tooltipGameState,
+    useTriggerSystem: true,
+    dependencies: [isOpen, offer?.type, offer?.patientName]
+  });
 
   // Handler that calls decline, closes modal, then continues narrative
   const handleDeclineAndContinue = () => {
@@ -159,7 +195,44 @@ function ContractOfferModal({
         console.log('[ContractModal] Created patient entity - using StateAgent demographics:', demographics, 'fallback:', extractedDemographics);
       }
 
-      // Register with EntityManager
+      // CRITICAL: Ensure patient demographics from StateAgent are preserved BEFORE registration
+      // This prevents template name generator from picking random gender
+      if (offer.patientDemographics) {
+        // Handle LLM-provided entities that may have string appearance/social
+        if (!patientEntity.social || typeof patientEntity.social !== 'object') {
+          patientEntity.social = { class: 'unknown', casta: 'unknown' };
+        }
+        if (!patientEntity.appearance || typeof patientEntity.appearance !== 'object') {
+          const oldDescription = typeof patientEntity.appearance === 'string' ? patientEntity.appearance : null;
+          patientEntity.appearance = {};
+          if (oldDescription) {
+            patientEntity.appearance.description = oldDescription;
+          }
+        }
+
+        // Update with StateAgent's accurate demographics (skip "unknown" values)
+        if (offer.patientDemographics.class && offer.patientDemographics.class !== 'unknown') {
+          patientEntity.social.class = offer.patientDemographics.class;
+        }
+        if (offer.patientDemographics.casta && offer.patientDemographics.casta !== 'unknown') {
+          patientEntity.social.casta = offer.patientDemographics.casta;
+        }
+        if (offer.patientDemographics.gender && offer.patientDemographics.gender !== 'unknown') {
+          patientEntity.appearance.gender = offer.patientDemographics.gender;
+        }
+        if (offer.patientDemographics.age && offer.patientDemographics.age !== 'unknown') {
+          patientEntity.appearance.age = offer.patientDemographics.age;
+        }
+
+        console.log('[ContractModal] Applied patient demographics BEFORE registration:', offer.patientDemographics, '→ final:', {
+          class: patientEntity.social.class,
+          casta: patientEntity.social.casta,
+          gender: patientEntity.appearance.gender,
+          age: patientEntity.appearance.age
+        });
+      }
+
+      // Register with EntityManager (template name generation will now respect the gender set above)
       patientEntity = entityManager.register(patientEntity);
       console.log('[ContractModal] Registered patient entity:', patientEntity.name);
     }
@@ -171,34 +244,6 @@ function ContractOfferModal({
       console.error('[ContractModal] Got:', patientEntity.name);
       console.error('[ContractModal] Correcting name...');
       patientEntity.name = offer.patientName;
-    }
-
-    // Ensure patient demographics from StateAgent are preserved (don't lose accurate data)
-    // NOTE: Only update with non-"unknown" values to preserve extracted demographics
-    if (offer.patientDemographics) {
-      if (!patientEntity.social) patientEntity.social = {};
-      if (!patientEntity.appearance) patientEntity.appearance = {};
-
-      // Update with StateAgent's accurate demographics (skip "unknown" values)
-      if (offer.patientDemographics.class && offer.patientDemographics.class !== 'unknown') {
-        patientEntity.social.class = offer.patientDemographics.class;
-      }
-      if (offer.patientDemographics.casta && offer.patientDemographics.casta !== 'unknown') {
-        patientEntity.social.casta = offer.patientDemographics.casta;
-      }
-      if (offer.patientDemographics.gender && offer.patientDemographics.gender !== 'unknown') {
-        patientEntity.appearance.gender = offer.patientDemographics.gender;
-      }
-      if (offer.patientDemographics.age && offer.patientDemographics.age !== 'unknown') {
-        patientEntity.appearance.age = offer.patientDemographics.age;
-      }
-
-      console.log('[ContractModal] Updated patient demographics from StateAgent:', offer.patientDemographics, '→ final:', {
-        class: patientEntity.social.class,
-        casta: patientEntity.social.casta,
-        gender: patientEntity.appearance.gender,
-        age: patientEntity.appearance.age
-      });
     }
 
     // Ensure patient metadata reflects latest contract details (even if entity already existed)
@@ -646,6 +691,7 @@ ${isTreatment
             {isTreatment && (
               <>
                 <button
+                  ref={acceptButtonRef}
                   onClick={handleAcceptTreatment}
                   className="flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-all"
                   style={{
@@ -783,6 +829,19 @@ ${isTreatment
               Close
             </button>
           </div>
+        )}
+
+        {/* Helper Tooltip 6: First patient contract */}
+        {isRefReady && (
+          <HelperTooltip
+            id="first-patient"
+            content={patientTooltip.content}
+            targetRef={acceptButtonRef}
+            show={patientTooltip.show && isTreatment && isOpen}
+            onDismiss={patientTooltip.dismiss}
+            onDisableAll={patientTooltip.onDisableAll}
+            position={patientTooltip.position}
+          />
         )}
       </div>
     </div>

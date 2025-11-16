@@ -139,12 +139,7 @@ const MethodDropZone = ({ method, ingredients = [], onDrop, onRemove, isLoading 
           </div>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <div className="text-6xl mb-2 text-white/80 drop-shadow-lg animate-bounce">
-              ⬇️
-            </div>
-            <p className="text-sm font-serif text-white/90 bg-ink-900/50 px-3 py-1 rounded-full backdrop-blur-sm">
-              Drop Here
-            </p>
+          
           </div>
         )}
 
@@ -155,7 +150,7 @@ const MethodDropZone = ({ method, ingredients = [], onDrop, onRemove, isLoading 
 
         {/* Hover Tooltip with costs */}
         {!hasIngredients && (
-          <div className="absolute inset-x-0 bottom-3 px-3 opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 pointer-events-none transform translate-y-2 group-hover:translate-y-0">
+          <div className="absolute inset-x-0 bottom-3 px-3 opacity-0 group-hover:opacity-100  z-10 pointer-events-none transform translate-y-2 group-hover:translate-y-0">
             <div className="bg-ink-900/98 dark:bg-slate-900/98 backdrop-blur-md rounded-lg p-3 border border-amber-500/50 shadow-xl">
               <p className="text-sm font-serif italic text-amber-100 dark:text-amber-50 leading-relaxed mb-2">
                 {method.caption}

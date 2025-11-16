@@ -806,35 +806,34 @@ A: Rich historical setting (Inquisition, converso identity, colonial tensions, h
 - Achieve 100% feature parity (zero breakage)
 
 **Timeline**: 6 phases, 15-21 hours total work
-**Status**: 📋 Planning Complete | ⏳ Awaiting Approval
+**Status**: 🚧 In Progress - Hooks extracted, contexts implemented, partial Tailwind conversion
 
 ---
 
-**Last Updated**: November 3, 2024
+**Last Updated**: November 15, 2025
 **Contributors**: Benjamin Breen (lead developer)
 **License**: TBD
 
 ---
 
-## Recent Updates (November 2024)
+## Recent Updates (November 2025)
 
-### Code Cleanup
-- **Removed 10 dead code files** (~2,030 lines):
-  - Test files: App.test.js, setupTests.js, forageSystem.test.js, phase1.test.js, weatherSystemTest.js
-  - Duplicate components: Old .js versions replaced by .jsx Tailwind rewrites
-  - Empty files: App.css
-- **Cleaned up portraitLibrary.js** (removed 193 lines of unused/duplicate code):
-  - Removed unused `getMatchingPortrait()` function
-  - Removed duplicate helper functions (now only in portraitResolver.js)
-  - Now a pure data file containing only PORTRAIT_LIBRARY object
-- **Clarified portrait system architecture**:
-  - `portraitLibrary.js` - Data only (613 portrait definitions)
-  - `portraitResolver.js` - Portrait matching logic (call `resolvePortrait()`)
+### Code Cleanup & Refactoring
+- **Hooks extracted from GamePage.jsx**: 7 modular hook files (`useGameHandlers`, `useMedicalHandlers`, `useCommerceHandlers`, etc.)
+- **Context providers implemented**: GameStateContext, PlayerContext, NPCContext, ModalContext, MobileLayoutContext, TooltipContext
+- **LeftSidebar modularized**: Separate folder with 7 components (CharacterCard, PlayerStatusPanel, InventoryTab, etc.)
+- **Dark mode**: Three-mode system (auto/light/dark) with system preference detection
+- **Chrome scroll bug fixed**: Manual parent scrolling + scroll containment CSS
+- **Removed 10 dead code files** (~2,030 lines): Test files, duplicates, empty CSS
+- **Portrait system clarified**:
+  - `portraitLibrary.js` - Data only (636 portrait definitions)
+  - `portraitResolver.js` - Portrait matching logic
   - `portraitMatcher.js` - Name-based file matching
   - `portraits.config.js` - LLM-facing categories
 
 ### Current Codebase Stats
-- **318 JS/JSX files** (down from 328)
-- **~123,000 lines of code**
+- **370 JS/JSX files**
+- **~130,000 lines of code**
+- **GamePage.jsx**: 3,140 lines (down from original ~4,000+ before hooks extraction)
 - **15 CSS files** (~4,883 lines)
-- **613 portrait images**
+- **636 portrait images**

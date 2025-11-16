@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDrop } from 'react-dnd';
 import { MapRenderer } from '../features/map';
 import StudyTab from './StudyTab';
 import { selectViewportImage } from '../core/config/viewportImages.config';
+import { useTooltip } from '../hooks/useTooltip';
+import HelperTooltip from './HelperTooltip';
+import { useGameState } from '../contexts/GameStateContext';
 
 const ViewportPanel = ({
   location = 'Mexico City',
@@ -54,6 +57,39 @@ const ViewportPanel = ({
   const [hoveredTab, setHoveredTab] = useState(null);
   const [previousTab, setPreviousTab] = useState(defaultTab);
   const [pulsePortraitTab, setPulsePortraitTab] = useState(false);
+  const [isRefReady, setIsRefReady] = useState(false);
+
+  // Ref for portrait button (for tooltip)
+  const portraitButtonRef = useRef(null);
+
+  // Get game state for tooltip trigger evaluation
+  const { gameState } = useGameState();
+
+  // Track when the portrait button ref is mounted and view switch completes
+  useEffect(() => {
+    if (npcPresent && activeTab === 'portrait' && portraitButtonRef.current) {
+      // Wait for view switch animation to complete
+      const timer = setTimeout(() => {
+        setIsRefReady(true);
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setIsRefReady(false);
+    }
+  }, [npcPresent, activeTab]);
+
+  // TOOLTIP 3: Portrait click - shows on turns 2-5 when NPC/patient present
+  const portraitTooltip = useTooltip('portrait-click', {
+    content: "Click the portrait to learn more about this person and interact with them",
+    trigger: 'immediate',
+    gameState: {
+      ...gameState,
+      recentNPCs: npcPresent ? [npcName] : [],
+      activePatient: npcData?.type === 'patient' ? npcData : gameState.activePatient
+    },
+    useTriggerSystem: true,
+    dependencies: [gameState.turnNumber, npcPresent, npcName]
+  });
 
   // VIEWPORT IMAGES: Select contextual image when no NPC present
   const viewportImage = React.useMemo(() => {
@@ -345,7 +381,12 @@ const ViewportPanel = ({
               <div className="text-center">
                 <div className="inline-block mb-4">
                   <button
-                    onClick={() => onPortraitClick?.(npcData)}
+                    ref={portraitButtonRef}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onPortraitClick?.(npcData);
+                    }}
                     className={`relative inline-block group cursor-pointer transition-all duration-base ${isOverNPC ? 'scale-110 ring-4 ring-emerald-400' : ''}`}
                     disabled={!npcData}
                     title={isOverNPC ? 'Drop item to interact' : (npcData?.type === 'patient' ? 'Click to examine patient' : 'View character details')}
@@ -375,10 +416,11 @@ const ViewportPanel = ({
                         <img
                           src={npcPortrait}
                           alt={npcName}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover pointer-events-none"
                           loading="lazy"
                           decoding="async"
                           style={{ willChange: 'auto' }}
+                          draggable={false}
                         />
                       </div>
                     </div>
@@ -472,6 +514,19 @@ const ViewportPanel = ({
         )}
 
       </div>
+
+      {/* Helper Tooltip 3: Portrait click */}
+      {isRefReady && (
+        <HelperTooltip
+          id="portrait-click"
+          content={portraitTooltip.content}
+          targetRef={portraitButtonRef}
+          show={portraitTooltip.show && npcPresent}
+          onDismiss={portraitTooltip.dismiss}
+          onDisableAll={portraitTooltip.onDisableAll}
+          position={portraitTooltip.position}
+        />
+      )}
     </div>
   );
 };

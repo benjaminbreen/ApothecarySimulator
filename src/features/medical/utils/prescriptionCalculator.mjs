@@ -24,6 +24,7 @@ import {
   analyzeIngredientSynergies
 } from './medicinalEffectsParser.mjs';
 import { REFERENCE_ENTRIES } from '../../../core/data/medicalReference.js';
+import { enrichSymptoms } from './symptomEnricher.mjs';
 
 // Temporary mock for standalone testing - will use real skillCheckSystem when integrated
 const DIFFICULTY = {
@@ -114,6 +115,46 @@ const TOXIC_SUBSTANCES = {
 };
 
 /**
+ * Get categories with multi-tier fallback
+ * Tier 1: Authoritative (initial inventory with human validation)
+ * Tier 2: LLM-generated (from mixing prompt)
+ * Tier 3: None (use existing therapeutic parser)
+ */
+function getCategoriesWithFallback(item) {
+  // Tier 1: Authoritative (initial inventory with human validation)
+  if (item.primarySystems || item.organAffinities || item.specificConditions) {
+    return {
+      primarySystems: item.primarySystems || [],
+      organAffinities: item.organAffinities || [],
+      specificConditions: item.specificConditions || [],
+      confidence: 'authoritative'
+    };
+  }
+
+  // Tier 2: LLM-generated (from mixing prompt)
+  // These items were created by mixing panel and have LLM-assigned categories
+  if (item.source === 'compound' || item.ingredients) {
+    // Already has categories from LLM generation
+    if (item.primarySystems) {
+      return {
+        primarySystems: item.primarySystems || [],
+        organAffinities: item.organAffinities || [],
+        specificConditions: item.specificConditions || [],
+        confidence: 'llm'
+      };
+    }
+  }
+
+  // Tier 3: No categories available - use existing therapeutic parser
+  return {
+    primarySystems: [],
+    organAffinities: [],
+    specificConditions: [],
+    confidence: 'none'
+  };
+}
+
+/**
  * Calculate prescription outcome using deterministic mechanics
  * @param {Object} params - Prescription parameters
  * @param {Object} params.item - Medicine item
@@ -148,7 +189,7 @@ export function calculatePrescriptionOutcome(params) {
   }
 
   // Extract symptoms from patient (handle different data structures)
-  const symptoms = patient.symptoms || patient.medical?.symptoms || [];
+  let symptoms = patient.symptoms || patient.medical?.symptoms || [];
 
   if (!Array.isArray(symptoms)) {
     console.error('[PrescriptionCalculator] Patient symptoms must be an array');
@@ -159,6 +200,9 @@ export function calculatePrescriptionOutcome(params) {
     console.warn('[PrescriptionCalculator] Patient has no symptoms to treat');
     return createFailureOutcome('Patient has no symptoms to treat');
   }
+
+  // Enrich symptoms with system/organ fields for category matching
+  symptoms = enrichSymptoms(symptoms);
 
   // CRITICAL: Check for fatal toxicity FIRST to avoid wasting CPU
   // (e.g., inhaled mercury vapor = instant death, no need to calculate anything else)
@@ -241,6 +285,64 @@ export function calculatePrescriptionOutcome(params) {
 
   // 2d. HISTORICAL MEDICAL REASONING (educational, no score impact)
   breakdown.historicalReasoning = generateHistoricalReasoning(item, symptoms, actionMatches.directMatches);
+
+  // 2e. CATEGORY-BASED MATCHING (Tier system with confidence)
+  // Detects if item has pre-validated categories OR inherits from ingredients
+  const categories = getCategoriesWithFallback(item);
+  let categoryBonus = 0;
+  breakdown.systemMatches = [];
+  breakdown.organMatches = [];
+  breakdown.conditionMatches = [];
+
+  if (categories.primarySystems?.length > 0 || categories.organAffinities?.length > 0 || categories.specificConditions?.length > 0) {
+    for (const symptom of symptoms) {
+      // System match (15pts authoritative, 12pts LLM, 8pts parsed)
+      if (symptom.system && categories.primarySystems?.includes(symptom.system)) {
+        const bonus = categories.confidence === 'authoritative' ? 15 :
+                      categories.confidence === 'llm' ? 12 : 8;
+        categoryBonus += bonus;
+        breakdown.systemMatches.push({
+          symptom: symptom.name,
+          system: symptom.system,
+          bonus,
+          confidence: categories.confidence
+        });
+      }
+
+      // Organ affinity (10pts authoritative, 8pts LLM, 5pts parsed)
+      if (symptom.affectedOrgan && categories.organAffinities?.includes(symptom.affectedOrgan)) {
+        const bonus = categories.confidence === 'authoritative' ? 10 :
+                      categories.confidence === 'llm' ? 8 : 5;
+        categoryBonus += bonus;
+        breakdown.organMatches.push({
+          symptom: symptom.name,
+          organ: symptom.affectedOrgan,
+          bonus,
+          confidence: categories.confidence
+        });
+      }
+
+      // Specific condition (20pts authoritative, 16pts LLM, 10pts parsed)
+      const conditionMatch = categories.specificConditions?.some(cond =>
+        symptom.name.toLowerCase().includes(cond.toLowerCase()) ||
+        cond.toLowerCase().includes(symptom.name.toLowerCase())
+      );
+      if (conditionMatch) {
+        const bonus = categories.confidence === 'authoritative' ? 20 :
+                      categories.confidence === 'llm' ? 16 : 10;
+        categoryBonus += bonus;
+        breakdown.conditionMatches.push({
+          symptom: symptom.name,
+          bonus,
+          confidence: categories.confidence
+        });
+      }
+    }
+  }
+
+  totalEffectiveness += categoryBonus;
+  breakdown.categoryBonus = categoryBonus;
+  breakdown.categoryConfidence = categories.confidence;
 
   // 3. ROUTE APPROPRIATENESS (0-20 points, or negative if inappropriate)
   const routeResult = calculateRouteBonus(route, symptoms, item.name);

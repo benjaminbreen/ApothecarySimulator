@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import PropTypes from 'prop-types';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -17,6 +18,61 @@ import {
 } from '../core/systems/professionAbilities';
 import MedicineTypeBadge from './MedicineTypeBadge';
 import { getAllMedicineTypes, inferMedicineType, getMedicineType } from '../core/config/medicineCategories';
+import { useTooltipContext } from '../contexts/TooltipContext';
+
+// Tooltip component matching Header/ActionPanel style
+const MixingTooltip = ({ children, targetRef, show }) => {
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const isDark = document.documentElement.classList.contains('dark');
+
+  useEffect(() => {
+    if (show && targetRef.current) {
+      const rect = targetRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + 8, // 8px below button
+        left: rect.left + rect.width / 2 // center of button
+      });
+    }
+  }, [show, targetRef]);
+
+  if (!show) return null;
+
+  return createPortal(
+    <div
+      className="fixed pointer-events-none z-[9999] transition-opacity duration-200"
+      style={{
+        top: `${position.top}px`,
+        left: `${position.left}px`,
+        transform: 'translate(-50%, 0)',
+        opacity: show ? 1 : 0
+      }}
+    >
+      <div
+        className="px-3 py-2 rounded-lg shadow-2xl whitespace-nowrap border backdrop-blur-sm"
+        style={{
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 252, 247, 0.95) 100%)',
+          borderColor: isDark ? 'rgba(251, 191, 36, 0.3)' : 'rgba(100, 116, 139, 0.3)',
+        }}
+      >
+        <div className="text-xs font-sans text-ink-700 dark:text-parchment-200" style={{ fontWeight: 500 }}>
+          {children}
+        </div>
+        {/* Arrow pointing up */}
+        <div
+          className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0"
+          style={{
+            borderLeft: '6px solid transparent',
+            borderRight: '6px solid transparent',
+            borderBottom: isDark ? '6px solid rgba(15, 23, 42, 0.98)' : '6px solid rgba(255, 255, 255, 0.98)',
+          }}
+        />
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 // Method images
 import distillImage from '../assets/distill.jpg';
@@ -41,7 +97,8 @@ const MixingWorkshop = ({
   advanceTime,
   awardXP,
   awardSkillXP,
-  gameState = {} // Add gameState prop for profession abilities
+  gameState = {}, // Add gameState prop for profession abilities
+  onItemClick // Handler to open ItemModalEnhanced
 }) => {
   const [selectedSimples, setSelectedSimples] = useState({});
   const [isMixButtonEnabled, setIsMixButtonEnabled] = useState(false);
@@ -53,6 +110,23 @@ const MixingWorkshop = ({
   const [medicineTypeFilter, setMedicineTypeFilter] = useState('all');
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
   const [isClosing, setIsClosing] = useState(false);
+  const [isResultClosing, setIsResultClosing] = useState(false);
+
+  // Tooltip state and refs
+  const [showFilterTooltip, setShowFilterTooltip] = useState(false);
+  const [showResetTooltip, setShowResetTooltip] = useState(false);
+  const [showMixTooltip, setShowMixTooltip] = useState(false);
+  const [showPrevPageTooltip, setShowPrevPageTooltip] = useState(false);
+  const [showNextPageTooltip, setShowNextPageTooltip] = useState(false);
+
+  const filterDropdownRef = useRef(null);
+  const resetButtonRef = useRef(null);
+  const mixButtonRef = useRef(null);
+  const prevPageButtonRef = useRef(null);
+  const nextPageButtonRef = useRef(null);
+
+  // Get tooltip context to dismiss all tooltips when modal opens
+  const { currentTooltip, dismissTooltip } = useTooltipContext();
 
   // Handle smooth close with exit animation
   const handleClose = () => {
@@ -64,12 +138,18 @@ const MixingWorkshop = ({
     }, 200);
   };
 
-  // Reset closing state when modal opens
+  // Reset closing state when modal opens and dismiss any active tooltips
   useEffect(() => {
     if (isOpen) {
       setIsClosing(false);
+
+      // Dismiss any active helper tooltips to prevent z-index conflicts
+      if (currentTooltip) {
+        console.log('[MixingWorkshop] Dismissing active tooltip:', currentTooltip);
+        dismissTooltip(currentTooltip);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, currentTooltip, dismissTooltip]);
 
   // Watch for dark mode changes
   useEffect(() => {
@@ -292,12 +372,39 @@ When provided with ingredients and a compounding method, return a JSON object wi
   "spanishName": "The name of the compound in Spanish",
   "humoralQualities": "Temperature in Xth degree, Moisture in Yth degree (e.g., 'Cold in 4th degree, Dry in 3rd degree' for opium, or 'Warm in 1st degree, Moist in 2nd degree' for chamomile). Use degrees 1-4 to indicate intensity.",
   "medicinalEffects": "The specific effects it has on health and the body - defined in a phrase, like 'soporific and resolutive, but potentially toxic'",
+  "primarySystems": "Array of 1-3 body systems this remedy affects. Choose from: musculoskeletal, digestive, respiratory, nervous, circulatory, dermatological, renal, reproductive, ophthalmological, dental. Base this on the remedy's medicinal effects - e.g., a pain reliever for joints = ['musculoskeletal'], a cough remedy = ['respiratory'], a sedative = ['nervous'].",
+  "organAffinities": "Array of 1-3 specific organs or body parts this remedy targets. Choose relevant organs: head, heart, liver, stomach, lungs, kidneys, spine, back, joints, skin, eyes, teeth, womb, bladder, spleen, brain, blood, bowels, throat, etc. Be specific - if it treats headaches, include 'head'. If it treats coughs, include 'lungs'.",
+  "specificConditions": "Array of 2-5 specific ailments this remedy treats. Use plain 17th-century medical terms: 'headache', 'fever', 'cough', 'constipation', 'wound', 'inflammation', 'melancholy', 'insomnia', 'colic', 'dysentery', 'dropsy', 'scurvy', 'ague', 'flux', 'stone', 'gout', 'pain', 'bleeding', 'nausea', 'vomiting', 'diarrhea', 'anxiety', etc. Be specific and practical - what would a patient actually come to you seeking treatment for?",
   "description": "Brief, pithy description of the process and result (no more than a single short sentence)",
   "price": Number of reales in value (failures: 0-2, simple preparations: 3-8, complex: 10-30, rare: 40-100, legendary: 150+),
   "emoji": "A single HISTORICALLY ACCURATE emoji to represent the result",
   "citation": "Real primary source or historical reference which mentions it or something like it (e.g., 'Salmon's Pharmacopoeia Londinensis, 1678' or 'Culpeper's Complete Herbal, 1653')",
   "quantity": "1"
 }
+
+MEDICAL CATEGORIZATION EXAMPLES (to guide your choices):
+
+Example 1 - Opium + Wine (Distilled):
+"primarySystems": ["nervous", "respiratory"],
+"organAffinities": ["brain", "lungs"],
+"specificConditions": ["insomnia", "cough", "pain", "diarrhea"]
+
+Example 2 - Camphor + Rose (Confection):
+"primarySystems": ["nervous", "dermatological"],
+"organAffinities": ["head", "skin"],
+"specificConditions": ["headache", "fever", "inflammation"]
+
+Example 3 - Senna + Rhubarb (Decocted):
+"primarySystems": ["digestive"],
+"organAffinities": ["bowels", "stomach"],
+"specificConditions": ["constipation"]
+
+Example 4 - Chamomile + Honey (Confection):
+"primarySystems": ["digestive", "nervous"],
+"organAffinities": ["stomach"],
+"specificConditions": ["anxiety", "colic", "insomnia"]
+
+Be historically realistic - match the remedy's actual properties to plausible uses in 1680s medicine.
 
 CRITICAL REMINDER: Return ONLY the raw JSON object above. Do not wrap it in markdown code fences (no \`\`\`json), do not add explanatory text, and do not include comments. Your entire response must be valid JSON that can be parsed directly.
     `;
@@ -427,10 +534,15 @@ Compounding Method: ${selectedMethod}
         price: compoundPrice,
         humoralQualities: compoundData.humoralQualities || 'N/A',
         medicinalEffects: compoundData.medicinalEffects || 'N/A',
+        primarySystems: compoundData.primarySystems || [],
+        organAffinities: compoundData.organAffinities || [],
+        specificConditions: compoundData.specificConditions || [],
         description: compoundData.description || 'The mixing process failed.',
         citation: compoundData.citation || 'N/A',
         quantity: compoundQuantity,
-        rarity: rarity.tier // Rarity tier based on complexity
+        rarity: rarity.tier, // Rarity tier based on complexity
+        ingredients: ingredients, // Keep ingredient references for inheritance
+        method: selectedMethod // Keep method for reference
       };
 
       // Add compound to inventory
@@ -549,7 +661,16 @@ Compounding Method: ${selectedMethod}
     setSelectedSimples({});
     setIsMixButtonEnabled(false);
     setCompoundResult(null);
+    setIsResultClosing(false);
     setError(null);
+  };
+
+  const handleResultClose = () => {
+    setIsResultClosing(true);
+    setTimeout(() => {
+      setCompoundResult(null);
+      setIsResultClosing(false);
+    }, 200); // Match animation duration
   };
 
   // Filter simples by medicine type
@@ -689,7 +810,7 @@ Compounding Method: ${selectedMethod}
           ref={gestureRef}
           className={`bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-none sm:rounded-3xl shadow-2xl max-w-full sm:max-w-7xl w-full h-screen sm:h-[92vh] flex flex-col border-4 border-double border-amber-700/50 dark:border-amber-500/30 relative transition-all duration-300 ${isClosing ? 'animate-modal-scale-out' : 'animate-modal-scale-in'}`}
           onClick={(e) => e.stopPropagation()}
-          style={{ maxHeight: '95vh', overflow: 'hidden' }}
+          style={{ maxHeight: '96vh', overflow: 'hidden' }}
         >
 
           {/* Ornate corner decorations */}
@@ -699,11 +820,21 @@ Compounding Method: ${selectedMethod}
           <div className="absolute bottom-0 right-0 w-32 h-32 border-r-4 border-b-4 border-amber-600/40 dark:border-amber-400/30 rounded-br-3xl pointer-events-none"></div>
 
           {/* Header */}
-          <div className="relative px-6 py-4 border-b border-amber-700/30 dark:border-amber-500/20 bg-gradient-to-r from-amber-100/50 via-parchment-100/50 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/50 dark:to-slate-800/50 shadow-sm">
+          <div className="relative px-6 py-5 border-b border-amber-700/30 dark:border-amber-500/20 bg-gradient-to-r from-amber-100/50 via-parchment-100/50 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/50 dark:to-slate-800/50 shadow-sm">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-parchment-900 dark:text-amber-100 tracking-wide">
-                Alchemical Workshop
+              <h2 className="text-3xl font-semibold text-parchment-900 dark:text-amber-100 tracking-wide">
+                Workshop
+
+
               </h2>
+
+ {/* Instructions - Compact */}
+            
+              <p className="font-serif text-xl text-ink-800 dark:text-amber-200/70 italic flex -mb-1 mr-20">
+                
+                <span>Drag Materia Medica items onto one of the Methods below. Each produces different results.</span>
+              </p>
+  
               <button
                 onClick={handleClose}
                 className="px-4 py-2 bg-ink-800 hover:bg-ink-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-lg font-sans text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
@@ -711,19 +842,15 @@ Compounding Method: ${selectedMethod}
                 <span className="text-lg leading-none">✕</span>
                 <span>Close</span>
               </button>
+
+
             </div>
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 overflow-y-auto p-6 ">
+          <div className="flex-1 overflow-y-auto p-6 py-5 ">
 
-            {/* Instructions - Compact */}
-            <div className="bg-amber-50/50 dark:bg-slate-800/20 border-l-2 border-amber-600/40 dark:border-amber-500/30 rounded px-4 py-2 mb-4">
-              <p className="font-serif text-lg text-ink-800 dark:text-amber-200/70 italic flex items-center gap-2">
-                
-                <span>Drag ingredients onto methods below. Each produces different results.</span>
-              </p>
-            </div>
+           
 
             {/* Active Profession Bonuses */}
             <ActiveBonusIndicator
@@ -743,8 +870,8 @@ Compounding Method: ${selectedMethod}
             )}
 
             {/* Method Grid - Centered and responsive */}
-            <div className="flex justify-center mb-5">
-              <div className={`grid gap-5 w-full ${
+            <div className="flex justify-center mb-4">
+              <div className={`grid gap-4 w-full ${
                 availableMethods.length === 1 ? 'grid-cols-1 max-w-md' :
                 availableMethods.length === 2 ? 'grid-cols-1 md:grid-cols-2 max-w-3xl' :
                 availableMethods.length === 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 max-w-5xl' :
@@ -766,13 +893,13 @@ Compounding Method: ${selectedMethod}
 
             {/* Predicted Medicine Type */}
             {predictedMedicineType && isMixButtonEnabled && (
-              <div className="text-center mb-4">
+              <div className="text-center mb-2">
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-amber-100/80 to-amber-50/80 dark:from-amber-900/30 dark:to-amber-800/30 border border-amber-300/50 dark:border-amber-600/30 shadow-sm">
                   <span className="text-lg">{getMedicineType(predictedMedicineType.typeId).emoji}</span>
-                  <span className="font-serif text-sm text-ink-700 dark:text-amber-200">
+                  <span className="font-serif text-md text-ink-700 dark:text-amber-200">
                     Creating: <span className="font-semibold">{getMedicineType(predictedMedicineType.typeId).name}</span>
                   </span>
-                  <span className="text-xs text-ink-500 dark:text-amber-400/70 italic">
+                  <span className="text-sm text-ink-500 dark:text-amber-400/70 italic">
                     ({predictedMedicineType.reason})
                   </span>
                 </div>
@@ -782,52 +909,70 @@ Compounding Method: ${selectedMethod}
             {/* Inventory Section - Paginated */}
             <div className="bg-ink-50/50 dark:bg-slate-800/30 rounded-xl p-3 border border-ink-200/30 dark:border-slate-600/30 shadow-sm">
               <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
-                <h3 className="font-serif text-base font-bold text-ink-800 dark:text-amber-100 flex items-center gap-2">
+                <h3 className="font-serif text-lg font-bold text-ink-800 dark:text-amber-100 flex items-center gap-2">
                   <span>Materia Medica</span>
-                  <span className="text-sm font-normal text-ink-500 dark:text-amber-300/60">
+                  <span className="text-md font-normal text-ink-500 dark:text-amber-300/60">
                     ({filteredSimples.length} items)
                   </span>
                 </h3>
 
                 {/* Medicine Type Filter Dropdown */}
-                <select
-                  value={medicineTypeFilter}
-                  onChange={(e) => setMedicineTypeFilter(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg border border-ink-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-ink-800 dark:text-amber-100 font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 transition-all cursor-pointer hover:border-amber-500 dark:hover:border-amber-400"
+                <div
+                  ref={filterDropdownRef}
+                  onMouseEnter={() => setShowFilterTooltip(true)}
+                  onMouseLeave={() => setShowFilterTooltip(false)}
                 >
-                  <option value="all">All Types ({medicineCountsByType.all})</option>
-                  {getAllMedicineTypes().map(type => (
-                    <option value={type.id} key={type.id}>
-                      {type.emoji} {type.name} ({medicineCountsByType[type.id] || 0})
-                    </option>
-                  ))}
-                </select>
+                  <select
+                    value={medicineTypeFilter}
+                    onChange={(e) => setMedicineTypeFilter(e.target.value)}
+                    className="px-3 py-1.5 rounded-lg border border-ink-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-ink-800 dark:text-amber-100 font-sans text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 dark:focus:ring-amber-400 transition-all cursor-pointer hover:border-amber-500 dark:hover:border-amber-400"
+                  >
+                    <option value="all">All Types ({medicineCountsByType.all})</option>
+                    {getAllMedicineTypes().map(type => (
+                      <option value={type.id} key={type.id}>
+                        {type.emoji} {type.name} ({medicineCountsByType[type.id] || 0})
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 {filteredSimples.length > 14 && (
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setInventoryPage(Math.max(0, inventoryPage - 1))}
-                      disabled={inventoryPage === 0}
-                      className="p-1.5 rounded-lg bg-amber-100 dark:bg-slate-700 text-ink-800 dark:text-amber-100 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-200 dark:hover:bg-slate-600 transition-all"
-                      aria-label="Previous page"
+                    <div
+                      ref={prevPageButtonRef}
+                      onMouseEnter={() => setShowPrevPageTooltip(true)}
+                      onMouseLeave={() => setShowPrevPageTooltip(false)}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                    </button>
+                      <button
+                        onClick={() => setInventoryPage(Math.max(0, inventoryPage - 1))}
+                        disabled={inventoryPage === 0}
+                        className="p-1.5 rounded-lg bg-amber-100 dark:bg-slate-700 text-ink-800 dark:text-amber-100 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-200 dark:hover:bg-slate-600 transition-all"
+                        aria-label="Previous page"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                    </div>
                     <span className="text-xs text-ink-600 dark:text-amber-300/70 font-sans">
                       {inventoryPage + 1} / {Math.ceil(filteredSimples.length / 14)}
                     </span>
-                    <button
-                      onClick={() => setInventoryPage(Math.min(Math.ceil(filteredSimples.length / 14) - 1, inventoryPage + 1))}
-                      disabled={inventoryPage >= Math.ceil(filteredSimples.length / 14) - 1}
-                      className="p-1.5 rounded-lg bg-amber-100 dark:bg-slate-700 text-ink-800 dark:text-amber-100 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-200 dark:hover:bg-slate-600 transition-all"
-                      aria-label="Next page"
+                    <div
+                      ref={nextPageButtonRef}
+                      onMouseEnter={() => setShowNextPageTooltip(true)}
+                      onMouseLeave={() => setShowNextPageTooltip(false)}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
+                      <button
+                        onClick={() => setInventoryPage(Math.min(Math.ceil(filteredSimples.length / 14) - 1, inventoryPage + 1))}
+                        disabled={inventoryPage >= Math.ceil(filteredSimples.length / 14) - 1}
+                        className="p-1.5 rounded-lg bg-amber-100 dark:bg-slate-700 text-ink-800 dark:text-amber-100 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-200 dark:hover:bg-slate-600 transition-all"
+                        aria-label="Next page"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -843,7 +988,7 @@ Compounding Method: ${selectedMethod}
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3 p-2 auto-rows-fr">
+                <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-9 gap-3 p-2 auto-rows-fr">
                   {filteredSimples.slice(inventoryPage * 18, (inventoryPage + 1) * 18).map(simple => (
                     <DraggableIngredient
                       key={simple.id}
@@ -851,6 +996,7 @@ Compounding Method: ${selectedMethod}
                       onHover={setHoveredSimple}
                       onLeave={() => setHoveredSimple(null)}
                       isDisabled={isLoading}
+                      onClick={onItemClick ? () => onItemClick(simple, 'properties') : null}
                     />
                   ))}
                 </div>
@@ -861,68 +1007,101 @@ Compounding Method: ${selectedMethod}
 
           {/* Footer */}
           <div className="px-6 py-3 border-t border-amber-700/30 dark:border-amber-500/20 bg-gradient-to-r from-amber-100/50 via-parchment-100/50 to-amber-100/50 dark:from-slate-800/50 dark:via-slate-700/50 dark:to-slate-800/50 flex justify-between items-center shadow-inner">
-            <button
-              onClick={resetSelection}
-              className="px-3 py-1.5 text-sm font-sans text-ink-600 dark:text-amber-300/70 hover:text-ink-900 dark:hover:text-amber-100 transition-colors duration-200 flex items-center gap-1"
-              title="Clear all selected ingredients"
+            <div
+              ref={resetButtonRef}
+              onMouseEnter={() => setShowResetTooltip(true)}
+              onMouseLeave={() => setShowResetTooltip(false)}
             >
-              <span className="text-base">↺</span>
-              <span>Reset</span>
-            </button>
+              <button
+                onClick={resetSelection}
+                className="px-3 py-1.5 text-sm font-sans text-ink-600 dark:text-amber-300/70 hover:text-ink-900 dark:hover:text-amber-100 transition-colors duration-200 flex items-center gap-1"
+                title="Clear all selected ingredients"
+              >
+                <span className="text-base">↺</span>
+                <span>Reset</span>
+              </button>
+            </div>
 
-            <button
-              onClick={handleMixing}
-              disabled={!isMixButtonEnabled || isLoading}
-              className={`relative px-8 py-3 rounded-xl font-sans text-base font-bold shadow-lg transition-all duration-200 overflow-hidden group ${
-                isMixButtonEnabled && !isLoading
-                  ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:via-amber-600 hover:to-amber-700 dark:from-amber-500 dark:via-amber-400 dark:to-amber-500 dark:hover:from-amber-600 dark:hover:via-amber-500 dark:hover:to-amber-600 text-white shadow-amber-600/40 hover:shadow-xl hover:shadow-amber-600/50 hover:scale-105 active:scale-95'
-                  : 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-500 cursor-not-allowed opacity-60'
-              }`}
+            <div
+              ref={mixButtonRef}
+              onMouseEnter={() => setShowMixTooltip(true)}
+              onMouseLeave={() => setShowMixTooltip(false)}
             >
-              {isMixButtonEnabled && !isLoading && (
-                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
-              )}
-              <span className="relative flex items-center gap-2 justify-center">
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                    </svg>
-                    <span>Transmuting...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-xl">⚗️</span>
-                    <div className="flex flex-col items-center">
-                      <span>Begin Transmutation</span>
-                      {selectedMethodCosts && (
-                        <span className="text-xs opacity-75 font-normal">
-                          ({selectedMethodCosts.energy} energy, {selectedMethodCosts.time} {selectedMethodCosts.time === 1 ? 'hour' : 'hours'})
-                        </span>
-                      )}
-                    </div>
-                  </>
+              <button
+                onClick={handleMixing}
+                disabled={!isMixButtonEnabled || isLoading}
+                className={`relative px-8 py-3 rounded-xl font-sans text-base font-bold shadow-lg transition-all duration-200 overflow-hidden group ${
+                  isMixButtonEnabled && !isLoading
+                    ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:via-amber-600 hover:to-amber-700 dark:from-amber-500 dark:via-amber-400 dark:to-amber-500 dark:hover:from-amber-600 dark:hover:via-amber-500 dark:hover:to-amber-600 text-white shadow-amber-600/40 hover:shadow-xl hover:shadow-amber-600/50 hover:scale-105 active:scale-95'
+                    : 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-500 cursor-not-allowed opacity-60'
+                }`}
+              >
+                {isMixButtonEnabled && !isLoading && (
+                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
                 )}
-              </span>
-            </button>
+                <span className="relative flex items-center gap-2 justify-center">
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                      </svg>
+                      <span>Transmuting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xl">⚗️</span>
+                      <div className="flex flex-col items-center">
+                        <span>Begin Transmutation</span>
+                        {selectedMethodCosts && (
+                          <span className="text-xs opacity-75 font-normal">
+                            ({selectedMethodCosts.energy} energy, {selectedMethodCosts.time} {selectedMethodCosts.time === 1 ? 'hour' : 'hours'})
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </span>
+              </button>
+            </div>
           </div>
+
+          {/* Tooltips */}
+          <MixingTooltip targetRef={filterDropdownRef} show={showFilterTooltip}>
+            Filter by medicine type
+          </MixingTooltip>
+
+          <MixingTooltip targetRef={prevPageButtonRef} show={showPrevPageTooltip}>
+            Previous page
+          </MixingTooltip>
+
+          <MixingTooltip targetRef={nextPageButtonRef} show={showNextPageTooltip}>
+            Next page
+          </MixingTooltip>
+
+          <MixingTooltip targetRef={resetButtonRef} show={showResetTooltip}>
+            Clear all selected ingredients
+          </MixingTooltip>
+
+          <MixingTooltip targetRef={mixButtonRef} show={showMixTooltip && isMixButtonEnabled && !isLoading}>
+            Create compound from selected ingredients
+          </MixingTooltip>
         </div>
 
         {/* Compound Result Modal - Overlays the mixing workshop */}
         {compoundResult && (
           <div
-            className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fadeIn"
-            onClick={() => setCompoundResult(null)}
+            className={`fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[60] p-4 transition-opacity duration-200 ${isResultClosing ? 'opacity-0' : 'opacity-100 animate-fadeIn'}`}
+            onClick={handleResultClose}
           >
             <div
-              className="bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-none sm:rounded-2xl shadow-2xl max-w-full sm:max-w-3xl w-full overflow-hidden border-4 border-double border-amber-700/50 dark:border-amber-500/30 animate-slideUp flex flex-col"
+              className={`bg-gradient-to-br from-parchment-50 via-parchment-100 to-amber-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-none sm:rounded-2xl shadow-2xl max-w-full sm:max-w-3xl w-full overflow-hidden border-4 border-double border-amber-700/50 dark:border-amber-500/30 flex flex-col transition-all duration-200 ${isResultClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100 animate-slideUp'}`}
               style={{ maxHeight: '85vh' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Scrollable content area */}
               <div className="flex-1 overflow-hidden">
-                <CompoundResultCard compound={compoundResult} onClose={() => setCompoundResult(null)} />
+                <CompoundResultCard compound={compoundResult} onClose={handleResultClose} />
               </div>
 
               {/* Continue Button - Fixed at bottom */}
@@ -938,7 +1117,7 @@ Compounding Method: ${selectedMethod}
                 }}
               >
                 <button
-                  onClick={() => setCompoundResult(null)}
+                  onClick={handleResultClose}
                   className="px-8 py-2.5 rounded-lg font-sans text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.02] active:scale-95"
                   style={{
                     background: isDark
@@ -968,7 +1147,8 @@ MixingWorkshop.propTypes = {
   unlockedMethods: PropTypes.array,
   advanceTime: PropTypes.func,
   awardXP: PropTypes.func,
-  awardSkillXP: PropTypes.func
+  awardSkillXP: PropTypes.func,
+  onItemClick: PropTypes.func
 };
 
 export default MixingWorkshop;

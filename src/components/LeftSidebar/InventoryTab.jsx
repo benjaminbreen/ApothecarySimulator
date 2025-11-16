@@ -8,6 +8,7 @@ import {
   QUALITY_LABELS
 } from '../../core/systems/itemRarity';
 import MedicineTypeBadge from '../MedicineTypeBadge';
+import { getAllPersonalItems } from '../../core/systems/personalEffects';
 
 /**
  * InventoryItemParticles - Beautiful particle effect for newly-added items
@@ -108,6 +109,8 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
   const [viewMode, setViewMode] = React.useState('grid'); // 'grid' or 'list'
   const [sortBy, setSortBy] = React.useState('name'); // 'name', 'quantity', 'price', 'type'
   const [isDark, setIsDark] = React.useState(document.documentElement.classList.contains('dark'));
+  const [glowingItem, setGlowingItem] = React.useState(null); // Track which item should glow
+  const newItemRef = React.useRef(null); // Ref for scrolling to newly-added item
 
   // Watch for dark mode changes
   React.useEffect(() => {
@@ -122,6 +125,49 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
 
     return () => observer.disconnect();
   }, []);
+
+  // Scroll to newly-added item and trigger glow effect
+  React.useEffect(() => {
+    if (newlyAddedItemName && newItemRef.current) {
+      // OPTION 3: Manual parent scrolling to prevent Chrome viewport scroll bug
+      // Find the parent scroll container (PlayerStatusPanel's content div)
+      let scrollParent = newItemRef.current.parentElement;
+      while (scrollParent) {
+        const overflowY = window.getComputedStyle(scrollParent).overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') {
+          break;
+        }
+        scrollParent = scrollParent.parentElement;
+      }
+
+      if (scrollParent) {
+        // Get element and container positions
+        const itemRect = newItemRef.current.getBoundingClientRect();
+        const containerRect = scrollParent.getBoundingClientRect();
+
+        // Calculate how much to scroll to center the item in its container
+        const itemCenter = itemRect.top + itemRect.height / 2;
+        const containerCenter = containerRect.top + containerRect.height / 2;
+        const scrollOffset = itemCenter - containerCenter;
+
+        // Smooth scroll ONLY the parent container (not the viewport)
+        scrollParent.scrollBy({
+          top: scrollOffset,
+          behavior: 'smooth'
+        });
+      }
+
+      // Trigger glow effect
+      setGlowingItem(newlyAddedItemName);
+
+      // Clear glow after 3 seconds
+      const timeout = setTimeout(() => {
+        setGlowingItem(null);
+      }, 3000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [newlyAddedItemName]);
 
   // Helper function to capitalize item names
   const capitalizeItemName = (name) => {
@@ -160,6 +206,19 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
   const equippedClothing = clothingItems.filter(item => item.equipped);
   const unequippedClothing = clothingItems.filter(item => !item.equipped);
 
+  // Get personal items (only specific items for Other Items section)
+  const allowedPersonalItems = ['Account Book', 'Embroidered Shawl (Rebozo)', 'Ivory Comb', 'Linen Chemise', 'Sewing Kit', 'Silver Hand Mirror'];
+  const personalItems = React.useMemo(() => {
+    return getAllPersonalItems(false)
+      .filter(item => allowedPersonalItems.includes(item.name))
+      .map(item => ({
+        ...item,
+        type: 'personal',
+        quantity: 1,
+        price: item.value
+      }));
+  }, []);
+
   // Sort medicine items based on sortBy
   const sortedMedicineItems = React.useMemo(() => {
     const sorted = [...medicineItems];
@@ -182,13 +241,28 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
 
   // Map item names to icon paths
   const getItemIcon = (itemName) => {
+    // Special mappings for items whose names don't match icon filenames
+    const iconMappings = {
+      'account book': 'commonplace_book',
+      'embroidered shawl (rebozo)': 'shawl',
+      'embroidered shawl': 'shawl',
+      'wool blanket': 'blanket',
+      'beeswax candles (bundle)': 'candle',
+      'wooden crucifix': 'crucifix',
+      'silver hand mirror': 'mirror',
+      'pewter plate': 'plate',
+    };
+
     // Normalize item name to match icon filename format
     const normalized = itemName
       .toLowerCase()
       .replace(/[']/g, '') // Remove apostrophes
       .replace(/\s+/g, '_'); // Replace spaces with underscores
 
-    const iconPath = `/icons/${normalized}_icon.png`;
+    // Check if there's a special mapping, otherwise use normalized name
+    const iconName = iconMappings[itemName.toLowerCase()] || normalized;
+
+    const iconPath = `/icons/${iconName}_icon.png`;
     return iconPath;
   };
 
@@ -198,7 +272,10 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
   React.useEffect(() => {
     let isMounted = true;
 
-    inventory.forEach(item => {
+    // Load icons for all items (inventory + personal items)
+    const allItems = [...inventory, ...personalItems];
+
+    allItems.forEach(item => {
       const iconPath = getItemIcon(item.name);
       const img = new Image();
       img.onload = () => {
@@ -217,7 +294,7 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
     return () => {
       isMounted = false;
     };
-  }, [inventory]);
+  }, [inventory, personalItems]);
 
   if (inventory.length === 0) {
     return (
@@ -329,11 +406,13 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
         const isDark = document.documentElement.classList.contains('dark');
 
         const isNewlyAdded = newlyAddedItemName && item.name.toLowerCase() === newlyAddedItemName.toLowerCase();
+        const isGlowing = glowingItem && item.name.toLowerCase() === glowingItem.toLowerCase();
 
         return (
           <DraggableInventoryItem key={item.name} item={item}>
             <div
-              className="relative rounded-xl cursor-pointer group overflow-hidden transition-all duration-300 animate-cascade-in"
+              ref={isNewlyAdded ? newItemRef : null}
+              className={`relative rounded-xl cursor-pointer group overflow-hidden transition-all duration-300 animate-cascade-in ${isGlowing ? 'inventory-glow-effect' : ''}`}
               title={`${item.name} (${item.quantity})`}
               onClick={() => onItemClick?.(item)}
               style={{
@@ -480,10 +559,14 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
 
             const rgb = hexToRgb(colors.primary);
 
+            const isNewlyAdded = newlyAddedItemName && item.name.toLowerCase() === newlyAddedItemName.toLowerCase();
+            const isGlowing = glowingItem && item.name.toLowerCase() === glowingItem.toLowerCase();
+
             return (
               <DraggableInventoryItem key={item.name} item={item}>
                 <div
-                  className="rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-[1.01] group relative overflow-hidden"
+                  ref={isNewlyAdded ? newItemRef : null}
+                  className={`rounded-lg p-2 cursor-pointer transition-all duration-200 hover:scale-[1.01] group relative overflow-hidden ${isGlowing ? 'inventory-glow-effect' : ''}`}
                   onClick={() => onItemClick?.(item)}
                   style={{
                     background: isDark
@@ -601,91 +684,114 @@ export function InventoryTab({ onItemClick, onOpenFullInventory, inventory = [],
       )}
 
       {/* Other Items - Compact 4-column layout */}
-      {(equippedClothing.length > 0 || unequippedClothing.length > 0 || miscItems.length > 0) && (
+      {(equippedClothing.length > 0 || unequippedClothing.length > 0 || miscItems.length > 0 || personalItems.length > 0) && (
         <div className="space-y-1 pt-3 border-t border-ink-200/40 dark:border-slate-700/40 transition-colors duration-300">
           {/* Other Items Section Header */}
           <h3 className="text-[0.7rem] font-bold text-ink-600 dark:text-parchment-400 uppercase tracking-widest px-1 transition-colors duration-300 font-sans">
             Other Items
           </h3>
 
-          {/* Equipped Clothing */}
-          {equippedClothing.length > 0 && (
-            <div>
-              <h4 className="text-[0.65rem] font-bold text-ink-600 dark:text-parchment-400 uppercase tracking-widest mb-1.5 px-1 transition-colors duration-300">
-                Equipped
-              </h4>
-              <div className="grid grid-cols-4 gap-1.5">
-                {equippedClothing.map((item) => (
-                  <DraggableInventoryItem key={item.name} item={item}>
-                    <div
-                      className="relative rounded-lg cursor-pointer group overflow-hidden bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-ink-200/50 dark:border-slate-600/50 p-1.5 transition-all duration-200"
-                      title={item.name}
-                      onClick={() => onItemClick?.(item)}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg mb-0.5">{item.emoji || '👔'}</div>
-                        <p className="text-[0.55rem] font-semibold text-ink-800 dark:text-parchment-100 leading-tight line-clamp-2 transition-colors duration-300">
-                          {capitalizeItemName(item.name)}
-                        </p>
-                      </div>
-                    </div>
-                  </DraggableInventoryItem>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* All Other Items in a Single Grid */}
+          <div className="grid grid-cols-4 gap-1.5">
+            {/* Equipped Clothing */}
+            {equippedClothing.map((item) => {
+              const iconPath = loadedIcons[item.name];
+              const hasIcon = iconPath !== null && iconPath !== undefined;
 
-          {/* Unequipped Clothing */}
-          {unequippedClothing.length > 0 && (
-            <div>
-
-              <div className="grid grid-cols-4 gap-1.5">
-                {unequippedClothing.map((item) => (
-                  <DraggableInventoryItem key={item.name} item={item}>
-                    <div
-                      className="relative rounded-lg cursor-pointer group overflow-hidden bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-ink-200/50 dark:border-slate-600/50 p-1.5 transition-all duration-200"
-                      title={item.name}
-                      onClick={() => onItemClick?.(item)}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg mb-0.5">{item.emoji || '👔'}</div>
-                        <p className="text-[0.55rem] font-semibold text-ink-800 dark:text-parchment-100 leading-tight line-clamp-2 transition-colors duration-300">
-                          {capitalizeItemName(item.name)}
-                        </p>
+              return (
+                <DraggableInventoryItem key={item.name} item={item}>
+                  <div
+                    className="relative rounded-lg cursor-pointer group overflow-hidden bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-ink-200/50 dark:border-slate-600/50 p-1.5 transition-all duration-200"
+                    title={item.name}
+                    onClick={() => onItemClick?.(item)}
+                  >
+                    <div className="text-center">
+                      <div className="text-lg mb-0.5 flex items-center justify-center" style={{ height: '1.5rem' }}>
+                        {hasIcon ? (
+                          <img
+                            src={iconPath}
+                            alt={item.name}
+                            className="max-w-[1.5rem] max-h-[1.5rem] object-contain group-hover:scale-110 transition-transform duration-200"
+                          />
+                        ) : (
+                          <span>{item.emoji || '👔'}</span>
+                        )}
                       </div>
+                      <p className="text-[0.55rem] font-semibold text-ink-800 dark:text-parchment-100 leading-tight line-clamp-2 transition-colors duration-300">
+                        {capitalizeItemName(item.name)}
+                      </p>
                     </div>
-                  </DraggableInventoryItem>
-                ))}
-              </div>
-            </div>
-          )}
+                  </div>
+                </DraggableInventoryItem>
+              );
+            })}
 
-          {/* Miscellaneous Items */}
-          {miscItems.length > 0 && (
-            <div>
-              <h4 className="text-[0.65rem] font-bold text-ink-600 dark:text-parchment-400 uppercase tracking-widest mb-1.5 px-1 transition-colors duration-300">
-                Miscellaneous
-              </h4>
-              <div className="grid grid-cols-4 gap-1.5">
-                {miscItems.map((item) => (
-                  <DraggableInventoryItem key={item.name} item={item}>
-                    <div
-                      className="relative rounded-lg cursor-pointer group overflow-hidden bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-ink-200/50 dark:border-slate-600/50 p-1.5 transition-all duration-200"
-                      title={item.name}
-                      onClick={() => onItemClick?.(item)}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg mb-0.5">{item.emoji || '📦'}</div>
-                        <p className="text-[0.55rem] font-semibold text-ink-800 dark:text-parchment-100 leading-tight line-clamp-2 transition-colors duration-300">
-                          {capitalizeItemName(item.name)}
-                        </p>
+            {/* Unequipped Clothing */}
+            {unequippedClothing.map((item) => {
+              const iconPath = loadedIcons[item.name];
+              const hasIcon = iconPath !== null && iconPath !== undefined;
+
+              return (
+                <DraggableInventoryItem key={item.name} item={item}>
+                  <div
+                    className="relative rounded-lg cursor-pointer group overflow-hidden bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-ink-200/50 dark:border-slate-600/50 p-1.5 transition-all duration-200"
+                    title={item.name}
+                    onClick={() => onItemClick?.(item)}
+                  >
+                    <div className="text-center">
+                      <div className="text-lg mb-0.5 flex items-center justify-center" style={{ height: '1.5rem' }}>
+                        {hasIcon ? (
+                          <img
+                            src={iconPath}
+                            alt={item.name}
+                            className="max-w-[1.5rem] max-h-[1.5rem] object-contain group-hover:scale-110 transition-transform duration-200"
+                          />
+                        ) : (
+                          <span>{item.emoji || '👔'}</span>
+                        )}
                       </div>
+                      <p className="text-[0.55rem] font-semibold text-ink-800 dark:text-parchment-100 leading-tight line-clamp-2 transition-colors duration-300">
+                        {capitalizeItemName(item.name)}
+                      </p>
                     </div>
-                  </DraggableInventoryItem>
-                ))}
-              </div>
-            </div>
-          )}
+                  </div>
+                </DraggableInventoryItem>
+              );
+            })}
+
+            {/* Miscellaneous & Personal Items */}
+            {[...miscItems, ...personalItems].map((item) => {
+              const iconPath = loadedIcons[item.name];
+              const hasIcon = iconPath !== null && iconPath !== undefined;
+
+              return (
+                <DraggableInventoryItem key={item.name} item={item}>
+                  <div
+                    className="relative rounded-lg cursor-pointer group overflow-hidden bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-ink-200/50 dark:border-slate-600/50 p-1.5 transition-all duration-200"
+                    title={item.name}
+                    onClick={() => onItemClick?.(item)}
+                  >
+                    <div className="text-center">
+                      <div className="text-lg mb-0.5 flex items-center justify-center" style={{ height: '1.5rem' }}>
+                        {hasIcon ? (
+                          <img
+                            src={iconPath}
+                            alt={item.name}
+                            className="max-w-[1.5rem] max-h-[1.5rem] object-contain group-hover:scale-110 transition-transform duration-200"
+                          />
+                        ) : (
+                          <span>{item.emoji || '📦'}</span>
+                        )}
+                      </div>
+                      <p className="text-[0.55rem] font-semibold text-ink-800 dark:text-parchment-100 leading-tight line-clamp-2 transition-colors duration-300">
+                        {capitalizeItemName(item.name)}
+                      </p>
+                    </div>
+                  </div>
+                </DraggableInventoryItem>
+              );
+            })}
+          </div>
         </div>
       )}
 

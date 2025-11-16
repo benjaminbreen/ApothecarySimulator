@@ -50,6 +50,26 @@ export async function initializeEntitySystem() {
       console.log('[EntitySystem] No entities loaded, migrating from static data...');
       const results = await migrateAllEntities(EntityList, initialInventoryData);
       console.log(`[EntitySystem] Migrated ${results.npcs} NPCs and ${results.items} items`);
+    } else {
+      // MIGRATION FIX: Check for missing EntityList NPCs and add them to existing saves
+      // This ensures named NPCs (Gonzalo, Doña Michaela, etc.) appear in saves that
+      // were created before they were added to EntityList
+      console.log('[EntitySystem] Checking for missing EntityList NPCs...');
+
+      const existingNPCNames = new Set([
+        ...entityManager.getByType('npc').map(e => e.name),
+        ...entityManager.getByType('patient').map(e => e.name)
+      ]);
+
+      const missingNPCs = EntityList.filter(npc => !existingNPCNames.has(npc.name));
+
+      if (missingNPCs.length > 0) {
+        console.log(`[EntitySystem] Found ${missingNPCs.length} missing NPCs, adding them now...`);
+        const results = await migrateAllEntities(missingNPCs, []);
+        console.log(`[EntitySystem] ✅ Added ${results.npcs} missing NPCs to existing save`);
+      } else {
+        console.log('[EntitySystem] ✓ All EntityList NPCs already present');
+      }
     }
 
     // REMOVED: Auto-save callback (saveManager now handles persistence)

@@ -8,10 +8,11 @@ import {
   shouldShowQualityBadge
 } from '../core/systems/itemRarity';
 
-const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
+const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled, onClick }) => {
   const [iconPath, setIconPath] = useState(null);
   const [hasIcon, setHasIcon] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ horizontal: 'right', vertical: 'top' });
+  const [isDragStarted, setIsDragStarted] = useState(false);
 
   // Generate icon path from item name
   const getItemIcon = (itemName) => {
@@ -77,8 +78,13 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
         if (item && item.id === simple.id) {
           // Clear hover state when dragging starts
           if (onLeave) onLeave();
+          setIsDragStarted(true); // Track that drag started
         }
         return item && item.id === simple.id;
+      },
+      end: () => {
+        // Reset drag state after a short delay to prevent click from firing
+        setTimeout(() => setIsDragStarted(false), 100);
       }
     }),
     [simple, isDisabled, onLeave]
@@ -91,6 +97,14 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
   const colors = getRarityColors(rarity);
   const isDarkMode = document.documentElement.classList.contains('dark');
 
+  // Handle click - only if not dragging and onClick is provided
+  const handleClick = (e) => {
+    if (!isDisabled && onClick && !isDragStarted) {
+      e.stopPropagation();
+      onClick(simple);
+    }
+  };
+
   return (
     <div
       ref={drag}
@@ -101,6 +115,8 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
           ? 'opacity-30 scale-95'
           : isDisabled
           ? 'opacity-50 cursor-not-allowed'
+          : onClick
+          ? 'cursor-pointer hover:scale-110 active:scale-95 hover:z-50'
           : 'cursor-grab hover:cursor-grabbing hover:scale-110 active:scale-95 hover:z-50'
         }
       `}
@@ -117,6 +133,7 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => !isDisabled && onLeave && onLeave()}
+      onClick={handleClick}
     >
       {/* Rarity-colored hover glow */}
       {!isDisabled && (
@@ -147,7 +164,7 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
       )}
 
       {/* Icon or Emoji */}
-      <div className="text-center flex items-center justify-center relative z-10" style={{ height: '2.75rem' }}>
+      <div className="text-center mt-1 flex items-center justify-center relative z-10" style={{ height: '3rem' }}>
         {hasIcon ? (
           <img
             src={iconPath}
@@ -161,7 +178,7 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
           />
         ) : (
           <span
-            className="text-2xl transition-transform duration-300 group-hover:scale-125"
+            className="text-3xl transition-transform duration-300 group-hover:scale-125"
             style={{
               filter: isDarkMode
                 ? `drop-shadow(0 0 6px ${colors.glow})`
@@ -174,9 +191,9 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
       </div>
 
       {/* Name with quality prefix */}
-      <div className="text-center w-full relative z-10 mt-0.5">
+      <div className="text-center w-full relative z-10 mt-1.5">
         <p
-          className="text-[0.68rem] font-serif font-semibold text-ink-900 dark:text-parchment-100 leading-tight drop-shadow-sm transition-colors duration-300"
+          className="text-[0.88rem] font-serif text-ink-900 dark:text-parchment-100 leading-tight drop-shadow-sm transition-colors duration-300"
           style={{
             display: '-webkit-box',
             WebkitLineClamp: 2,
@@ -184,7 +201,7 @@ const DraggableIngredient = ({ simple, onHover, onLeave, isDisabled }) => {
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             lineHeight: '1',
-            minHeight: '1.33rem'
+            minHeight: '1rem'
           }}
         >
           {showQuality && quality === 'high_quality' && (
@@ -264,7 +281,8 @@ DraggableIngredient.propTypes = {
   }).isRequired,
   onHover: PropTypes.func,
   onLeave: PropTypes.func,
-  isDisabled: PropTypes.bool
+  isDisabled: PropTypes.bool,
+  onClick: PropTypes.func
 };
 
 export default DraggableIngredient;

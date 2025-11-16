@@ -106,12 +106,32 @@ function resolveNPC(npcData, index = 0, templateIndex = 0) {
     let existingNPC = entityManager.getByName(npcData.name);
 
     if (existingNPC) {
-      // Merge with location-specific activity
-      return {
+      // Merge with location-specific activity AND override demographics/flags
+      // This ensures permanent location NPCs (like João) get correct animal/permanent flags
+      const mergedEntity = {
         ...existingNPC,
+        // Override with location data (critical for animals and permanent NPCs)
+        gender: npcData.demographics?.gender || existingNPC.gender,
+        age: npcData.demographics?.age || existingNPC.age,
+        social: {
+          ...existingNPC.social,
+          casta: npcData.demographics?.casta || existingNPC.social?.casta,
+          class: npcData.demographics?.class || existingNPC.social?.class,
+        },
+        occupation: npcData.occupation || existingNPC.occupation,
+        type: npcData.type || existingNPC.type,
+        isAnimal: npcData.isAnimal !== undefined ? npcData.isAnimal : existingNPC.isAnimal,
+        alwaysPresent: npcData.alwaysPresent !== undefined ? npcData.alwaysPresent : existingNPC.alwaysPresent,
+        // Location-specific display data
         currentActivity: resolveValue(npcData.activity, index),
         currentClothing: resolveValue(npcData.clothing, index)
       };
+
+      // Update EntityManager with corrected demographics so it becomes the single source of truth
+      // This ensures ContextPanel, portraitResolver, and all other systems get correct data
+      entityManager.register(mergedEntity);
+
+      return mergedEntity;
     }
 
     // Not registered yet - create minimal NPC object for location context

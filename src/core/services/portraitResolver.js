@@ -6,16 +6,21 @@
  *
  * Resolution priority:
  * 1. Check cache on entity (_portraitPath)
- * 2. Try exact named portrait match (for story-critical NPCs)
- * 3. Match generic portrait by demographics (gender, age, casta, class)
- * 4. Fallback to defaultnpc.jpg
+ * 2. Try ID-based portrait match (e.g., leonor_mendez.jpg for entity.id='leonor_mendez')
+ * 3. Try exact named portrait match (for story-critical NPCs)
+ * 4. Match generic portrait by demographics (gender, age, casta, class)
+ * 5. Fallback to defaultnpc.jpg
  */
 
 import { PORTRAIT_LIBRARY } from './portraitLibrary';
+import { PORTRAIT_CATEGORIES } from '../config/portraits.config';
 
 // Anti-repetition: Track recently used portraits (in-memory, session only)
 const RECENT_PORTRAIT_HISTORY = [];
 const MAX_HISTORY_SIZE = 20; // Remember last 20 portraits
+
+// Debug info cache: Store selection reasoning for UI display
+const PORTRAIT_DEBUG_CACHE = new Map(); // Key: entity name, Value: debug info object
 
 // Tag priority tiers (defined once for performance)
 const MEDICAL_TAGS = ['sick', 'disease', 'ill', 'patient', 'injured', 'wound', 'pox', 'smallpox', 'fever',
@@ -190,6 +195,51 @@ function getOccupationCluster(occupation) {
 }
 
 /**
+ * Find portrait by entity ID
+ * Checks if a portrait file named {id}.jpg or {id}.png exists
+ * This is the HIGHEST priority match for story NPCs with dedicated portraits
+ * @param {string} entityId - Entity ID (e.g., 'leonor_mendez')
+ * @returns {string|null} - Portrait filename or null
+ */
+function findPortraitById(entityId) {
+  if (!entityId) return null;
+
+  // Build set of available portraits inline (can't call getAllPortraitFilenames from here)
+  const availablePortraits = new Set();
+  Object.values(PORTRAIT_CATEGORIES).forEach(category => {
+    if (Array.isArray(category)) {
+      category.forEach(filename => availablePortraits.add(filename.toLowerCase()));
+    }
+  });
+
+  const extensions = ['.jpg', '.png', '.jpeg'];
+
+  // Try exact ID match with each extension
+  for (const ext of extensions) {
+    const idFilename = `${entityId}${ext}`;
+    if (availablePortraits.has(idFilename.toLowerCase())) {
+      console.log(`[Portrait Resolver] ✓ ID match: "${entityId}" → ${idFilename}`);
+
+      // Find the original-case version from the config
+      for (const category of Object.values(PORTRAIT_CATEGORIES)) {
+        if (Array.isArray(category)) {
+          const match = category.find(filename => filename.toLowerCase() === idFilename.toLowerCase());
+          if (match) {
+            return match;
+          }
+        }
+      }
+
+      // Fallback: return the ID filename (shouldn't reach here if portrait exists)
+      return idFilename;
+    }
+  }
+
+  console.log(`[Portrait Resolver] ✗ No ID-based match found for "${entityId}"`);
+  return null;
+}
+
+/**
  * Find exact named portrait match (uses cache for O(1) lookup)
  * @param {string} entityName - Entity name to match
  * @returns {string|null} - Portrait filename or null
@@ -251,30 +301,35 @@ function matchGenericPortrait(entity) {
   // Score each portrait
   const scores = genericPortraits.map(([filename, portrait]) => {
     let score = 0;
+    const scoreBreakdown = {}; // Track score components for debugging
 
     // PHASE 1: REBALANCED SCORING WEIGHTS
     // Priority: Visual authenticity (gender, age, casta) > Occupation specificity > Context (class)
     // Occupation is now heavily weighted to ensure sailors get sailor portraits, etc.
 
     // Gender match (critical, +60 for exact match)
+    let genderScore = 0;
     if (portrait.gender === gender && gender !== 'unknown') {
-      score += 60;
+      genderScore = 60;
     } else if (portrait.gender === 'unknown' || portrait.gender === 'group') {
-      score += 10;
+      genderScore = 10;
     } else if (gender === 'unknown') {
-      score += 5;
+      genderScore = 5;
     } else if (gender !== 'unknown' && portrait.gender !== 'unknown') {
       // CRITICAL: MASSIVE penalty for wrong gender (visually disqualifying)
       // This should prevent male portraits for female characters (and vice versa)
       // Penalty must exceed max possible score from other factors (~200 points)
-      score -= 250;
+      genderScore = -250;
     }
+    score += genderScore;
+    scoreBreakdown.gender = genderScore;
 
     // Age match (+50 points, increased from +40) - Visual authenticity
+    let ageScore = 0;
     if (portrait.age === age) {
-      score += 50;
+      ageScore = 50;
     } else if (portrait.age === 'mixed') {
-      score += 5;
+      ageScore = 5;
     } else {
       // CRITICAL: Penalize major age mismatches (visually jarring)
       // Child/elderly mismatches are especially problematic
@@ -288,18 +343,21 @@ function matchGenericPortrait(entity) {
 
       const penalty = ageMismatches[age]?.[portrait.age];
       if (penalty) {
-        score += penalty;
+        ageScore = penalty;
       }
     }
+    score += ageScore;
+    scoreBreakdown.age = ageScore;
 
     // Casta match (+30 points, -30 for major mismatch) - Visual authenticity
     const portraitCastas = Array.isArray(portrait.casta) ? portrait.casta : [portrait.casta];
     const normalizedPortraitCastas = portraitCastas.map(c => normalizeCasta(c));
+    let castaScore = 0;
     // 'any' acts as a wildcard - matches anything (reduced from +20 to +10 to discourage generic portraits)
     if (casta === 'any' || normalizedPortraitCastas.includes('any')) {
-      score += 10; // Reduced bonus for wildcard to favor specific matches
+      castaScore = 10; // Reduced bonus for wildcard to favor specific matches
     } else if (casta !== 'unknown' && normalizedPortraitCastas.includes(casta)) {
-      score += 30;
+      castaScore = 30;
     } else if (casta !== 'unknown') {
       // Penalize major ethnic mismatches (visually obvious differences)
       const majorEthnicGroups = {
@@ -318,21 +376,26 @@ function matchGenericPortrait(entity) {
         const portraitInSameGroup = normalizedPortraitCastas.some(pc => members.includes(pc));
 
         if (entityInGroup && !portraitInSameGroup) {
-          score -= 30;
+          castaScore = -30;
           break;
         }
       }
     }
+    score += castaScore;
+    scoreBreakdown.casta = castaScore;
 
     // Class match (+25 points) - Social context
     const portraitClasses = Array.isArray(portrait.class) ? portrait.class : [portrait.class];
     const normalizedPortraitClasses = portraitClasses.map(c => normalizeClass(c));
+    let classScore = 0;
     // 'any' acts as a wildcard - matches anything (reduced to discourage generic portraits)
     if (socialClass === 'any' || normalizedPortraitClasses.includes('any')) {
-      score += 8; // Reduced from +15 to favor specific matches
+      classScore = 8; // Reduced from +15 to favor specific matches
     } else if (normalizedPortraitClasses.includes(socialClass)) {
-      score += 25;
+      classScore = 25;
     }
+    score += classScore;
+    scoreBreakdown.class = classScore;
 
     // PHASE 2: OCCUPATION CLUSTERING
     // CRITICAL: Occupation should be heavily weighted - it's narrative-specific context
@@ -341,17 +404,18 @@ function matchGenericPortrait(entity) {
     // Exact occupation match (+150 points) - MASSIVELY increased to ensure exact matches dominate
     const portraitOccupations = Array.isArray(portrait.occupation) ? portrait.occupation : [portrait.occupation];
     let exactOccupationMatch = false;
+    let occupationScore = 0;
 
     // 'any' acts as a wildcard - portrait matches any entity occupation (reduced to discourage generic portraits)
     if (portraitOccupations.includes('any')) {
-      score += 15; // Reduced from +30 to favor specific occupations
+      occupationScore = 15; // Reduced from +30 to favor specific occupations
       exactOccupationMatch = true; // Treat wildcard as exact for cluster logic
     } else {
       exactOccupationMatch = portraitOccupations.some(occ =>
         occ.toLowerCase().includes(occupation) || occupation.includes(occ.toLowerCase())
       );
       if (occupation !== 'unknown' && exactOccupationMatch) {
-        score += 150; // Increased from +75 to ensure exact matches win decisively
+        occupationScore = 150; // Increased from +75 to ensure exact matches win decisively
       }
     }
 
@@ -363,14 +427,18 @@ function matchGenericPortrait(entity) {
         .filter(c => c !== null);
 
       if (portraitClusters.includes(occupationCluster)) {
-        score += 40;
+        occupationScore = 40;
       }
     }
+
+    score += occupationScore;
+    scoreBreakdown.occupation = occupationScore;
 
     // PHASE 2.5: DIRECT NAME TAG MATCHING (CRITICAL FOR ANIMALS)
     // Check entity NAME for direct tag matches (NOT description - too broad)
     // This ensures animals like "a mule named Pepita" match donkey.jpg with 'mule' tag
     let directTagBonus = 0;
+    const directTagMatches = [];
     if (portrait.tags && portrait.tags.length > 0 && entity.name) {
       const entityNameLower = entity.name.toLowerCase();
 
@@ -384,15 +452,23 @@ function matchGenericPortrait(entity) {
             // CRITICAL MATCH: Entity name directly contains this specific tag
             // This is essential for animals (mule, donkey, cat, dog, etc.)
             directTagBonus += 250;
+            directTagMatches.push(tag);
           }
         }
       });
     }
 
     score += directTagBonus;
+    if (directTagBonus > 0) {
+      scoreBreakdown.directTags = { score: directTagBonus, matches: directTagMatches };
+    }
 
     // Tag fuzzy matching with PRIORITY TIERS - Semantic relevance
     // Matches tags against occupation, appearance, AND description for better context awareness
+    let tagBonus = 0;
+    let matchedTags = 0;
+    const fuzzyTagMatches = [];
+
     if (portrait.tags && portrait.tags.length > 0) {
       // Build searchable text from all relevant entity fields
       const searchableText = [
@@ -402,24 +478,25 @@ function matchGenericPortrait(entity) {
         entity.personality
       ].filter(Boolean).join(' ').toLowerCase();
 
-      let tagBonus = 0;
-      let matchedTags = 0;
-
       portrait.tags.forEach(tag => {
         const tagLower = tag.toLowerCase();
         if (searchableText.includes(tagLower)) {
           matchedTags++;
+          let tagPoints = 0;
 
           // Tiered scoring based on tag importance (uses global constants)
           if (MEDICAL_TAGS.includes(tagLower)) {
-            tagBonus += 80; // Medical/condition tags are most valuable
+            tagPoints = 80; // Medical/condition tags are most valuable
           } else if (OCCUPATION_TAGS.includes(tagLower)) {
-            tagBonus += 70; // Occupation tags are highly important (increased from +40)
+            tagPoints = 70; // Occupation tags are highly important (increased from +40)
           } else if (PERSONALITY_TAGS.includes(tagLower)) {
-            tagBonus += 25; // Personality tags are least valuable
+            tagPoints = 25; // Personality tags are least valuable
           } else {
-            tagBonus += 40; // Other tags (default, increased from +30)
+            tagPoints = 40; // Other tags (default, increased from +30)
           }
+
+          tagBonus += tagPoints;
+          fuzzyTagMatches.push({ tag, points: tagPoints });
         }
       });
 
@@ -427,9 +504,19 @@ function matchGenericPortrait(entity) {
 
       // Bonus for matching multiple tags (shows strong semantic fit)
       // Cap at 3 extra tags to prevent excessive bonuses
+      let multiTagBonus = 0;
       if (matchedTags >= 2) {
         const bonusTags = Math.min(matchedTags - 1, 3); // Max +90 for 3+ matching tags
-        score += 30 * bonusTags; // Increased from 20 to reward multi-tag matches more
+        multiTagBonus = 30 * bonusTags; // Increased from 20 to reward multi-tag matches more
+        score += multiTagBonus;
+      }
+
+      if (tagBonus > 0 || multiTagBonus > 0) {
+        scoreBreakdown.tags = {
+          fuzzyBonus: tagBonus,
+          multiTagBonus: multiTagBonus,
+          matches: fuzzyTagMatches
+        };
       }
     }
 
@@ -469,11 +556,13 @@ function matchGenericPortrait(entity) {
 
     // Anti-repetition penalty: Penalize recently used portraits
     const recentUseIndex = RECENT_PORTRAIT_HISTORY.indexOf(filename);
+    let antiRepetitionPenalty = 0;
     if (recentUseIndex !== -1) {
       // More recent = bigger penalty. Most recent gets -50, oldest gets -10
       const recency = RECENT_PORTRAIT_HISTORY.length - recentUseIndex;
-      const antiRepetitionPenalty = Math.floor(50 * (recency / RECENT_PORTRAIT_HISTORY.length));
+      antiRepetitionPenalty = Math.floor(50 * (recency / RECENT_PORTRAIT_HISTORY.length));
       score -= antiRepetitionPenalty;
+      scoreBreakdown.antiRepetition = -antiRepetitionPenalty;
     }
 
     // Specificity bonus: Add extra points for highly specific portraits
@@ -489,11 +578,14 @@ function matchGenericPortrait(entity) {
     ].reduce((sum, v) => sum + v, 0);
 
     // Add bonus points for high specificity (encourages detailed portraits)
+    let specificityBonus = 0;
     if (specificity >= 3) {
-      score += 15; // Bonus for very specific portraits
+      specificityBonus = 15; // Bonus for very specific portraits
+      score += specificityBonus;
+      scoreBreakdown.specificity = specificityBonus;
     }
 
-    return { filename, score, portrait, specificity };
+    return { filename, score, portrait, specificity, scoreBreakdown };
   });
 
   // Sort by score descending, use specificity as tiebreaker
@@ -520,21 +612,12 @@ function matchGenericPortrait(entity) {
   const secondBestScore = scores[1]?.score || 0;
   const scoreDifference = bestMatch.score - secondBestScore;
 
+  let selectionReason = '';
+
   if (scoreDifference >= CLEAR_WINNER_THRESHOLD) {
     // Clear winner - use deterministically (e.g., direct tag match, exact occupation)
     selectedMatch = bestMatch;
-    console.log(`[Portrait Resolver] Top ${Math.min(3, scores.length)} matches for "${entity.name}":`);
-    scores.slice(0, 3).forEach((match, i) => {
-      const isSelected = match.filename === selectedMatch.filename;
-      const recentUse = RECENT_PORTRAIT_HISTORY.indexOf(match.filename);
-      const recentLabel = recentUse !== -1 ? ` [Used ${recentUse} turns ago]` : '';
-      console.log(`  ${i + 1}. ${match.filename} (score: ${match.score}, specificity: ${match.specificity})${isSelected ? ' ← SELECTED' : ''}${recentLabel}`);
-    });
-    console.log(`[Portrait Resolver] ✓ Clear winner (${scoreDifference} points ahead) - selected deterministically`);
-  } else {
-    // Close scores - randomize from top N for variety
-    const topMatches = scores.slice(0, Math.min(TOP_N, scores.length));
-    selectedMatch = topMatches[Math.floor(Math.random() * topMatches.length)];
+    selectionReason = `Clear winner (${scoreDifference} points ahead) - selected deterministically`;
 
     console.log(`[Portrait Resolver] Top ${Math.min(3, scores.length)} matches for "${entity.name}":`);
     scores.slice(0, 3).forEach((match, i) => {
@@ -543,8 +626,46 @@ function matchGenericPortrait(entity) {
       const recentLabel = recentUse !== -1 ? ` [Used ${recentUse} turns ago]` : '';
       console.log(`  ${i + 1}. ${match.filename} (score: ${match.score}, specificity: ${match.specificity})${isSelected ? ' ← SELECTED' : ''}${recentLabel}`);
     });
-    console.log(`[Portrait Resolver] ✓ Close scores (within ${CLEAR_WINNER_THRESHOLD} points) - randomly selected from top ${topMatches.length}`);
+    console.log(`[Portrait Resolver] ✓ ${selectionReason}`);
+  } else {
+    // Close scores - randomize from top N for variety
+    const topMatches = scores.slice(0, Math.min(TOP_N, scores.length));
+    selectedMatch = topMatches[Math.floor(Math.random() * topMatches.length)];
+    selectionReason = `Close scores (within ${CLEAR_WINNER_THRESHOLD} points) - randomly selected from top ${topMatches.length}`;
+
+    console.log(`[Portrait Resolver] Top ${Math.min(3, scores.length)} matches for "${entity.name}":`);
+    scores.slice(0, 3).forEach((match, i) => {
+      const isSelected = match.filename === selectedMatch.filename;
+      const recentUse = RECENT_PORTRAIT_HISTORY.indexOf(match.filename);
+      const recentLabel = recentUse !== -1 ? ` [Used ${recentUse} turns ago]` : '';
+      console.log(`  ${i + 1}. ${match.filename} (score: ${match.score}, specificity: ${match.specificity})${isSelected ? ' ← SELECTED' : ''}${recentLabel}`);
+    });
+    console.log(`[Portrait Resolver] ✓ ${selectionReason}`);
   }
+
+  // Store debug info for UI display
+  const top3 = scores.slice(0, 3).map(match => ({
+    filename: match.filename,
+    score: match.score,
+    specificity: match.specificity,
+    isSelected: match.filename === selectedMatch.filename,
+    recentUse: RECENT_PORTRAIT_HISTORY.indexOf(match.filename),
+    scoreBreakdown: match.scoreBreakdown // Include detailed score components
+  }));
+
+  PORTRAIT_DEBUG_CACHE.set(entity.name, {
+    entityName: entity.name,
+    selected: selectedMatch.filename,
+    selectionReason,
+    top3Matches: top3,
+    demographics: {
+      gender: entity.gender,
+      age: entity.age,
+      casta: entity.social?.casta,
+      class: entity.social?.class,
+      occupation: entity.social?.occupation
+    }
+  });
 
   return selectedMatch.filename;
 }
@@ -590,15 +711,23 @@ export function resolvePortrait(entity) {
     filename = entity._portraitPath.split('/').pop();
     usedCache = true;
   } else {
-    // Step 1: Try exact named portrait match (for story-critical NPCs)
-    filename = findNamedPortrait(entity.name);
+    // Step 1: Try ID-based portrait match (HIGHEST PRIORITY for story NPCs)
+    // Looks for portraits named {entity.id}.jpg (e.g., leonor_mendez.jpg)
+    if (entity.id) {
+      filename = findPortraitById(entity.id);
+    }
 
-    // Step 2: Match by demographics if no named portrait found
+    // Step 2: Try exact named portrait match (for story-critical NPCs)
+    if (!filename) {
+      filename = findNamedPortrait(entity.name);
+    }
+
+    // Step 3: Match by demographics if no named portrait found
     if (!filename) {
       filename = matchGenericPortrait(entity);
     }
 
-    // Step 3: Convert to full path
+    // Step 4: Convert to full path
     const fullPath = `/portraits/${filename}`;
 
     // Cache on entity for future calls (non-enumerable to avoid serialization issues)
@@ -649,9 +778,19 @@ export function getPortraitHistory() {
   return [...RECENT_PORTRAIT_HISTORY];
 }
 
+/**
+ * Get portrait debug info for a specific NPC (for UI display)
+ * @param {string} entityName - Entity name
+ * @returns {Object|null} Debug info object or null if not found
+ */
+export function getPortraitDebugInfo(entityName) {
+  return PORTRAIT_DEBUG_CACHE.get(entityName) || null;
+}
+
 export default {
   resolvePortrait,
   clearPortraitCache,
   clearPortraitHistory,
-  getPortraitHistory
+  getPortraitHistory,
+  getPortraitDebugInfo
 };

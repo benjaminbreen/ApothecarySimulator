@@ -30,11 +30,12 @@ import { getHouseCallData } from '../../features/medical/services/houseSelector'
  * @param {Function} params.recentPortraitRef - Ref to recent portrait
  * @param {Function} params.setPendingHouseCall - Set pending house call state (Phase 3A)
  * @param {Function} params.setBackgroundMode - Set background mode for immersive UI
- * @param {Object} params.gameState - DEPRECATED: Use useGameState() instead
+ * @param {Function} params.handleSubmit - Main submit handler for triggering full narrative turns
+ * @param {Object} params.gameState - Current game state (passed from parent)
  * @param {number} params.turnNumber - Current turn number
  * @param {Array} params.conversationHistory - Conversation history
- * @param {number} params.energy - DEPRECATED: Use usePlayer() instead
- * @param {Function} params.updateEnergy - DEPRECATED: Use usePlayer() instead
+ * @param {number} params.energy - Current energy value (passed from parent)
+ * @param {Function} params.updateEnergy - Energy update function (passed from parent)
  * @param {Function} params.advanceTime - Time advancement function
  * @param {string} params.scenarioId - Scenario ID
  *
@@ -51,6 +52,7 @@ export function useMedicalHandlers({
   recentPortraitRef,
   setPendingHouseCall,
   setBackgroundMode, // Immersive background mode (fade UI for travel)
+  handleSubmit, // Main submit handler for full turns
   // Legacy params
   gameState,
   turnNumber,
@@ -122,7 +124,37 @@ export function useMedicalHandlers({
       let newSymptoms = [];
 
       if (patientDataUpdates) {
-        const enrichmentResult = enrichPatientData(activePatient, patientDataUpdates);
+        // CRITICAL FIX: Merge context data (age, gender, family, occupation) from extractPatientContext
+        // into patientDataUpdates so they're applied to the patient entity
+        const mergedUpdates = {
+          ...patientDataUpdates
+        };
+
+        // Apply age from context if extracted
+        if (activePatient.narrativeContext?.age && !mergedUpdates.age) {
+          mergedUpdates.age = activePatient.narrativeContext.age;
+          console.log('[handleAskQuestion] Applying age from context:', activePatient.narrativeContext.age);
+        }
+
+        // Apply gender from context if extracted
+        if (activePatient.narrativeContext?.gender && !mergedUpdates.gender) {
+          mergedUpdates.gender = activePatient.narrativeContext.gender;
+          console.log('[handleAskQuestion] Applying gender from context:', activePatient.narrativeContext.gender);
+        }
+
+        // Apply family from context if extracted
+        if (activePatient.narrativeContext?.familyMembers && !mergedUpdates.family) {
+          mergedUpdates.family = activePatient.narrativeContext.familyMembers.join(', ');
+          console.log('[handleAskQuestion] Applying family from context');
+        }
+
+        // Apply occupation from context if extracted
+        if (activePatient.narrativeContext?.occupation && !mergedUpdates.occupation) {
+          mergedUpdates.occupation = activePatient.narrativeContext.occupation;
+          console.log('[handleAskQuestion] Applying occupation from context:', activePatient.narrativeContext.occupation);
+        }
+
+        const enrichmentResult = enrichPatientData(activePatient, mergedUpdates);
         enrichedPatient = enrichmentResult.patient;
         newSymptoms = enrichmentResult.newSymptoms || [];
 
@@ -688,14 +720,23 @@ Generate the transition narrative.`;
 
   /**
    * Handle declining a contract offer
-   * Logs to journal and conversation history, closes contract modal
+   * Triggers narrative turn to show NPC/emissary reaction to decline
    */
-  const handleDeclineContract = useCallback(() => {
+  const handleDeclineContract = useCallback(async () => {
     console.log('[Contract] Declined offer');
+
+    const contract = pendingContract;
+    if (!contract) {
+      console.warn('[Contract] No pending contract to decline');
+      return;
+    }
+
+    // Clear the contract BEFORE narrative turn to prevent re-display
+    setPendingContract(null);
 
     // CARD CLEANUP: Remove contract cards from conversation history
     setConversationHistory(prev => {
-      const updated = prev.map(msg => {
+      return prev.map(msg => {
         // Remove contract/sale_inquiry cards from assistant messages
         if (msg.role === 'assistant' && msg.card &&
             (msg.card.type === 'contract' || msg.card.type === 'sale_inquiry')) {
@@ -705,29 +746,54 @@ Generate the transition narrative.`;
         }
         return msg;
       });
-
-      // Add system message about declining
-      return [...updated, { role: 'system', content: `*[CONTRACT DECLINED] Maria declined the offer.*` }];
     });
 
     // Add journal entry
     addJournalEntry({
       turnNumber,
       date: gameState.date,
-      entry: `Declined a contract offer.`
+      entry: `Declined a contract offer from ${contract.offeredBy || 'an emissary'}.`
+    });
+
+    // Trigger narrative turn for NPC/emissary reaction
+    const npcName = contract.offeredBy || 'the messenger';
+    const patientName = contract.patientName || 'their patient';
+    const isHouseCall = contract.type === 'treatment';
+
+    const declineAction = isHouseCall
+      ? `politely decline ${npcName}'s request to treat ${patientName}`
+      : `decline ${npcName}'s offer`;
+
+    const llmInstructions = `
+## CRITICAL: Contract Decline Reaction Protocol
+
+Maria has declined ${npcName}'s ${isHouseCall ? 'house call request' : 'contract offer'}. Generate their reaction:
+
+1. **Emotional Response**: Show how ${npcName} reacts (disappointment, anger, understanding, concern for ${patientName})
+2. **Brief Dialogue**: 1-2 sentences from ${npcName} expressing their feelings
+   ${isHouseCall ? `- Consider: They're worried about ${patientName}, may express urgency or desperation` : ''}
+3. **Departure**: ${npcName} MUST leave after this exchange
+   - Describe them exiting (walking out, leaving disappointed, hurrying away, etc.)
+   - Set npcDeparted = true in your response
+4. **No Lingering**: Do NOT have them continue pleading or negotiating
+
+Example: "${npcName} sighs heavily, looking distressed. 'I understand, Doña Maria, though I fear for ${patientName}. I will seek another healer.' With a worried expression, they turn and hasten back toward the street."`;
+
+    await handleSubmit(null, declineAction, {
+      llmInstructions,
+      actionResultType: 'contract_declined'
     });
 
     toast.info('Contract declined.', { duration: 2000 });
-
-    // Clear the contract and close modal
-    setPendingContract(null);
   }, [
+    pendingContract,
+    setPendingContract,
     setConversationHistory,
     addJournalEntry,
     turnNumber,
     gameState.date,
     toast,
-    setPendingContract
+    handleSubmit
   ]);
 
   return {

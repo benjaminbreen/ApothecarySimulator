@@ -54,7 +54,7 @@ export function PatientDialogueHistory({
           <div className="text-[10px] uppercase tracking-widest text-ink-500 dark:text-slate-400 font-semibold mb-1">
             Patient Response
           </div>
-          <div className="text-sm leading-relaxed text-ink-900 dark:text-slate-200 font-serif prose prose-sm max-w-none">
+          <div className="text-[16px] leading-relaxed text-ink-900 dark:text-slate-200 font-serif prose prose-md max-w-none">
             <ReactMarkdown>{entry.answer}</ReactMarkdown>
           </div>
         </div>

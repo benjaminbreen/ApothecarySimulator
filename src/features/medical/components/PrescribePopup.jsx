@@ -483,7 +483,7 @@ function PrescribePopup({
 
             {/* Header - Responsive padding */}
             <div
-              className="relative px-4 sm:px-6 md:px-8 py-4 sm:py-6 border-b"
+              className="relative px-4 sm:px-6 md:px-8 py-3 sm:py-4 border-b"
               style={{
                 background: isDark
                   ? 'linear-gradient(to bottom, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.6))'
@@ -553,7 +553,7 @@ function PrescribePopup({
 
             {/* Content - Responsive padding */}
             <div
-              className="p-4 sm:p-6 md:p-8 overflow-y-auto"
+              className="p-3 sm:p-4 md:p-5 overflow-y-auto"
               style={{
                 maxHeight: 'calc(95vh - 180px)',
                 background: isDark
@@ -562,9 +562,9 @@ function PrescribePopup({
               }}
             >
               {/* Drag & Drop Area */}
-              <div className="mb-6">
+              <div className="mb-4">
                 <label
-                  className="block text-sm font-semibold mb-3"
+                  className="block text-sm font-semibold mb-2"
                   style={{
                     fontFamily: "'Inter', sans-serif",
                     color: isDark ? '#cbd5e1' : '#6b5d52'
@@ -576,26 +576,38 @@ function PrescribePopup({
                   ref={drop}
                   className="relative rounded-lg border-2 border-dashed transition-all"
                   style={{
-                    minHeight: '140px',
+                    minHeight: '100px',
                     borderColor: isOver
                       ? (isDark ? '#fbbf24' : '#d97706')
                       : (isDark ? 'rgba(148, 163, 184, 0.3)' : 'rgba(139, 92, 46, 0.25)'),
                     background: isOver
                       ? (isDark ? 'rgba(251, 191, 36, 0.1)' : 'rgba(217, 119, 6, 0.08)')
                       : (isDark ? 'rgba(30, 41, 59, 0.5)' : 'rgba(255, 250, 240, 0.6)'),
-                    padding: '1.5rem',
+                    padding: '1rem',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '0.75rem'
+                    gap: '0.5rem'
                   }}
                 >
                   {selectedItem ? (
                     <>
-                      <div className="text-5xl mb-2">{selectedItem.emoji || '🍵'}</div>
+                      {/* Display actual medicine image if available, otherwise emoji */}
+                      {selectedItem.image ? (
+                        <img
+                          src={selectedItem.image}
+                          alt={selectedItem.name}
+                          className="w-16 h-16 object-contain mb-1"
+                          style={{ display: 'block', margin: '0 auto' }}
+                        />
+                      ) : (
+                        <div className="text-4xl mb-1" style={{ display: 'flex', justifyContent: 'center' }}>
+                          {selectedItem.emoji || '🍵'}
+                        </div>
+                      )}
                       <h3
-                        className="text-xl font-bold text-center"
+                        className="text-lg font-bold text-center"
                         style={{
                           fontFamily: "'Cormorant Garamond', Georgia, serif",
                           color: isDark ? '#e2e8f0' : '#3d2f24'
@@ -605,7 +617,7 @@ function PrescribePopup({
                       </h3>
                       {selectedItem.spanishName && (
                         <p
-                          className="text-sm italic"
+                          className="text-xs italic"
                           style={{
                             fontFamily: "'Cormorant Garamond', Georgia, serif",
                             color: isDark ? '#94a3b8' : '#8b7a6a'
@@ -616,7 +628,7 @@ function PrescribePopup({
                       )}
                       {selectedRoute && (
                         <p
-                          className="text-sm font-medium px-3 py-1 rounded"
+                          className="text-xs font-medium px-2 py-0.5 rounded"
                           style={{
                             background: isDark
                               ? 'rgba(34, 197, 94, 0.2)'
@@ -648,7 +660,7 @@ function PrescribePopup({
               </div>
 
               {/* Amount and Price Controls */}
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <label
                     className="block text-sm font-semibold mb-2"
@@ -726,9 +738,9 @@ function PrescribePopup({
               </div>
 
               {/* Route Selection */}
-              <div className="mb-6">
+              <div className="mb-4">
                 <label
-                  className="block text-sm font-semibold mb-3"
+                  className="block text-sm font-semibold mb-2"
                   style={{
                     fontFamily: "'Inter', sans-serif",
                     color: isDark ? '#cbd5e1' : '#6b5d52'
@@ -736,14 +748,14 @@ function PrescribePopup({
                 >
                   Route of Administration
                 </label>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-4 gap-2">
                   {Object.entries(routeImages).map(([route, image]) => (
                     <button
                       key={route}
                       onClick={() => setSelectedRoute(route)}
                       className="relative overflow-hidden rounded-lg transition-all"
                       style={{
-                        height: '120px',
+                        height: '90px',
                         border: selectedRoute === route
                           ? (isDark ? '3px solid #fbbf24' : '3px solid #d97706')
                           : (isDark ? '2px solid rgba(148, 163, 184, 0.3)' : '2px solid rgba(139, 92, 46, 0.25)'),
@@ -764,13 +776,13 @@ function PrescribePopup({
                         }}
                       />
                       <div
-                        className="absolute inset-0 flex items-end justify-center pb-3"
+                        className="absolute inset-0 flex items-end justify-center pb-2"
                         style={{
                           background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 50%, transparent 100%)'
                         }}
                       >
                         <span
-                          className="text-sm font-bold text-white px-3 py-1 rounded"
+                          className="text-xs font-bold text-white px-2 py-0.5 rounded"
                           style={{
                             fontFamily: "'Inter', sans-serif",
                             background: selectedRoute === route
@@ -796,7 +808,7 @@ function PrescribePopup({
                   return (
                     <details
                       open
-                      className="mb-6 rounded-lg border overflow-hidden transition-all"
+                      className="mb-4 rounded-lg border overflow-hidden transition-all"
                       style={{
                         borderColor: isDark ? '#374151' : '#d4a574',
                         background: isDark

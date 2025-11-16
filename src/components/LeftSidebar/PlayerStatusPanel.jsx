@@ -1,8 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ReputationTab } from './ReputationTab';
 import { StatusTab } from './StatusTab';
 import { InventoryTab } from './InventoryTab';
 import { RippleButton } from '../RippleButton';
+
+// Tooltip component matching Header/ActionPanel style
+const SidebarTooltip = ({ children, targetRef, show }) => {
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const isDark = document.documentElement.classList.contains('dark');
+
+  useEffect(() => {
+    if (show && targetRef.current) {
+      const rect = targetRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + 8, // 8px below button
+        left: rect.left + rect.width / 2 // center of button
+      });
+    }
+  }, [show, targetRef]);
+
+  if (!show) return null;
+
+  return createPortal(
+    <div
+      className="fixed pointer-events-none z-[9999] transition-opacity duration-200"
+      style={{
+        top: `${position.top}px`,
+        left: `${position.left}px`,
+        transform: 'translate(-50%, 0)',
+        opacity: show ? 1 : 0
+      }}
+    >
+      <div
+        className="px-3 py-2 rounded-lg shadow-2xl whitespace-nowrap border backdrop-blur-sm"
+        style={{
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 252, 247, 0.95) 100%)',
+          borderColor: isDark ? 'rgba(251, 191, 36, 0.3)' : 'rgba(100, 116, 139, 0.3)',
+        }}
+      >
+        <div className="text-xs font-sans text-ink-700 dark:text-parchment-200" style={{ fontWeight: 500 }}>
+          {children}
+        </div>
+        {/* Arrow pointing up */}
+        <div
+          className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0"
+          style={{
+            borderLeft: '6px solid transparent',
+            borderRight: '6px solid transparent',
+            borderBottom: isDark ? '6px solid rgba(15, 23, 42, 0.98)' : '6px solid rgba(255, 255, 255, 0.98)',
+          }}
+        />
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 /**
  * PlayerStatusPanel Component
@@ -29,6 +84,14 @@ export function PlayerStatusPanel({
   const [internalActiveTab, setInternalActiveTab] = useState('inventory');
   const [hoveredTab, setHoveredTab] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Tooltip state and refs
+  const [showReputationTooltip, setShowReputationTooltip] = useState(false);
+  const [showStatusTooltip, setShowStatusTooltip] = useState(false);
+  const [showInventoryTooltip, setShowInventoryTooltip] = useState(false);
+  const reputationTabRef = useRef(null);
+  const statusTabRef = useRef(null);
+  const inventoryTabRef = useRef(null);
 
   // Use controlled tab if provided, otherwise use internal state
   const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
@@ -91,7 +154,7 @@ export function PlayerStatusPanel({
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl" style={{
       flex: isCollapsed ? '0 0 auto' : '1 1 auto',
-      transition: 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: 'flex-basis 0.6s cubic-bezier(0.4, 0, 0.2, 1), flex-grow 0.6s cubic-bezier(0.4, 0, 0.2, 1), flex-shrink 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
       background: isDark
         ? 'linear-gradient(315deg, rgba(15, 23, 42, 0.45) 0%, rgba(30, 41, 59, 0.55) 50%, rgba(15, 23, 42, 0.45) 100%)'
         : 'linear-gradient(315deg, rgba(255, 255, 255, 0.4) 0%, rgba(249, 245, 235, 0.5) 50%, rgba(252, 250, 247, 0.45) 100%)',
@@ -120,24 +183,49 @@ export function PlayerStatusPanel({
           const isLast = index === tabs.length - 1;
           const tabColors = isDark ? tab.colors.dark : tab.colors.light;
 
+          // Get appropriate ref and tooltip setter for this tab
+          const getTabRef = () => {
+            if (tab.id === 'reputation') return reputationTabRef;
+            if (tab.id === 'status') return statusTabRef;
+            if (tab.id === 'inventory') return inventoryTabRef;
+            return null;
+          };
+
+          const getTooltipSetter = () => {
+            if (tab.id === 'reputation') return setShowReputationTooltip;
+            if (tab.id === 'status') return setShowStatusTooltip;
+            if (tab.id === 'inventory') return setShowInventoryTooltip;
+            return () => {};
+          };
+
           return (
-            <RippleButton
+            <div
               key={tab.id}
-              onClick={() => handleTabClick(tab.id)}
-              onMouseEnter={() => setHoveredTab(tab.id)}
-              onMouseLeave={() => setHoveredTab(null)}
-              rippleColor={tabColors.ripple}
-              className="flex-1 px-5 py-3 font-sans font-semibold text-sm tracking-wide transition-all duration-500 relative"
-              style={{
-                color: isActive ? tabColors.active : tabColors.inactive,
-                background: isHovered && !isActive
-                  ? (isDark
-                      ? 'linear-gradient(180deg, rgba(51, 65, 85, 0.5) 0%, rgba(30, 41, 59, 0.4) 100%)'
-                      : 'linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(248, 244, 238, 0.4) 100%)')
-                  : 'transparent',
-                backdropFilter: isHovered ? 'blur(16px) saturate(150%)' : 'blur(8px)',
-                WebkitBackdropFilter: isHovered ? 'blur(16px) saturate(150%)' : 'blur(8px)',
-                borderRadius: isFirst ? '16px 0 0 0' : isLast ? '0 16px 0 0' : '0',
+              ref={getTabRef()}
+              onMouseEnter={() => {
+                setHoveredTab(tab.id);
+                getTooltipSetter()(true);
+              }}
+              onMouseLeave={() => {
+                setHoveredTab(null);
+                getTooltipSetter()(false);
+              }}
+              className="flex-1"
+            >
+              <RippleButton
+                onClick={() => handleTabClick(tab.id)}
+                rippleColor={tabColors.ripple}
+                className="w-full px-5 py-3 font-sans font-semibold text-sm tracking-wide transition-all duration-500 relative"
+                style={{
+                  color: isActive ? tabColors.active : tabColors.inactive,
+                  background: isHovered && !isActive
+                    ? (isDark
+                        ? 'linear-gradient(180deg, rgba(51, 65, 85, 0.5) 0%, rgba(30, 41, 59, 0.4) 100%)'
+                        : 'linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(248, 244, 238, 0.4) 100%)')
+                    : 'transparent',
+                  backdropFilter: isHovered ? 'blur(16px) saturate(150%)' : 'blur(8px)',
+                  WebkitBackdropFilter: isHovered ? 'blur(16px) saturate(150%)' : 'blur(8px)',
+                  borderRadius: isFirst ? '16px 0 0 0' : isLast ? '0 16px 0 0' : '0',
                 boxShadow: isHovered && !isActive
                   ? (isDark
                       ? 'inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.2)'
@@ -159,6 +247,7 @@ export function PlayerStatusPanel({
                 />
               )}
             </RippleButton>
+            </div>
           );
         })}
       </div>
@@ -172,7 +261,7 @@ export function PlayerStatusPanel({
           opacity: isCollapsed ? 0 : 1,
           paddingTop: isCollapsed ? 0 : '0.75rem',
           paddingBottom: isCollapsed ? 0 : '0.75rem',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'flex-basis 0.3s cubic-bezier(0.4, 0, 0.2, 1), flex-grow 0.3s cubic-bezier(0.4, 0, 0.2, 1), flex-shrink 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           background: isDark
             ? `
                 radial-gradient(ellipse at 0% 0%, rgba(51, 65, 85, 0.2) 0%, transparent 50%),
@@ -235,6 +324,19 @@ export function PlayerStatusPanel({
           />
         )}
       </div>
+
+      {/* Tab Tooltips */}
+      <SidebarTooltip targetRef={reputationTabRef} show={showReputationTooltip}>
+        View faction standings & relationships
+      </SidebarTooltip>
+
+      <SidebarTooltip targetRef={statusTabRef} show={showStatusTooltip}>
+        View skills & active effects
+      </SidebarTooltip>
+
+      <SidebarTooltip targetRef={inventoryTabRef} show={showInventoryTooltip}>
+        View materia medica & compounds
+      </SidebarTooltip>
     </div>
   );
 }

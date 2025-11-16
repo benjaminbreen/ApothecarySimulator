@@ -394,11 +394,8 @@ export function selectContextAwareEntity(context) {
       return false;
     }
 
-    // Shop sign check: If shopSign system is implemented and sign is explicitly not hung
-    if (shopSign.hasOwnProperty('hung') && !shopSign.hung) {
-      console.log('[EntityAgent] Patient filtered: Shop sign not hung');
-      return false;
-    }
+    // REMOVED: Shop sign check - patients can arrive even without sign hung
+    // This allows named patients from EntityList to appear naturally
 
     // All conditions met - patient can be selected
     return true;
@@ -445,7 +442,10 @@ export function selectContextAwareEntity(context) {
       location.toLowerCase().includes(keyword)
     );
     if (isAtWorkplace && (entity.entityType || entity.type) === 'patient') {
-      weight *= 4.0; // Patients more likely at workplace (balanced with ~30 total patients)
+      // Named patients (with PDFs) get massive boost, templates get moderate boost
+      // This ensures hand-crafted patients appear ~40% of time, templates ~25%
+      const isNamedPatient = entity.pdf && entity.pdf.trim().length > 0;
+      weight *= isNamedPatient ? 15.0 : 3.0; // 5x advantage for named patients
     }
 
     // Time-based probability

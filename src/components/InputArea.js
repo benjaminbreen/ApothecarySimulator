@@ -4,6 +4,9 @@ import { useDrop } from 'react-dnd';
 import { getDefaultChips } from '../utils/narrativeParser';
 import { LocationDropdown } from './LocationDropdown';
 import { ListDropdown } from './ListDropdown';
+import { useTooltip } from '../hooks/useTooltip';
+import HelperTooltip from './HelperTooltip';
+import { useGameState } from '../contexts/GameStateContext';
 
 // Tooltip component that renders via Portal
 const Tooltip = ({ children, targetRef, colorScheme, show }) => {
@@ -72,6 +75,7 @@ const InputArea = ({
   onListRequest = null, // New callback for when a list type is selected
 }) => {
   const inputRef = useRef(null);
+  const chipsContainerRef = useRef(null); // For command chips tooltip
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [locationDropdownTarget, setLocationDropdownTarget] = useState(null);
   const [showListDropdown, setShowListDropdown] = useState(false);
@@ -94,6 +98,27 @@ const InputArea = ({
   // Combine drop ref with the container
   const textareaRef = useRef(null);
   drop(textareaRef);
+
+  // Get game state for trigger evaluation
+  const { gameState } = useGameState();
+
+  // TOOLTIP 1: Input commands - shows on turns 1-2
+  const inputTooltip = useTooltip('input-commands', {
+    content: "Type what you want Maria to do (e.g., 'examine the patient') or click one of the buttons below",
+    trigger: 'immediate',
+    gameState,
+    useTriggerSystem: true,
+    dependencies: [gameState.turnNumber]
+  });
+
+  // TOOLTIP 2: Command chips - shows on turns 1-3
+  const chipsTooltip = useTooltip('command-chips', {
+    content: "Type what you want Maria to do (e.g., 'examine the patient') or click one of the buttons below",
+    trigger: 'immediate',
+    gameState,
+    useTriggerSystem: true,
+    dependencies: [gameState.turnNumber]
+  });
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -128,6 +153,7 @@ const InputArea = ({
         label: goSomewhereChip.label,
         action: goSomewhereChip.action,
         tooltip: goSomewhereChip.tooltip,
+        displayAction: goSomewhereChip.displayAction,
         isDynamic: false,
         isGoSomewhere: true, // Special flag for location dropdown
       });
@@ -139,6 +165,7 @@ const InputArea = ({
         label: listChip.label,
         action: listChip.action,
         tooltip: listChip.tooltip,
+        displayAction: listChip.displayAction,
         isDynamic: false,
         isList: true, // Special flag for list dropdown
       });
@@ -152,13 +179,15 @@ const InputArea = ({
       label: chip.label,
       action: chip.action,
       tooltip: chip.tooltip,
+      displayAction: chip.displayAction,
       isDynamic: false,
       isGoSomewhere: chip.label === 'Go somewhere', // Flag for special handling
       isList: chip.label === 'List', // Flag for special handling
     }));
   }
 
-  const handleQuickAction = (action, isGoSomewhere, isList, chipRef) => {
+  const handleQuickAction = (actionConfig, chipRef) => {
+    const { action, isGoSomewhere, isList, displayAction } = actionConfig;
     console.log('[InputArea] handleQuickAction called:', { action, isGoSomewhere, isList, nearbyLocationsCount: nearbyLocations.length });
 
     // Special handling for "List" - show list dropdown
@@ -189,7 +218,8 @@ const InputArea = ({
     setTimeout(() => {
       // Create a fake event object for handleSubmit
       const fakeEvent = { preventDefault: () => {} };
-      handleSubmit(fakeEvent, action);  // Pass action directly as override
+      const submitOptions = displayAction ? { displayActionOverride: displayAction } : {};
+      handleSubmit(fakeEvent, action, submitOptions);  // Pass action directly as override
     }, 100);
   };
 
@@ -307,7 +337,7 @@ const InputArea = ({
         </div>
 
         {/* Quick Action Chips + Keyboard hint on same line */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div ref={chipsContainerRef} className="flex flex-wrap items-center gap-1.5">
           {quickActions.map((qa, idx) => {
             const refKey = `chip-${idx}`;
             if (!chipRefs.current[refKey]) {
@@ -328,7 +358,7 @@ const InputArea = ({
                 <button
                   ref={(el) => chipRefs.current[refKey].current = el}
                   type="button"
-                  onClick={() => handleQuickAction(qa.action, qa.isGoSomewhere, qa.isList, chipRefs.current[refKey])}
+                  onClick={() => handleQuickAction(qa, chipRefs.current[refKey])}
                   onMouseEnter={() => setHoveredAction(idx)}
                   onMouseLeave={() => setHoveredAction(null)}
                   disabled={disabled}
@@ -398,6 +428,28 @@ const InputArea = ({
         onClose={() => setShowListDropdown(false)}
         onSelectListType={handleListSelect}
         targetRef={listDropdownTarget}
+      />
+
+      {/* Helper Tooltip 1: Input commands */}
+      <HelperTooltip
+        id="input-commands"
+        content={inputTooltip.content}
+        targetRef={textareaRef}
+        show={inputTooltip.show}
+        onDismiss={inputTooltip.dismiss}
+        onDisableAll={inputTooltip.onDisableAll}
+        position={inputTooltip.position}
+      />
+
+      {/* Helper Tooltip 2: Command chips */}
+      <HelperTooltip
+        id="command-chips"
+        content={chipsTooltip.content}
+        targetRef={chipsContainerRef}
+        show={chipsTooltip.show}
+        onDismiss={chipsTooltip.dismiss}
+        onDisableAll={chipsTooltip.onDisableAll}
+        position={chipsTooltip.position}
       />
     </div>
   );

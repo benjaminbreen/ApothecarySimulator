@@ -261,6 +261,7 @@ export const useGameState = (scenarioId, loadedSaveData = null) => {
       const itemExists = updatedInventory.some(item => item.name && item.name.toLowerCase() === updateItemName.toLowerCase());
       if (!itemExists) {
         console.log('[gameState] Item not found, looking for new item:', updateItemName);
+        console.log('[gameState] Current inventory items:', updatedInventory.map(i => i.name).join(', '));
         const newItem = potentialInventoryItems[updateItemName.toLowerCase()];
         if (newItem) {
           console.log('[gameState] Adding new item from potentialInventoryItems');
@@ -270,6 +271,9 @@ export const useGameState = (scenarioId, loadedSaveData = null) => {
           if (quantityChange > 0) {
             setLastAddedItem({ ...newItem, quantity: quantityChange });
           }
+        } else if (quantityChange < 0) {
+          // Trying to remove an item that doesn't exist - log warning
+          console.warn(`[gameState] ⚠️ Cannot remove "${updateItemName}" - not in inventory. Available: ${updatedInventory.map(i => i.name).join(', ')}`);
         }
       } else if (quantityChange > 0) {
         // Item already exists but quantity increased - track it

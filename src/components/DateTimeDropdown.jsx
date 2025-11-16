@@ -377,60 +377,104 @@ const DateTimeDropdown = ({
       {isOpen && createPortal(
         <div
           ref={dropdownRef}
-          className={`fixed rounded-xl shadow-elevation-3 dark:shadow-dark-elevation-3 border border-parchment-300 dark:border-slate-600 overflow-hidden z-[9999] animate-fade-in ${
-            mainView === 'clock' ? 'w-[600px] max-h-[700px]' : 'w-[900px] max-h-[650px]'
+          className={`fixed rounded-2xl shadow-2xl overflow-hidden z-[9999] transition-all duration-300 ${
+            mainView === 'clock' ? 'w-[600px] max-h-[700px]' : 'w-[900px] max-h-[680px]'
           }`}
           style={{
             top: `${buttonPosition.top}px`,
             left: `${buttonPosition.left}px`,
             background: isDark
-              ? 'rgba(30, 41, 59, 0.95)'
-              : 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            animation: 'slideDown 300ms ease-out',
+              ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 252, 247, 0.98) 100%)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: isDark ? '1px solid rgba(251, 191, 36, 0.2)' : '1px solid rgba(217, 119, 6, 0.2)',
+            boxShadow: isDark
+              ? '0 24px 48px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(251, 191, 36, 0.1)'
+              : '0 24px 48px rgba(139, 92, 46, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
+            animation: 'slideDown 300ms cubic-bezier(0.4, 0, 0.2, 1)',
           }}
         >
-          {/* Close Button */}
+          {/* Close Button - Refined */}
           <button
             onClick={() => setIsOpen(false)}
-            className="absolute top-2 right-2 w-6 h-6 rounded-md hover:bg-gray-200/50 dark:hover:bg-slate-700/50 transition-colors flex items-center justify-center z-10"
+            className="absolute top-3 right-3 w-8 h-8 rounded-full transition-all duration-200 flex items-center justify-center z-20 group"
+            style={{
+              background: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(255, 255, 255, 0.8)',
+              border: isDark ? '1px solid rgba(148, 163, 184, 0.2)' : '1px solid rgba(209, 213, 219, 0.3)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = isDark ? 'rgba(71, 85, 105, 0.8)' : 'rgba(255, 255, 255, 1)';
+              e.currentTarget.style.transform = 'scale(1.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(255, 255, 255, 0.8)';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
             aria-label="Close"
           >
-            <svg className="w-4 h-4 text-gray-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg className="w-4 h-4 text-ink-600 dark:text-slate-300 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
 
-          {/* Main View Toggle */}
-          <div className="flex items-center justify-center gap-2 p-3 border-b border-parchment-200 dark:border-slate-600">
+          {/* Main View Toggle - Refined Tabs */}
+          <div className="flex items-center gap-1 p-2 relative">
             <button
               onClick={() => setMainView('calendar')}
-              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+              className={`flex-1 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 relative overflow-hidden ${
                 mainView === 'calendar'
-                  ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 shadow-md'
-                  : 'bg-white/60 dark:bg-slate-800/60 text-ink-600 dark:text-parchment-300 hover:bg-emerald-50 dark:hover:bg-amber-900/20 border border-parchment-300 dark:border-slate-600'
+                  ? 'text-white dark:text-slate-900'
+                  : 'text-ink-600 dark:text-slate-300 hover:bg-white/30 dark:hover:bg-slate-700/30'
               }`}
+              style={{
+                background: mainView === 'calendar'
+                  ? isDark
+                    ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                    : 'linear-gradient(135deg, #10b981, #059669)'
+                  : 'transparent',
+                boxShadow: mainView === 'calendar'
+                  ? isDark
+                    ? '0 4px 12px rgba(245, 158, 11, 0.3)'
+                    : '0 4px 12px rgba(16, 185, 129, 0.3)'
+                  : 'none',
+              }}
             >
-              📅 Calendar
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                📅 Calendar
+              </span>
             </button>
             <button
               onClick={() => setMainView('clock')}
-              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+              className={`flex-1 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 relative overflow-hidden ${
                 mainView === 'clock'
-                  ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 shadow-md'
-                  : 'bg-white/60 dark:bg-slate-800/60 text-ink-600 dark:text-parchment-300 hover:bg-emerald-50 dark:hover:bg-amber-900/20 border border-parchment-300 dark:border-slate-600'
+                  ? 'text-white dark:text-slate-900'
+                  : 'text-ink-600 dark:text-slate-300 hover:bg-white/30 dark:hover:bg-slate-700/30'
               }`}
+              style={{
+                background: mainView === 'clock'
+                  ? isDark
+                    ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                    : 'linear-gradient(135deg, #10b981, #059669)'
+                  : 'transparent',
+                boxShadow: mainView === 'clock'
+                  ? isDark
+                    ? '0 4px 12px rgba(245, 158, 11, 0.3)'
+                    : '0 4px 12px rgba(16, 185, 129, 0.3)'
+                  : 'none',
+              }}
             >
-              🕐 Change Time
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                🕐 Change Time
+              </span>
             </button>
           </div>
 
           {/* Calendar Section */}
           {mainView === 'calendar' && (
-            <div className="flex gap-6 p-6 border-b border-parchment-200 dark:border-slate-600">
+            <div className="flex gap-5 p-5">
               {/* Day View - Left Column */}
-              <div className="flex-shrink-0 w-64 space-y-4">
+              <div className="flex-shrink-0 w-60 space-y-3">
                 {/* Large Date Display */}
                 <div className="text-center bg-gradient-to-br from-parchment-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-2xl p-6 border-2 border-parchment-300 dark:border-amber-600/30 shadow-lg">
                   <div className="font-display text-6xl font-bold text-ink-900 dark:text-amber-400 transition-colors duration-300 mb-2">
@@ -479,36 +523,60 @@ const DateTimeDropdown = ({
 
               {/* Calendar View - Right Column */}
               <div className="flex-1 space-y-3">
-              {/* View Toggle Buttons */}
+              {/* View Toggle Buttons - Cleaner */}
               <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-2">
+                <div className="flex gap-1 p-1 rounded-lg" style={{
+                  background: isDark ? 'rgba(51, 65, 85, 0.3)' : 'rgba(245, 238, 223, 0.5)',
+                  border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(217, 119, 6, 0.15)',
+                }}>
                   <button
                     onClick={() => setCalendarView('month')}
-                    className={`text-sm px-4 py-2 rounded-lg font-semibold font-sans border-2 transition-all duration-300 ${
+                    className={`text-xs px-3 py-1.5 rounded-md font-semibold font-sans transition-all duration-200 ${
                       calendarView === 'month'
-                        ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 border-emerald-600 dark:border-amber-600 shadow-md'
-                        : 'bg-white dark:bg-slate-800 text-ink-600 dark:text-parchment-300 border-parchment-300 dark:border-slate-600 hover:bg-emerald-50 dark:hover:bg-amber-900/20 hover:border-emerald-300 dark:hover:border-amber-700'
+                        ? 'text-white dark:text-slate-900 shadow-sm'
+                        : 'text-ink-600 dark:text-slate-300 hover:bg-white/30 dark:hover:bg-slate-700/30'
                     }`}
+                    style={{
+                      background: calendarView === 'month'
+                        ? isDark
+                          ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                          : 'linear-gradient(135deg, #10b981, #059669)'
+                        : 'transparent',
+                    }}
                   >
                     📅 Month
                   </button>
                   <button
                     onClick={() => setCalendarView('week')}
-                    className={`text-sm px-4 py-2 rounded-lg font-semibold font-sans border-2 transition-all duration-300 ${
+                    className={`text-xs px-3 py-1.5 rounded-md font-semibold font-sans transition-all duration-200 ${
                       calendarView === 'week'
-                        ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 border-emerald-600 dark:border-amber-600 shadow-md'
-                        : 'bg-white dark:bg-slate-800 text-ink-600 dark:text-parchment-300 border-parchment-300 dark:border-slate-600 hover:bg-emerald-50 dark:hover:bg-amber-900/20 hover:border-emerald-300 dark:hover:border-amber-700'
+                        ? 'text-white dark:text-slate-900 shadow-sm'
+                        : 'text-ink-600 dark:text-slate-300 hover:bg-white/30 dark:hover:bg-slate-700/30'
                     }`}
+                    style={{
+                      background: calendarView === 'week'
+                        ? isDark
+                          ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                          : 'linear-gradient(135deg, #10b981, #059669)'
+                        : 'transparent',
+                    }}
                   >
                     📆 Week
                   </button>
                   <button
                     onClick={() => setCalendarView('year')}
-                    className={`text-sm px-4 py-2 rounded-lg font-semibold font-sans border-2 transition-all duration-300 ${
+                    className={`text-xs px-3 py-1.5 rounded-md font-semibold font-sans transition-all duration-200 ${
                       calendarView === 'year'
-                        ? 'bg-emerald-500 dark:bg-amber-500 text-white dark:text-slate-900 border-emerald-600 dark:border-amber-600 shadow-md'
-                        : 'bg-white dark:bg-slate-800 text-ink-600 dark:text-parchment-300 border-parchment-300 dark:border-slate-600 hover:bg-emerald-50 dark:hover:bg-amber-900/20 hover:border-emerald-300 dark:hover:border-amber-700'
+                        ? 'text-white dark:text-slate-900 shadow-sm'
+                        : 'text-ink-600 dark:text-slate-300 hover:bg-white/30 dark:hover:bg-slate-700/30'
                     }`}
+                    style={{
+                      background: calendarView === 'year'
+                        ? isDark
+                          ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                          : 'linear-gradient(135deg, #10b981, #059669)'
+                        : 'transparent',
+                    }}
                   >
                     🗓️ Year
                   </button>
@@ -706,34 +774,39 @@ const DateTimeDropdown = ({
 
           {/* Weather Section - Only show in calendar mode */}
           {mainView === 'calendar' && (
-            <div className="px-4 py-2.5 bg-gradient-to-r from-parchment-50/50 to-white/50 dark:from-slate-800/50 dark:to-slate-900/50">
-            <div className="flex items-center justify-center gap-4 text-xs font-sans text-ink-700 dark:text-parchment-300">
+            <div className="px-4 py-3 border-t" style={{
+              background: isDark
+                ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.6) 100%)'
+                : 'linear-gradient(135deg, rgba(254, 252, 247, 0.8) 0%, rgba(255, 255, 255, 0.8) 100%)',
+              borderTopColor: isDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(217, 119, 6, 0.15)',
+            }}>
+            <div className="flex items-center justify-center gap-4 text-xs font-sans">
               <div className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-potion-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <svg className="w-4 h-4 text-emerald-600 dark:text-amber-400 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                 </svg>
-                <span className="font-medium">{weather.condition}</span>
+                <span className="font-semibold text-ink-800 dark:text-parchment-200 transition-colors duration-300">{weather.condition}</span>
               </div>
-              <div className="w-px h-3 bg-ink-300 dark:bg-slate-600"></div>
+              <div className="w-px h-4 bg-ink-300 dark:bg-slate-500 transition-colors duration-300"></div>
               <div className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-danger-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <svg className="w-4 h-4 text-red-600 dark:text-amber-400 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <span className="font-medium">{weather.temperature}</span>
+                <span className="font-semibold text-ink-800 dark:text-parchment-200 transition-colors duration-300">{weather.temperature}</span>
               </div>
-              <div className="w-px h-3 bg-ink-300 dark:bg-slate-600"></div>
+              <div className="w-px h-4 bg-ink-300 dark:bg-slate-500 transition-colors duration-300"></div>
               <div className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-potion-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <svg className="w-4 h-4 text-blue-600 dark:text-amber-400 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 008 10.586V5L7 4z" />
                 </svg>
-                <span className="font-medium">{weather.humidity}</span>
+                <span className="font-semibold text-ink-800 dark:text-parchment-200 transition-colors duration-300">{weather.humidity}</span>
               </div>
-              <div className="w-px h-3 bg-ink-300 dark:bg-slate-600"></div>
+              <div className="w-px h-4 bg-ink-300 dark:bg-slate-500 transition-colors duration-300"></div>
               <div className="flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-botanical-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <svg className="w-4 h-4 text-emerald-600 dark:text-amber-400 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
-                <span className="font-medium">{weather.wind}</span>
+                <span className="font-semibold text-ink-800 dark:text-parchment-200 transition-colors duration-300">{weather.wind}</span>
               </div>
             </div>
           </div>

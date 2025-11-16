@@ -5,6 +5,7 @@ import { createChatCompletion } from '../services/llmService';
 import { scenarioLoader } from '../services/scenarioLoader';
 import { getGridSystem } from '../../features/map/services/gridMovementSystem';
 import { isDocumentItem, getDocumentType } from '../../utils/documentDetector';
+import { getFullLocationContext, getLocationDescription } from '../../scenarios/1680-mexico-city/data/streetGrid';
 
 // PERFORMANCE: Cache state prompt to avoid rebuilding static sections every turn
 // Note: Cache is keyed by scenario ID, invalidates only when scenario changes
@@ -173,7 +174,6 @@ function buildStaticPromptBody(currencyName) {
   return `### Output Shape
 {
   "gameState": {
-    "wealth": number,
     "wealthChange": number,
     "status": "calm|anxious|frightened|determined|curious|hopeful|relieved|exhausted|tired|confident|worried|angry|content|weary|joyful|melancholy|proud|ashamed|uncertain",
     "location": "string",
@@ -197,6 +197,7 @@ function buildStaticPromptBody(currencyName) {
     "npcName": "string",
     "npcPortrait": "/portraits/filename.jpg|null",
     "npcRole": "string|null",
+    "direction": "selling_to_maria (NPC has item)|buying_from_maria (Maria has item/service)",
     "context": "string",
     "offer": {"item": "string|null", "price": number, "description": "string|null", "quality": "string|null", "quantity": number, "emoji": "emoji"} OR null,
     "request": {"item": "string", "reason": "string", "urgency": "low|medium|high|critical", "reputationImpact": {"donate": number, "refuse": number}} OR null,
@@ -218,9 +219,11 @@ function buildStaticPromptBody(currencyName) {
 **1. Conservative Extraction**: Only change values when narrative explicitly states them. Preserve previous state when ambiguous.
 
 **2. Transactions**:
+- **CRITICAL**: ONLY return wealthChange (delta), NEVER calculate absolute wealth. The current wealth in the prompt may be out of sync.
 - Bought (Maria pays): wealthChange negative, inventoryChanges action="bought" (positive quantity)
 - Sold (Maria receives): wealthChange positive, inventoryChanges action="sold" (negative quantity)
 - Set wealthChange to 0 unless payment explicitly mentioned
+- Example: If narrative says "Maria pays 10 reales" → wealthChange: -10 (NOT wealth: 16)
 
 **3. Time & Location**:
 - Time advances ~10 minutes for conversations, use map timing for movement
@@ -251,6 +254,11 @@ Trust the interactionIntent from NarrativeAgent. Create matching objects:
 - NPC departs after business (npcDeparted: true + interactionIntent: "none")
 - Player refuses offer
 
+**Clear actionPrompt** (set type: "null") when:
+- prescriptionOfferOutcome.occurred = true (prescription was accepted/declined/bargained)
+- NPC departs after medical interaction (npcDeparted: true + medical intent)
+- interactionIntent changes from medical_purchase to none
+
 **House Calls** (isEmissary: true):
 - offeredBy = messenger present (nun, servant)
 - patientName = sick person discussed (NOT messenger)
@@ -264,10 +272,16 @@ Intent: medical_purchase
 → actionPrompt: {type: "prescribe", recipientName: "woman", context: "fever medicine for daughter"}
 → contractOffer: {type: "null"}
 
-**Example 2: Vendor Offer**
-Narrative: "Fish seller says 'Fresh tilapia, 2 reales!'"
+**Example 2a: Vendor Offer (NPC selling TO Maria)**
+Narrative: "Laborer says 'I brought you the eggs as agreed. One real.'"
 Intent: vendor_offer
-→ simpleInteraction: {type: "vendor_offer", offer: {item: "tilapia", price: 2, quantity: 1}}
+→ simpleInteraction: {type: "vendor_offer", direction: "selling_to_maria", offer: {item: "eggs", price: 1, quantity: 10}}
+→ contractOffer: {type: "null"}, actionPrompt: {type: "null"}
+
+**Example 2b: Service Request (NPC buying FROM Maria)**
+Narrative: "Toymaker says 'I need advice on paint stabilization. I can pay 10 reales.'"
+Intent: vendor_offer
+→ simpleInteraction: {type: "service_offer", direction: "buying_from_maria", offer: {item: "paint consultation", price: 10, quantity: 1}}
 → contractOffer: {type: "null"}, actionPrompt: {type: "null"}
 
 **Example 3: Sale Transaction Complete**
@@ -298,6 +312,7 @@ Intent: vendor_offer
 - **Relationships**: Track meaningful emotional beats (+/-1 to 20)
 - **Documents**: Mark isReadable=true for letters/contracts, use specific names ("Inquisition warrant" not "document")
 - **ActionPrompt context**: 10 words max, factual only ("fever remedy for daughter" not "you must decide")
+- **Direction heuristic**: "I have/brought X" = selling_to_maria | "I need X" / "Do you have X" = buying_from_maria
 - **Bargaining**: When NPC negotiates, set actionPrompt.type = "null" (captured in narrative)
 - **Prescription outcomes**: Only populate when NPC decides to accept/decline Maria's offer
 - **System announcements**: Highlight actionable beats, don't restate narrative
@@ -350,6 +365,41 @@ export async function extractGameState({
         currentGameState.currentMap || currentGameState.location,
         mapData
       );
+
+      // Enrich movement data with street-based location names
+      // ONLY for exterior city maps (not interior rooms)
+      if (movementData) {
+        const currentMapId = currentGameState.currentMap || '';
+        const isExteriorMap = currentMapId.includes('city') || currentMapId.includes('world') || currentMapId === 'mexico-city-center';
+
+        if (isExteriorMap) {
+          // Get current location context
+          const currentContext = getFullLocationContext(
+            currentGameState.position.x,
+            currentGameState.position.y
+          );
+
+          // Get new location context (if movement is valid)
+          const newContext = movementData.valid
+            ? getFullLocationContext(movementData.newPosition.x, movementData.newPosition.y)
+            : currentContext;
+
+          // Add street-based location names to movementData
+          movementData.currentLocationName = currentContext.formatted;
+          movementData.suggestedLocationName = newContext.formatted;
+          movementData.nearbyLandmarks = newContext.landmarks;
+          movementData.districtContext = newContext.barrio || 'Central Mexico City';
+
+          console.log('[StateAgent] Movement location context:', {
+            from: movementData.currentLocationName,
+            to: movementData.suggestedLocationName,
+            landmarks: movementData.nearbyLandmarks,
+            district: movementData.districtContext
+          });
+        } else {
+          console.log('[StateAgent] Interior map detected - skipping street grid lookup:', currentMapId);
+        }
+      }
     }
 
     // Build state prompt with movement context
@@ -443,13 +493,18 @@ The reverse geocoder has determined the player is now at: "${movementData.sugges
 - Preserve current location: "${currentGameState.location}"
 - Only change if narrative explicitly describes going to a different place
 - Use exact names from "Available Locations" list for building interiors
-- For city streets, be specific (e.g., "Calle de San Francisco" not "streets")
+- For city streets, use specific street names from the historical grid:
+  * Major N-S streets: Calle de San Francisco, Calle Santo Domingo, Calle del Empedradillo, Calle de Plateros, Calle del Reloj, Calle de la Moneda, Calle de Jesús
+  * Major E-W streets: Calle de Tacuba, Calle de los Plateros, Calle de la Diputación, Calle de los Arzobispos, Calle de la Amargura
+  * At intersections: Use "at the intersection of [Street A] and [Street B]"
+  * Near plazas: Use "Plaza Mayor", "Plaza de Santo Domingo", etc.
 `}
 
 **General Rules:**
 - Be specific and granular - streets, plazas, buildings all have distinct names
 - Use hierarchical names for interiors: "Bedroom, Botica de la Amargura"
 - NEVER use vague phrases like "Unknown" or "likely near..." - commit to a specific name
+- The street grid system provides accurate location names - trust the suggested location
 - Check "Available Locations" list first for exact matches`;
 
     const messages = [
@@ -632,6 +687,15 @@ The reverse geocoder has determined the player is now at: "${movementData.sugges
         stateData.actionPrompt.type !== 'null') {
       console.warn('[StateAgent] 🩺 OVERRIDE: medical_diagnosis with contractOffer detected. Clearing actionPrompt to prevent duplicate cards.');
       console.warn('[StateAgent] Patient IS present - this is a treatment contract, not a quick purchase.');
+      stateData.actionPrompt = { type: 'null' };
+    }
+
+    // Rule 3: Clear actionPrompt when prescription outcome completes
+    if (stateData.prescriptionOfferOutcome?.occurred &&
+        stateData.actionPrompt?.type &&
+        stateData.actionPrompt.type !== 'null') {
+      console.warn('[StateAgent] 💊 OVERRIDE: Prescription outcome detected. Clearing actionPrompt to prevent card persistence.');
+      console.log('[StateAgent] Outcome:', stateData.prescriptionOfferOutcome.outcome, 'for', stateData.prescriptionOfferOutcome.recipientName);
       stateData.actionPrompt = { type: 'null' };
     }
 

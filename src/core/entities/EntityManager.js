@@ -95,7 +95,7 @@ class EntityManager {
       // Only log once per ID
       const logKey = `autogen:${entity.id}`;
       if (!this.loggedMessages.has(logKey)) {
-        console.log(`[EntityManager] Auto-generated ID: ${entity.id}`);
+        // console.log(`[EntityManager] Auto-generated ID: ${entity.id}`);
         this.loggedMessages.add(logKey);
       }
     }
@@ -149,7 +149,7 @@ class EntityManager {
     // Only log registration once per entity
     const logKey = `register:${entity.id}`;
     if (!this.loggedMessages.has(logKey)) {
-      console.log(`[EntityManager] Registered ${entity.entityType}: ${entity.name} (${entity.id}) [LAZY]`);
+      // console.log(`[EntityManager] Registered ${entity.entityType}: ${entity.name} (${entity.id}) [LAZY]`);
       this.loggedMessages.add(logKey);
     }
 
@@ -564,10 +564,20 @@ class EntityManager {
       return this.getById(rawEntity.id); // Use getById for lazy enrichment
     }
 
-    // Fuzzy match
+    // Fuzzy match (stricter: only match if search term is at start or preceded by underscore/space)
+    // This prevents "Inés" from matching "Sor Juana Inés de la Cruz"
     for (const [entityName, entity] of this.entitiesByName.entries()) {
-      if (entityName.includes(normalized) || normalized.includes(entityName)) {
-        return this.getById(entity.id); // Use getById for lazy enrichment
+      // Match if search term starts the entity name
+      if (entityName.startsWith(normalized)) {
+        return this.getById(entity.id);
+      }
+      // Match if search term is a complete word (preceded by underscore)
+      if (entityName.includes('_' + normalized + '_') || entityName.endsWith('_' + normalized)) {
+        return this.getById(entity.id);
+      }
+      // Reverse: entity name is contained in search (e.g., searching "Sor Juana Inés" finds "Sor Juana")
+      if (normalized.includes(entityName)) {
+        return this.getById(entity.id);
       }
     }
 

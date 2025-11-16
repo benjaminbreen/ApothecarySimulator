@@ -336,8 +336,9 @@ export function getDefaultChips() {
     {
       label: 'Examine',
       icon: FaSearchPlus,
-      action: 'examine inventory',
-      tooltip: 'Inspect your possessions and ingredients',
+      action: 'Provide a vivid, sensory scene-setting description of Maria’s immediate surroundings. Include sights, sounds, smells, textures, lighting, notable objects, and the emotional tenor of the room. END WITH THIS EXACT FORMAT:\n\n**Others present:**\n- Name — short note about posture/intention\n- Name — short note about posture/intention\n\nAlways output the bold heading; if no one else is here, write “- none observed”.',
+      tooltip: 'Request a rich sensory scene description that ends with a bold “Others present” list',
+      displayAction: '*Maria looks around her and observes the surroundings carefully...*',
     },
     {
       label: 'List',

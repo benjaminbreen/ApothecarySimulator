@@ -2,7 +2,7 @@
 // Handles all player movement and location transitions
 // Extracted from useGameHandlers.js (Phase 2.1)
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useGameState } from '../../contexts/GameStateContext';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useNPCs } from '../../contexts/NPCContext';
@@ -18,9 +18,120 @@ import { animateBackgroundZoom, animateBackgroundZoomOut, maintainZoom } from '.
 import { getLocationName } from '../../features/map/services/reverseGeocoder'; // Phase 1-2: Reverse geocoding for location names
 import { getListTypeById } from '../../core/config/listTypes.config'; // List feature for auto-generating people list on arrival
 import { createChatCompletion } from '../../core/services/llmService'; // LLM service for dynamic narratives
+import { matchNavigationLocation, getSuggestedLocations } from '../../scenarios/1680-mexico-city/data/navigationLocations'; // Location-based navigation
+import { calculateStreetBasedPath, calculateTravelTime } from '../../features/map/services/cityPathfinding'; // Pathfinding for location-based navigation
+import { getFullLocationContext } from '../../scenarios/1680-mexico-city/data/streetGrid'; // Street context for arrivals
 
 const BOTICA_MAIN_DOOR = { x: 400, y: 700 };
 const WALK_STEP_DELAY_MS = 70;
+
+const ARRIVAL_ARCHETYPES = {
+  plaza: {
+    people: [
+      '**Don Alonso Herrán** arguing with a royal scribe',
+      '**Doña Ysabel de Sandoval** distributing alms beneath the arcades',
+      '**two Tlaxcalan porters** steadying crates on their shoulders'
+    ],
+    choices: [
+      'petition the cabildo clerks',
+      'greet Doña Ysabel',
+      'observe the porters'
+    ]
+  },
+  church: {
+    people: [
+      '**Padre Sebastián** anointing a penitent',
+      '**Sor Francisca** ushering novices toward choir',
+      '**Captain Ibarra** kneeling with his plumed hat in hand'
+    ],
+    choices: [
+      'seek the sacristan',
+      'speak with Sor Francisca',
+      'light a candle in the side chapel'
+    ]
+  },
+  government: {
+    people: [
+      '**Licenciado Martín de la Cueva** reviewing petitions',
+      '**Scribe Hernando Díaz** sharpening his quills',
+      '**two alguaciles** escorting a merchant up the stairs'
+    ],
+    choices: [
+      'petition the regidores',
+      'question Licenciado Martín',
+      'listen to the alguaciles'
+    ]
+  },
+  market: {
+    people: [
+      '**Doña Beatriz the silk vendor** bargaining over bolts of brocade',
+      '**Sebastián the cacao broker** weighing beans on a brass scale',
+      '**two Mixtec muleteers** unloading wicker panniers'
+    ],
+    choices: [
+      'inspect the silk bolts',
+      'negotiate with Sebastián',
+      'help the muleteers unload'
+    ]
+  },
+  default: {
+    people: [
+      '**Don Diego de Sandoval** conferring with a clerk',
+      '**Sister Beatriz** guiding parishioners toward the nave',
+      '**two indigenous porters** balancing crates'
+    ],
+    choices: [
+      'announce yourself',
+      'speak with Don Diego',
+      'observe quietly from the edge'
+    ]
+  }
+};
+
+const getArrivalArchetypes = (destination) => {
+  if (!destination) return ARRIVAL_ARCHETYPES.default;
+  const typeKey = destination.type && ARRIVAL_ARCHETYPES[destination.type]
+    ? destination.type
+    : 'default';
+  return ARRIVAL_ARCHETYPES[typeKey] || ARRIVAL_ARCHETYPES.default;
+};
+
+/**
+ * Detect "go to [location]" commands on exterior maps
+ * Returns { isLocationCommand: true, targetLocation: string } or null
+ *
+ * @param {string} input - User's input text
+ * @param {string} currentMapId - Current map ID
+ * @returns {Object|null} Location command data or null if not a location command
+ */
+export function detectLocationCommand(input, currentMapId) {
+  // Only apply to exterior city maps
+  const isExteriorMap = currentMapId?.includes('city') ||
+                        currentMapId?.includes('world') ||
+                        currentMapId === 'mexico-city-center';
+
+  if (!isExteriorMap) return null;
+
+  // Regex patterns for location commands
+  const patterns = [
+    /^(?:go|walk|travel|head|move)\s+(?:to|towards?)\s+(?:the\s+)?(.+)$/i,
+    /^(?:visit|find|locate)\s+(?:the\s+)?(.+)$/i,
+    /^take me to\s+(?:the\s+)?(.+)$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = input.trim().match(pattern);
+    if (match) {
+      console.log('[Navigation] Location command detected:', match[1]);
+      return {
+        isLocationCommand: true,
+        targetLocation: match[1].trim()
+      };
+    }
+  }
+
+  return null;
+}
 
 /**
  * Custom hook for navigation handlers
@@ -38,9 +149,9 @@ const WALK_STEP_DELAY_MS = 70;
  * @param {Function} params.setDynamicChips - Dynamic chips setter
  * @param {Function} params.addJournalEntry - Journal entry adder
  * @param {Function} params.addToHistory - Add to conversation history helper
- * @param {Object} params.gameState - DEPRECATED: Use useGameState() instead
- * @param {Object} params.playerPosition - DEPRECATED: Use usePlayer() instead
- * @param {number} params.playerFacing - DEPRECATED: Use usePlayer() instead
+ * @param {Object} params.gameState - Current game state (passed from parent)
+ * @param {Object} params.playerPosition - Current player position (passed from parent)
+ * @param {number} params.playerFacing - Current player facing direction (passed from parent)
  * @param {string} params.currentMapId - Current map ID
  * @param {Function} params.setCurrentMapId - Current map ID setter
  * @param {Object} params.currentMapData - Current map data
@@ -60,7 +171,7 @@ const WALK_STEP_DELAY_MS = 70;
  * @param {Function} params.setNPCPosition - Set NPC position (Phase 3C)
  * @param {Function} params.awardXP - Award XP function (Phase 3D)
  * @param {Function} params.updateReputation - Update reputation function (Phase 3D)
- * @param {Function} params.setTravelAnimationState - Set travel animation state for map overlay
+ * @param {Function} params.setTravelAnimationState - Set travel path state for UI overlays
  * @param {Function} params.setBackgroundMode - Set background mode for immersive UI
  * @param {Function} params.setTravelZoomState - Set travel zoom state for background zoom effects
  * @param {Object} params.handleListRequestRef - Ref to list request handler (auto-called after fast travel)
@@ -115,10 +226,219 @@ export function useNavigationHandlers({
   // Context hooks
   const { updateLocation, advanceTime, updateInventory, setGameState, setEnergy } = useGameState();
   const { setPosition: setPlayerPosition, setFacing: setPlayerFacing } = usePlayer();
-  const { setPrimaryPortraitFile } = useNPCs();
+  const { setPrimaryPortraitFile, currentEntities } = useNPCs();
 
   // Ref for current building data (used by exit handler)
   const currentBuildingRef = useRef(null);
+  const travelTimeoutsRef = useRef([]);
+
+  const normalizeText = (text) => {
+    if (!text || typeof text !== 'string') return '';
+    return text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const isNPCReference = (query) => {
+    const normalizedQuery = normalizeText(query);
+    if (!normalizedQuery) return false;
+
+    const npcNameSet = new Set();
+    try {
+      const recentNPCs = npcTracker?.getRecentNPCs?.() || [];
+      recentNPCs.forEach(name => {
+        const normalized = normalizeText(name);
+        if (normalized) npcNameSet.add(normalized);
+      });
+    } catch (error) {
+      console.warn('[Navigation] Unable to read recent NPCs:', error);
+    }
+
+    if (Array.isArray(npcPositions)) {
+      npcPositions.forEach(npc => {
+        if (npc?.npcName) {
+          const normalized = normalizeText(npc.npcName);
+          if (normalized) npcNameSet.add(normalized);
+        }
+      });
+    }
+
+    if (Array.isArray(currentEntities)) {
+      currentEntities.forEach(entity => {
+        const normalized = normalizeText(entity?.name);
+        if (normalized) npcNameSet.add(normalized);
+      });
+    }
+
+    for (const npcName of npcNameSet) {
+      if (!npcName) continue;
+      if (normalizedQuery === npcName) return true;
+      if (npcName.length >= 3 && normalizedQuery.includes(npcName)) return true;
+      if (normalizedQuery.length >= 3 && npcName.includes(normalizedQuery)) return true;
+    }
+
+    return false;
+  };
+
+  const clearTravelTimeouts = useCallback(() => {
+    if (travelTimeoutsRef.current.length) {
+      travelTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId));
+      travelTimeoutsRef.current = [];
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearTravelTimeouts();
+    };
+  }, [clearTravelTimeouts]);
+
+  const calculateBearing = useCallback((from, to) => {
+    if (!from || !to) return 180;
+    const [x1, y1] = from;
+    const [x2, y2] = to;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    angle = (angle + 90) % 360;
+    if (angle < 0) angle += 360;
+    return angle;
+  }, []);
+
+  const animateTravelPath = useCallback(
+    (path, duration, onArrive) => {
+      if (!path || path.length === 0) {
+        try {
+          onArrive?.();
+        } catch (error) {
+          console.error('[Navigation] Error in arrival callback:', error);
+        }
+        return;
+      }
+
+      clearTravelTimeouts();
+
+      const segments = Math.max(path.length - 1, 1);
+      const stepDuration = Math.max(350, Math.floor(duration / segments));
+      const finalPoint = path[path.length - 1];
+
+      // FIX BUG #3: Safety timeout - force completion if animation hangs
+      const safetyTimeoutId = setTimeout(() => {
+        console.warn('[Navigation] Animation safety timeout triggered - forcing completion');
+        clearTravelTimeouts();
+
+        // Force player to final position
+        setPlayerPosition({ x: finalPoint[0], y: finalPoint[1] });
+
+        // Call arrival callback with error handling
+        try {
+          onArrive?.();
+        } catch (error) {
+          console.error('[Navigation] Error in safety timeout arrival callback:', error);
+          // Ensure loading state clears even on error
+          if (typeof setIsLoading === 'function') {
+            setIsLoading(false);
+          }
+        }
+      }, duration + 5000); // Animation time + 5 second buffer
+
+      travelTimeoutsRef.current.push(safetyTimeoutId);
+
+      path.forEach((point, index) => {
+        const timeoutId = setTimeout(() => {
+          setPlayerPosition({ x: point[0], y: point[1] });
+
+          const nextPoint = index < path.length - 1 ? path[index + 1] : null;
+          const previousPoint = index > 0 ? path[index - 1] : null;
+          const fromPoint = nextPoint ? point : previousPoint;
+          const toPoint = nextPoint || point;
+
+          if (fromPoint && toPoint && (fromPoint[0] !== toPoint[0] || fromPoint[1] !== toPoint[1])) {
+            const direction = calculateBearing(fromPoint, toPoint);
+            setPlayerFacing(direction);
+          }
+
+          if (index === path.length - 1) {
+            // Clear safety timeout on successful completion
+            clearTimeout(safetyTimeoutId);
+
+            // Call arrival callback with error handling
+            try {
+              onArrive?.();
+            } catch (error) {
+              console.error('[Navigation] Error in arrival callback:', error);
+              // Ensure loading state clears even on error
+              if (typeof setIsLoading === 'function') {
+                setIsLoading(false);
+              }
+            }
+          }
+        }, index * stepDuration);
+
+        travelTimeoutsRef.current.push(timeoutId);
+      });
+    },
+    [calculateBearing, clearTravelTimeouts, setPlayerFacing, setPlayerPosition, setIsLoading]
+  );
+
+  const computePolygonCentroid = useCallback((polygon = []) => {
+    if (!Array.isArray(polygon) || polygon.length === 0) {
+      return { x: 900, y: 670 };
+    }
+    const { length } = polygon;
+    const sums = polygon.reduce(
+      (acc, point) => {
+        const [px, py] = point;
+        return { x: acc.x + (px || 0), y: acc.y + (py || 0) };
+      },
+      { x: 0, y: 0 }
+    );
+    return {
+      x: sums.x / length,
+      y: sums.y / length
+    };
+  }, []);
+
+  const getExteriorExitForInterior = useCallback(() => {
+    if (!currentMapId || !currentMapId.includes('interior')) return null;
+    const scenario = scenarioLoader.getScenario(gameState.scenarioId || '1680-mexico-city');
+    const exteriorMaps = scenario?.maps?.exterior;
+    if (!exteriorMaps) return null;
+
+    for (const [mapKey, mapData] of Object.entries(exteriorMaps)) {
+      if (!mapData?.buildings) continue;
+      const building = mapData.buildings.find(b => b.hasInterior === currentMapId);
+      if (!building) continue;
+      const entrancePoint = building.entrancePoint
+        ? { x: building.entrancePoint.x, y: building.entrancePoint.y }
+        : computePolygonCentroid(building.polygon);
+      return {
+        mapId: mapData.id || mapKey,
+        position: entrancePoint,
+        buildingName: building.name || 'Exterior street'
+      };
+    }
+    return null;
+  }, [computePolygonCentroid, currentMapId, gameState.scenarioId]);
+
+  const autoExitInteriorIfNeeded = useCallback(() => {
+    const exitInfo = getExteriorExitForInterior();
+    if (!exitInfo) return null;
+
+    console.log('[LocationNav] Auto-exiting interior map:', currentMapId, '→', exitInfo.mapId);
+    setPlayerPosition(exitInfo.position);
+    setPlayerFacing(180);
+    setCurrentMapId(exitInfo.mapId);
+    const exteriorName = getLocationName(exitInfo.position.x, exitInfo.position.y);
+    if (exteriorName) {
+      updateLocation(exteriorName);
+    }
+    return exitInfo;
+  }, [currentMapId, getExteriorExitForInterior, setPlayerFacing, setPlayerPosition, setCurrentMapId, updateLocation]);
 
   /**
    * Handle arrow key movement
@@ -547,13 +867,6 @@ export function useNavigationHandlers({
     const spawnPosition = interiorMap.startPosition || [400, 400];
     const [spawnX, spawnY] = spawnPosition;
 
-    console.log('🚨🚨🚨 [ENTER BUILDING DEBUG] 🚨🚨🚨');
-    console.log('[Enter Building] Building:', buildingData.name);
-    console.log('[Enter Building] Interior Map ID:', interiorMapId);
-    console.log('[Enter Building] Interior Map Object:', interiorMap);
-    console.log('[Enter Building] startPosition from map:', interiorMap.startPosition);
-    console.log('[Enter Building] Extracted spawn:', { spawnX, spawnY });
-
     // Update all states for interior map
     const buildingName = buildingData.fullName || buildingData.name;
     updateLocation(`${buildingName}, Mexico City`);
@@ -974,6 +1287,265 @@ export function useNavigationHandlers({
   ]);
 
   /**
+   * Handle location-based navigation commands (e.g., "go to plaza mayor")
+   * Returns true if navigation was handled, false otherwise
+   *
+   * @param {string} input - User's input text
+   * @returns {Promise<boolean>} True if navigation was handled
+   */
+  const handleLocationBasedNavigation = useCallback(async (input) => {
+    // 1. Detect location command
+    const locationCommand = detectLocationCommand(input, currentMapId);
+
+    if (!locationCommand) {
+      return false; // Not a location command
+    }
+
+    console.log('[LocationNav] Location command detected:', locationCommand.targetLocation);
+
+    if (isNPCReference(locationCommand.targetLocation)) {
+      console.log('[LocationNav] Command appears to reference an NPC, not a location. Falling back to standard processing.');
+      return false;
+    }
+
+    // 2. Match location string to destination
+    const destination = matchNavigationLocation(locationCommand.targetLocation);
+
+    if (!destination) {
+      // Location not recognized - provide helpful error with suggestions
+      const suggestions = getSuggestedLocations(locationCommand.targetLocation);
+      const errorMessage = `You don't recognize a place called "${locationCommand.targetLocation}". Did you mean: ${suggestions.join(', ')}?`;
+
+      setHistoryOutput(errorMessage);
+      setConversationHistory(prev => [...prev,
+        { role: 'user', content: input },
+        { role: 'assistant', content: errorMessage }
+      ]);
+
+      return true; // Command was handled (even though it failed)
+    }
+
+    console.log('[LocationNav] Matched destination:', destination.name, 'at', destination.coordinates);
+
+    // 3. Check if already at destination
+    let currentPos = playerPosition;
+
+    if (currentMapId?.includes('interior')) {
+      const exitInfo = autoExitInteriorIfNeeded();
+      if (exitInfo) {
+        currentPos = exitInfo.position;
+      }
+    }
+    const destCoords = destination.coordinates;
+    if (currentMapId === 'botica-interior') {
+      const exteriorPosition = { x: 1350, y: 930 };
+      console.log('[LocationNav] Auto-exiting botica interior before travel command');
+      currentPos = exteriorPosition;
+      activeMapId = 'mexico-city-center';
+      setPlayerPosition(exteriorPosition);
+      setPlayerFacing(180);
+      setCurrentMapId('mexico-city-center');
+      const exteriorLocationName = getLocationName(exteriorPosition.x, exteriorPosition.y);
+      updateLocation(exteriorLocationName);
+    }
+
+    const distance = Math.sqrt(
+      Math.pow(currentPos.x - destCoords.x, 2) +
+      Math.pow(currentPos.y - destCoords.y, 2)
+    );
+
+    if (distance < 50) { // Within 50 pixels = already there
+      const alreadyThereMessage = `You're already at ${destination.name}.`;
+      setHistoryOutput(alreadyThereMessage);
+      setConversationHistory(prev => [...prev,
+        { role: 'user', content: input },
+        { role: 'assistant', content: alreadyThereMessage }
+      ]);
+      return true;
+    }
+
+    // 4. Calculate street-based path
+    const path = calculateStreetBasedPath(
+      [currentPos.x, currentPos.y],
+      [destCoords.x, destCoords.y]
+    );
+
+    if (!path || path.length === 0) {
+      const noPathMessage = `You can't find a clear path to ${destination.name} from here.`;
+      setHistoryOutput(noPathMessage);
+      setConversationHistory(prev => [...prev,
+        { role: 'user', content: input },
+        { role: 'assistant', content: noPathMessage }
+      ]);
+      setIsLoading(false);
+      return true;
+    }
+
+    console.log('[LocationNav] Calculated street-based path with', path.length, 'waypoints');
+
+    // 5. Calculate travel time and energy cost
+    const travelTime = calculateTravelTime(path); // 2-3 seconds
+    const travelMinutes = Math.round(travelTime / 1000 * 6); // Convert animation seconds to game minutes (1 second = 6 minutes)
+    const energyCost = Math.max(5, Math.round(travelMinutes / 6)); // 1 energy per ~6 minutes of travel
+
+    console.log('[LocationNav] Travel animation:', travelTime, 'ms, Game time:', travelMinutes, 'minutes, Energy cost:', energyCost);
+
+    // 6. Check if player has enough energy
+    const currentEnergy = gameState.energy || 100;
+    if (currentEnergy < energyCost) {
+      const lowEnergyMessage = `You're too tired to walk to ${destination.name}. You need at least ${energyCost} energy, but you only have ${currentEnergy}.`;
+      setHistoryOutput(lowEnergyMessage);
+      setConversationHistory(prev => [...prev,
+        { role: 'user', content: input },
+        { role: 'assistant', content: lowEnergyMessage }
+      ]);
+      setIsLoading(false);
+      return true;
+    }
+
+    // 7. Show "walking to..." message
+    // FIX BUG #2: Show loading indicator while preparing animation
+    setIsLoading(true);
+    const walkingMessage = `You begin walking toward ${destination.name}...`;
+    setHistoryOutput(walkingMessage);
+    setConversationHistory(prev => [...prev,
+      { role: 'user', content: input },
+      { role: 'assistant', content: walkingMessage }
+    ]);
+
+    const finalizeTravel = () => {
+      console.log('[LocationNav] Travel animation complete');
+      clearTravelTimeouts();
+
+      setPlayerPosition({ x: destCoords.x, y: destCoords.y });
+      setEnergy(Math.max(0, currentEnergy - energyCost));
+      advanceTime({ minutes: travelMinutes });
+
+      const locationContext = getFullLocationContext(destCoords.x, destCoords.y);
+      const archetype = getArrivalArchetypes(destination);
+      const peopleSentence = `You notice ${archetype.people.join(', ')}.`;
+      const choiceSentence = `**Will you ${archetype.choices[0]}, ${archetype.choices[1]}, or ${archetype.choices[2]}?**`;
+      const destinationDescription = destination.description || 'a prominent landmark';
+      const descLower = destinationDescription.toLowerCase();
+      setGameState(prev => ({
+        ...prev,
+        location: locationContext.formatted || destination.name,
+        position: { x: destCoords.x, y: destCoords.y }
+      }));
+
+      addJournalEntry({
+        turnNumber,
+        date: gameState.date,
+        entry: `Traveled to ${destination.name}.`
+      });
+
+      clearTravelTimeouts();
+      if (setTravelAnimationState) {
+        setTravelAnimationState(null);
+      }
+
+      setUserInput('');
+
+      const arrivalPrompt = `You are narrating in SECOND PERSON (addressing Maria as "you") as she arrives in 1680 Mexico City.
+
+Context:
+- Destination: ${destination.name}
+- Canonical description: ${destination.description}
+- Reverse geocoder context: ${locationContext.formatted || 'Unknown street'}
+- Time: ${gameState.time || 'Unknown time'} on ${gameState.date || 'Unknown date'}
+- Travel distance: ${Math.round(distance)} pixels across the colonial grid
+
+Output Requirements (exactly 4 sentences):
+1. Sentence 1: Describe the approach through the surrounding streets/plaza with sensory detail, using "You ..." phrasing.
+2. Sentence 2: Describe the facade or entrance of ${destination.name} with period-authentic imagery, still in second person.
+3. Sentence 3: Explicitly mention 2-3 distinct people present (e.g., names, titles, occupations) so downstream systems can detect them. Example format: "You notice Don Alonso Herrán conferring with a scribe, Sister Beatriz handing out alms, and two Tlaxcalan porters unloading crates." Use unique names/roles relevant to the setting.
+4. Sentence 4: Offer a choice question in second person with exactly three options that advance play, e.g., "Will you petition the regidores, speak with Don Alonso, or observe the porters?" Each option should be distinct verbs/actions.
+
+Formatting:
+- Use Markdown with two paragraphs separated by a blank line (\\n\\n).
+- Paragraph 1 contains sentences 1-2. Paragraph 2 contains sentences 3-4.
+- Bold each NPC name in sentence 3 using **Name** (e.g., **Don Alonso Herrán**).
+- Make the entire sentence 4 bold (the question with choices).
+
+Tone: grounded, observational, historically authentic.`;
+
+      setIsLoading(true);
+
+      createChatCompletion(
+        [
+          { role: 'system', content: arrivalPrompt },
+          { role: 'user', content: `Narrate Maria's arrival at ${destination.name}.` }
+        ],
+        0.7,
+        220
+      ).then(response => {
+        const narrative = response.choices?.[0]?.message?.content?.trim();
+        const finalText = narrative && narrative.length > 0
+          ? narrative
+          : `You trace the arcaded edge of the plaza until ${destination.name} fills your view, the flagstones slick with spilled atole and the smell of charcoal lingering in the air.` +
+            ` The façade, ${descLower}, looms ahead as bells mutter overhead and clerks dart through its shadowed portal.` +
+            `\n\n${peopleSentence} ${choiceSentence}`;
+        setHistoryOutput(finalText);
+        setConversationHistory(prev => [...prev,
+          { role: 'assistant', content: finalText }
+        ]);
+        const parsedChoices = parseNarrativeChoices(finalText);
+        if (parsedChoices && setDynamicChips) {
+          setDynamicChips(parsedChoices);
+        }
+      }).catch(error => {
+        console.error('[LocationNav] Arrival narrative failed, using fallback:', error);
+        const fallback = `You approach ${destination.name}, the morning crowd parting around your skirts while incense from a nearby shrine braids with the scent of roasting maize.` +
+          ` The façade, ${descLower}, glows warm against the pale sky as heralds stride beneath its carved lintels.` +
+          `\n\n${peopleSentence} ${choiceSentence}`;
+        setHistoryOutput(fallback);
+        setConversationHistory(prev => [...prev,
+          { role: 'assistant', content: fallback }
+        ]);
+        const parsedChoices = parseNarrativeChoices(fallback);
+        if (parsedChoices && setDynamicChips) {
+          setDynamicChips(parsedChoices);
+        }
+      }).finally(() => {
+        setIsLoading(false);
+      });
+    };
+
+    // FIX BUG #1: Removed setTravelAnimationState to prevent animation conflict
+    // Only use setTimeout-based animation from animateTravelPath
+    // (TravelAnimationManager requestAnimationFrame system removed)
+
+    // FIX BUG #2: Hide loading indicator when animation starts, then call finalize
+    animateTravelPath(path, travelTime, () => {
+      setIsLoading(false); // Hide spinner when animation completes
+      finalizeTravel();    // Then generate arrival narrative
+    });
+
+    return true; // Navigation handled
+  }, [
+    currentMapId,
+    playerPosition,
+    gameState,
+    setHistoryOutput,
+    setConversationHistory,
+    setPlayerPosition,
+    setEnergy,
+    advanceTime,
+    setGameState,
+    addJournalEntry,
+    animateTravelPath,
+    clearTravelTimeouts,
+    setTravelAnimationState,
+    setUserInput,
+    setIsLoading,
+    setPlayerFacing,
+    setCurrentMapId,
+    updateLocation,
+    autoExitInteriorIfNeeded,
+    turnNumber
+  ]);
+
+  /**
    * Handle house call arrival (Phase 3B/3C)
    * Transitions to house interior map, positions patient, and sets up examination
    * @param {Object} houseCallData - Complete house call data from Phase 3A
@@ -1018,6 +1590,7 @@ export function useNavigationHandlers({
       updateLocation(`${destination} (Inside ${houseName})`);
       console.log('[Phase 3B] Updated location to:', `${destination} (Inside ${houseName})`);
 
+      clearTravelTimeouts();
       if (setTravelAnimationState) {
         setTravelAnimationState(null);
       }
@@ -1253,6 +1826,7 @@ ${locationDescription}
       setPendingHouseCall(null);
       // Restore normal UI mode
       setBackgroundMode('normal');
+      clearTravelTimeouts();
       if (setTravelAnimationState) {
         setTravelAnimationState(null);
       }
@@ -1274,7 +1848,8 @@ ${locationDescription}
     turnNumber,
     gameState.date,
     updateLocation,
-    setTravelAnimationState
+    setTravelAnimationState,
+    clearTravelTimeouts
   ]);
 
   /**
@@ -1286,6 +1861,7 @@ ${locationDescription}
     console.log('[Phase 3D] Completing house call');
 
     try {
+      clearTravelTimeouts();
       if (setTravelAnimationState) {
         setTravelAnimationState(null);
       }
@@ -1387,6 +1963,7 @@ ${locationDescription}
 
     } catch (error) {
       console.error('[Phase 3D] House call completion error:', error);
+      clearTravelTimeouts();
       if (toast) {
         toast.error('Failed to return to botica.');
       }
@@ -1407,7 +1984,8 @@ ${locationDescription}
     setPlayerFacing,
     toast,
     updateLocation,
-    setTravelAnimationState
+    setTravelAnimationState,
+    clearTravelTimeouts
   ]);
 
   const walkPlayerToDoor = useCallback(async () => {
@@ -1562,6 +2140,7 @@ ${locationDescription}
     handleExitBuilding,
     handleFastTravel,
     handleNaturalLanguageNavigation,
+    handleLocationBasedNavigation, // Location-based pathfinding navigation
     handleHouseCallArrival, // Phase 3B/3C
     handleCompleteHouseCall, // Phase 3D
     walkPlayerToDoor,

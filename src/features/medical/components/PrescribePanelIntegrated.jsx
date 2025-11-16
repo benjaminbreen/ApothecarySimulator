@@ -324,19 +324,20 @@ function PrescribePanelIntegrated({
     - Substances like chamomile, sugar, rose water, or wine will not cause serious complications in normal doses. These should produce milder reactions (or no reaction) unless combined with other dangerous factors or taken in excessive amounts.
     - Medications like saffron or wine might give a mildly pleasant or ineffective result, rather than cause harm. More dangerous substances like mercury, opium, and other potent compounds, especially in higher doses or certain delivery methods (like inhalation or enema), should be treated with the appropriate severity. Patients often proclaim opium or opioids and alcoholic cures to be far more effective than they actually are. Inhaled mercury (quicksilver) or mercury products ALWAYS kills a patient in ALL circumstances.
 
-    Begin your output with a clear and concise **headline** that summarizes your assessment of the prescription. For significant results, add a SINGLE emoji to symbolize the main message at the end. Use appropriate markdown formatting as follows:
+    Begin your output with a witty, punchy **headline** that captures the outcome with dark humor or irony when appropriate. Start with EXACTLY ONE emoji, followed by 2-6 words. Use appropriate markdown formatting as follows:
 
-    - **h3 markdown**: Use h3 markdown tags (###) for headlines where the effects are neutral, positive, or only slightly negative. For example, you might write:
-      ### Maria attempted an unconventional treatment that was somewhat effective ⚖
-      or
-      ### The prescription was unpleasant but highly effective
-      or
-      ### The patient felt neutral effects ⚖️
-      or ### The patient felt better - the treatment worked well.
+    - **h3 markdown**: Use h3 markdown tags (###) for most outcomes. Examples:
+      ### 🤢 Violent Purging Ensues
+      ### 😐 Nine Reales Wasted
+      ### ✓ Fleeting Relief
+      ### 🩸 Bloodletting Gone Wrong
+      ### ✨ Against All Odds
+      ### 💸 Expensive Disappointment
 
-    - **h5 markdown**: Use h5 markdown tags (#####) for headlines where the patient has suffered **serious harm** or a **fatal reaction**. When using h5:
-      - If the patient **died**, always start with: ##### 💀 The patient has died! 💀
-      - For more minor injuries, use something like: ##### The prescription seems to have failed...
+    - **h5 markdown**: Use h5 markdown tags (#####) ONLY for death:
+      ##### 💀 A Fatal Miscalculation
+
+    CRITICAL: Use ONLY ONE emoji at the start of your headline. Do not add additional emojis anywhere else in the headline. If the outcome involves both bleeding and ineffectiveness, pick the MORE IMPORTANT one - don't use both.
 
     ### Patient Reactions:
     After the headline, describe the patient's experience over a period of three hours in 2 highly detailed paragraphs that emphasize vivid, historically authentic characterization and finely observed details:
@@ -422,10 +423,32 @@ function PrescribePanelIntegrated({
       // Update inventory
       updateInventory(item.name, -amount);
 
-      // Generate journal summary
+      // Generate journal summary with structured format
       const summaryPrompt = `
-      Please summarize the following text with an overall summary of "Result: [emoji] [single word summing it up." Then add one sentence with a succinct, basic summary of what happened, but with vivid details for instance it should say exactly what the complications or impact was.
-      Emoji guidance: use one of the following emojis as appropriate to represent the result (💀 for death, 🩸 for injury, ✨ for miraculous cure, 😡 for a patient walking out due to price, 🤢 for marked nauseau or disgust or minor toxicity, 😐 if ineffective, 💸 for an extremely valuable prescription, 🚪 for when a patient leaves unhappy.). Also include the score out of 10. The summary should reflect the patient's response:
+      Please summarize the following prescription outcome in this EXACT format:
+
+      ### [ONE emoji] [2-6 punchy words - be witty, dark, or ironic when appropriate]
+      **Score: X/10** — [Short explanation of why this score - explain if treatment was appropriate/inappropriate for diagnosis, dosage issues, route problems, etc.]
+
+      [One vivid sentence describing what happened - be specific about the outcome/complications]
+
+      CRITICAL: Use ONLY ONE emoji at the start of the headline. Do not add any other emojis anywhere in the headline.
+
+      Pick the single best emoji:
+      💀 death | 🩸 bleeding | 🤢 nausea | 😐 ineffective | 💸 expensive waste | ✓ success | ✨ miraculous
+
+      Example headlines (ONE emoji only, punchy and darkly witty):
+      ### 💀 A Fatal Miscalculation
+      ### 🤢 Violent Purging Ensues
+      ### 😐 Nine Reales Wasted
+      ### 🩸 Bloodletting Gone Wrong
+      ### ✓ Fleeting Relief
+      ### ✨ Against All Odds
+      ### 💸 Expensive Disappointment
+
+      DO NOT write two emojis. DO NOT write emojis in the middle of the headline. Only ONE emoji at the very start.
+
+      Now summarize this prescription outcome:
       ${simulatedOutput}
     `;
 
@@ -466,19 +489,29 @@ function PrescribePanelIntegrated({
 
       // Add comprehensive summary to conversation history so NarrativeAgent knows what happened
       // Include examination, diagnosis, and prescription in one complete narrative
-      const symptoms = currentPatient?.symptoms?.map(s => s.name || s).join(', ') || 'various symptoms';
-      const diagnosis = currentPatient?.diagnosis || 'undetermined condition';
+
+      // CRITICAL FIX: Get latest patient data from entityManager to ensure we have the diagnosis
+      const latestPatient = currentPatient?.id ? entityManager.getById(currentPatient.id) : currentPatient;
+      const symptoms = latestPatient?.symptoms?.map(s => s.name || s).join(', ') || 'various symptoms';
+      const diagnosis = latestPatient?.diagnosis || 'undetermined condition';
+
+      console.log('[PrescribePanelIntegrated] Using diagnosis:', diagnosis, 'from patient:', latestPatient?.name);
 
       const bloodlettingSummary = includeBloodletting
         ? ` She also performed bloodletting, drawing ${bloodAmount} ounces of blood to restore humoral balance.`
         : '';
 
-      let comprehensiveSummary = `After a thorough examination of ${npcName}, during which Maria observed ${symptoms}, she diagnosed the condition as ${diagnosis}. Maria then prescribed ${amount} drachms of ${item.name} administered via the ${route} route for ${price} reales.${bloodlettingSummary} ${journalSummary}`;
+      // Restructured comprehensive summary with result prominently displayed first
+      let comprehensiveSummary = `${journalSummary}
+
+*Treatment Details: After examining ${npcName}, Maria observed ${symptoms} and diagnosed the condition as ${diagnosis}. She prescribed ${amount} drachms of ${item.name} administered via the ${route} route for ${price} reales.${bloodlettingSummary}*`;
 
       // Generate narrative follow-up (2-3 sentences about patient reaction and aftermath)
       try {
-        const patientClass = currentPatient?.class || currentPatient?.social?.class || 'common';
-        const patientPersonality = currentPatient?.personality || 'reserved';
+        // FIX: Access class correctly and handle personality object
+        const patientClass = latestPatient?.social?.class || latestPatient?.class || 'common';
+        const patientPersonality = latestPatient?.personality?.description ||
+                                   (typeof latestPatient?.personality === 'string' ? latestPatient.personality : 'reserved');
 
         const followUpPrompt = `You are narrating a medical transaction in 1680 Mexico City.
 
@@ -864,18 +897,18 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
   return (
     <>
       {/* Main Prescribe Panel - Dark Mode Support */}
-      <div className="h-full flex flex-col bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-ink-100 dark:border-slate-700 shadow-lg dark:shadow-dark-elevation-3 overflow-hidden transition-colors duration-300 p-6">
+      <div className="h-full flex flex-col bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-ink-100 dark:border-slate-700 shadow-lg dark:shadow-dark-elevation-3 overflow-hidden transition-colors duration-300 p-4">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-ink-100 dark:border-slate-700 transition-colors duration-300">
+        <div className="flex items-center justify-between mb-3 pb-3 border-b-2 border-ink-100 dark:border-slate-700 transition-colors duration-300">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">℞</span>
-            <h2 className="text-xl font-bold text-ink-900 dark:text-parchment-100 font-serif transition-colors duration-300">
+            <span className="text-xl">℞</span>
+            <h2 className="text-lg font-bold text-ink-900 dark:text-parchment-100 font-serif transition-colors duration-300">
               {prescriptionType === 'poison' ? 'Administer Poison' : 'Prescribe Medicine'}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 font-sans bg-ink-100 dark:bg-slate-700 hover:bg-ink-200 dark:hover:bg-slate-600 text-ink-900 dark:text-parchment-100 border border-ink-200 dark:border-slate-600"
+            className="px-3 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 font-sans bg-ink-100 dark:bg-slate-700 hover:bg-ink-200 dark:hover:bg-slate-600 text-ink-900 dark:text-parchment-100 border border-ink-200 dark:border-slate-600"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -884,17 +917,17 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
           </button>
         </div>
 
-    
+
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-2">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
           {/* Drop Zone */}
           <div>
-            <label className="block text-xs font-semibold mb-2 text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans">
+            <label className="block text-xs font-semibold mb-1.5 text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans">
               Select Medicine
             </label>
             <div
               ref={drop}
-              className={`relative rounded-lg border-2 border-dashed transition-all duration-300 min-h-[140px] flex flex-col items-center justify-center p-4 bg-white/50 dark:bg-slate-900/30 ${
+              className={`relative rounded-lg border-2 border-dashed transition-all duration-300 min-h-[100px] flex flex-col items-center justify-center p-3 bg-white/50 dark:bg-slate-900/30 ${
                 justDropped ? 'animate-bounce-subtle' : ''
               }`}
               style={{
@@ -951,19 +984,29 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
 
               {selectedItem ? (
                 <div className={`transition-all duration-300 ${justDropped ? 'scale-110' : 'scale-100'}`}>
-                  <div className="text-5xl mb-2 transition-transform duration-300 hover:scale-110">
-                    {selectedItem.emoji || '🍵'}
-                  </div>
-                  <h3 className="text-lg font-bold text-ink-900 dark:text-parchment-100 text-center font-serif">
+                  {/* Display actual medicine image if available, otherwise emoji */}
+                  {selectedItem.image ? (
+                    <img
+                      src={selectedItem.image}
+                      alt={selectedItem.name}
+                      className="w-12 h-12 object-contain mb-1 transition-transform duration-300 hover:scale-110"
+                      style={{ display: 'block', margin: '0 auto' }}
+                    />
+                  ) : (
+                    <div className="text-4xl mb-1 transition-transform duration-300 hover:scale-110">
+                      {selectedItem.emoji || '🍵'}
+                    </div>
+                  )}
+                  <h3 className="text-base font-bold text-ink-900 dark:text-parchment-100 text-center font-serif">
                     {selectedItem.name}
                   </h3>
                   {selectedItem.spanishName && (
-                    <p className="text-sm italic text-ink-600 dark:text-slate-400 font-serif">
+                    <p className="text-xs italic text-ink-600 dark:text-slate-400 font-serif">
                       ({selectedItem.spanishName})
                     </p>
                   )}
                   {selectedRoute && (
-                    <p className="text-xs font-medium px-2 py-1 rounded mt-2 font-sans bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 transition-colors duration-300">
+                    <p className="text-xs font-medium px-2 py-0.5 rounded mt-1 font-sans bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 transition-colors duration-300">
                       Route: {selectedRoute}
                     </p>
                   )}
@@ -973,27 +1016,27 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
                   {isOver && canDrop ? (
                     // Hover state - drop to select
                     <>
-                      <div className="text-5xl mb-2 animate-bounce">
+                      <div className="text-4xl mb-1 animate-bounce">
                         ⬇️
                       </div>
-                      <p className="text-center text-base font-semibold text-emerald-600 dark:text-emerald-400 font-sans">
+                      <p className="text-center text-sm font-semibold text-emerald-600 dark:text-emerald-400 font-sans">
                         Drop here to select
                       </p>
                     </>
                   ) : (
                     // Empty state - clear instructions
                     <>
-                      <div className="text-6xl mb-3 opacity-30">
+                      <div className="text-5xl mb-2 opacity-30">
                         🏺
                       </div>
-                      <p className="text-center text-base font-semibold text-ink-700 dark:text-slate-300 mb-2 font-sans">
+                      <p className="text-center text-sm font-semibold text-ink-700 dark:text-slate-300 mb-1 font-sans">
                         Select a Medicine
                       </p>
                       <p className="text-center text-xs text-ink-500 dark:text-slate-400 font-sans">
                         Drag medicine from your inventory
                       </p>
                       {onOpenInventoryTab && (
-                        <div className="flex items-center justify-center gap-2 text-xs text-ink-400 dark:text-slate-500 mt-2">
+                        <div className="flex items-center justify-center gap-2 text-xs text-ink-400 dark:text-slate-500 mt-1.5">
                           <span>or</span>
                           <button
                             onClick={onOpenInventoryTab}
@@ -1013,7 +1056,7 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
           {/* Amount and Price */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold mb-2 text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans transition-colors duration-300">
+              <label className="block text-xs font-semibold mb-1.5 text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans transition-colors duration-300">
                 Amount (drachms)
               </label>
               <input
@@ -1024,11 +1067,11 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
                   setAmount(newAmount < 1 ? 1 : newAmount);
                 }}
                 min="1"
-                className="w-full px-3 py-2 rounded-lg border transition-all font-sans bg-white dark:bg-slate-900 border-ink-200 dark:border-slate-600 text-ink-900 dark:text-parchment-100 focus:border-emerald-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:focus:ring-emerald-900/50 outline-none"
+                className="w-full px-3 py-1.5 rounded-lg border transition-all font-sans bg-white dark:bg-slate-900 border-ink-200 dark:border-slate-600 text-ink-900 dark:text-parchment-100 focus:border-emerald-500 dark:focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:focus:ring-emerald-900/50 outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-2 text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans transition-colors duration-300">
+              <label className="block text-xs font-semibold mb-1.5 text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans transition-colors duration-300">
                 Price (reales)
               </label>
               <input
@@ -1036,14 +1079,14 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
                 value={price}
                 onChange={(e) => setPrice(Number(e.target.value))}
                 min="0"
-                className="w-full px-3 py-2 rounded-lg border transition-all font-sans bg-white dark:bg-slate-900 border-ink-200 dark:border-slate-600 text-ink-900 dark:text-parchment-100 focus:border-amber-500 dark:focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-900/50 outline-none"
+                className="w-full px-3 py-1.5 rounded-lg border transition-all font-sans bg-white dark:bg-slate-900 border-ink-200 dark:border-slate-600 text-ink-900 dark:text-parchment-100 focus:border-amber-500 dark:focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-900/50 outline-none"
               />
             </div>
           </div>
 
           {/* Route Selection - Compact 2x2 Grid */}
           <div>
-            <label className="block text-xs font-semibold mb-2 text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans transition-colors duration-300">
+            <label className="block text-xs font-semibold mb-1.5 text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans transition-colors duration-300">
               Route of Administration
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -1051,7 +1094,7 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
                 <button
                   key={route}
                   onClick={() => setSelectedRoute(route)}
-                  className="relative overflow-hidden rounded-lg transition-all h-24 border-2"
+                  className="relative overflow-hidden rounded-lg transition-all h-20 border-2"
                   style={{
                     borderColor: selectedRoute === route
                       ? '#f59e0b'
@@ -1103,13 +1146,13 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
           {/* Note: Prescription Preview moved to left panel (PrescribeOverviewPanel) */}
 
           {/* Bloodletting Section */}
-          <div className="mt-4 p-4 rounded-lg border-2 transition-all duration-300" style={{
+          <div className="p-3 rounded-lg border-2 transition-all duration-300" style={{
             borderColor: includeBloodletting ? '#dc2626' : (document.documentElement.classList.contains('dark') ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.4)'),
             backgroundColor: includeBloodletting
               ? (document.documentElement.classList.contains('dark') ? 'rgba(220, 38, 38, 0.1)' : 'rgba(220, 38, 38, 0.05)')
               : 'transparent'
           }}>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-semibold text-ink-700 dark:text-slate-300 uppercase tracking-wide font-sans flex items-center gap-2">
                 🩸 Bloodletting (Phlebotomy)
               </label>
@@ -1157,11 +1200,11 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
         </div>
 
         {/* Prescribe Button - Fixed at bottom */}
-        <div className="pt-4 mt-4 border-t-2 border-ink-100 dark:border-slate-700 transition-colors duration-300">
+        <div className="pt-3 mt-3 border-t-2 border-ink-100 dark:border-slate-700 transition-colors duration-300">
           <button
             onClick={handlePrescribeClick}
             disabled={!selectedItem || !selectedRoute || isLoading}
-            className={`w-full px-6 py-3 text-base font-semibold transition-all rounded-lg font-sans
+            className={`w-full px-6 py-2.5 text-base font-semibold transition-all rounded-lg font-sans
               ${(!selectedItem || !selectedRoute || isLoading)
                 ? 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed opacity-50'
                 : prescriptionType === 'poison'

@@ -348,6 +348,14 @@ export function PatientViewTab({
       try {
         entityManager.update(patient.id, updatedPatient);
         console.log('[PatientViewTab] Stored diagnosis in patient entity:', diagnosis.diagnosis);
+
+        // CRITICAL FIX: Refresh patient object from entityManager so diagnosis is available for prescription
+        const refreshedPatient = entityManager.get(patient.id);
+        if (refreshedPatient) {
+          // Update parent component's patient reference via onPatientUpdate callback if available
+          // For now, we rely on PrescribePanelIntegrated getting the updated patient from entityManager
+          console.log('[PatientViewTab] Patient diagnosis refreshed:', refreshedPatient.diagnosis);
+        }
       } catch (error) {
         console.error('[PatientViewTab] Failed to store diagnosis in patient entity:', error);
       }
@@ -515,11 +523,41 @@ export function PatientViewTab({
       description: "Chief complaint not yet recorded. Ask the patient what troubles them.",
       originalIndex: -1
     }
-  ]).map(symptom => ({
-    ...symptom,
-    // Add SVG position if not already present (using location mapper)
-    position: symptom.position || getPositionForLocation(symptom.location)
-  }));
+  ]).map((symptom, idx, arr) => {
+    let position = symptom.position || getPositionForLocation(symptom.location);
+
+    // Distribute "whole body" or "general" symptoms in 3-column grid down the torso
+    const isGeneralSymptom = !symptom.location ||
+      symptom.location.toLowerCase().includes('whole') ||
+      symptom.location.toLowerCase().includes('general') ||
+      symptom.location.toLowerCase().includes('body');
+
+    if (isGeneralSymptom) {
+      // Count how many general symptoms we've seen so far
+      const generalIndex = arr.slice(0, idx).filter(s =>
+        !s.location ||
+        s.location.toLowerCase().includes('whole') ||
+        s.location.toLowerCase().includes('general') ||
+        s.location.toLowerCase().includes('body')
+      ).length;
+
+      // Arrange in 3 columns down the torso
+      const column = generalIndex % 3; // 0, 1, or 2
+      const row = Math.floor(generalIndex / 3);
+
+      // X positions: left (55), center (70), right (85)
+      const xPositions = [55, 70, 85];
+      // Y starts at 70 and goes down by 20px per row
+      const yPosition = 70 + (row * 20);
+
+      position = { x: xPositions[column], y: yPosition };
+    }
+
+    return {
+      ...symptom,
+      position
+    };
+  });
 
   const symptomTimeline = useMemo(() => {
     const timelineEntries = (patient?.symptoms || []).map((symptom, index) => ({
@@ -838,24 +876,7 @@ export function PatientViewTab({
     }
   });
 
-  const lastExaminedTimestamp = patientVitals.lastExamined || patient?.lastExamined;
-  const lastExaminedCard = (() => {
-    if (!lastExaminedTimestamp) return null;
-    const parsed = new Date(lastExaminedTimestamp);
-    if (Number.isNaN(parsed.getTime())) return null;
-
-    return {
-      label: 'Last Examined',
-      value: parsed.toLocaleDateString(),
-      status: parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      statusColor: 'text-emerald-300',
-      valueSize: 'text-base'
-    };
-  })();
-
-  if (lastExaminedCard) {
-    vitalCards.push(lastExaminedCard);
-  }
+  // Last examined card removed for UI compactness
 
   if (vitalCards.length === 0) {
     vitalCards.push({
@@ -978,13 +999,13 @@ export function PatientViewTab({
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           {currentResponse ? (
             <div className="bg-gradient-to-br from-white to-parchment-50 dark:from-slate-900 dark:to-slate-800 rounded-xl p-6 shadow-sm border border-ink-100 dark:border-slate-700">
-              <div className="text-sm font-semibold text-emerald-700 mb-3">
+              <div className="text-md font-semibold text-emerald-700 mb-3">
                 Q: "{currentResponse.question}"
               </div>
-              <div className="text-xs uppercase tracking-wider text-ink-500 dark:text-slate-400 font-sans font-semibold mb-3">
+              <div className="text-sm uppercase tracking-wider text-ink-500 dark:text-slate-400 font-sans font-semibold mb-1 mt-5">
                 Patient Response
               </div>
-              <div className="text-xl leading-relaxed text-ink-900 dark:text-slate-100 font-serif prose prose-lg max-w-none">
+              <div className="text-[21px] leading-relaxed text-ink-900 dark:text-slate-100 font-serif prose prose-lg max-w-none">
                 <ReactMarkdown>{currentResponse.answer}</ReactMarkdown>
               </div>
             </div>
@@ -1260,7 +1281,7 @@ export function PatientViewTab({
                 {/* Tooltip - positioned relative to container, not symptom */}
                 {hoveredSymptom && (
                   <div
-                    className="absolute bg-black/95 text-white px-4 py-3 rounded-lg text-xs pointer-events-none z-50 border border-emerald-500/30 max-w-xs"
+                    className="absolute bg-black/95 text-white px-5 py-2.5 rounded-lg text-xs pointer-events-none z-50 border border-emerald-500/30 max-w-lg min-w-[320px]"
                     style={{
                       left: '50%',
                       top: `${tooltipPos.y}px`,
@@ -1326,43 +1347,137 @@ export function PatientViewTab({
 
                 <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
                   <InfoCardHeader>HUMORAL</InfoCardHeader>
-                  <div className="grid grid-cols-2 gap-1 mt-1.5">
-                    {/* Temperature Dropdown */}
-                    <div className="text-center p-1 bg-white/5 rounded">
-                      <div className="text-[8px] text-slate-400 uppercase tracking-wide mb-0.5">Temp</div>
-                      <select
-                        value={manualHumorTemp || ''}
-                        onChange={(e) => handleHumorUpdate('temperature', e.target.value)}
-                        className="w-full text-[11px] font-bold bg-transparent border-none text-center cursor-pointer text-orange-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
-                      >
-                        <option value="" className="bg-slate-800">?</option>
-                        <option value="hot" className="bg-slate-800">Hot</option>
-                        <option value="cold" className="bg-slate-800">Cold</option>
-                        <option value="neutral" className="bg-slate-800">Neutral</option>
-                      </select>
-                    </div>
-                    {/* Moisture Dropdown */}
-                    <div className="text-center p-1 bg-white/5 rounded">
-                      <div className="text-[8px] text-slate-400 uppercase tracking-wide mb-0.5">Moisture</div>
-                      <select
-                        value={manualHumorMoisture || ''}
-                        onChange={(e) => handleHumorUpdate('moisture', e.target.value)}
-                        className="w-full text-[11px] font-bold bg-transparent border-none text-center cursor-pointer text-yellow-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded"
-                      >
-                        <option value="" className="bg-slate-800">?</option>
-                        <option value="dry" className="bg-slate-800">Dry</option>
-                        <option value="moist" className="bg-slate-800">Moist</option>
-                        <option value="neutral" className="bg-slate-800">Neutral</option>
-                      </select>
-                    </div>
+
+                  {/* Humoral Quadrant - Clickable 4-square grid */}
+                  <div className="mt-2 grid grid-cols-2 gap-0.5 rounded-lg overflow-hidden border border-white/20">
+                    {/* Cold & Dry - Melancholic (top-left) */}
+                    <button
+                      onClick={() => {
+                        handleHumorUpdate('temperature', 'cold');
+                        handleHumorUpdate('moisture', 'dry');
+                      }}
+                      className={`p-2 transition-all duration-200 group relative ${
+                        manualHumorTemp === 'cold' && manualHumorMoisture === 'dry'
+                          ? 'bg-slate-600/60 ring-2 ring-slate-400'
+                          : 'bg-slate-700/30 hover:bg-slate-600/40'
+                      }`}
+                      title="Cold & Dry - Melancholic"
+                    >
+                      <div className="text-[9px] font-bold text-slate-300 leading-tight">
+                        COLD
+                      </div>
+                      <div className="text-[9px] font-bold text-slate-300 leading-tight">
+                        & DRY
+                      </div>
+                      <div className="text-[7px] text-slate-400 mt-0.5 italic">
+                        Melancholic
+                      </div>
+                      {manualHumorTemp === 'cold' && manualHumorMoisture === 'dry' && (
+                        <div className="absolute top-1 right-1 text-[10px]">✓</div>
+                      )}
+                    </button>
+
+                    {/* Cold & Moist - Phlegmatic (top-right) */}
+                    <button
+                      onClick={() => {
+                        handleHumorUpdate('temperature', 'cold');
+                        handleHumorUpdate('moisture', 'moist');
+                      }}
+                      className={`p-2 transition-all duration-200 group relative ${
+                        manualHumorTemp === 'cold' && manualHumorMoisture === 'moist'
+                          ? 'bg-cyan-600/60 ring-2 ring-cyan-400'
+                          : 'bg-cyan-700/30 hover:bg-cyan-600/40'
+                      }`}
+                      title="Cold & Moist - Phlegmatic"
+                    >
+                      <div className="text-[9px] font-bold text-cyan-200 leading-tight">
+                        COLD
+                      </div>
+                      <div className="text-[9px] font-bold text-cyan-200 leading-tight">
+                        & MOIST
+                      </div>
+                      <div className="text-[7px] text-cyan-300 mt-0.5 italic">
+                        Phlegmatic
+                      </div>
+                      {manualHumorTemp === 'cold' && manualHumorMoisture === 'moist' && (
+                        <div className="absolute top-1 right-1 text-[10px]">✓</div>
+                      )}
+                    </button>
+
+                    {/* Hot & Dry - Choleric (bottom-left) */}
+                    <button
+                      onClick={() => {
+                        handleHumorUpdate('temperature', 'hot');
+                        handleHumorUpdate('moisture', 'dry');
+                      }}
+                      className={`p-2 transition-all duration-200 group relative ${
+                        manualHumorTemp === 'hot' && manualHumorMoisture === 'dry'
+                          ? 'bg-yellow-600/60 ring-2 ring-yellow-400'
+                          : 'bg-yellow-700/30 hover:bg-yellow-600/40'
+                      }`}
+                      title="Hot & Dry - Choleric"
+                    >
+                      <div className="text-[9px] font-bold text-yellow-200 leading-tight">
+                        HOT
+                      </div>
+                      <div className="text-[9px] font-bold text-yellow-200 leading-tight">
+                        & DRY
+                      </div>
+                      <div className="text-[7px] text-yellow-300 mt-0.5 italic">
+                        Choleric
+                      </div>
+                      {manualHumorTemp === 'hot' && manualHumorMoisture === 'dry' && (
+                        <div className="absolute top-1 right-1 text-[10px]">✓</div>
+                      )}
+                    </button>
+
+                    {/* Hot & Moist - Sanguine (bottom-right) */}
+                    <button
+                      onClick={() => {
+                        handleHumorUpdate('temperature', 'hot');
+                        handleHumorUpdate('moisture', 'moist');
+                      }}
+                      className={`p-2 transition-all duration-200 group relative ${
+                        manualHumorTemp === 'hot' && manualHumorMoisture === 'moist'
+                          ? 'bg-red-600/60 ring-2 ring-red-400'
+                          : 'bg-red-700/30 hover:bg-red-600/40'
+                      }`}
+                      title="Hot & Moist - Sanguine"
+                    >
+                      <div className="text-[9px] font-bold text-red-200 leading-tight">
+                        HOT
+                      </div>
+                      <div className="text-[9px] font-bold text-red-200 leading-tight">
+                        & MOIST
+                      </div>
+                      <div className="text-[7px] text-red-300 mt-0.5 italic">
+                        Sanguine
+                      </div>
+                      {manualHumorTemp === 'hot' && manualHumorMoisture === 'moist' && (
+                        <div className="absolute top-1 right-1 text-[10px]">✓</div>
+                      )}
+                    </button>
                   </div>
+
+                  {/* Reset button */}
+                  {(manualHumorTemp || manualHumorMoisture) && (
+                    <button
+                      onClick={() => {
+                        handleHumorUpdate('temperature', '');
+                        handleHumorUpdate('moisture', '');
+                      }}
+                      className="w-full mt-1 px-2 py-0.5 text-[9px] text-slate-400 hover:text-slate-200 transition-colors"
+                    >
+                      Clear Selection
+                    </button>
+                  )}
 
                   {/* Humoral Information Display */}
                   {(() => {
                     const humoralInfo = getHumoralInfo(manualHumorTemp, manualHumorMoisture);
                     if (!humoralInfo) {
                       return (
-                        <div className="text-[8px] text-center text-slate-400 mt-1.5">
+                        <div className="text-[9px] text-center text-slate-400 mt-1.5">
                           Ask patient or set manually
                         </div>
                       );
@@ -1439,7 +1554,7 @@ export function PatientViewTab({
               </div>
             )}
 
-            <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+            <div className="flex gap-1.5 overflow-x-auto pb-2 custom-scrollbar">
               {vitalCards.map((vital, idx) => (
                 <VitalCard
                   key={`${vital.label}-${idx}`}
@@ -1480,13 +1595,13 @@ export function PatientViewTab({
           </div>
 
           {/* Symptom Timeline */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-3">
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
               <SectionTitle icon="⏳">Symptom Timeline</SectionTitle>
               <button
                 onClick={handleHighlightLatestSymptom}
                 disabled={!latestSymptomEntry}
-                className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide rounded-lg border border-emerald-400/40 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide rounded-lg border border-emerald-400/40 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Highlight Latest
               </button>
@@ -1507,12 +1622,12 @@ export function PatientViewTab({
                         timelineRefs.current[symptom.index] = el;
                       }
                     }}
-                    className={`min-w-[200px] bg-white/5 dark:bg-slate-800/60 border border-white/10 dark:border-slate-700 rounded-lg px-4 py-3 transition-all ${
+                    className={`min-w-[180px] bg-white/5 dark:bg-slate-800/60 border border-white/10 dark:border-slate-700 rounded-lg px-4 py-3 transition-all ${
                       isFocused ? 'ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-white dark:ring-offset-slate-900' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="text-sm font-semibold text-ink-900 dark:text-slate-100">{symptom.name}</span>
+                      <span className="text-sm font-semibold text-ink-300 dark:text-slate-100">{symptom.name}</span>
                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wide ${getSeverityBadgeClasses(symptom.severity)}`}>
                         {symptom.severity || 'Unknown'}
                       </span>
@@ -1765,10 +1880,11 @@ function SymptomMarker({ symptom, index, onHover, onLeave, isFocused }) {
 
   return (
     <g
-      className={`symptom-marker cursor-pointer transition-all duration-300 transform hover:scale-110 ${isFocused ? 'scale-110' : ''}`}
+      className={`symptom-marker cursor-pointer transition-opacity duration-300 ${isFocused ? 'opacity-100' : 'opacity-90'}`}
       style={{
         animation: 'pulse-glow 2s ease-in-out infinite',
-        filter: 'drop-shadow(0 0 8px currentColor)'
+        filter: 'drop-shadow(0 0 8px currentColor)',
+        transformOrigin: `${pos.x}px ${pos.y}px`
       }}
       onMouseEnter={(e) => onHover(symptom, e, index)}
       onMouseLeave={onLeave}
@@ -1802,6 +1918,11 @@ function EditableInfoCard({
   onChange,
   onSave
 }) {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+
+  // Check if content exceeds 4 lines (rough estimate: 60 chars per line = 240 chars for 4 lines)
+  const needsExpansion = value && value.length > 240;
+
   return (
     <div className="bg-white/5 dark:bg-slate-800/60 border border-white/10 dark:border-slate-700 rounded-lg p-3 group">
       <div className="flex items-center justify-between mb-2">
@@ -1841,8 +1962,20 @@ function EditableInfoCard({
           </div>
         </div>
       ) : (
-        <div className="text-xs text-ink-300 dark:text-slate-300 leading-relaxed">
-          {value || 'Unknown'}
+        <div>
+          <div
+            className={`text-xs text-ink-300 dark:text-slate-300 leading-relaxed ${!isExpanded && needsExpansion ? 'line-clamp-4' : ''}`}
+          >
+            {value || 'Unknown'}
+          </div>
+          {needsExpansion && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="mt-1 text-[10px] text-emerald-400 hover:text-emerald-300 uppercase tracking-wide font-semibold"
+            >
+              {isExpanded ? '▲ Show Less' : '▼ Show More'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1863,7 +1996,7 @@ function InfoCardHeader({ children }) {
 function SectionTitle({ icon, children }) {
   return (
     <div
-      className="text-[10px] uppercase tracking-widest text-emerald-400 font-bold mb-4 flex items-center gap-2 font-sans"
+      className="text-[12px] uppercase tracking-widest text-emerald-400 font-bold mb-4 flex items-center gap-2 font-sans"
       style={{ textShadow: '0 0 8px rgba(16, 185, 129, 0.4)' }}
     >
       {icon && <span className="text-base">{icon}</span>}
@@ -1968,16 +2101,15 @@ function VitalCard({ label, value, status, statusColor, valueSize = 'text-xl', h
   const latestTimestamp = history.length > 0 ? history[history.length - 1].timestamp : null;
 
   return (
-    <div className="bg-white/5 dark:bg-slate-800/70 border border-white/10 dark:border-slate-700 rounded-lg p-3 min-w-[160px]">
-      <div className="flex items-center justify-between gap-1.5 mb-1.5">
-        <div className="text-[10px] uppercase tracking-wide text-ink-400 dark:text-slate-400">{label}</div>
+    <div className="bg-white/5 dark:bg-slate-800/70 border border-white/10 dark:border-slate-700 rounded-lg p-1.5 min-w-[105px]">
+      <div className="flex items-center justify-between gap-1 mb-0.5">
+        <div className="text-[10px] uppercase tracking-wide text-ink-400 dark:text-slate-400 font-semibold">{label}</div>
         <TrendBadge trend={trend} />
       </div>
-      <div className={`text-lg font-bold text-white dark:text-slate-100`}>{value}</div>
-      <div className={`text-[11px] mt-0.5 ${statusColor || 'text-ink-300'} dark:text-slate-300`}>{status}</div>
+      <div className={`text-md font-semibold text-white dark:text-slate-100`}>{value}</div>
       {numericHistory.length > 1 && (
         <div className="mt-2">
-          <svg width={chartWidth} height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-8">
+          <svg width={chartWidth} height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-5">
             <polyline
               fill="none"
               stroke={`url(#${gradientId})`}
@@ -1996,7 +2128,7 @@ function VitalCard({ label, value, status, statusColor, valueSize = 'text-xl', h
         </div>
       )}
       {latestTimestamp && (
-        <div className="text-[9px] uppercase tracking-wide text-ink-400 dark:text-slate-500 mt-1.5">
+        <div className="text-[9px] uppercase tracking-wide text-ink-400 dark:text-slate-500 mt-0.5">
           {formatDiscoveredAt(latestTimestamp)}
         </div>
       )}
@@ -2039,9 +2171,8 @@ function TrendBadge({ trend }) {
   const data = config[trend] || config.stable;
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] uppercase tracking-widest rounded-full ${data.classes}`}>
+    <span className={`inline-flex items-center px-1 py-0.5 rounded-full ${data.classes}`} title={data.label}>
       {data.icon}
-      {data.label}
     </span>
   );
 }
@@ -2286,8 +2417,8 @@ Write one concise paragraph citing specific evidence.`;
                       {symptom.severity}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400 mb-1">📍 {symptom.location}</div>
-                  <div className="text-sm text-slate-300 italic">"{symptom.description}"</div>
+                  <div className="text-sm text-slate-400 mb-1">📍 {symptom.location}</div>
+                  <div className="text-[12px] text-slate-300 italic">"{symptom.description}"</div>
                 </div>
               </div>
             ))}

@@ -186,6 +186,7 @@ export function useGameHandlers({
   setPendingSimpleInteraction, // Simple interaction system
   setPendingRandomEvent, // Random event system
   setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
+  setPrimaryNpcName, // Primary NPC name (conversation partner)
   setDynamicChips, // Dynamic action chips from narrative parsing
   setPendingPrescription, // Clear prescription card on next action
   setShowPOIModal, // POI modal for map furniture clicks
@@ -312,8 +313,22 @@ export function useGameHandlers({
   }, [setWealth]);
 
   const addJournalEntry = useCallback((entry) => {
-    setJournal(prevJournal => [...prevJournal, entry]);
-  }, [setJournal]);
+    // Ensure entry is properly structured with content field
+    const structuredEntry = typeof entry === 'string'
+      ? {
+          content: entry,
+          type: 'auto',
+          timestamp: new Date().toISOString(),
+          metadata: {
+            time: gameState.time,
+            date: gameState.date,
+            location: gameState.location
+          }
+        }
+      : entry;
+
+    setJournal(prevJournal => [...prevJournal, structuredEntry]);
+  }, [setJournal, gameState.time, gameState.date, gameState.location]);
 
   const handleLongDistanceTravelCommand = useCallback(async (travelPayload, originalCommand) => {
     try {
@@ -626,27 +641,7 @@ export function useGameHandlers({
   }
 
   // PHASE 2.2: Initialize medical handlers hook
-  // NOTE: Must come AFTER addJournalEntry and other helpers are defined
-  const medicalHandlers = useMedicalHandlers({
-    addJournalEntry,
-    setConversationHistory,
-    setHistoryOutput,
-    setIsLoading,
-    toast,
-    awardXP,
-    previousPortraitEntityRef,
-    recentPortraitRef,
-    setPendingHouseCall,
-    setBackgroundMode, // Immersive background mode for house calls
-    // Legacy params
-    gameState,
-    turnNumber,
-    conversationHistory,
-    energy,
-    updateEnergy,
-    advanceTime,
-    scenarioId,
-  });
+  // NOTE: Moved to AFTER handleSubmit is defined (see below, after line ~3580)
 
   // PHASE 2.4: Initialize resource handlers hook
   // NOTE: Must come AFTER addJournalEntry, addToHistory, and generateNewItemDetails are defined
@@ -927,6 +922,17 @@ Arrival detail to weave in: ${arrival}
 
     if (encounter) {
       setPendingSimpleInteraction(encounter.interaction);
+
+      // Set story NPC portrait from interaction data
+      // PRIORITY: portraitList[0] (ID-based like tia_makeda.jpg) > npcPortrait (generic fallback)
+      const portraitPath = encounter.interaction.portraitList?.[0] || encounter.interaction.npcPortrait;
+      if (portraitPath) {
+        // Extract filename from path (remove /portraits/ prefix if present)
+        const portraitFile = portraitPath.replace(/^\/portraits\//, '');
+        console.log('[StoryNPC] Setting portrait for', encounter.npc.name, '→', portraitFile);
+        setPrimaryPortraitFile(portraitFile);
+      }
+
       const arrivalText = encounter.arrivalText || `${encounter.npc.name} steps into the scene.`;
       const introText = await narrateStoryNpcIntro(encounter.npc, arrivalText);
 
@@ -1024,6 +1030,15 @@ Arrival detail to weave in: ${arrival}
       return;
     }
 
+    // Location-based navigation (e.g., "go to plaza mayor", "walk to cathedral")
+    if (!actionOverride) {
+      const wasHandled = await navigationHandlers.handleLocationBasedNavigation(originalInput);
+      if (wasHandled) {
+        setUserInput('');
+        return;
+      }
+    }
+
     if (originalInput.startsWith('#long_travel ')) {
       try {
         const payloadString = originalInput.slice('#long_travel '.length).trim();
@@ -1072,7 +1087,7 @@ Arrival detail to weave in: ${arrival}
     }
 
     // Extract metadata options
-    const { actionResultType, llmInstructions } = options;
+    const { actionResultType, llmInstructions, displayActionOverride } = options;
 
     // Handle command shortcuts
 
@@ -1244,6 +1259,16 @@ Arrival detail to weave in: ${arrival}
 
     if (userInput.trim().toLowerCase() === '#buy') {
       setIsBuyOpen(true);
+      setUserInput('');
+      setIsLoading(false);
+      return;
+    }
+
+    // Detect "prepare" or "mix" commands to auto-open mixing modal
+    const inputLower = userInput.trim().toLowerCase();
+    if (inputLower.startsWith('prepare ') || inputLower.startsWith('mix ') ||
+        inputLower === 'prepare' || inputLower === 'mix') {
+      setShowMixingPopup(true);
       setUserInput('');
       setIsLoading(false);
       return;
@@ -1548,12 +1573,22 @@ Arrival detail to weave in: ${arrival}
           entry: `⚠️ CONSEQUENCE: ${consequenceResult.effects.join(', ')}`
         });
 
-        // Show toast notification
-        toast.error(`⚠️ Consequence triggered!`, { duration: 4000 });
+        // Show toast notification (use different emoji for positive consequences)
+        const hasPositiveEffect = consequenceResult.effects.some(e =>
+          e.includes('Won') || e.includes('+') || e.toLowerCase().includes('win')
+        );
+        const emoji = hasPositiveEffect ? '🎉' : '⚠️';
+        toast[hasPositiveEffect ? 'success' : 'error'](
+          `${emoji} ${hasPositiveEffect ? 'Good fortune!' : 'Consequence triggered!'}`,
+          { duration: 4000 }
+        );
       }
 
-      // Brief pause to let player see the consequence before continuing
-      // (Optional: could also short-circuit and not call orchestrator this turn)
+      // Short-circuit: Don't process player action this turn if consequence triggered
+      // This ensures the consequence narrative is visible before next turn
+      setUserInput('');
+      setIsLoading(false);
+      return;
     }
 
     // Use AgentOrchestrator for coordinated agent responses
@@ -1592,6 +1627,13 @@ Arrival detail to weave in: ${arrival}
         scheduledFollowUps: gameState.scheduledFollowUps || [], // NEW: Pass scheduled follow-ups
         removeScheduledFollowUp // NEW: Callback to remove follow-up after patient appears
       });
+
+      // Validation: Enforce role exclusivity (vendor OR patient, never both)
+      if (result.simpleInteraction?.type && result.requestNewPatient) {
+        console.warn('[Validation] Conflict detected: NPC has both simpleInteraction and requestNewPatient. Clearing requestNewPatient.');
+        result.requestNewPatient = false;
+        result.patientContext = null;
+      }
 
       if (!result.success) {
         setHistoryOutput(result.narrative || 'An error occurred. Please try again.');
@@ -1755,6 +1797,22 @@ Arrival detail to weave in: ${arrival}
       // Store in state for ContextPanel to use (what user sees)
       setPrimaryPortraitFile(primaryPortraitFile);
 
+      // Only set primaryNpcName if NOT an animal or permanent location NPC
+      // Animals and permanent location NPCs (like João the Kitten) should not be tracked as conversation partners
+      const isAnimalNPC = result.primaryNPC?.type === 'animal' ||
+                          result.primaryNPC?.gender === 'animal' ||
+                          result.primaryNPC?.isAnimal === true ||
+                          result.primaryNPC?.alwaysPresent === true ||
+                          result.primaryNPC?.name?.toLowerCase().includes('joão') ||
+                          result.primaryNPC?.name?.toLowerCase().includes('joao');
+
+      if (isAnimalNPC) {
+        console.log('[Primary NPC] Skipping animal/permanent location NPC:', result.primaryNPC?.name);
+        setPrimaryNpcName(null);
+      } else {
+        setPrimaryNpcName(result.primaryNPC?.name || null); // Store primary NPC name for ContextPanel
+      }
+
       // Store LLM's portrait selection for conversation history context (what LLM learns from)
       if (portraitForHistory) {
         recentPortraitRef.current = sanitizePortraitFilename(portraitForHistory);
@@ -1851,6 +1909,21 @@ Arrival detail to weave in: ${arrival}
           if (primaryEntity) {
             portraitEntity = primaryEntity;
             console.log('[Portrait] ✓ Linked portrait to primaryNPC:', result.primaryNPC.name);
+
+            // CRITICAL FIX: Cache LLM-selected portrait on entity
+            // This ensures portrait persists when NPC is no longer primary (e.g., after departure)
+            // ContextPanel's resolvePortrait() will use this cached value instead of re-running demographic matching
+            try {
+              Object.defineProperty(primaryEntity, '_portraitPath', {
+                value: `/portraits/${primaryPortraitFile}`,
+                writable: true,
+                enumerable: false,
+                configurable: true
+              });
+              console.log('[Portrait] ✓ Cached portrait on entity for future lookups:', primaryPortraitFile);
+            } catch (error) {
+              console.warn('[Portrait] Could not cache portrait on entity:', error);
+            }
           }
         }
 
@@ -1966,7 +2039,10 @@ Arrival detail to weave in: ${arrival}
       setGameLog(prev => [...prev, logEntry]);
 
       // Build conversation history
-      const newUserMessage = { role: 'user', content: narrativeText };
+      // FIX: Use originalInput (preserves case) instead of narrativeText (lowercased for commands)
+      // This ensures prescription actions display correctly in Chronicle
+      const playerVisibleAction = displayActionOverride || originalInput;
+      const newUserMessage = { role: 'user', content: playerVisibleAction };
       const newHistory = [...conversationHistory, newUserMessage];
 
       // Note: Removed "Someone approaches" system message - causes confusion when LLM diverges
@@ -2003,8 +2079,12 @@ Arrival detail to weave in: ${arrival}
 
       // ===== PHASE 1 GUARDS: State validation before card assignment =====
 
+      // CRITICAL: Check if a prescription outcome just occurred (prevents all guards from creating duplicate prompts)
+      const prescriptionJustOffered = result.prescriptionOfferOutcome?.occurred === true;
+
       // GUARD 2: Auto-create actionPrompt if missing for medical_purchase intent
-      if (result.interactionIntent === 'medical_purchase' &&
+      if (!prescriptionJustOffered &&
+          result.interactionIntent === 'medical_purchase' &&
           (!result.actionPrompt || result.actionPrompt.type === 'null') &&
           result.primaryNPC?.name) {
         console.warn('[Guard 2] Auto-creating missing actionPrompt for medical_purchase intent');
@@ -2020,7 +2100,9 @@ Arrival detail to weave in: ${arrival}
       }
 
       // GUARD 2B: Auto-create actionPrompt if narrative mentions prescribing
-      if ((!result.actionPrompt || result.actionPrompt.type === 'null') && result.narrative) {
+      // CRITICAL: Skip this guard if a prescription outcome just occurred (prevents duplicate prompts after prescribing)
+
+      if (!prescriptionJustOffered && (!result.actionPrompt || result.actionPrompt.type === 'null') && result.narrative) {
         // Get last sentence of narrative (usually the question to the player)
         const sentences = result.narrative.split(/[.!?]+/).filter(s => s.trim().length > 0);
         const lastSentence = sentences[sentences.length - 1]?.toLowerCase() || '';
@@ -2047,7 +2129,8 @@ Arrival detail to weave in: ${arrival}
       }
 
       // GUARD 2C: Auto-create actionPrompt if system message mentions prescribing
-      if ((!result.actionPrompt || result.actionPrompt.type === 'null') &&
+      // CRITICAL: Skip this guard if a prescription outcome just occurred (prevents duplicate prompts after prescribing)
+      if (!prescriptionJustOffered && (!result.actionPrompt || result.actionPrompt.type === 'null') &&
           result.systemAnnouncements && result.systemAnnouncements.length > 0) {
         const systemMessage = result.systemAnnouncements[0].toLowerCase();
 
@@ -2201,9 +2284,14 @@ Arrival detail to weave in: ${arrival}
 
       // Handle game state updates
       if (result.gameState) {
-        if (result.gameState.wealth !== undefined) {
-          setWealth(result.gameState.wealth);
+        // Wealth: ONLY use wealthChange (delta) from StateAgent
+        // StateAgent should never calculate absolute wealth to prevent desync
+        if (result.gameState.wealthChange !== undefined && result.gameState.wealthChange !== 0) {
+          // Apply delta change (e.g., from narrative-based transactions)
+          updateWealth(result.gameState.wealthChange);
+          console.log('[Wealth] Applied wealthChange delta:', result.gameState.wealthChange);
         }
+        // If wealthChange === 0 or undefined, do nothing (preserve current wealth)
         // Update status for tooltip and next turn's StateAgent prompt
         if (result.gameState.status) {
           setGameState(prev => ({ ...prev, status: result.gameState.status }));
@@ -2458,22 +2546,15 @@ Arrival detail to weave in: ${arrival}
         });
       }
       // Update player position if movement occurred (with validation)
-        // Only accept position updates with valid pixel coordinates (x, y)
-        // Ignore grid-only coordinates from StateAgent - we manage position ourselves
-        // CRITICAL: Don't update position from StateAgent during movement turns
-        // useNavigationHandlers already updated position with correct gridX/gridY
-        // StateAgent only returns {x, y} which would strip grid coordinates causing NaN
-        const isMovementTurn = narrativeText.toLowerCase().match(/\b(go|walk|move|head|travel)\s+(north|south|east|west)\b/);
-
-        if (!isMovementTurn && result.gameState.position &&
+        // Always accept position updates with valid pixel coordinates (x, y)
+        // StateAgent handles movement detection and validation via gridMovementSystem
+        if (result.gameState.position &&
             typeof result.gameState.position.x === 'number' &&
             typeof result.gameState.position.y === 'number' &&
             !isNaN(result.gameState.position.x) &&
             !isNaN(result.gameState.position.y)) {
           setPlayerPosition(result.gameState.position);
           console.log(`[Position] Player position updated to: (${result.gameState.position.x}, ${result.gameState.position.y})`);
-        } else if (isMovementTurn) {
-          console.log('[Position] Skipping StateAgent position update during movement (already set by useNavigationHandlers)');
         } else if (result.gameState.position) {
           console.log('[Position] Ignoring incomplete position data from StateAgent:', result.gameState.position);
           // Keep current position - StateAgent doesn't have enough info to update it
@@ -2890,12 +2971,18 @@ Arrival detail to weave in: ${arrival}
           result.contractOffer &&
           result.contractOffer.type &&
           result.contractOffer.type !== 'null' &&
-          result.systemAnnouncements?.some(msg => {
-            const lower = msg.toLowerCase();
-            return lower.includes('contract') || lower.includes('house call');
-          })) {
+          (result.contractOffer.isEmissary === true ||  // House call (structural check)
+           result.systemAnnouncements?.some(msg => {    // Or explicit contract keyword
+             const lower = msg.toLowerCase();
+             return lower.includes('contract') || lower.includes('house call');
+           }))) {
 
         // Treatment contract detected
+        if (result.contractOffer.isEmissary) {
+          console.log('[Contract] House call detected via isEmissary flag:', result.contractOffer);
+        } else {
+          console.log('[Contract] In-shop contract confirmed via announcement:', result.contractOffer);
+        }
         console.log('[Contract] Offer finalized and ready for player decision:', result.contractOffer.type, result.contractOffer);
 
         // Auto-populate contract price if not specified (defaults to 0)
@@ -3138,9 +3225,6 @@ Arrival detail to weave in: ${arrival}
 
       // Action Prompt Processing (give/sell/prescribe requests)
       // GUARD: Skip if simpleInteraction is already handling this turn (prevent duplicate cards)
-      console.log('[ActionPrompt DEBUG] result.actionPrompt:', result.actionPrompt);
-      console.log('[ActionPrompt DEBUG] hasSimpleInteraction:', hasSimpleInteraction);
-      console.log('[ActionPrompt DEBUG] effectiveSimpleInteraction:', effectiveSimpleInteraction);
 
       // ENHANCED GUARD: Clear actionPrompt if simpleInteraction is handling this OR if type is null
       const shouldClearActionPrompt = hasSimpleInteraction || (result.actionPrompt && result.actionPrompt.type === 'null');
@@ -3183,7 +3267,6 @@ Arrival detail to weave in: ${arrival}
 
       // Purchase Offer Processing (vendor selling TO Maria)
       // GUARD: Skip if simpleInteraction is already handling this turn (prevent duplicate cards)
-      console.log('[PurchaseOffer DEBUG] result.purchaseOffer:', result.purchaseOffer);
       if (!hasSimpleInteraction &&
           result.purchaseOffer &&
           result.purchaseOffer.type &&
@@ -3269,10 +3352,26 @@ Arrival detail to weave in: ${arrival}
         });
       }
 
-      if (!hasSimpleInteraction && turnNumber > 1) {
+      // Story NPC Encounter Check
+      // Roll dice: 30% chance to check for story NPCs even if simple interaction exists
+      // This increases story NPC appearance rate from ~5% to ~20% of encounters
+      const checkStoryNpcs = Math.random() < 0.3;
+
+      if (turnNumber > 1 && (checkStoryNpcs || !hasSimpleInteraction)) {
         const storyEncounter = selectStoryNpcEncounter(gameState);
         if (storyEncounter) {
         setPendingSimpleInteraction(storyEncounter.interaction);
+
+        // Set story NPC portrait from interaction data
+        // PRIORITY: portraitList[0] (ID-based like tia_makeda.jpg) > npcPortrait (generic fallback)
+        const portraitPath = storyEncounter.interaction.portraitList?.[0] || storyEncounter.interaction.npcPortrait;
+        if (portraitPath) {
+          // Extract filename from path (remove /portraits/ prefix if present)
+          const portraitFile = portraitPath.replace(/^\/portraits\//, '');
+          console.log('[StoryNPC] Setting portrait for', storyEncounter.npc.name, '→', portraitFile);
+          setPrimaryPortraitFile(portraitFile);
+        }
+
         const arrivalText = storyEncounter.arrivalText || `${storyEncounter.npc.name} arrives with a request.`;
         const introText = await narrateStoryNpcIntro(storyEncounter.npc, arrivalText);
         setConversationHistory(prev => [
@@ -3316,21 +3415,13 @@ Arrival detail to weave in: ${arrival}
       // Random Event Processing
       // Check for random events after narrative (adds variety and fast gameplay)
       // Only trigger if no simple interaction is active (avoid stacking interactions)
-      console.log('[RandomEvent DEBUG] Reached event check. effectiveSimpleInteraction:', effectiveSimpleInteraction);
       // FIX: Check if interaction type exists, not just if object exists
       if (!effectiveSimpleInteraction || !effectiveSimpleInteraction.type) {
-        console.log('[RandomEvent DEBUG] Calling checkForRandomEvent with gameState:', {
-          location: gameState.location,
-          turnNumber,
-          time: gameState.time,
-          wealth: gameState.wealth || currentWealth
-        });
         const eventCard = checkForRandomEvent(
           gameState,
           reputation,
           narrativeText
         );
-        console.log('[RandomEvent DEBUG] checkForRandomEvent returned:', eventCard);
 
         if (eventCard) {
           console.log('[RandomEvent] Event triggered:', eventCard.title);
@@ -3360,8 +3451,6 @@ Arrival detail to weave in: ${arrival}
             setPendingRandomEvent(null);
           }
         }
-      } else {
-        console.log('[RandomEvent DEBUG] Skipping event check - effectiveSimpleInteraction is active:', effectiveSimpleInteraction?.type);
       }
 
       // CLOSING QUESTION CLEANUP: Remove "Will you X or Y?" when card UI provides choices instead
@@ -3390,7 +3479,18 @@ Arrival detail to weave in: ${arrival}
 
       // Add journal entry
       if (result.journalEntry) {
-        setJournal(prevJournal => [...prevJournal, { content: result.journalEntry, type: 'auto' }]);
+        setJournal(prevJournal => [...prevJournal, {
+          content: result.journalEntry,
+          type: 'auto',
+          timestamp: new Date().toISOString(),
+          metadata: {
+            time: gameState.time,
+            date: gameState.date,
+            location: gameState.location,
+            weather: currentWeather || gameState.weather || 'Clear',
+            reputation: reputation
+          }
+        }]);
       }
 
       // Detect action type and apply resource changes
@@ -3487,6 +3587,7 @@ Arrival detail to weave in: ${arrival}
     playerSkills, // Used for skill checks (bookkeeping, anatomy)
     journal, // Used in orchestrateTurn
     setPrimaryPortraitFile, // Used for portrait updates
+    setPrimaryNpcName, // Used for primary NPC tracking
     setDynamicChips, // Used for narrative-driven action chips
     setCurrentEntities, // Used for entity tracking
     setPendingContract, // Used for contract offers
@@ -3511,6 +3612,30 @@ Arrival detail to weave in: ${arrival}
     triggerGameOver,
     triggerForcedStoryNpcEncounter
   ]);
+
+  // PHASE 2.2: Initialize medical handlers hook
+  // NOTE: Must come AFTER handleSubmit is defined
+  const medicalHandlers = useMedicalHandlers({
+    addJournalEntry,
+    setConversationHistory,
+    setHistoryOutput,
+    setIsLoading,
+    toast,
+    awardXP,
+    previousPortraitEntityRef,
+    recentPortraitRef,
+    setPendingHouseCall,
+    setBackgroundMode, // Immersive background mode for house calls
+    handleSubmit, // For triggering full narrative turns (contract decline reactions)
+    // Legacy params
+    gameState,
+    turnNumber,
+    conversationHistory,
+    energy,
+    updateEnergy,
+    advanceTime,
+    scenarioId,
+  });
 
   // PHASE 2.3: Initialize commerce handlers hook
   // NOTE: Must come AFTER handleSubmit is defined
@@ -3852,9 +3977,6 @@ Arrival detail to weave in: ${arrival}
         minutesDiff += 24 * 60; // Add a full day
       }
 
-      // Update game time first
-      advanceTime({ time: newTime, date: gameState.date });
-
       // Create wait message for LLM
       const hoursWaited = Math.floor(minutesDiff / 60);
       const minutesWaited = minutesDiff % 60;
@@ -3868,47 +3990,123 @@ Arrival detail to weave in: ${arrival}
         waitDescription = `${minutesWaited} ${minutesWaited === 1 ? 'minute' : 'minutes'}`;
       }
 
-      const waitMessage = `Maria waits ${waitDescription} until ${newTime} on ${gameState.date} in ${gameState.location}. Please briefly describe what happens during this time - what Maria does, any sounds or sights, her thoughts. Then present a numbered list of 3 possible next steps. End with: "**Time passes. Maria waits until ${newTime}. Time: ${newTime}, ${gameState.date}, 1680.**"`;
+      // Create narrative prompt describing Maria's wait
+      const waitAction = `I wait ${waitDescription} until ${newTime}. Briefly describe what Maria does during this time - her activities, thoughts, any sounds or sights around her in ${gameState.location}.`;
 
-      // Build system prompt
-      const systemPrompt = buildSystemPrompt(scenarioId, gameState);
+      // Use AgentOrchestrator for coordinated agent responses
+      const result = await orchestrateTurn({
+        scenarioId: gameState.scenarioId || '1680-mexico-city',
+        playerAction: waitAction,
+        conversationHistory,
+        gameState: {
+          ...gameState,
+          position: playerPosition,
+          currentMap: currentMapId,
+          activeEffects: activeEffects
+        },
+        turnNumber,
+        recentNPCs: npcTracker.getRecentNPCs(),
+        reputation: reputation,
+        wealth: currentWealth,
+        mapData: currentMapData,
+        playerPosition: playerPosition,
+        playerFacing: playerFacing,
+        currentMapId: currentMapId,
+        playerSkills: playerSkills,
+        journal: journal,
+        activePatient: activePatient,
+        recentPortrait: recentPortraitRef.current,
+        npcDepartedLastTurn: npcDepartedLastTurnRef.current,
+        conversationLock: conversationLockRef.current,
+        weather: currentWeather,
+        scheduledFollowUps: gameState.scheduledFollowUps || [],
+        removeScheduledFollowUp
+      });
 
-      // Create messages array from conversation history
-      const recentHistory = conversationHistory.slice(-10); // Last 10 turns for context
-      const messages = [
-        ...recentHistory,
-        { role: 'user', content: waitMessage }
-      ];
+      if (!result.success) {
+        throw new Error(result.narrative || 'Failed to generate time advancement narrative');
+      }
 
-      // Call LLM
-      const response = await createChatCompletion(systemPrompt, messages, { temperature: 0.7 });
-      const narrativeOutput = response.choices[0].message.content;
+      // Process the result (same pattern as handleSubmit)
+      const companions = Array.isArray(result.companions) ? result.companions : [];
+      companions.forEach(companion => {
+        if (companion?.name && !npcTracker.wasRecentlySeen(companion.name)) {
+          npcTracker.addNPC(companion.name);
+        }
+      });
+
+      // Handle portrait updates
+      if (result.primaryPortraitFile) {
+        setPrimaryPortraitFile(result.primaryPortraitFile);
+        recentPortraitRef.current = result.primaryPortraitFile;
+        if (result.primaryNPC) {
+          previousPortraitEntityRef.current = result.primaryNPC;
+        }
+      }
 
       // Add to conversation history
-      addToHistory(
-        { role: 'user', content: `[Maria waits until ${newTime}]` },
-        { role: 'assistant', content: narrativeOutput }
-      );
+      const userMessage = { role: 'user', content: `[Maria waits until ${newTime}]` };
+      const assistantMessage = { role: 'assistant', content: result.narrative };
 
-      // Update history output
-      setHistoryOutput(narrativeOutput);
+      // Only add to history if not already present (prevent duplicates)
+      const lastUserMsg = conversationHistory[conversationHistory.length - 1];
+      if (!lastUserMsg || lastUserMsg.content !== userMessage.content) {
+        addToHistory(userMessage, assistantMessage);
+      }
 
-      // Add journal entry
-      addJournalEntry(`⏰ Maria waited until ${newTime} on ${gameState.date} in ${gameState.location}.`);
+      // Update displayed narrative
+      setHistoryOutput(result.narrative);
+
+      // Process state changes from StateAgent
+      if (result.gameState) {
+        const updates = {};
+
+        // Always update time to the selected time
+        updates.time = newTime;
+        updates.date = result.gameState.date || gameState.date;
+
+        if (result.gameState.location && result.gameState.location !== gameState.location) {
+          updates.location = result.gameState.location;
+        }
+
+        // Apply the updates
+        if (Object.keys(updates).length > 0) {
+          advanceTime(updates);
+        }
+      }
+
+      // NOTE: Inventory changes are handled by the main turn processing flow
+      // (Removed duplicate processing here to prevent double updates that cause Chrome layout bugs)
+
+      // Add journal entry if provided by StateAgent
+      if (result.journalEntry) {
+        // Wrap string journalEntry in proper object structure
+        const entry = typeof result.journalEntry === 'string'
+          ? {
+              content: result.journalEntry,
+              type: 'auto',
+              metadata: {
+                time: result.newTime || gameState.time,
+                date: result.newDate || gameState.date,
+                location: result.newLocation || gameState.location
+              }
+            }
+          : result.journalEntry;
+        addJournalEntry(entry);
+      }
 
       // Advance turn number
       setTurnNumber(prev => prev + 1);
 
       // Apply resource changes (waiting costs some energy)
       if (minutesDiff >= 60) {
-        // Waiting more than an hour costs 5 energy
-        const energyCost = Math.min(Math.floor(minutesDiff / 60) * 5, 30); // Max 30 energy cost
+        const energyCost = Math.min(Math.floor(minutesDiff / 60) * 3, 20); // Max 20 energy cost
         const newEnergy = Math.max(0, gameState.energy - energyCost);
         setEnergy(newEnergy);
         console.log(`[TimeChange] Energy cost for waiting: -${energyCost}`);
       }
 
-      // Award XP for time management (+1 XP)
+      // Award XP for time management
       if (typeof awardXP === 'function') {
         awardXP(1, 'time-management');
         console.log('[XP] Awarded 1 XP for time management');
@@ -3936,13 +4134,29 @@ Arrival detail to weave in: ${arrival}
   }, [
     gameState,
     conversationHistory,
-    scenarioId,
+    turnNumber,
+    npcTracker,
+    reputation,
+    currentWealth,
+    currentMapData,
+    playerPosition,
+    playerFacing,
+    currentMapId,
+    playerSkills,
+    journal,
+    activePatient,
+    activeEffects,
+    currentWeather,
+    removeScheduledFollowUp,
+    setPrimaryPortraitFile,
     advanceTime,
     addToHistory,
     setHistoryOutput,
     addJournalEntry,
     setTurnNumber,
     setEnergy,
+    updateInventory,
+    generateNewItemDetails,
     awardXP,
     toast,
     setIsLoading

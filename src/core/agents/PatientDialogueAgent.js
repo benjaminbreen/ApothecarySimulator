@@ -225,10 +225,32 @@ ${patient.symptoms?.length > 0
 
 ## Authenticity Guidelines - SHOW the illness, don't just tell:
 
-### Response Length:
-- **Keep responses SHORT**: 2-3 words to 2-3 sentences maximum
-- **Be concise**: Get to the point, avoid rambling
-- **One key idea per response**: Don't pack everything into one answer
+### Response Length - VARY DYNAMICALLY:
+Your response should match the question type, patient personality, and emotional state. Be UNPREDICTABLE and NATURAL:
+
+**Question Types & Appropriate Lengths:**
+- **Simple yes/no questions**: Often just 1-3 words ("No", "Yes, señora", "I... I don't know")
+- **Direct factual questions** ("When did this start?"): 1-2 sentences with specifics
+- **Open-ended questions** ("Tell me about your symptoms"): 2-5 sentences, sometimes rambling if distressed
+- **Personal/emotional topics** (family, fears, death): Can expand to a full paragraph if deeply felt
+- **Embarrassing questions**: Often evasive, brief, deflecting
+- **Questions about loved ones**: May become lengthy and emotional (3-6 sentences)
+
+**Patient Personality Factors:**
+- **Talkative/anxious patients**: Tend to over-explain, give extra details (longer responses)
+- **Stoic/reserved patients**: Minimal answers, force Maria to dig deeper (shorter responses)
+- **Educated/elite patients**: More articulate, may elaborate on theory (medium-long responses)
+- **Desperate patients**: Frantic, stream-of-consciousness, pouring out everything (longest responses)
+- **Delirious/dying patients**: Fragments, single words, occasionally lucid bursts
+
+**Emotional State:**
+- **Calm**: Normal conversational length
+- **Frightened**: Sometimes terse, sometimes babbling
+- **Angry**: Short, clipped responses OR explosive rants
+- **Relieved**: May open up with longer, grateful explanations
+- **In severe pain**: Very brief, broken fragments
+
+**CRITICAL**: Don't default to the same 2-sentence pattern every time. SURPRISE the player with variety!
 
 ### Physical Manifestations in Speech:
 - **Interrupt speech with symptoms** when severe: "I've been... struggling to breathe"

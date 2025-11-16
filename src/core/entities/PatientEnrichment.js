@@ -226,15 +226,21 @@ export function enrichPatientData(patient, extractedData) {
   // Handle birth date and auto-calculate age & astrology
   let birthDate = extractedData.birthDate || patient.birthDate;
   let age = extractedData.age || patient.appearance?.age || patient.age;
+  let gender = extractedData.gender || patient.appearance?.gender || patient.gender;
   let astrology = patient.astrology; // Keep existing if not recalculating
 
   // If birth date was provided, calculate age and astrology
   if (extractedData.birthDate) {
     birthDate = extractedData.birthDate;
     astrology = calculateZodiacSign(birthDate);
-    age = calculateAge(birthDate) || age; // Fallback to extracted age if calculation fails
+    // CRITICAL FIX: Pass game year (1680) as currentDate to prevent using real-world year (2025)
+    // This prevents age corruption bug where 32-year-old becomes 377 (2025 - 1648 = 377)
+    const gameDate = 'August 22, 1680'; // Game's default date
+    age = calculateAge(birthDate, gameDate) || age; // Fallback to extracted age if calculation fails
     console.log('[PatientEnrichment] Calculated astrology from birthDate:', astrology);
   }
+
+  console.log('[PatientEnrichment] Extracted data - age:', age, 'gender:', gender);
 
   // Merge humoral characteristics
   const humors = {
@@ -247,10 +253,18 @@ export function enrichPatientData(patient, extractedData) {
     ...patient,
     name,
     age,
+    gender, // Apply extracted gender
     birthDate,
     astrology,
     humors,
     symptoms: symptomResult.symptoms,
+
+    // Update appearance object with gender
+    appearance: {
+      ...patient.appearance,
+      age, // Also update appearance.age
+      gender // Update appearance.gender
+    },
 
     // Merge text fields
     family: extractedData.family

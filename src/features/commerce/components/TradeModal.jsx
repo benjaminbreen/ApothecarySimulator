@@ -32,6 +32,7 @@ import { safeLocalStorage } from '../../../utils/safeLocalStorage';
 import InvestmentsTab from './InvestmentsTab';
 import TransactionHistoryTab from './TransactionHistoryTab';
 import { entityManager } from '../../../core/entities/EntityManager';
+import InventoryShelfDisplay from '../../inventory/components/InventoryShelfDisplay';
 
 // Merchant archetypes with personalities and languages
 const MERCHANT_TYPES = {
@@ -753,7 +754,12 @@ export default function TradeModal({
   const isDark = document.documentElement.classList.contains('dark');
 
   // Determine tabs based on mode
-  const tabs = mode === 'merchant' || mode === 'market'
+  const tabs = mode === 'inventory' || tradingNPC?.type === 'inventory'
+    ? [
+        // Inventory mode: Only show inventory tab
+        { id: 'inventory', label: 'Full Inventory', icon: '📦', unlocked: true }
+      ]
+    : mode === 'merchant' || mode === 'market'
     ? [
         // Merchant stall mode: Only show market tab
         { id: 'market', label: 'Market', icon: '🏪', unlocked: true },
@@ -955,6 +961,15 @@ export default function TradeModal({
               handleWealthChange={handleWealthChange}
               addJournalEntry={addJournalEntry}
               awardSkillXP={awardSkillXP}
+            />
+          )}
+
+          {/* Inventory Tab Content */}
+          {activeTab === 'inventory' && (
+            <InventoryShelfDisplay
+              gameState={gameState}
+              isDark={isDark}
+              initialViewMode="list"
             />
           )}
 

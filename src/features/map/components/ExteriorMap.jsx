@@ -720,11 +720,14 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
 
         {/* Render player position */}
         {playerPosition && (
-          <g className="player-layer">
+          <g
+            className="player-layer"
+            transform={`translate(${playerPosition.x}, ${playerPosition.y})`}
+          >
             {/* Pulsing outer ring */}
             <circle
-              cx={playerPosition.x}
-              cy={playerPosition.y}
+              cx={0}
+              cy={0}
               r="20"
               fill="none"
               stroke={colors.playerMarker}
@@ -747,8 +750,8 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
 
             {/* Middle ring */}
             <circle
-              cx={playerPosition.x}
-              cy={playerPosition.y}
+              cx={0}
+              cy={0}
               r="16"
               fill="none"
               stroke={colors.playerMarker}
@@ -765,8 +768,8 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
 
             {/* Player marker (solid center) */}
             <circle
-              cx={playerPosition.x}
-              cy={playerPosition.y}
+              cx={0}
+              cy={0}
               r="10"
               fill={colors.playerMarker}
               stroke={colors.playerStroke}
@@ -777,9 +780,9 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
 
             {/* Direction indicator (arrow pointing in facing direction) */}
             {/* Phase 5: Fixed to use angle in degrees instead of direction strings */}
-            <g transform={`rotate(${playerFacing}, ${playerPosition.x}, ${playerPosition.y})`}>
+            <g transform={`rotate(${playerFacing})`}>
               <path
-                d={`M ${playerPosition.x} ${playerPosition.y - 16} L ${playerPosition.x - 4} ${playerPosition.y - 10} L ${playerPosition.x} ${playerPosition.y - 12} L ${playerPosition.x + 4} ${playerPosition.y - 10} Z`}
+                d={`M 0 -16 L -4 -10 L 0 -12 L 4 -10 Z`}
                 fill={colors.playerMarker}
                 stroke={colors.playerStroke}
                 strokeWidth="1"
@@ -791,8 +794,8 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
             {/* Player label with better typography */}
             <g>
               <text
-                x={playerPosition.x}
-                y={playerPosition.y + 35}
+                x={0}
+                y={35}
                 className="player-label-shadow"
                 fontSize="16"
                 fill="#000000"
@@ -804,8 +807,8 @@ export default function ExteriorMap({ mapData, npcs = [], playerPosition = null,
                 You
               </text>
               <text
-                x={playerPosition.x}
-                y={playerPosition.y + 35}
+                x={0}
+                y={35}
                 className="player-label"
                 fontSize="16"
                 fill={colors.playerLabel}

@@ -19,7 +19,7 @@ export const PORTRAIT_LIBRARY = {
     tags: ['scholar', 'mysterious', 'alchemist']
   },
   'inquisitorfernando.jpg': {
-    name: 'Fernando Medina Castro',
+    name: 'Assistant Inquisitor Fernando de Toledo',
     gender: 'male',
     age: 'middle-aged',
     casta: 'español',
@@ -53,6 +53,15 @@ export const PORTRAIT_LIBRARY = {
     class: 'middling',
     occupation: 'apothecary',
     tags: ['apothecary', 'merchant']
+  },
+    'joao_kitten.jpg': {
+    name: 'João the Kitten',
+    gender: 'animal',
+    age: 'adult',
+    casta: 'animal',
+    class: 'animal',
+    occupation: 'animal',
+    tags: ['joao', 'kitten', 'cat']
   },
   'marta.jpg': {
     name: 'Marta',
@@ -393,6 +402,15 @@ export const PORTRAIT_LIBRARY = {
     occupation: ['ship captain', 'sailor', 'navigator'],
     tags: ['maritime', 'experienced', 'weathered']
   },
+
+  'bargecaptain.jpg': {
+    gender: 'male',
+    age: 'middle-aged',
+    casta: ['español', 'portugués'],
+    class: 'middling',
+    occupation: ['barge captain', 'sailor', 'navigator'],
+    tags: ['maritime', 'barge', 'canal', 'experienced', 'workman']
+  },
   'oldsailornight.jpg': {
     gender: 'male',
     age: 'elderly',
@@ -472,7 +490,7 @@ export const PORTRAIT_LIBRARY = {
     gender: 'male',
     age: 'adult',
     casta: ['español', 'criollo', 'mestizo'],
-    class: ['middling', 'common'],
+    class: ['middling'],
     occupation: ['blacksmith', 'ironworker', 'smith'],
     tags: ['blacksmith', 'smith', 'working']
   },
@@ -487,7 +505,7 @@ export const PORTRAIT_LIBRARY = {
   },
 
   // Generic Male Portraits - African/Mulato
-  'youngafricanman.png': {
+  'youngafricanoman.jpg': {
     gender: 'male',
     age: 'young',
     casta: ['africano'],
@@ -1444,7 +1462,7 @@ export const PORTRAIT_LIBRARY = {
     occupation: 'healer',
     tags: ['healer', 'female', 'curandera', 'medicine', 'herbalist']
   },
-  'dominicannunelderly.jpg .png': {
+  'dominicannunelderly.jpg': {
     gender: 'female',
     age: 'elderly',
     casta: ['español', 'criollo'],
@@ -1452,14 +1470,7 @@ export const PORTRAIT_LIBRARY = {
     occupation: 'nun',
     tags: ['nun', 'female', 'elderly', 'dominican', 'religious']
   },
-  'dominicannunelderly.png': {
-    gender: 'female',
-    age: 'elderly',
-    casta: ['español', 'criollo'],
-    class: 'religious',
-    occupation: 'nun',
-    tags: ['nun', 'female', 'elderly', 'dominican', 'religious']
-  },
+
   'elderlyafricanwoman.jpg': {
     gender: 'female',
     age: 'elderly',
@@ -1797,14 +1808,7 @@ export const PORTRAIT_LIBRARY = {
     occupation: 'any',
     tags: ['female', 'widow', 'mourning', 'grief']
   },
-  'widow.png': {
-    gender: 'female',
-    age: 'adult',
-    casta: ['español', 'criollo', 'mestizo'],
-    class: 'common',
-    occupation: 'any',
-    tags: ['female', 'widow', 'mourning', 'grief']
-  },
+
   'widowpeninsulare30s.jpg': {
     gender: 'female',
     age: 'adult',
@@ -1838,14 +1842,7 @@ export const PORTRAIT_LIBRARY = {
     occupation: 'unknown',
     tags: ['female', 'young', 'criollo']
   },
-  'youngcriollawoman.png': {
-    gender: 'female',
-    age: 'young',
-    casta: 'criollo',
-    class: 'common',
-    occupation: 'unknown',
-    tags: ['female', 'young', 'criollo']
-  },
+ 
   'youngfootman.jpg': {
     gender: 'male',
     age: 'young',
@@ -2067,8 +2064,8 @@ export const PORTRAIT_LIBRARY = {
     age: 'middle-aged',
     casta: 'mestizo',
     class: 'common',
-    occupation: ['vendor', 'tool seller', 'merchant', 'shopkeeper'],
-    tags: ['vendor', 'seller', 'tools', 'merchant', 'market', 'mestizo', 'middle-aged', 'working', 'trade', 'hardware']
+    occupation: ['vendor', 'tool vendor', 'merchant', 'shopkeeper'],
+    tags: ['vendor', 'seller', 'tools', 'merchant', 'market', 'mestizo', 'middle-aged', 'tool vendor', 'trade', 'hardware']
   },
   'middleagedmalefilipinomerchant.jpg': {
     gender: 'male',

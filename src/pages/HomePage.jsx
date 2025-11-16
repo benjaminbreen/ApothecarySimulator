@@ -176,12 +176,12 @@ Maria Coelho's Inquisition file survives in the Portuguese national archives. On
     return scenarios.map(scenario => (
       <div key={scenario.id}>
         {/* Two Column Layout */}
-        <div className="grid md:grid-cols-2 gap-8 mb-8">
+        <div className="grid md:grid-cols-2 gap-8 mb-4">
 
           {/* Left Column: Portrait + Character Info */}
           <div>
             <div className="w-56 h-56 rounded-lg overflow-hidden border-2 border-ink-300 dark:border-ink-600
-                            shadow-lg mb-6 mx-auto md:mx-0">
+                            shadow-lg mb-4 mx-auto md:mx-0">
               <img
                 src={portraitMap[scenario.character.portraits.normal] || mariaNormal}
                 alt={scenario.character.name}
@@ -201,15 +201,14 @@ Maria Coelho's Inquisition file survives in the Portuguese national archives. On
               {/* Based on GameIntro text */}
               <div className="space-y-3 text-lg text-ink-700 dark:text-parchment-200 leading-relaxed">
                 <p>
-                  Step into the shoes of <strong>Maria de Lima</strong>, an apothecary living in 17th-century
-                  Mexico City who faces a moment of crisis due to her mounting debts. In this AI-enabled educational
+                  Step into the shoes of <strong>Maria de Lima</strong>, an apothecary in 1680s
+                  Mexico City who faces crisis due to her mounting debts. In this AI-enabled educational
                   historical simulation, you'll face the challenges of running an apothecary shop while navigating
-                  the complex social world of colonial Mexico.
+                  the complex social world of colonial Latin America.
                 </p>
                 <p>
                   As a converso in colonial Mexico, Maria is caught between economic pressures and her own ethics.
-                  Your remedies blend Indigenous, African, and European traditions—knowledge that could save lives
-                  or condemn you. Balance survival with service while avoiding the scrutiny of the Inquisition.
+                  Balance survival with service while avoiding the scrutiny of the Inquisition.
                 </p>
               </div>
 
@@ -236,8 +235,8 @@ Maria Coelho's Inquisition file survives in the Portuguese national archives. On
               <div className="flex items-start gap-3">
                 <span className="text-amber-700 dark:text-amber-400 text-xl flex-shrink-0">💬</span>
                 <div>
-                  <strong className="text-ink-900 dark:text-parchment-100">Chat Naturally:</strong> Type
-                  what you'd say or do. The AI responds to context and remembers your choices. Think of it
+                  <strong className="text-ink-900 dark:text-parchment-100">Act Naturally:</strong> Type
+                  what you'd say or do in character. The AI responds to context and remembers your choices. Think of it
                   as an interactive book.
                 </div>
               </div>
@@ -247,7 +246,7 @@ Maria Coelho's Inquisition file survives in the Portuguese national archives. On
                 <div>
                   <strong className="text-ink-900 dark:text-parchment-100">Mix Medicines:</strong> Combine
                   historical ingredients using period methods—distillation, decoction, confection, calcination.
-                  Study humoral properties (hot, cold, wet, dry) to create effective treatments.
+            
                 </div>
               </div>
 
@@ -255,8 +254,7 @@ Maria Coelho's Inquisition file survives in the Portuguese national archives. On
                 <span className="text-amber-700 dark:text-amber-400 text-xl flex-shrink-0">🩺</span>
                 <div>
                   <strong className="text-ink-900 dark:text-parchment-100">Diagnose Patients:</strong> Examine
-                  symptoms through the lens of humoral medicine. Click on patients to view details and prescribe
-                  treatments.
+                  symptoms and offer cures with the methods of early modern humoral medicine. 
                 </div>
               </div>
 

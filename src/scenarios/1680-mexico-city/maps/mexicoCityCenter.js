@@ -23,8 +23,8 @@ export default {
   streets: [
     // ===== MAJOR NORTH-SOUTH STREETS (continuous, 0 to 1350) =====
     {
-      id: 'calle-san-francisco',
-      name: 'Calle de San Francisco',
+      id: 'calle-san-jose-real',
+      name: 'Calle de San José el Real',
       points: [[150, 0], [150, 1350]],
       width: 20,
       type: 'main',
@@ -32,7 +32,8 @@ export default {
       labelPosition: [150, 1100],
       labelOffset: [-65, 0],
       labelRotation: -90,
-      priority: 4
+      priority: 4,
+      description: 'North-south artery west of Plaza Mayor referenced in Trasmonte’s 1628 plan'
     },
     {
       id: 'calle-santo-domingo',
@@ -47,8 +48,8 @@ export default {
       priority: 4
     },
     {
-      id: 'calle-empedradillo',
-      name: 'Calle del Empedradillo',
+      id: 'calle-santa-teresa',
+      name: 'Calle de Santa Teresa la Antigua',
       points: [[550, 0], [550, 1350]],
       width: 18,
       type: 'main',
@@ -56,11 +57,12 @@ export default {
       labelPosition: [550, 1100],
       labelOffset: [55, 0],
       labelRotation: -90,
-      priority: 5
+      priority: 5,
+      description: 'North-south street serving the convent complex west of the cathedral'
     },
     {
-      id: 'calle-oeste-plaza',
-      name: 'Calle de Plateros',
+      id: 'calle-la-palma',
+      name: 'Calle de la Palma',
       points: [[720, 0], [720, 1350]],
       width: 20,
       type: 'main',
@@ -68,11 +70,12 @@ export default {
       labelPosition: [720, 400],
       labelOffset: [-60, 0],
       labelRotation: -90,
-      priority: 3
+      priority: 3,
+      description: 'Processional route along the west edge of Plaza Mayor'
     },
     {
-      id: 'calle-este-plaza',
-      name: 'Calle del Reloj',
+      id: 'calle-jesus-maria',
+      name: 'Calle de Jesús María',
       points: [[1080, 0], [1080, 1350]],
       width: 18,
       type: 'main',
@@ -80,7 +83,8 @@ export default {
       labelPosition: [1080, 400],
       labelOffset: [55, 0],
       labelRotation: -90,
-      priority: 3
+      priority: 3,
+      description: 'Major north-south street linking Plaza Mayor to the eastern barrios'
     },
     {
       id: 'calle-palacio',
@@ -142,6 +146,18 @@ export default {
       priority: 4
     },
     {
+      id: 'calle-empedradillo',
+      name: 'Calle del Empedradillo',
+      points: [[780, 590], [1040, 590]],
+      width: 16,
+      type: 'main',
+      paved: true,
+      labelPosition: [910, 570],
+      labelOffset: [0, -30],
+      priority: 3,
+      description: 'Stone-paved walkway between the cathedral and Plaza Mayor'
+    },
+    {
       id: 'calle-sur-plaza',
       name: 'Calle de la Diputación',
       points: [[0, 830], [1800, 830]],
@@ -151,6 +167,18 @@ export default {
       labelPosition: [200, 830],
       labelOffset: [0, 45],
       priority: 4
+    },
+    {
+      id: 'calle-san-francisco',
+      name: 'Calle de San Francisco',
+      points: [[600, 770], [1200, 770]],
+      width: 18,
+      type: 'main',
+      paved: true,
+      labelPosition: [900, 750],
+      labelOffset: [0, -30],
+      priority: 3,
+      description: 'South flank of Plaza Mayor leading toward the Franciscan convent'
     },
     {
       id: 'calle-arzobispos',
@@ -188,15 +216,15 @@ export default {
   ],
 
   // BUILDINGS - All placed within street-defined blocks
-  // Streets at x: 150, 350, 550, 720, 1080, 1280, 1480
-  // Streets at y: 100, 300, 490, 830, 1020, 1200, 1250
+  // Key north-south alignments at x ≈ 150, 350, 550, 720, 1080, 1280, 1480
+  // East-west streets now trace the tapered polylines defined above to mirror Trasmonte’s 1628 plan
   buildings: [
-    // ===== PLAZA MAYOR (Central, narrower to match historical map) =====
+    // ===== PLAZA MAYOR (Bounded by Empedradillo y=590 north, before San Francisco y=770 south) =====
     {
       id: 'plaza-mayor',
       name: 'Plaza Mayor',
       fullName: 'Plaza Mayor de México',
-      polygon: [[820, 610], [980, 610], [980, 730], [820, 730]],
+      polygon: [[840, 610], [960, 610], [960, 730], [840, 730]],
       type: 'plaza',
       hasInterior: null,
       labelPosition: [900, 670],
@@ -206,83 +234,70 @@ export default {
       description: 'Central plaza, heart of colonial power and commerce'
     },
 
-    // ===== CATEDRAL (West of Plaza, smaller and less tall) =====
+    // ===== CATEDRAL (North of Plaza - fills block above plaza) =====
     {
       id: 'cathedral',
       name: 'Catedral Metropolitana',
       fullName: 'Catedral Metropolitana de la Asunción de María',
-      polygon: [[690, 610], [800, 610], [800, 730], [690, 730]],
+      polygon: [[830, 470], [950, 470], [950, 570], [830, 570]],
       type: 'church',
       subtype: 'cathedral',
       hasInterior: 'cathedral-interior',
-      entrancePoint: { x: 745, y: 740 },
-      labelPosition: [745, 670],
+      entrancePoint: { x: 890, y: 575 },
+      labelPosition: [890, 520],
       priority: 2,
       alwaysShowLabel: true,
       yearBuilt: 1573,
-      description: 'Metropolitan Cathedral (under construction in 1680)'
+      interiorDedicated: 1667,
+      constructionComplete: 1813,
+      partiallyComplete: true,
+      description: 'Metropolitan Cathedral (interior complete 1667, exterior still under construction in 1680)'
     },
 
-    // ===== PALACIO VIRREINAL (East of Plaza, smaller and less tall) =====
+    // ===== PALACIO VIRREINAL (East of Plaza, small and mapped to part of block) =====
     {
       id: 'palacio-virreinal',
       name: 'Palacio Virreinal',
       fullName: 'Palacio de los Virreyes de Nueva España',
-      polygon: [[1000, 610], [1110, 610], [1110, 730], [1000, 730]],
+      polygon: [[973, 615], [1030, 615], [1030, 703], [973, 703]],
       type: 'government',
       subtype: 'viceregal-palace',
       hasInterior: 'palacio-interior',
-      entrancePoint: { x: 1055, y: 740 },
-      labelPosition: [1055, 670],
+      entrancePoint: { x: 1001, y: 708 },
+      labelPosition: [1001, 659],
       priority: 2,
       alwaysShowLabel: true,
       yearBuilt: 1562,
       description: 'Seat of the Viceroy, governs all New Spain'
     },
 
-    // ===== EL PARIÁN (Inside Plaza, label hidden to show Plaza Mayor label) =====
-    {
-      id: 'el-parian',
-      name: 'El Parián',
-      fullName: 'El Parián - Mercado Central',
-      polygon: [[875, 650], [925, 650], [925, 690], [875, 690]],
-      type: 'market',
-      subtype: 'covered-market',
-      hasInterior: 'parian-interior',
-      labelPosition: [900, 670],
-      priority: 10,
-      alwaysShowLabel: false,
-      yearBuilt: 1673,
-      description: 'Central covered market'
-    },
-
-    // ===== AYUNTAMIENTO (South of Plaza, adjusted to new plaza size) =====
+    // ===== AYUNTAMIENTO (South of Plaza, below San Francisco street y=770, centered) =====
     {
       id: 'ayuntamiento',
       name: 'Ayuntamiento',
       fullName: 'Palacio del Ayuntamiento',
-      polygon: [[820, 750], [980, 750], [980, 840], [820, 840]],
+      polygon: [[850, 775], [990, 775], [990, 820], [850, 820]],
       type: 'government',
       subtype: 'municipal',
       hasInterior: null,
-      labelPosition: [900, 795],
+      labelPosition: [920, 797],
       priority: 3,
       alwaysShowLabel: true,
       yearBuilt: 1532,
       description: 'City council'
     },
 
-    // ===== EL CONSULADO DE MERCADERES (East of Plaza, financial center) =====
+    // ===== EL CONSULADO DE MERCADERES (East of Palacio, smaller and properly on block) =====
     {
       id: 'consulado-mercaderes',
       name: 'El Consulado',
       fullName: 'Consulado de Mercaderes de la Ciudad de México',
-      polygon: [[1120, 610], [1270, 610], [1270, 730], [1120, 730]],
+      polygon: [[1060, 615], [1120, 615], [1120, 703], [1060, 703]],
       type: 'commercial',
       subtype: 'guild-hall',
       hasInterior: 'consulado-interior',
-      entrancePoint: { x: 1195, y: 740 },
-      labelPosition: [1195, 670],
+      entrancePoint: { x: 1090, y: 708 },
+      labelPosition: [1090, 659],
       priority: 3,
       alwaysShowLabel: true,
       yearBuilt: 1594,
@@ -329,8 +344,9 @@ export default {
       labelPosition: [450, 395],
       priority: 3,
       alwaysShowLabel: true,
-      yearEstablished: 1571,
-      description: 'Inquisition tribunal',
+      yearBuilt: 1571,
+      laterBaroqueBuilding: 1732,
+      description: 'Inquisition tribunal (current baroque building is from 1732, but offices established here 1571)',
       ominous: true
     },
 
@@ -375,7 +391,10 @@ export default {
       priority: 4,
       alwaysShowLabel: true,
       yearBuilt: 1594,
-      description: 'Mercedarian monastery'
+      churchCompleted: 1654,
+      cloisterUnderConstruction: true,
+      cloisterConstructionPeriod: '1676-1703',
+      description: 'Mercedarian monastery (church complete 1654, cloister under construction in 1680)'
     },
     {
       id: 'la-merced-market',
@@ -409,19 +428,21 @@ export default {
     },
 
     // ===== HOSPITALS =====
+    // Smaller building, pushed down and to the right
     {
       id: 'hospital-jesus',
       name: 'Hospital de Jesús',
       fullName: 'Hospital de Jesús Nazareno',
-      polygon: [[1300, 580], [1460, 580], [1460, 680], [1300, 680]],
+      polygon: [[960, 900], [1040, 900], [1040, 970], [960, 970]],
       type: 'hospital',
       hasInterior: 'hospital-interior',
-      labelPosition: [1380, 630],
+      labelPosition: [1000, 935],
+      entrancePoint: { x: 1000, y: 975 },
       priority: 4,
       alwaysShowLabel: false,
       yearBuilt: 1524,
       founder: 'Hernán Cortés',
-      description: 'Oldest hospital in Americas'
+      description: 'Oldest hospital in Americas (3 blocks south of Plaza Mayor)'
     },
     {
       id: 'hospital-naturales',
@@ -450,29 +471,14 @@ export default {
       description: 'Church and hospital'
     },
 
-    // ===== CASA DE MONEDA (Block: 1100-1270 x 110-290) =====
-    {
-      id: 'casa-moneda',
-      name: 'Casa de Moneda',
-      fullName: 'Real Casa de Moneda de México',
-      polygon: [[1110, 130], [1260, 130], [1260, 210], [1110, 210]],
-      type: 'government',
-      subtype: 'mint',
-      hasInterior: null,
-      labelPosition: [1185, 170],
-      priority: 4,
-      alwaysShowLabel: false,
-      yearBuilt: 1535,
-      description: 'Royal mint'
-    },
-
-    // ===== PORTALES (Thin arcades around Plaza) =====
+    // ===== PORTALES (Arcades around Plaza, aligned to updated plaza bounds) =====
+    // NOTE: Casa de Moneda removed - in 1680 it was housed within the Viceregal Palace, not standalone
     {
       id: 'portal-mercaderes',
       name: 'Portal de Mercaderes',
-      polygon: [[814, 610], [818, 610], [818, 730], [814, 730]],
+      polygon: [[828, 610], [840, 610], [840, 730], [828, 730]],
       type: 'arcade',
-      labelPosition: [816, 670],
+      labelPosition: [834, 670],
       labelOffset: [-60, 0],
       labelRotation: -90,
       priority: 6,
@@ -482,20 +488,20 @@ export default {
     {
       id: 'portal-flores',
       name: 'Portal de las Flores',
-      polygon: [[820, 736], [980, 736], [980, 742], [820, 742]],
+      polygon: [[840, 732], [960, 732], [960, 738], [840, 738]],
       type: 'arcade',
-      labelPosition: [900, 739],
+      labelPosition: [900, 735],
       labelOffset: [0, 25],
       priority: 6,
       alwaysShowLabel: false,
-      description: 'Southern arcade (corrected position)'
+      description: 'Southern arcade'
     },
     {
       id: 'portal-palacio',
       name: 'Portal del Palacio',
-      polygon: [[986, 610], [992, 610], [992, 730], [986, 730]],
+      polygon: [[960, 610], [972, 610], [972, 730], [960, 730]],
       type: 'arcade',
-      labelPosition: [989, 670],
+      labelPosition: [966, 670],
       labelOffset: [60, 0],
       labelRotation: -90,
       priority: 6,

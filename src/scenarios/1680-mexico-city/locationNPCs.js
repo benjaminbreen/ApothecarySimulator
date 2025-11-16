@@ -302,9 +302,10 @@ export const LOCATION_NPCS = {
   'botica-interior': {
     permanent: [
       {
-        name: 'João (the cat)',
-        demographics: { age: 'young', gender: 'male', casta: 'n/a', class: 'n/a' },
-        occupation: 'Shop Cat',
+        name: 'João the Kitten',
+        demographics: { age: 'animal', gender: 'animal', casta: 'animal', class: 'animal' },
+        occupation: 'kitten',
+        type: 'animal',
         clothing: 'orange tabby fur',
         activity: 'sleeping on sunny windowsill',
         alwaysPresent: true,

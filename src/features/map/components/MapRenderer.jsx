@@ -308,11 +308,11 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
     }
   }, [transitionState, pendingMapChange, currentMapData, mapType, playerPosition, getInitialViewBox]);
 
-  // Camera following for interior maps (HUD mode)
-  // Update viewBox to follow player when they move in interior spaces
+  // Camera following for interior AND exterior maps (FIX BUG #4)
+  // Update viewBox to follow player when they move
   useEffect(() => {
-    // Only follow in interior maps, and only when not showing modal or transitioning
-    if (mapType !== 'interior' || !playerPosition || !currentMapData?.bounds || showModal || transitionState !== 'idle') {
+    // Follow player in both interior and exterior maps (not just interior)
+    if (!playerPosition || !currentMapData?.bounds || showModal || transitionState !== 'idle') {
       return;
     }
 
@@ -321,22 +321,33 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
       const width = prev.width;
       const height = prev.height;
 
-      // Calculate new viewBox centered on player
-      const newX = Math.max(0, Math.min(
+      // Calculate target viewBox centered on player
+      const targetX = Math.max(0, Math.min(
         playerPosition.x - (width / 2),
         currentMapData.bounds.width - width
       ));
-      const newY = Math.max(0, Math.min(
+      const targetY = Math.max(0, Math.min(
         playerPosition.y - (height / 2),
         currentMapData.bounds.height - height
       ));
 
       // Only update if position changed significantly (avoid micro-updates)
-      const deltaX = Math.abs(newX - prev.x);
-      const deltaY = Math.abs(newY - prev.y);
+      const deltaX = Math.abs(targetX - prev.x);
+      const deltaY = Math.abs(targetY - prev.y);
       if (deltaX < 1 && deltaY < 1) {
         return prev; // No significant change
       }
+
+      // FIX BUG #4: Smooth interpolation for exterior maps (less jarring camera movement)
+      const isExterior = mapType === 'exterior' || mapType === 'world';
+      const smoothFactor = isExterior ? 1.0 : 1.0; // 15% interpolation for exterior, instant for interior
+
+      const newX = isExterior
+        ? prev.x + (targetX - prev.x) * smoothFactor
+        : targetX;
+      const newY = isExterior
+        ? prev.y + (targetY - prev.y) * smoothFactor
+        : targetY;
 
       console.log('[MapRenderer] Camera following player:', playerPosition, '→ viewBox:', { x: newX, y: newY, width, height });
       return {
@@ -909,10 +920,6 @@ export default function MapRenderer({ scenario, currentLocation, currentMapId, n
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onClick={handleMapClick}
-          title={mapType === 'world'
-            ? 'Drag to pan, scroll to zoom'
-            : 'Drag to pan, scroll to zoom, Ctrl+Click to move (animated)'
-          }
         >
           {/* Zoom controls - Compact and glassy */}
           <div className="absolute bottom-2 right-2 z-10 flex flex-col gap-1">

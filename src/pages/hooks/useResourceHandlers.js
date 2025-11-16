@@ -17,16 +17,16 @@ import resourceManager from '../../systems/ResourceManager';
  * @param {Function} params.generateNewItemDetails - Item details generator
  * @param {Function} params.toast - Toast notification function
  * @param {Function} params.awardXP - Award XP function
- * @param {Object} params.gameState - DEPRECATED: Use useGameState() instead
+ * @param {Object} params.gameState - Current game state (passed from parent)
  * @param {number} params.turnNumber - Current turn number
- * @param {number} params.energy - DEPRECATED: Use usePlayer() instead
- * @param {number} params.health - DEPRECATED: Use usePlayer() instead
- * @param {number} params.currentWealth - DEPRECATED: Use useGameState() instead
- * @param {number} params.consecutiveLowEnergyTurns - DEPRECATED: Use usePlayer() instead
- * @param {Function} params.setEnergy - DEPRECATED: Use usePlayer() instead
- * @param {Function} params.setHealth - DEPRECATED: Use usePlayer() instead
- * @param {Function} params.setConsecutiveLowEnergyTurns - DEPRECATED: Use usePlayer() instead
- * @param {Function} params.setActiveEffects - DEPRECATED: Use usePlayer() instead
+ * @param {number} params.energy - Current energy value (passed from parent)
+ * @param {number} params.health - Current health value (passed from parent)
+ * @param {number} params.currentWealth - Current wealth value (passed from parent)
+ * @param {number} params.consecutiveLowEnergyTurns - Low energy counter (passed from parent)
+ * @param {Function} params.setEnergy - Energy setter (passed from parent)
+ * @param {Function} params.setHealth - Health setter (passed from parent)
+ * @param {Function} params.setConsecutiveLowEnergyTurns - Low energy counter setter (passed from parent)
+ * @param {Function} params.setActiveEffects - Active effects setter (passed from parent)
  *
  * @returns {Object} Resource handlers
  */

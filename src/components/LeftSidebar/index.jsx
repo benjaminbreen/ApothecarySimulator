@@ -54,6 +54,8 @@ export function LeftSidebar({
         status={status}
         health={health}
         energy={energy}
+        currentXP={playerSkills?.xp || 0}
+        nextLevelXP={playerSkills?.xpToNextLevel || 100}
         characterName={characterName}
         characterTitle={characterTitle}
         characterLevel={characterLevel}

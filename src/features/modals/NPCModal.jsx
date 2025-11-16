@@ -18,6 +18,8 @@ import { getCastaInfo } from '../../core/config/castaInfo.config';
 import { getBiography } from '../../core/entities/procedural/biographyGenerator';
 import { getEventIcon, getEventColor } from '../../core/entities/procedural/timelineGenerator';
 import { getBackdropFilter } from '../../utils/browserDetection';
+import { getPortraitDebugInfo } from '../../core/services/portraitResolver';
+import { fixEncodingInObject } from '../../utils/textUtils';
 import {
   FaUser,
   FaTheaterMasks,
@@ -39,13 +41,16 @@ import {
   FaFrown,
   FaHandshake,
   FaUserFriends,
-  FaHistory
+  FaHistory,
+  FaFilePdf
 } from 'react-icons/fa';
+import PDFPopup from '../../shared/components/PDFPopup';
 
 export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = null, conversationHistory = [] }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [isClosing, setIsClosing] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isPdfOpen, setIsPdfOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     appearance: true,
     clothing: true,
@@ -161,12 +166,19 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
       if (!biography) {
         return { error: true, message: 'Unable to generate biography - invalid NPC data' };
       }
-      return biography;
+      // Fix any UTF-8 encoding issues (e.g., � characters from corrupted accents)
+      return fixEncodingInObject(biography);
     } catch (error) {
       console.error('[NPCModal] Biography generation error:', error);
       return { error: true, message: error.message || 'Failed to generate biography' };
     }
   }, [adaptedNpc]);
+
+  // Get portrait debug info for this NPC (must be before early return)
+  const portraitDebugInfo = useMemo(() => {
+    if (!adaptedNpc?.name) return null;
+    return getPortraitDebugInfo(adaptedNpc.name);
+  }, [adaptedNpc?.name]);
 
   if (!isOpen || !adaptedNpc) return null;
 
@@ -395,9 +407,26 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
                 <div className="flex-1 space-y-5">
                   {/* Name and Title */}
                   <div>
-                    <h1 className="text-5xl font-bold mb-3 leading-tight font-serif text-ink-900 dark:text-parchment-100 transition-colors duration-300">
-                      {adaptedNpc.name}
-                    </h1>
+                    <div className="flex items-center gap-3 mb-3">
+                      <h1 className="text-5xl font-bold leading-tight font-serif text-ink-900 dark:text-parchment-100 transition-colors duration-300">
+                        {adaptedNpc.name}
+                      </h1>
+                      {adaptedNpc.pdf && (
+                        <button
+                          onClick={() => setIsPdfOpen(true)}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 hover:scale-105"
+                          style={{
+                            background: isDark ? 'rgba(220, 38, 38, 0.2)' : 'rgba(220, 38, 38, 0.1)',
+                            color: isDark ? '#fca5a5' : '#991b1b',
+                            border: isDark ? '1px solid rgba(220, 38, 38, 0.3)' : '1px solid rgba(220, 38, 38, 0.2)'
+                          }}
+                          title="View historical source document"
+                        >
+                          <FaFilePdf className="text-lg" />
+                          <span>Source</span>
+                        </button>
+                      )}
+                    </div>
                     <p className="text-xl font-serif text-ink-700 dark:text-slate-300 mb-4 transition-colors duration-300">
                       {social?.occupation || adaptedNpc.occupation || 'Resident of Mexico City'}
                     </p>
@@ -1899,7 +1928,96 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
             }}
             onClick={(e) => e.stopPropagation()}
           />
+
+          {/* Portrait Debug Info Overlay */}
+          {portraitDebugInfo && (
+            <div
+              className="absolute bottom-10 right-5 text-white/80 text-xspointer-events-none select-none"
+              style={{
+                fontFamily: 'Monaco, "Courier New", monospace',
+                fontSize: '10px',
+                lineHeight: '1.4',
+                maxWidth: '300px',
+                textShadow: '0 1px 3px rgba(0, 0, 0, 0.8)'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* AI Disclaimer */}
+              <div className="mb-3 font-bold text-white/40 text-[11px] italic" style={{ maxWidth: '280px' }}>
+                This portrait was generated using Google Gemini image generation based on a human-written prompt intended to evoke the specific historical atmosphere and setting of Mexico City in 1680, but may include inaccuracies and should be viewed critically and skeptically, as should all AI-generated images.
+              </div>
+
+              <div className="mb-2 text-white/60">
+                [Portrait Resolver] for "{portraitDebugInfo.entityName}"
+              </div>
+
+              {/* Demographics */}
+              <div className="mb-2 text-white/50">
+                Demographics: {[
+                  portraitDebugInfo.demographics.gender,
+                  portraitDebugInfo.demographics.age,
+                  portraitDebugInfo.demographics.casta,
+                  portraitDebugInfo.demographics.class,
+                  portraitDebugInfo.demographics.occupation
+                ].filter(Boolean).join(', ')}
+              </div>
+
+              {/* Top 3 Matches */}
+              <div className="mb-2">
+                <div className="text-white/60 mb-1">Top 3 matches:</div>
+                {portraitDebugInfo.top3Matches.map((match, idx) => {
+                  const breakdown = match.scoreBreakdown || {};
+                  return (
+                    <div key={idx} className="ml-2 mb-2">
+                      <div>
+                        {idx + 1}. {match.filename}
+                        <span className="text-white/50">
+                          {' '}(total: {match.score}, specificity: {match.specificity})
+                        </span>
+                        {match.isSelected && <span className="text-green-400"> ← SELECTED</span>}
+                        {match.recentUse >= 0 && (
+                          <span className="text-yellow-400"> [recently used #{match.recentUse + 1}]</span>
+                        )}
+                      </div>
+                      {/* Score Breakdown */}
+                      <div className="ml-4 text-white/40 text-[9px]">
+                        {breakdown.gender !== undefined && `Gender: ${breakdown.gender > 0 ? '+' : ''}${breakdown.gender} `}
+                        {breakdown.age !== undefined && `Age: ${breakdown.age > 0 ? '+' : ''}${breakdown.age} `}
+                        {breakdown.casta !== undefined && `Casta: ${breakdown.casta > 0 ? '+' : ''}${breakdown.casta} `}
+                        {breakdown.class !== undefined && `Class: ${breakdown.class > 0 ? '+' : ''}${breakdown.class} `}
+                        {breakdown.occupation !== undefined && breakdown.occupation > 0 && `Occupation: +${breakdown.occupation} `}
+                        {breakdown.directTags && `DirectTags: +${breakdown.directTags.score} (${breakdown.directTags.matches.join(', ')}) `}
+                        {breakdown.tags && (
+                          <>
+                            {breakdown.tags.fuzzyBonus > 0 && `Tags: +${breakdown.tags.fuzzyBonus} `}
+                            {breakdown.tags.multiTagBonus > 0 && `MultiTag: +${breakdown.tags.multiTagBonus} `}
+                          </>
+                        )}
+                        {breakdown.antiRepetition !== undefined && `AntiRepeat: ${breakdown.antiRepetition} `}
+                        {breakdown.specificity !== undefined && breakdown.specificity > 0 && `Specificity: +${breakdown.specificity}`}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Selection Reasoning */}
+              <div className="text-white/60">
+                [Portrait Resolver] {portraitDebugInfo.selectionReason}
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* PDF Popup */}
+      {adaptedNpc?.pdf && (
+        <PDFPopup
+          isOpen={isPdfOpen}
+          onClose={() => setIsPdfOpen(false)}
+          pdfPath={`/pdfs/${adaptedNpc.pdf}`}
+          citation={adaptedNpc.citation || ''}
+        />
       )}
     </div>
   );

@@ -264,31 +264,118 @@ const HistoricalContextModal = ({
 };
 
 /**
+ * Helper component to render source lists with Google Scholar buttons
+ */
+const SourceListRenderer = ({ content, colors, isDark }) => {
+  // Parse content to separate sections (Primary Sources, Secondary Sources)
+  const lines = content.split('\n').filter(line => line.trim());
+
+  const renderSourceLine = (line, index) => {
+    // Match bullet points or numbered lists
+    const sourceMatch = line.match(/^[\-\*\d]+\.?\s+(.+)$/);
+    if (!sourceMatch) return null;
+
+    const sourceText = sourceMatch[1].trim();
+
+    // Extract the main citation text (remove markdown formatting and parenthetical glosses for search)
+    const cleanText = sourceText
+      .replace(/\*\*/g, '') // Remove bold
+      .replace(/\*/g, '')   // Remove italic
+      .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Remove markdown links
+      .replace(/\s*\([^)]*\)/g, ''); // Remove parenthetical glosses like "(Mexico)" or "(Various 17th-century decrees...)"
+
+    // Build Google Scholar URL with quoted search
+    const scholarUrl = `https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=${encodeURIComponent(cleanText)}&btnG=`;
+
+    // Render markdown in source text (for italics, bold, etc.)
+    const renderMarkdown = (text) => {
+      return text
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') // Bold
+        .replace(/\*(.+?)\*/g, '<em>$1</em>'); // Italic
+    };
+
+    return (
+      <div key={index} className="flex items-start gap-2 mb-2 group">
+        <span className="flex-shrink-0 text-gray-600 dark:text-gray-400">•</span>
+        <span
+          className="flex-1 text-gray-700 dark:text-gray-300"
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(sourceText) }}
+        />
+        <a
+          href={scholarUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-shrink-0 px-2 py-0.5 text-[10px] font-semibold rounded transition-all opacity-0 group-hover:opacity-100"
+          style={{
+            backgroundColor: colors?.primaryRgba || 'rgba(251, 191, 36, 0.15)',
+            color: colors?.primary || 'rgb(217, 119, 6)'
+          }}
+          title="Search on Google Scholar"
+        >
+          🔍 Scholar
+        </a>
+      </div>
+    );
+  };
+
+  let currentSection = null;
+  const sections = [];
+  let currentSectionContent = [];
+
+  lines.forEach((line, index) => {
+    // Check if this is a section header
+    if (line.match(/^\*\*Primary Sources?:\*\*/i)) {
+      if (currentSection) {
+        sections.push({ title: currentSection, content: currentSectionContent });
+      }
+      currentSection = 'Primary Sources';
+      currentSectionContent = [];
+    } else if (line.match(/^\*\*Secondary Sources?:\*\*/i)) {
+      if (currentSection) {
+        sections.push({ title: currentSection, content: currentSectionContent });
+      }
+      currentSection = 'Secondary Sources';
+      currentSectionContent = [];
+    } else if (currentSection && line.trim()) {
+      currentSectionContent.push(line);
+    }
+  });
+
+  // Add last section
+  if (currentSection && currentSectionContent.length > 0) {
+    sections.push({ title: currentSection, content: currentSectionContent });
+  }
+
+  return (
+    <div className="space-y-4">
+      {sections.map((section, idx) => (
+        <div key={idx}>
+          <h4
+            className="font-sans text-xs font-bold mb-2 uppercase tracking-wider"
+            style={{
+              color: colors?.primary || (isDark ? 'rgb(251, 191, 36)' : 'rgb(217, 119, 6)')
+            }}
+          >
+            {section.title}
+          </h4>
+          <div className="space-y-1">
+            {section.content.map((line, lineIdx) => renderSourceLine(line, lineIdx))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/**
  * Renders content with beautiful typography based on mode
  */
 const ContentRenderer = ({ content, mode, isDark, colors }) => {
   if (mode === 'fact-check') {
-    return (
-      <div className="prose prose-lg dark:prose-invert max-w-none">
-        <div
-          className="font-serif leading-relaxed text-gray-800 dark:text-gray-200"
-          style={{
-            lineHeight: '1.85',
-            fontSize: '1.125rem',
-            letterSpacing: '0.015em'
-          }}
-        >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {content}
-          </ReactMarkdown>
-        </div>
-      </div>
-    );
-  } else if (mode === 'learn-more' || mode === 'context') {
-    // Parse content to separate main text from citations
-    const parts = content.split(/(?=\n\n(?:Sources|References|Citations))/i);
+    // Parse content to separate main text from sources (same as learn-more mode)
+    const parts = content.split(/(?=\*\*(?:Primary|Secondary) Sources?:\*\*)/i);
     const mainText = parts[0];
-    const citations = parts[1] || '';
+    const sourcesText = parts.slice(1).join('');
 
     return (
       <div className="space-y-6">
@@ -305,7 +392,7 @@ const ContentRenderer = ({ content, mode, isDark, colors }) => {
           </ReactMarkdown>
         </div>
 
-        {citations && (
+        {sourcesText && (
           <div
             className="pt-6 mt-6 border-t transition-colors duration-300"
             style={{
@@ -313,24 +400,55 @@ const ContentRenderer = ({ content, mode, isDark, colors }) => {
             }}
           >
             <h3
-              className="font-sans text-sm font-bold mb-3 uppercase tracking-wider"
+              className="font-sans text-sm font-bold mb-4 uppercase tracking-wider"
+              style={{
+                color: colors?.primary || (isDark ? 'rgb(52, 211, 153)' : 'rgb(16, 185, 129)')
+              }}
+            >
+              Sources & References
+            </h3>
+            <SourceListRenderer content={sourcesText} colors={colors} isDark={isDark} />
+          </div>
+        )}
+      </div>
+    );
+  } else if (mode === 'learn-more' || mode === 'context') {
+    // Parse content to separate main text from sources
+    const parts = content.split(/(?=\*\*(?:Primary|Secondary) Sources?:\*\*)/i);
+    const mainText = parts[0];
+    const sourcesText = parts.slice(1).join(''); // Rejoin all source sections
+
+    return (
+      <div className="space-y-6">
+        <div
+          className="font-serif leading-relaxed text-gray-800 dark:text-gray-200"
+          style={{
+            lineHeight: '1.85',
+            fontSize: '1.125rem',
+            letterSpacing: '0.015em'
+          }}
+        >
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {mainText}
+          </ReactMarkdown>
+        </div>
+
+        {sourcesText && (
+          <div
+            className="pt-6 mt-6 border-t transition-colors duration-300"
+            style={{
+              borderColor: colors?.border || (isDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.3)')
+            }}
+          >
+            <h3
+              className="font-sans text-sm font-bold mb-4 uppercase tracking-wider"
               style={{
                 color: colors?.primary || (isDark ? 'rgb(251, 191, 36)' : 'rgb(217, 119, 6)')
               }}
             >
-              Academic Sources
+              Sources & References
             </h3>
-            <div
-              className="font-sans text-sm text-gray-700 dark:text-gray-300 leading-relaxed"
-              style={{
-                lineHeight: '1.75',
-                fontSize: '0.9375rem'
-              }}
-            >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {citations.replace(/^(Sources|References|Citations):?\s*/i, '')}
-              </ReactMarkdown>
-            </div>
+            <SourceListRenderer content={sourcesText} colors={colors} isDark={isDark} />
           </div>
         )}
       </div>
@@ -371,10 +489,15 @@ Historical period: ${scenario.setting?.era || 'Colonial New Spain'}
         content: `You are a historian with a PhD specializing in 1680s Mexico and Colonial New Spain. You are extremely well-versed in the historical literature and primary sources from this period. Your role is to provide hyper-accurate, stringently realistic fact-checking.
 
 Your responses must be:
-- VERY pithy and succinct (1-4 sentences maximum)
+- VERY pithy and succinct (3-4 sentences maximum)
 - Focused on what is historically inaccurate or anachronistic
 - Based on actual scholarship and primary sources
 - Professional but direct
+
+Include secondary sources as needed:
+        **Secondary Sources:**
+- [2-3 relevant academic books or journal articles that illuminate this specific event/topic]
+- Format: Author, *Title* (Publisher, Year) or Author, "Article Title," *Journal Name* vol. X (Year): pages
 
 ${scenarioContext}
 
@@ -393,19 +516,35 @@ If the narrative is historically accurate, briefly confirm this. If there are is
     const messages = [
       {
         role: 'system',
-        content: `You are a historian providing accessible historical context for a game set in 1680s Mexico. Provide 3-4 sentences of clear historical context that helps players understand the period, followed by 3 relevant academic historical secondary sources.
+        content: `You are a historian providing accessible historical context for a game set in 1680s Mexico. Provide 3-4 sentences of clear historical context that helps players understand the period, followed by curated lists of primary and secondary sources.
 
 ${scenarioContext}
+
+**CRITICAL REQUIREMENTS:**
+
+1. **PRIMARY SOURCES = documents from the period (1680s or earlier)**
+   - Archival documents, letters, diaries, official records, contemporary books
+   - Must include archive location (AGN, AGI, etc.) or library holding
+   - Examples: AGN Inquisición vol. X, Sahagún's *Florentine Codex* (1577), contemporary travel accounts
+
+2. **SECONDARY SOURCES = modern academic scholarship ONLY (books/articles by historians)**
+   - Must be REAL, verifiable academic publications you can confirm exist
+   - NO archives, NO primary documents, NO colonial-era sources
+   - Only cite sources you are confident exist - if uncertain, omit it
+   - Examples: Solange Alberro's work on Inquisition, David Brading on colonial Mexico, etc.
+
+3. **DO NOT hallucinate citations** - if you don't know real sources on this specific topic, cite broader works on colonial Mexico
 
 Format your response as:
 [3-4 sentences of context]
 
-Sources:
-1. Author, "Title" (Year)
-2. Author, "Title" (Year)
-3. Author, "Title" (Year)
+**Primary Sources:**
+- Author/Archive, *Title/Description* (Date)
+- [1-3 sources - archival collections, contemporary chronicles, etc.]
 
-Use real, actual academic sources from historians who have written about this period.`
+**Secondary Sources:**
+- Author, *Title* (Publisher, Year)
+- [2-3 sources - ONLY modern academic books/articles you can verify exist]`
       },
       {
         role: 'user',
@@ -413,25 +552,23 @@ Use real, actual academic sources from historians who have written about this pe
       }
     ];
 
-    const response = await createChatCompletion(messages, 0.4, 800, null, { agent: 'LearnMore' });
+    const response = await createChatCompletion(messages, 0.4, 1000, null, { agent: 'LearnMore' });
     return response.choices[0].message.content;
 
   } else if (mode === 'counternarrative') {
     const messages = [
       {
         role: 'system',
-        content: `You are a skeptical professional historian specializing in 1680s Mexico, deeply alert to counter-narratives, archival erasures, and agnotology (the study of culturally-induced ignorance).
+        content: `You are a professional historian specializing in early modern history and history of medicine, deeply alert to agnotology (the study of culturally-induced ignorance). However you are not given to stating the obvious and you avoid cliched or pat assertions about what is missing ("this discussion effaces the role of indigenous healers" is for instance cliched and a boring/not precise enough thought). You are more astute and distinctive than that. 
 
-Your role is to critique the narrative from a critical historical perspective, asking:
-- Whose voices are missing from this account?
-- What power dynamics are being naturalized?
-- What has been erased from colonial archives?
-- What counter-narratives exist?
-- What do we NOT know because of systematic destruction of records?
+Your role is to critique the narrative from a historical perspective, asking:
+- What assumptions are being made here that might not be true?
+- How can we know what is true about this setting? What sources are available and what might they exclude?
+- What do we NOT know because of destruction of records?
 
 ${scenarioContext}
 
-Write 2-3 thoughtful paragraphs that challenge the narrative, surface marginalized perspectives, and identify gaps in the historical record. Be scholarly but accessible. Focus on what the narrative obscures or takes for granted.`
+Write 2-3 thoughtful paragraphs that identify gaps in the historical record and interesting "paths not taken". Be scholarly but accessible.`
       },
       {
         role: 'user',

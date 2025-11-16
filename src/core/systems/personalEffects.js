@@ -9,12 +9,13 @@ export function generatePersonalEffects() {
   return {
     // Books & Papers (on bookshelf)
     books: [
-   
+
       {
-        name: "Commonplace Book",
+        name: "Account Book",
+        aliases: ["Inventory Ledger", "Ledger"],
         category: "Books & Papers",
         location: "Desk",
-        description: "Your personal compendium of remedies, compounds, and patient notes.",
+        description: "Your business ledger tracking inventory, sales, and accounts. Essential for any merchant.",
         emoji: "📓",
         value: 25,
         origin: "Mexico City (your handwriting)",

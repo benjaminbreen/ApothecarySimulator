@@ -19,7 +19,7 @@ import scenarioLoader from '../../core/services/scenarioLoader';
  * @param {Function} params.setHistoryOutput - History output setter
  * @param {Function} params.addJournalEntry - Journal entry adder
  * @param {Function} params.toast - Toast notification function
- * @param {Object} params.gameState - DEPRECATED: Use useGameState() instead
+ * @param {Object} params.gameState - Current game state (passed from parent)
  * @param {number} params.turnNumber - Current turn number
  *
  * @returns {Object} Item handlers

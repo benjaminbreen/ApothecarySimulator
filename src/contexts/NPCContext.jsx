@@ -39,10 +39,12 @@ export function NPCProvider({ children }) {
 
   // Portrait System (PHASE 2: LLM-selected portraits)
   const [primaryPortraitFile, setPrimaryPortraitFile] = useState(null); // LLM-selected portrait filename
+  const [primaryNpcName, setPrimaryNpcName] = useState(null); // Primary NPC name (conversation partner)
 
   // Contract System
   const [pendingContract, setPendingContract] = useState(null); // Pending treatment/sale contract
   const [pendingActionPrompt, setPendingActionPrompt] = useState(null); // Pending action prompt (give/sell/prescribe)
+  const [actionPromptLoading, setActionPromptLoading] = useState(null); // Loading state with context for action prompt (e.g., { type: 'prescribe', recipientName: 'Esteban' })
 
   /**
    * Get recent NPCs from tracker
@@ -164,6 +166,8 @@ export function NPCProvider({ children }) {
     // Portrait
     primaryPortraitFile,
     setPrimaryPortraitFile,
+    primaryNpcName,
+    setPrimaryNpcName,
 
     // Contracts
     pendingContract,
@@ -174,6 +178,8 @@ export function NPCProvider({ children }) {
     pendingActionPrompt,
     setPendingActionPrompt,
     clearActionPrompt,
+    actionPromptLoading,
+    setActionPromptLoading,
 
     // Utilities
     resetNPCState,
@@ -187,8 +193,10 @@ export function NPCProvider({ children }) {
     selectedPatient,
     tradingNPC,
     primaryPortraitFile,
+    primaryNpcName,
     pendingContract,
     pendingActionPrompt,
+    actionPromptLoading,
   ]);
 
   return (

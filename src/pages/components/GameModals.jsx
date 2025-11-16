@@ -2,7 +2,7 @@
 // Container component for all game modals and popups
 
 import React, { Suspense } from 'react';
-import Journal from '../../features/inventory/components/Journal';
+import JournalPanelEnhanced from '../../features/inventory/components/JournalPanelEnhanced';
 import MixingWorkshop from '../../components/MixingWorkshop';
 import MedicalRecordsManager from '../../core/systems/medicalRecordsManager';
 import { getListTypeById } from '../../core/config/listTypes.config'; // For auto-list on fast travel
@@ -207,6 +207,9 @@ export function GameModals({
   weatherBackgroundEnabled,
   setWeatherBackgroundEnabled,
 }) {
+  // Local state for ItemModalEnhanced initial tab
+  const [itemModalInitialTab, setItemModalInitialTab] = React.useState('overview');
+
   return (
     <>
       {/* Mixing Workshop Modal */}
@@ -222,6 +225,11 @@ export function GameModals({
         awardXP={awardXP}
         awardSkillXP={awardSkillXP}
         gameState={gameState}
+        onItemClick={(item, tab = 'properties') => {
+          setSelectedItem(item);
+          setItemModalInitialTab(tab);
+          setShowItemModal(true);
+        }}
       />
 
     
@@ -334,17 +342,21 @@ export function GameModals({
       {/* About Modal */}
       {isAboutOpen && <About isOpen={isAboutOpen} toggleAbout={toggleAbout} />}
 
-      {/* Journal (Slide-in) */}
-      {isJournalOpen && (
-        <Journal
-          journal={journal}
-          isOpen={isJournalOpen}
-          toggleJournal={toggleJournal}
-          customJournalEntry={customJournalEntry}
-          setCustomJournalEntry={setCustomJournalEntry}
-          handleJournalEntrySubmit={handleJournalEntrySubmit}
-        />
-      )}
+      {/* Journal (Slide-in Enhanced) */}
+      <JournalPanelEnhanced
+        isOpen={isJournalOpen}
+        onClose={toggleJournal}
+        journal={journal}
+        onAddEntry={(entry) => {
+          // Directly add the full entry object with all metadata
+          setJournal(prevJournal => [...prevJournal, entry]);
+        }}
+        currentTime={gameState.time}
+        currentDate={gameState.date}
+        currentLocation={gameState.location}
+        currentWeather={gameState.weather || 'Clear'}
+        reputation={reputation}
+      />
 
       {/* Rest Duration Modal - Choose sleep duration */}
       <RestDurationModal
@@ -554,6 +566,11 @@ export function GameModals({
           setCurrentPatient(patient);
           toggleDiagnose();
         }}
+        medicalRecords={gameState?.medicalRecords || {}}
+        playerSkills={playerSkills}
+        reputation={reputation}
+        currentDate={gameState?.date}
+        currentTime={gameState?.time}
       />
 
       {/* NPC Modal (for non-patient NPCs) */}
@@ -574,8 +591,11 @@ export function GameModals({
         onClose={() => {
           setShowItemModal(false);
           setSelectedItem(null);
+          setItemModalInitialTab('overview'); // Reset to default tab
         }}
         item={selectedItem}
+        initialTab={itemModalInitialTab}
+        onOpenLedger={() => setIsLedgerOpen(true)}
       />
 
       {/* Equipment Modal */}

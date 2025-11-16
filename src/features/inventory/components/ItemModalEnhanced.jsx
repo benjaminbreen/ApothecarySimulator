@@ -14,6 +14,13 @@ import { createPortal } from 'react-dom';
 import { getItemRarity, getItemQuality, getRarityColors, QUALITY_LABELS, RARITY_LABELS } from '../../../core/systems/itemRarity';
 import MedicineTypeBadge from '../../../components/MedicineTypeBadge';
 import { calculatePrescriptionOutcome } from '../../medical/utils/prescriptionCalculator.mjs';
+import { createChatCompletion } from '../../../core/services/llmService';
+import ReactMarkdown from 'react-markdown';
+import { toTitleCase } from '../../../utils/textUtils';
+import { initialInventoryData } from '../../../initialInventory';
+
+// Cache for generated sources (persists during playthrough, cleared on page refresh)
+const sourcesCache = new Map();
 
 // Rarity tooltip descriptions
 const RARITY_TOOLTIPS = {
@@ -42,10 +49,44 @@ const COMMON_SYMPTOMS = [
   { name: 'inflammation', description: 'Hot condition (excess heat)' }
 ];
 
-export default function ItemModalEnhanced({ isOpen, onClose, item }) {
-  const [activeTab, setActiveTab] = useState('overview');
-  const [expandedSections, setExpandedSections] = useState({});
+export default function ItemModalEnhanced({ isOpen, onClose, item, initialTab = 'overview', onOpenLedger }) {
+  // Safety check: Ensure item has preparationAdvice by looking it up from initialInventoryData
+  const itemWithAdvice = useMemo(() => {
+    if (!item) return null;
+
+    // If item already has preparationAdvice, use it
+    if (item.preparationAdvice) {
+      return item;
+    }
+
+    // Otherwise, look it up from initialInventoryData by name
+    const templateItem = initialInventoryData.find(
+      template => template.name.toLowerCase() === item.name.toLowerCase()
+    );
+
+    if (templateItem?.preparationAdvice) {
+      console.log(`[ItemModalEnhanced] Restored preparationAdvice for ${item.name}`);
+      return { ...item, preparationAdvice: templateItem.preparationAdvice };
+    }
+
+    // If still not found, return original item (will show fallback)
+    return item;
+  }, [item]);
+
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [expandedSections, setExpandedSections] = useState({
+    prop_effects: true,  // Medicinal Actions default open
+    prop_effectiveness: true  // Treatment Effectiveness default open
+  });
+
+  // Reset to initial tab when modal opens or initialTab changes
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
   const [generatingSources, setGeneratingSources] = useState(false);
+  const [generatedSources, setGeneratedSources] = useState(null); // Stores LLM-generated source suggestions
   const [hoveredBadge, setHoveredBadge] = useState(null); // 'rarity' or 'quality'
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   const rarityBadgeRef = useRef(null);
@@ -76,18 +117,27 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
+  // Load cached sources when item changes
+  React.useEffect(() => {
+    if (itemWithAdvice?.name && sourcesCache.has(itemWithAdvice.name)) {
+      setGeneratedSources(sourcesCache.get(itemWithAdvice.name));
+    } else {
+      setGeneratedSources(null);
+    }
+  }, [itemWithAdvice?.name]);
+
   // Memoize effectiveness calculations to prevent recalculating on every render
   // MUST be before early return to satisfy Rules of Hooks
   const effectivenessResults = useMemo(() => {
     // Only calculate when effectiveness section is expanded and modal is open
-    if (!isOpen || !item || !expandedSections.prop_effectiveness) return [];
+    if (!isOpen || !itemWithAdvice || !expandedSections.prop_effectiveness) return [];
 
     const mockPatient = { name: 'Test', symptoms: [] };
     const results = COMMON_SYMPTOMS.map(symptom => {
       try {
         mockPatient.symptoms = [{ name: symptom.name, severity: 'moderate' }];
         const result = calculatePrescriptionOutcome({
-          item,
+          item: itemWithAdvice,
           patient: mockPatient,
           route: 'Oral',
           amount: 1,
@@ -117,13 +167,33 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
     // Sort by effectiveness (highest first)
     results.sort((a, b) => b.effectiveness - a.effectiveness);
     return results;
-  }, [item, expandedSections.prop_effectiveness, isOpen]);
+  }, [itemWithAdvice, expandedSections.prop_effectiveness, isOpen]);
 
-  if (!isOpen || !item) return null;
+  // Conditionally define tabs - hide Sources tab for personal items
+  // MUST be before early return to satisfy Rules of Hooks
+  const tabs = useMemo(() => {
+    if (!itemWithAdvice) return [];
+
+    const baseTabs = [
+      { id: 'overview', label: 'Overview', icon: '📋' },
+      { id: 'properties', label: 'Properties', icon: '⚗️' },
+      { id: 'history', label: 'History', icon: '📜' }
+    ];
+
+    // Only show Sources tab for materia medica (not personal items)
+    if (itemWithAdvice.type !== 'personal') {
+      baseTabs.push({ id: 'sources', label: 'Sources', icon: '📄' });
+    }
+
+    return baseTabs;
+  }, [itemWithAdvice]);
+
+  // Early return AFTER all hooks
+  if (!isOpen || !itemWithAdvice) return null;
 
   // Get rarity/quality data
-  const rarity = getItemRarity(item);
-  const quality = getItemQuality(item);
+  const rarity = getItemRarity(itemWithAdvice);
+  const quality = getItemQuality(itemWithAdvice);
   const colors = getRarityColors(rarity);
 
   // Toggle expandable sections
@@ -135,29 +205,65 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
   };
 
   // Construct PDF path
-  const pdfPath = item.pdf ? `/pdfs/${item.pdf}` : null;
+  const pdfPath = itemWithAdvice.pdf ? `/pdfs/${itemWithAdvice.pdf}` : null;
 
   // Try to find historical portrait image
-  const itemNameNormalized = item.name.toLowerCase().replace(/[']/g, '').replace(/\s+/g, '');
-  const historicalImage = item.image || `/portraits/${itemNameNormalized}.jpg`;
+  const itemNameNormalized = itemWithAdvice.name.toLowerCase().replace(/[']/g, '').replace(/\s+/g, '');
+  const historicalImage = itemWithAdvice.image || `/portraits/${itemNameNormalized}.jpg`;
 
   // Get item icon for decorative background
-  const itemIconPath = `/icons/${item.name.toLowerCase().replace(/[']/g, '').replace(/\s+/g, '_')}_icon.png`;
+  const itemIconPath = `/icons/${itemWithAdvice.name.toLowerCase().replace(/[']/g, '').replace(/\s+/g, '_')}_icon.png`;
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', icon: '📋' },
-    { id: 'properties', label: 'Properties', icon: '⚗️' },
-    { id: 'history', label: 'History', icon: '📜' },
-    { id: 'sources', label: 'Sources', icon: '📄' }
-  ];
-
-  const handleGenerateSources = () => {
+  const handleGenerateSources = async () => {
     setGeneratingSources(true);
-    // Simulate LLM call
-    setTimeout(() => {
+
+    try {
+      const prompt = [
+        {
+          role: 'system',
+          content: `You are a scholarly research assistant specializing in early modern European and colonial Latin American medical history, with expertise in pharmacology and material culture from 1600-1700.`
+        },
+        {
+          role: 'user',
+          content: `Generate concise scholarly source suggestions for researching this materia medica used in 1680 Mexico City:
+
+**Item**: ${itemWithAdvice.name} ${itemWithAdvice.latinName ? `(${itemWithAdvice.latinName})` : ''}
+**Properties**: ${itemWithAdvice.humoralQualities || 'Not specified'}
+
+Provide 2-3 key sources per category:
+1. **Primary Sources (1500-1700)**: Historical herbals, pharmacopoeias, medical texts
+2. **Secondary Scholarship**: Modern academic books/articles (realistic authors/titles)
+3. **Archives & Digital**: Relevant collections and databases (only real resources)
+
+Format as markdown. Be specific but concise - aim for 200-300 words total. Only suggest plausible sources.`
+        }
+      ];
+
+      const response = await createChatCompletion(
+        prompt,
+        0.7, // temperature
+        800, // maxTokens (reduced for concise output)
+        null, // no JSON format needed
+        { feature: 'source_suggestions', item: itemWithAdvice.name }
+      );
+
+      console.log('[ItemModal] Generated sources:', response);
+      // Extract content from API response (choices[0].message.content)
+      const content = response.choices?.[0]?.message?.content || response.content || 'No content generated';
+
+      // Cache the generated sources for this playthrough
+      if (itemWithAdvice?.name) {
+        sourcesCache.set(itemWithAdvice.name, content);
+        console.log('[ItemModal] Cached sources for:', itemWithAdvice.name);
+      }
+
+      setGeneratedSources(content);
+    } catch (error) {
+      console.error('[ItemModal] Failed to generate sources:', error);
+      setGeneratedSources('**Error**: Unable to generate source suggestions. Please try again.');
+    } finally {
       setGeneratingSources(false);
-      alert('LLM source suggestions would appear here');
-    }, 2000);
+    }
   };
 
   return (
@@ -276,7 +382,7 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                 >
                   <img
                     src={historicalImage}
-                    alt={item.name}
+                    alt={itemWithAdvice.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       e.target.style.display = 'none';
@@ -287,7 +393,7 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                     className="w-full h-full items-center justify-center text-8xl"
                     style={{ display: 'none' }}
                   >
-                    {item.emoji || '📦'}
+                    {itemWithAdvice.emoji || '📦'}
                   </div>
                 </div>
 
@@ -302,15 +408,15 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                         lineHeight: '1.1'
                       }}
                     >
-                      {item.name}
+                      {toTitleCase(itemWithAdvice.name)}
                     </h1>
                     <MedicineTypeBadge
-                      item={item}
+                      item={itemWithAdvice}
                       size="medium"
                       position="inline"
                       showTooltip={true}
                     />
-                    {item.quantity && (
+                    {itemWithAdvice.quantity && (
                       <span
                         className="px-2 py-2 rounded-lg text-sm font-bold font-sans"
                         style={{
@@ -319,23 +425,48 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                           border: '1px solid rgba(209, 213, 219, 0.3)'
                         }}
                       >
-                        In Stock: {item.quantity}
+                        In Stock: {itemWithAdvice.quantity}
                       </span>
                     )}
                   </div>
 
-
+                  {/* Special: Account Book - Link to Ledger */}
+                  {itemWithAdvice.name === 'Account Book' && onOpenLedger && (
+                    <div className="mt-4">
+                      <button
+                        onClick={() => {
+                          onOpenLedger();
+                          onClose();
+                        }}
+                        className="px-4 py-2.5 rounded-lg font-sans font-semibold text-sm transition-all duration-200 flex items-center gap-2 hover:shadow-lg"
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(5, 150, 105, 0.9))',
+                          color: 'white',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                        }}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Open Financial Ledger
+                      </button>
+                      <p className="text-xs text-ink-500 mt-2 font-sans italic">
+                        View your complete transaction history, income, and expenses
+                      </p>
+                    </div>
+                  )}
 
                   {/* Latin & Spanish */}
                   <div className="space-y-1 mb-4">
-                    {item.latinName && (
+                    {itemWithAdvice.latinName && (
                       <p className="text-lg italic font-serif text-ink-700" style={{ fontWeight: 500 }}>
-                        {item.latinName}
+                        {itemWithAdvice.latinName}
                       </p>
                     )}
-                    {item.spanishName && (
+                    {itemWithAdvice.spanishName && (
                       <p className="text-sm font-sans text-ink-600" style={{ fontWeight: 500 }}>
-                        En español: <span style={{ fontWeight: 600 }}>{item.spanishName}</span>
+                        En español: <span style={{ fontWeight: 600 }}>{itemWithAdvice.spanishName}</span>
                       </p>
                     )}
                   </div>
@@ -384,9 +515,9 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                         border: '1px solid rgba(217, 119, 6, 0.25)'
                       }}
                     >
-                      {item.price} Reales
+                      {itemWithAdvice.price} Reales
                     </span>
-                   
+
                   </div>
 
                   {/* Description */}
@@ -397,25 +528,26 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                       fontSize: '1.35rem'
                     }}
                   >
-                    {item.description}
+                    {itemWithAdvice.description}
                   </p>
                 </div>
               </div>
 
-              {/* Information Grid */}
+              {/* Information Grid - Only show for materia medica (not personal items) */}
+              {itemWithAdvice.type !== 'personal' && (
               <div className="grid grid-cols-2 gap-4">
 
                 {/* Humoral Qualities */}
-                {item.humoralQualities && (
+                {itemWithAdvice.humoralQualities && (
                   <InfoCard
                     title="Humoral Qualities"
-              
+
                     color="#3b82f6"
                     expanded={expandedSections.overview_humoral}
                     onToggle={() => toggleSection('overview_humoral')}
                   >
                     <p className="text-2xl font-bold mb-2 font-serif" style={{ color: '#1e3a8a' }}>
-                      {item.humoralQualities}
+                      {itemWithAdvice.humoralQualities}
                     </p>
                     <p className="text-sm leading-relaxed font-sans text-ink-700" style={{ lineHeight: '1.6' }}>
                       {expandedSections.overview_humoral
@@ -426,22 +558,24 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                 )}
 
                 {/* Medicinal Effects */}
-                {item.medicinalEffects && (
+                {itemWithAdvice.medicinalEffects && (
                   <InfoCard
                     title="Medicinal Effects"
-                    
+
                     color="#10b981"
                     expanded={expandedSections.overview_effects}
                     onToggle={() => toggleSection('overview_effects')}
                   >
                     <p className="text-lg leading-relaxed font-serif text-ink-900" style={{ lineHeight: '1.7' }}>
-                      {item.medicinalEffects}
+                      {itemWithAdvice.medicinalEffects}
                     </p>
                   </InfoCard>
                 )}
               </div>
+              )}
 
-              {/* Provenance & Trade */}
+              {/* Provenance & Trade - Only show for materia medica (not personal items) */}
+              {itemWithAdvice.type !== 'personal' && (
               <InfoCard
                 title="Provenance & Trade Routes"
 
@@ -468,8 +602,10 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                   </div>
                 )}
               </InfoCard>
+              )}
 
-              {/* Further Reading */}
+              {/* Further Reading - Only show for materia medica (not personal items) */}
+              {itemWithAdvice.type !== 'personal' && (
               <div
                 className="rounded-xl p-5"
                 style={{
@@ -485,40 +621,69 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                   <em>Pharmacopoeia Londinensis</em> (1677), or <em>Erário Mineral</em> by Luís Gomes Ferreira (1735).
                 </p>
               </div>
+              )}
             </div>
           )}
 
           {/* PROPERTIES TAB */}
           {activeTab === 'properties' && (
-            <div className="p-8 space-y-6">
+            <div className="p-6 space-y-3">
 
               {/* Centered Item Icon */}
-              <div className="flex justify-center mb-8">
+              <div className="flex justify-center mb-4">
                 <div
-                  className="rounded-2xl overflow-hidden"
+                  className="rounded-2xl overflow-hidden group cursor-pointer transition-all duration-500"
                   style={{
                     width: '200px',
                     height: '200px',
                     background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(252, 250, 247, 0.9))',
                     border: '2px solid rgba(209, 213, 219, 0.3)',
-                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5)'
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5)',
+                    transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(252, 250, 247, 0.95))';
+                    e.currentTarget.style.backdropFilter = 'blur(20px) saturate(180%)';
+                    e.currentTarget.style.WebkitBackdropFilter = 'blur(20px) saturate(180%)';
+                    e.currentTarget.style.boxShadow = `0 16px 48px ${colors.glow}, 0 8px 24px rgba(0, 0, 0, 0.15), inset 0 2px 0 rgba(255, 255, 255, 0.8)`;
+                    e.currentTarget.style.border = `2px solid ${colors.light}`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(252, 250, 247, 0.9))';
+                    e.currentTarget.style.backdropFilter = 'none';
+                    e.currentTarget.style.WebkitBackdropFilter = 'none';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.5)';
+                    e.currentTarget.style.border = '2px solid rgba(209, 213, 219, 0.3)';
                   }}
                 >
                   <img
                     src={itemIconPath}
-                    alt={item.name}
-                    className="w-full h-full object-contain p-6"
+                    alt={itemWithAdvice.name}
+                    className="w-full h-full object-contain p-6 transition-all duration-500 group-hover:scale-125"
+                    style={{
+                      filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
+                      transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.filter = `drop-shadow(0 0 20px ${colors.glow}) drop-shadow(0 0 40px ${colors.primary}40)`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.filter = 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))';
+                    }}
                     onError={(e) => {
                       e.target.style.display = 'none';
                       e.target.nextSibling.style.display = 'flex';
                     }}
                   />
                   <div className="w-full h-full items-center justify-center text-6xl hidden">
-                    {item.emoji || '📦'}
+                    {itemWithAdvice.emoji || '📦'}
                   </div>
                 </div>
               </div>
 
+              {/* Materia medica-specific sections - hide for personal items */}
+              {itemWithAdvice.type !== 'personal' && (
+              <>
               <PropertySection
                 title="Humoral Theory"
                 expanded={expandedSections.prop_humoral}
@@ -530,7 +695,7 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                       Primary Qualities
                     </p>
                     <p className="text-2xl font-bold font-serif" style={{ color: '#1e3a8a' }}>
-                      {item.humoralQualities}
+                      {itemWithAdvice.humoralQualities}
                     </p>
                   </div>
                   <p className="text-base leading-relaxed font-serif text-ink-900" style={{ lineHeight: '1.8' }}>
@@ -562,7 +727,7 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                 onToggle={() => toggleSection('prop_effects')}
               >
                 <p className="text-base leading-relaxed mb-4 font-serif text-ink-900" style={{ lineHeight: '1.8' }}>
-                  {item.medicinalEffects}
+                  {itemWithAdvice.medicinalEffects}
                 </p>
                 {expandedSections.prop_effects && (
                   <>
@@ -571,44 +736,29 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                       border: '1px solid rgba(16, 185, 129, 0.15)'
                     }}>
                       <p className="text-sm font-bold mb-3 font-serif text-emerald-800">
-                        Common Preparations
+                        Preparation Methods
                       </p>
-                      <ul className="space-y-2 text-base font-serif text-emerald-900">
-                        <li>• <strong>Decoction:</strong> Boiled in water or wine to extract virtues</li>
-                        <li>• <strong>Distillation:</strong> Essence extracted via alembic</li>
-                        <li>• <strong>Confection:</strong> Mixed with sugar or honey for palatability</li>
-                        <li>• <strong>Topical:</strong> Applied directly to affected areas</li>
-                      </ul>
+                      {itemWithAdvice.preparationAdvice ? (
+                        <ul className="space-y-2 text-base font-serif text-emerald-900">
+                          <li>• <strong>Decoction:</strong> {itemWithAdvice.preparationAdvice.decoction}</li>
+                          <li>• <strong>Distillation:</strong> {itemWithAdvice.preparationAdvice.distillation}</li>
+                          <li>• <strong>Calcination:</strong> {itemWithAdvice.preparationAdvice.calcination}</li>
+                          <li>• <strong>Confection:</strong> {itemWithAdvice.preparationAdvice.confection}</li>
+                        </ul>
+                      ) : (
+                        <ul className="space-y-2 text-base font-serif text-emerald-900">
+                          <li>• <strong>Decoction:</strong> Boiled in water or wine to extract virtues</li>
+                          <li>• <strong>Distillation:</strong> Essence extracted via alembic</li>
+                          <li>• <strong>Confection:</strong> Mixed with sugar or honey for palatability</li>
+                          <li>• <strong>Calcination:</strong> Burned to ash for mineral salts</li>
+                        </ul>
+                      )}
                     </div>
                     <p className="text-sm italic font-serif text-ink-600" style={{ lineHeight: '1.7' }}>
                       Dosage and administration should follow the guidance of a learned physician.
                       Many substances possess both curative and toxic properties depending on quantity.
                     </p>
                   </>
-                )}
-              </PropertySection>
-
-              <PropertySection
-                title="Pharmaceutical Forms"
-                expanded={expandedSections.prop_forms}
-                onToggle={() => toggleSection('prop_forms')}
-              >
-                <p className="text-base leading-relaxed font-serif text-ink-900" style={{ lineHeight: '1.8' }}>
-                  This materia medica can be processed into various pharmaceutical forms: simple decoctions,
-                  distilled waters, electuaries (confections), syrups, oils, and tinctures. The choice of
-                  preparation method depends on the intended therapeutic effect and the patient's constitution.
-                </p>
-                {expandedSections.prop_forms && (
-                  <div className="mt-4 flex gap-2 flex-wrap">
-                    {['Decoct', 'Distill', 'Confection', 'Calcinate'].map(method => (
-                      <span key={method} className="px-3 py-1.5 rounded-lg text-sm font-semibold font-serif" style={{
-                        background: 'rgba(139, 92, 46, 0.1)',
-                        color: '#5c4a3a'
-                      }}>
-                        {method}
-                      </span>
-                    ))}
-                  </div>
                 )}
               </PropertySection>
 
@@ -684,19 +834,50 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                     </div>
                 )}
               </PropertySection>
+              </>
+              )}
+
+              {/* Personal items - show basic info */}
+              {itemWithAdvice.type === 'personal' && (
+                <div className="rounded-lg p-6 space-y-4" style={{
+                  background: 'rgba(139, 92, 46, 0.08)',
+                  border: '1px solid rgba(139, 92, 46, 0.15)'
+                }}>
+                  <p className="text-base font-serif text-ink-900 leading-relaxed" style={{ lineHeight: '1.8' }}>
+                    {itemWithAdvice.description}
+                  </p>
+                  {itemWithAdvice.origin && (
+                    <div className="pt-3 border-t border-ink-200/30">
+                      <p className="text-sm font-sans text-ink-700">
+                        <strong>Origin:</strong> {itemWithAdvice.origin}
+                      </p>
+                    </div>
+                  )}
+                  {itemWithAdvice.value && (
+                    <div>
+                      <p className="text-sm font-sans text-ink-700">
+                        <strong>Value:</strong> {itemWithAdvice.value} reales
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           {/* HISTORY TAB */}
           {activeTab === 'history' && (
             <div className="p-8 space-y-5">
+              {/* Materia medica-specific sections - hide for personal items */}
+              {itemWithAdvice.type !== 'personal' && (
+              <>
               <PropertySection
                 title="Historical Context"
                 expanded={expandedSections.hist_context}
                 onToggle={() => toggleSection('hist_context')}
               >
                 <p className="text-sm leading-relaxed mb-3 font-serif text-ink-900" style={{ lineHeight: '1.8', fontSize: '1rem' }}>
-                  {item.description}
+                  {itemWithAdvice.description}
                 </p>
                 {expandedSections.hist_context && (
                   <p className="text-sm leading-relaxed font-sans text-ink-700" style={{ lineHeight: '1.7' }}>
@@ -755,6 +936,34 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                   )}
                 </div>
               </PropertySection>
+              </>
+              )}
+
+              {/* Personal items - show basic info */}
+              {itemWithAdvice.type === 'personal' && (
+                <div className="rounded-lg p-6" style={{
+                  background: 'rgba(139, 92, 46, 0.08)',
+                  border: '1px solid rgba(139, 92, 46, 0.15)'
+                }}>
+                  <h3 className="text-lg font-bold font-serif text-ink-900 mb-3">
+                    About this Item
+                  </h3>
+                  <p className="text-base font-serif text-ink-900 leading-relaxed mb-4" style={{ lineHeight: '1.8' }}>
+                    {itemWithAdvice.description}
+                  </p>
+                  <div className="space-y-2 text-sm font-sans text-ink-700">
+                    {itemWithAdvice.origin && (
+                      <p><strong>Origin:</strong> {itemWithAdvice.origin}</p>
+                    )}
+                    {itemWithAdvice.rarity && (
+                      <p><strong>Rarity:</strong> {itemWithAdvice.rarity}</p>
+                    )}
+                    {itemWithAdvice.location && (
+                      <p><strong>Location:</strong> {itemWithAdvice.location}</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -787,12 +996,76 @@ export default function ItemModalEnhanced({ isOpen, onClose, item }) {
                       📚 Citation
                     </p>
                     <p className="text-sm leading-relaxed font-serif text-ink-900" style={{ lineHeight: '1.6' }}>
-                      {item.citation || 'Historical source document'}
+                      {itemWithAdvice.citation || 'Historical source document'}
                     </p>
                   </div>
                 </>
+              ) : generatedSources ? (
+                /* Display Generated Sources */
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                  <div className="max-w-4xl mx-auto">
+                    {/* Header */}
+                    <div className="mb-6">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="text-4xl">📚</div>
+                        <h3 className="text-2xl font-bold font-serif text-ink-900">
+                          Scholarly Source Suggestions
+                        </h3>
+                      </div>
+                      <p className="text-sm font-sans text-ink-600 mb-4" style={{ lineHeight: '1.6' }}>
+                        AI-generated research suggestions for <strong>{toTitleCase(itemWithAdvice.name)}</strong>. These are plausible sources based on historical context, but should be verified.
+                      </p>
+                      <button
+                        onClick={() => {
+                          // Clear cache for this item and regenerate
+                          if (itemWithAdvice?.name) {
+                            sourcesCache.delete(itemWithAdvice.name);
+                          }
+                          setGeneratedSources(null);
+                        }}
+                        className="px-4 py-2 rounded-lg text-xs font-semibold font-sans transition-all duration-200"
+                        style={{
+                          background: 'rgba(139, 92, 46, 0.1)',
+                          color: '#5c4a3a',
+                          border: '1px solid rgba(139, 92, 46, 0.2)'
+                        }}
+                      >
+                        ↻ Regenerate Suggestions
+                      </button>
+                    </div>
+
+                    {/* Markdown Content */}
+                    <div
+                      className="prose prose-sm max-w-none"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(252, 250, 247, 0.9))',
+                        border: '1px solid rgba(209, 213, 219, 0.3)',
+                        borderRadius: '1rem',
+                        padding: '2rem',
+                        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)'
+                      }}
+                    >
+                      <ReactMarkdown
+                        components={{
+                          h1: ({node, ...props}) => <h1 className="text-2xl font-bold font-serif text-ink-900 mb-4 mt-6" {...props} />,
+                          h2: ({node, ...props}) => <h2 className="text-xl font-bold font-serif text-ink-900 mb-3 mt-5" {...props} />,
+                          h3: ({node, ...props}) => <h3 className="text-lg font-semibold font-serif text-ink-800 mb-2 mt-4" {...props} />,
+                          p: ({node, ...props}) => <p className="text-base font-serif text-ink-900 mb-3 leading-relaxed" style={{ lineHeight: '1.8' }} {...props} />,
+                          ul: ({node, ...props}) => <ul className="list-disc list-inside mb-4 space-y-2" {...props} />,
+                          ol: ({node, ...props}) => <ol className="list-decimal list-inside mb-4 space-y-2" {...props} />,
+                          li: ({node, ...props}) => <li className="text-base font-serif text-ink-900" style={{ lineHeight: '1.7' }} {...props} />,
+                          strong: ({node, ...props}) => <strong className="font-bold text-ink-900" {...props} />,
+                          em: ({node, ...props}) => <em className="italic text-ink-800" {...props} />,
+                          code: ({node, ...props}) => <code className="px-2 py-1 rounded text-sm font-mono" style={{ background: 'rgba(139, 92, 46, 0.1)', color: '#5c4a3a' }} {...props} />
+                        }}
+                      >
+                        {generatedSources}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                /* No PDF Available - LLM Suggestion */
+                /* No PDF Available - Generate Button */
                 <div className="flex-1 flex items-center justify-center p-8">
                   <div
                     className="max-w-md text-center rounded-2xl p-8"

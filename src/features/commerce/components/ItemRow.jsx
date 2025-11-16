@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { toTitleCase } from '../../../utils/textUtils';
 
 // Helper to get icon path
 function getItemIcon(itemName) {
@@ -59,7 +60,7 @@ export default function ItemRow({ item, highlighted = false, onClick, selected =
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between mb-1">
           <span className="text-sm font-semibold text-ink-800 dark:text-stone-200">
-            {item.name}
+            {toTitleCase(item.name)}
           </span>
           {highlighted && (
             <span className="text-xs text-amber-600 dark:text-amber-400 font-bold ml-2">

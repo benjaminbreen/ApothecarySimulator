@@ -48,12 +48,15 @@ export default function SimpleInteractionCard({
       setSelectedDonationItem('');
       return;
     }
-    const requestedName = interaction.request?.item?.toLowerCase?.() || '';
-    const physicalInventory = (inventory || []).filter(item => item.quantity > 0);
-    const matchingItem = physicalInventory.find(item => item.name?.toLowerCase() === requestedName);
-    const defaultItem = matchingItem || physicalInventory[0];
-    setSelectedDonationItem(defaultItem ? defaultItem.name : '');
-  }, [interactionKey, type, interaction.request, inventory]);
+    // Only set default if user hasn't manually selected something
+    if (!selectedDonationItem) {
+      const requestedName = interaction.request?.item?.toLowerCase?.() || '';
+      const physicalInventory = (inventory || []).filter(item => item.quantity > 0);
+      const matchingItem = physicalInventory.find(item => item.name?.toLowerCase() === requestedName);
+      const defaultItem = matchingItem || physicalInventory[0];
+      setSelectedDonationItem(defaultItem ? defaultItem.name : '');
+    }
+  }, [interactionKey, type, interaction.request]);
 
   const currentPortrait = portraitCandidates[portraitIndex] || null;
   const handlePortraitError = () => {
@@ -201,9 +204,12 @@ export default function SimpleInteractionCard({
 
   // Render based on interaction type
 
-  // Vendor offer (merchant/peddler selling goods to Maria)
+  // Vendor offer (NPC buying from OR selling to Maria - check direction field)
   if (type === 'vendor_offer') {
-    const { context, npcRole, offer } = interaction;
+    const { context, npcRole, offer, direction } = interaction;
+
+    // Determine direction (defaults to selling_to_maria for backward compatibility)
+    const isBuyingFromMaria = direction === 'buying_from_maria';
 
     // FIX: Handle both nested object structure and flat structure (defensive programming)
     // Correct structure: offer: {item, price, description, ...}
@@ -245,10 +251,10 @@ export default function SimpleInteractionCard({
               {/* Content */}
               <div className="flex-1 text-left">
                 <div className="text-white font-bold text-lg">
-                  Vendor Offer
+                  {isBuyingFromMaria ? 'Purchase Request' : 'Vendor Offer'}
                 </div>
                 <div className={`${colors.textSecondary} ${colors.darkTextSecondary} text-sm font-semibold`}>
-                  {npcName} {context || 'has goods for sale'}
+                  {npcName} {context || (isBuyingFromMaria ? 'wishes to purchase' : 'has goods for sale')}
                 </div>
                 <div className="text-white/80 text-xs mt-1 flex items-center gap-1">
                   <span>•</span>
@@ -308,19 +314,40 @@ export default function SimpleInteractionCard({
                     </div>
                   </div>
                   <div className="flex-shrink-0 flex flex-col gap-2">
-                    <button
-                      onClick={() => onChoice('buy', interaction)}
-                      disabled={!canAfford}
-                      className={`px-6 py-3 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {canAfford ? `Buy (${price} reales)` : 'Cannot Afford'}
-                    </button>
-                    <button
-                      onClick={() => onChoice('haggle', interaction)}
-                      className={`px-6 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold rounded-lg transition-colors border border-white/30`}
-                    >
-                      💬 Try to Haggle
-                    </button>
+                    {isBuyingFromMaria ? (
+                      // NPC is buying FROM Maria - show sell button
+                      <>
+                        <button
+                          onClick={() => onChoice('sell', interaction)}
+                          className={`px-6 py-3 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md`}
+                        >
+                          Sell for {price} reales
+                        </button>
+                        <button
+                          onClick={() => onChoice('haggle', interaction)}
+                          className={`px-6 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold rounded-lg transition-colors border border-white/30`}
+                        >
+                          💬 Negotiate Price
+                        </button>
+                      </>
+                    ) : (
+                      // NPC is selling TO Maria - show buy button
+                      <>
+                        <button
+                          onClick={() => onChoice('buy', interaction)}
+                          disabled={!canAfford}
+                          className={`px-6 py-3 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {canAfford ? `Buy (${price} reales)` : 'Cannot Afford'}
+                        </button>
+                        <button
+                          onClick={() => onChoice('haggle', interaction)}
+                          className={`px-6 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold rounded-lg transition-colors border border-white/30`}
+                        >
+                          💬 Try to Haggle
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -333,6 +360,11 @@ export default function SimpleInteractionCard({
 
   if (type === 'service_offer' && interaction.offer) {
     const { item, price, description, stock, quality, emoji } = interaction.offer;
+    const { direction } = interaction;
+
+    // Determine direction (defaults to selling_to_maria for backward compatibility)
+    const isBuyingFromMaria = direction === 'buying_from_maria';
+
     const canAfford = currentWealth >= price;
     const displayIcon = emoji || colors.icon; // Use offer emoji if present, otherwise default icon
 
@@ -348,10 +380,10 @@ export default function SimpleInteractionCard({
               {/* Content */}
               <div className="flex-1 text-left">
                 <div className="text-white font-bold text-lg">
-                  Service Offer
+                  {isBuyingFromMaria ? 'Service Request' : 'Service Offer'}
                 </div>
                 <div className={`${colors.textSecondary} ${colors.darkTextSecondary} text-sm font-semibold`}>
-                  {npcName} offers a service
+                  {npcName} {isBuyingFromMaria ? 'requests your expertise' : 'offers a service'}
                 </div>
                 <div className="text-white/80 text-xs mt-1 flex items-center gap-1">
                   <span>•</span>
@@ -411,13 +443,24 @@ export default function SimpleInteractionCard({
                     </div>
                   </div>
                   <div className="flex-shrink-0">
-                    <button
-                      onClick={() => onChoice('buy', interaction)}
-                      disabled={!canAfford}
-                      className={`px-6 py-3 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      {canAfford ? `Buy (${price} reales)` : 'Cannot Afford'}
-                    </button>
+                    {isBuyingFromMaria ? (
+                      // NPC is buying FROM Maria - show "Provide Service" button
+                      <button
+                        onClick={() => onChoice('sell', interaction)}
+                        className={`px-6 py-3 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md`}
+                      >
+                        Provide Service ({price} reales)
+                      </button>
+                    ) : (
+                      // NPC is selling TO Maria - show "Buy" button
+                      <button
+                        onClick={() => onChoice('buy', interaction)}
+                        disabled={!canAfford}
+                        className={`px-6 py-3 ${colors.buttonPrimary} font-semibold rounded-lg transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {canAfford ? `Buy (${price} reales)` : 'Cannot Afford'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -846,8 +889,11 @@ export default function SimpleInteractionCard({
 
   // Gamble opportunity (interactive minigame)
   if (type === 'gamble_opportunity' && interaction.gamble) {
-    const { gameType, wager, potentialWin, odds, description } = interaction.gamble;
+    const { gameType, wager, potentialWin, odds, description, delayed } = interaction.gamble;
     const canAfford = currentWealth >= wager;
+
+    // Lottery has delayed results - different UI
+    const isLottery = gameType === 'lottery' || delayed === true;
 
     // Gambling state (use Map to handle multiple simultaneous gambles)
     const gambleKey = `${interaction.type}_${interaction.npcName}_${gameType}`;
@@ -1318,12 +1364,20 @@ export default function SimpleInteractionCard({
                   {!['taba', 'cards', 'dice', 'cockfight'].includes(gameType) && (
                     <div className="flex gap-2">
                       <button
-                        onClick={handleBet}
+                        onClick={() => {
+                          if (isLottery) {
+                            // Lottery: immediate purchase, delayed result
+                            onChoice('buy_ticket', interaction);
+                          } else {
+                            // Other games: immediate result
+                            handleBet();
+                          }
+                        }}
                         disabled={!canAfford}
                         className="flex-1 px-4 py-3 bg-gradient-to-r from-yellow-500/80 to-orange-500/80 hover:from-yellow-500/90 hover:to-orange-500/90 text-white font-bold rounded-lg transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
                       >
                         {canAfford ? (
-                          gameType === 'lottery' ? `🎫 Purchase Ticket (${wager} reales)` : `🎲 Place Bet (${wager} reales)`
+                          isLottery ? `🎫 Purchase Ticket (${wager} reales)` : `🎲 Place Bet (${wager} reales)`
                         ) : (
                           `Cannot Afford (need ${wager})`
                         )}

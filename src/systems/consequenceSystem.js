@@ -69,6 +69,10 @@ const executeConsequence = (consequence, gameState, handlers) => {
     return executeExtortionRetaliation(consequence, gameState, handlers);
   }
 
+  if (consequence.type === 'lottery_result') {
+    return executeLotteryResult(consequence, gameState, handlers);
+  }
+
   // Default fallback
   console.warn('[Consequence] Unknown consequence type:', consequence.type);
   return {
@@ -286,6 +290,86 @@ const executeExtortionRetaliation = (consequence, gameState, handlers) => {
       narrative = `${npcName} has made good on their threat. The consequences of defying them are severe.`;
       toast.warning(`⚠️ Consequence from ${npcName}`, { duration: 3000 });
   }
+
+  return {
+    narrative,
+    effects,
+    consequence
+  };
+};
+
+/**
+ * Execute lottery drawing result
+ * @param {Object} consequence - The consequence data
+ * @param {Object} gameState - Current game state
+ * @param {Object} handlers - Handler functions
+ * @returns {Object} Result with narrative and effects
+ */
+const executeLotteryResult = (consequence, gameState, handlers) => {
+  const { updateWealth, toast } = handlers;
+  const { data } = consequence;
+  const { npcName, wager, potentialWin, drawingTurns } = data;
+
+  let narrative = '';
+  const effects = [];
+
+  // Determine if player won (10% chance - historically accurate low odds)
+  const won = Math.random() < 0.10;
+
+  if (won) {
+    // Player won the lottery!
+    updateWealth(potentialWin);
+    effects.push(`Won lottery: +${potentialWin} reales`);
+
+    narrative = `${npcName} arrives at your shop, his face beaming with an uncharacteristic smile. "Doña Maria! Blessed news! Your ticket was drawn at the cathedral steps this afternoon! The Virgin smiles upon you!" He counts out ${potentialWin} reales into your palm, seeming genuinely delighted by your good fortune. "Perhaps some of your luck will rub off on me," he says wistfully, before bowing and departing.`;
+
+    toast.success(`🎉 LOTTERY WIN! +${potentialWin} reales!`, { duration: 5000 });
+
+    // Update gambling history if it exists
+    if (gameState.gamblingHistory?.byNPC) {
+      if (!gameState.gamblingHistory.byNPC[npcName]) {
+        gameState.gamblingHistory.byNPC[npcName] = {
+          totalWins: 0,
+          totalLosses: 0,
+          netGain: 0,
+          lastGameType: 'lottery',
+          lastInteraction: consequence.triggerTurn
+        };
+      }
+      const npcHistory = gameState.gamblingHistory.byNPC[npcName];
+      npcHistory.totalWins++;
+      npcHistory.netGain += (potentialWin - wager);
+      npcHistory.lastGameType = 'lottery';
+      npcHistory.lastInteraction = consequence.triggerTurn;
+    }
+  } else {
+    // Player lost
+    effects.push(`Lottery ticket did not win`);
+
+    narrative = `${npcName} approaches your shop, his expression apologetic. "I'm sorry, Doña Maria. Your number was not drawn at this afternoon's lottery. The Virgin's blessings fell to another this time." He spreads his hands helplessly. "Perhaps next week? I'll be selling tickets again if you're interested." With a resigned bow, he departs, his threadbare doublet disappearing into the afternoon crowd.`;
+
+    toast.info(`No luck this time - ticket didn't win`, { duration: 3500 });
+
+    // Update gambling history if it exists
+    if (gameState.gamblingHistory?.byNPC) {
+      if (!gameState.gamblingHistory.byNPC[npcName]) {
+        gameState.gamblingHistory.byNPC[npcName] = {
+          totalWins: 0,
+          totalLosses: 0,
+          netGain: 0,
+          lastGameType: 'lottery',
+          lastInteraction: consequence.triggerTurn
+        };
+      }
+      const npcHistory = gameState.gamblingHistory.byNPC[npcName];
+      npcHistory.totalLosses++;
+      npcHistory.netGain -= wager;
+      npcHistory.lastGameType = 'lottery';
+      npcHistory.lastInteraction = consequence.triggerTurn;
+    }
+  }
+
+  console.log(`[Lottery] Result: ${won ? 'WON' : 'LOST'} (${potentialWin}r potential win)`);
 
   return {
     narrative,

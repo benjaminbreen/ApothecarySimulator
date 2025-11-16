@@ -2,6 +2,9 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useDrag } from 'react-dnd';
 import PDFPopup from '../../../shared/components/PDFPopup'; // Import the PDFPopup component
 import { useGameState } from '../../../core/state/gameState';
+import { useTooltip } from '../../../hooks/useTooltip';
+import HelperTooltip from '../../../components/HelperTooltip';
+import { toTitleCase } from '../../../utils/textUtils';
 
 function InventoryItem({ item, index, getHumoralShorthand, onPDFClick, onItemClick }) {
   const ref = useRef(null);
@@ -39,7 +42,7 @@ function InventoryItem({ item, index, getHumoralShorthand, onPDFClick, onItemCli
           }}
           onClick={item.pdf ? (e) => { e.stopPropagation(); onPDFClick(`/pdfs/${item.pdf}`, item.citation); } : undefined}
         >
-          {item.name} {item.pdf && '📄'}
+          {toTitleCase(item.name)} {item.pdf && '📄'}
         </strong>
 
         {/* Meta Information */}
@@ -68,12 +71,38 @@ function InventoryItem({ item, index, getHumoralShorthand, onPDFClick, onItemCli
 
 function InventoryPane({ isOpen, toggleInventory, isPrescribing, onPDFClick, inventory, refreshInventory }) {
   const { gameState } = useGameState();
-  const currentInventory = inventory; 
+  const currentInventory = inventory;
   const [isPdfOpen, setIsPdfOpen] = useState(false);
   const [selectedPdfPath, setSelectedPdfPath] = useState('');
   const [selectedCitation, setSelectedCitation] = useState('');
   const [selectedItem, setSelectedItem] = useState(null); // Track selected item for popup
   const [selectedItemIndex, setSelectedItemIndex] = useState(null); // Track selected index for arrow key navigation
+  const [isRefReady, setIsRefReady] = useState(false);
+
+  // Ref for inventory list (for tooltip)
+  const inventoryListRef = useRef(null);
+
+  // Track when the inventory list ref is mounted and pane animation completes
+  useEffect(() => {
+    if (isOpen && inventoryListRef.current) {
+      // Wait for pane slide-in animation to complete (400ms duration in CSS)
+      const timer = setTimeout(() => {
+        setIsRefReady(true);
+      }, 450);
+      return () => clearTimeout(timer);
+    } else {
+      setIsRefReady(false);
+    }
+  }, [isOpen]);
+
+  // TOOLTIP 4: Inventory drag - shows on turns 3-7 when inventory has 2+ items
+  const inventoryTooltip = useTooltip('inventory-drag', {
+    content: "Drag items here to mix compounds or drop on NPCs to give/prescribe",
+    trigger: 'immediate',
+    gameState,
+    useTriggerSystem: true,
+    dependencies: [gameState.turnNumber] // Removed inventory.length - trigger system checks it via condition
+  });
 
   const handlePDFClick = useCallback((pdfPath, citation) => {
     setSelectedPdfPath(pdfPath);
@@ -156,7 +185,7 @@ function InventoryPane({ isOpen, toggleInventory, isPrescribing, onPDFClick, inv
         </h2>
 
         {/* Inventory List */}
-        <ul className="list-none p-0 m-0">
+        <ul ref={inventoryListRef} className="list-none p-0 m-0">
           {inventory.map((item, index) => (
             <InventoryItem
               key={item.id || item.name} // Use a unique identifier
@@ -202,7 +231,7 @@ function InventoryPane({ isOpen, toggleInventory, isPrescribing, onPDFClick, inv
 
             {/* Item Header */}
             <h1 className="font-display text-3xl uppercase tracking-wider border-b-2 border-ink-500 dark:border-ink-600 pb-2.5 mb-5 text-parchment-200 text-center" style={{ textShadow: '0px 0px 10px rgba(255, 255, 255, 0.23)' }}>
-              <span>{selectedItem.name}</span>
+              <span>{toTitleCase(selectedItem.name)}</span>
               <br />
               <span className="text-xl text-ink-400 dark:text-ink-500" style={{ textShadow: '0px 0px 6px rgba(255, 255, 255, 0.1)' }}>
                 ({selectedItem.spanishName})
@@ -239,6 +268,19 @@ function InventoryPane({ isOpen, toggleInventory, isPrescribing, onPDFClick, inv
             <p className="text-lg">{selectedItem.description}</p>
           </div>
         </div>
+      )}
+
+      {/* Helper Tooltip 4: Inventory drag */}
+      {isRefReady && (
+        <HelperTooltip
+          id="inventory-drag"
+          content={inventoryTooltip.content}
+          targetRef={inventoryListRef}
+          show={inventoryTooltip.show && isOpen}
+          onDismiss={inventoryTooltip.dismiss}
+          onDisableAll={inventoryTooltip.onDisableAll}
+          position={inventoryTooltip.position}
+        />
       )}
     </>
   );

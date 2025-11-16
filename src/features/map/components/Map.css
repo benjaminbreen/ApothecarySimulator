@@ -86,6 +86,13 @@
   /* text-shadow controlled by component for theme */
 }
 
+/* Player marker animation */
+.player-layer {
+  transition: transform 0.8s ease-in-out;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
 /* Rooms */
 .room {
   transition: all 0.3s ease;

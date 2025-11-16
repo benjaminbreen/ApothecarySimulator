@@ -68,24 +68,10 @@ Faction Standing:
   if (selectedEntity) {
     if (selectedEntity.social?.faction) {
       // Faction-affiliated NPC: Use faction standing
-      context += `\n**IMPORTANT**: This NPC belongs to a faction. Check their faction standing above and adjust their attitude accordingly:
-- Allied (80+): Very respectful, helpful, offers special favors
-- Friendly (60-79): Polite, cooperative, willing to help
-- Neutral (40-59): Business-like, neither warm nor cold
-- Unfriendly (20-39): Curt, suspicious, reluctant to help
-- Hostile (<20): Openly hostile, may refuse service or insult Maria
-
-Use this to inform dialogue tone, willingness to help, and general demeanor - but never explicitly reference reputation score.`;
+      context += `\n**NPC Attitude**: 80+ helpful, favors | 60-79 polite | 40-59 neutral | 20-39 curt, suspicious | <20 hostile, refuses service. Never reference scores.`;
     } else {
       // Non-faction NPC: Use overall reputation
-      context += `\n**IMPORTANT**: This NPC has no specific faction ties. Use Maria's overall reputation to guide their attitude:
-- Celebrated (80+): Rumors of Maria's skill precede her. Warm reception, eager to help, may offer discounts or favors
-- Respected (60-79): Known as competent. Polite, professional treatment. Willing to do business
-- Mixed Reputation (40-59): Some have heard good things, some bad. Neutral, cautious, business-like
-- Questionable (20-39): Suspicious rumors circulate. Cold reception, reluctant to help, may demand payment upfront
-- Notorious (<20): Bad reputation widespread. Openly hostile, may refuse service, insult Maria, or demand she leave
-
-Use this to inform dialogue tone, willingness to help, pricing, and general demeanor.`;
+      context += `\n**NPC Attitude**: 80+ warm, eager | 60-79 polite | 40-59 neutral, cautious | 20-39 cold, upfront payment | <20 hostile, refuses service. Never reference scores.`;
     }
   }
 
@@ -152,20 +138,7 @@ function buildWeatherContext(weather, gameState) {
   }
 
   // Atmospheric guidance for LLM
-  parts.push('\n**Narrative Instructions**:');
-  parts.push('- Mention weather naturally in scene descriptions (NOT every turn)');
-  parts.push('- NPCs react appropriately (seek shelter in rain, complain about heat, etc.)');
-  parts.push('- Describe sensory details: sounds (rain on tiles), smells (petrichor), tactile (wind on skin)');
-  parts.push('- Consider practicality: wet clothes, muddy streets, seeking cover, closing shutters');
-
-  // Historical context for afternoon thunderstorms
-  if (weather.precipitation === 'rain' && gameState.time) {
-    // PERFORMANCE: Use centralized time parsing utility
-    const hour = parseHourFromTimeString(gameState.time);
-    if (hour >= 14 && hour < 18) {
-      parts.push('- HISTORICAL NOTE: Afternoon thunderstorms are typical in Mexico City summer (wet season)');
-    }
-  }
+  parts.push('\n**Use weather naturally (not every turn)**: NPC reactions, sensory details (sounds, smells), practical effects (wet clothes, mud). Summer afternoons in Mexico City often bring thunderstorms.');
 
   return parts.join('\n');
 }
@@ -192,25 +165,9 @@ function buildEffectsContext(activeEffects = []) {
     }
   });
 
-  parts.push('\n**Narrative Instructions for Effects**:');
-  parts.push('- **Weave effects naturally** into descriptions (NOT every turn, but when contextually relevant)');
-  parts.push('- **Hallucinations/Visions**: Describe distorted perceptions, vivid colors, spiritual insights, altered reality');
-  parts.push('- **Poisoned**: Show physical suffering - nausea, weakness, pale complexion, vomiting, trembling');
-  parts.push('- **Intoxicated**: Slurred speech, impaired judgment, uninhibited behavior, swaying');
-  parts.push('- **Sedated**: Drowsiness, slow reactions, heavy eyelids, difficulty focusing');
-  parts.push('- **Stimulated**: Jittery energy, rapid speech, restlessness, heightened alertness');
-  parts.push('- **Wounded/Infected**: Pain, visible injuries, bloodstains, difficulty moving');
-  parts.push('- **Blessed/Vigorous**: Confidence, strength, ease of movement, positive outlook');
-  parts.push('');
-  parts.push('**CRITICAL - Social Consequences of Visible Effects**:');
-  parts.push('- **NPCs MUST react realistically** to Maria\'s condition - don\'t ignore obvious impairment!');
-  parts.push('- **Intoxicated/Hallucinating**: NPCs express shock, offense, concern, or fear. Clergy especially scandalized. May refuse service, gossip spreads (reputation -5 to -20 depending on witness).');
-  parts.push('- **Poisoned/Wounded**: NPCs show concern, offer help, or become suspicious (was she attacked? is she dangerous?). Close friends/family especially worried (relationship +5 for compassion).');
-  parts.push('- **Elite/Religious NPCs**: MORE judgmental of intoxication, impropriety, suspicious behavior. May report to authorities, refuse to associate (reputation -10 to -30).');
-  parts.push('- **Common Folk**: More sympathetic to suffering, but still gossip about scandalous behavior (reputation -5 to -10).');
-  parts.push('- **Mechanical impacts**: Drunk/impaired Maria may be denied entry to churches, elite establishments. NPCs may cut conversations short, demand she leave.');
-  parts.push('- **Use relationshipChanges and reputationEvents** in StateAgent output to mechanically track these social consequences!');
-  parts.push('- **Avoid repetition**: Mention effects when they\'d realistically be noticeable, not constantly');
+  parts.push('\n**Narrative Instructions**: Weave effects naturally when contextually relevant (not every turn).');
+  parts.push('**Portrayals**: Hallucinations (distorted reality) | Poisoned (nausea, trembling) | Intoxicated (slurred, swaying) | Wounded (pain, injuries) | Blessed (confidence, ease)');
+  parts.push('**NPC Reactions**: Intoxicated/Hallucinating = scandal (-10 to -30 reputation, may refuse service) | Poisoned/Wounded = concern or suspicion | Use relationshipChanges/reputationEvents for mechanical tracking.');
 
   return parts.join('\n');
 }
@@ -401,13 +358,13 @@ Return strict JSON (no markdown fencing, no prose outside the object).
 
 {
   "responseType": "movement|narration",
-  "narrative": ["array of strings (each = 1 paragraph, 1-2 sentences). Second person. CRITICAL: (1) All NPC speech MUST be embedded as quoted dialogue, like: She says, "I need your help." Keep it CONCISE - avoid lengthy descriptions."],
+  "narrative": ["array of paragraphs (1-2 sentences each). Second person. Embed NPC speech as quotes: She says, \"I need help.\" Be concise."],
   "sceneDescription": "string",
   "suggestedCommands": ["#command"],
   "showPortraitFor": "string or null",
   "primaryPortrait": "null (engine assigns portrait automatically)",
   "experimentalPortraitChoice": "exact filename from portrait list OR null (EXPERIMENTAL: for A/B testing)",
-  "primaryNPC": { "name": "...", "age": "...", "gender": "...", "occupation": "...", "casta": "...", "class": "...", "personality": "two traits", "appearance": "one sentence", "description": "one sentence" } or null (CRITICAL: primaryNPC must be a HUMAN character Maria can see and interact with. NEVER set this to animals/pets like João the cat. If no human NPC is physically present and visible, set primaryNPC to null),
+  "primaryNPC": { "name": "...", "age": "...", "gender": "...", "occupation": "...", "casta": "...", "class": "...", "personality": "two traits", "appearance": "one sentence", "description": "one sentence" } or null (MUST be HUMAN physically present with Maria - NOT animals. Null if alone),
   "simpleInteraction": { "type": "vendor_offer|service_offer|donation_request|competitive_check|information_exchange|social_visit|extortion_demand|protection_racket|entertainment_tip|food_purchase|gamble_opportunity|labor_offer|neighbor_complaint|church_donation|null", ... } or {"type": "null"} or null,
   "requestNewPatient": true|false,
   "patientContext": { "reason": "string", "urgency": "low|moderate|high|critical" } or null,
@@ -446,7 +403,7 @@ Set intent when NPC makes OR is still waiting for a request. When NPC pays/accep
 
 **Non-Medical:**
 - **nonmedical_request** = Favors/errands unrelated to medicine (harvesting, deliveries, social visits)
-- **vendor_offer** = NPC selling TO Maria (she's buyer). NOT for medicine requests!
+- **vendor_offer** = NPC buying FROM or selling TO Maria (set direction field). NOT for medicine requests!
 - **social** = Pure conversation, no actionable request
 - **none** = No clear request this turn`;
 
@@ -535,10 +492,15 @@ Set intent when NPC makes OR is still waiting for a request. When NPC pays/accep
     const simpleInteractionSection = `### Simple Interactions (SIMPLE MODE only)
 Brief non-medical encounters (≤50 words). If medical (sickness/remedies/symptoms), set type:"null".
 
+**CRITICAL - Role Exclusivity**:
+- If simpleInteraction is set (vendor_offer/service_offer/etc), then requestNewPatient MUST be false and interactionIntent must match the interaction type.
+- If requestNewPatient is true, then simpleInteraction MUST be null.
+- An NPC has ONE purpose per visit.
+
 | Type | Use Case | Emoji Examples |
 |------|----------|----------------|
-| vendor_offer | NPC selling TO Maria | 💧 water, 🪵 firewood, 🌿 herbs, 🐟 fish |
-| service_offer | Services TO Maria | 🔨 repairs, 📜 scribing |
+| vendor_offer | NPC buying FROM or selling TO Maria | 💧 fish (sell TO Maria), 🌿 cochineal (buy FROM Maria) |
+| service_offer | NPC providing service TO Maria OR requesting Maria's expertise | 💧 water delivery (TO Maria), 🎨 paint advice (FROM Maria) |
 | donation_request | Church/charity | ⛪ alms, 💒 offerings |
 | competitive_check | Rival scouting | 💊 other apothecary |
 | extortion_demand | Threats/demands | 💀 criminals, officials |
@@ -547,12 +509,13 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
 
 **CRITICAL - Nested Object Structure (REQUIRED):**
 
-**vendor_offer** - NPC selling goods TO Maria:
+**vendor_offer** - NPC buying FROM or selling TO Maria:
 {
   "type": "vendor_offer",
   "npcName": "Carmen the Fish Seller",
   "npcPortrait": null,
   "npcRole": "fish seller",
+  "direction": "selling_to_maria",  // "selling_to_maria" (NPC is seller, Maria is buyer) OR "buying_from_maria" (NPC is buyer, Maria is seller)
   "context": "offers fresh fish from Xochimilco",
   "offer": {
     "item": "fish",
@@ -564,10 +527,18 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
   }
 }
 
-**service_offer** - NPC offering services TO Maria:
+// Examples:
+// NPC selling TO Maria: {"direction": "selling_to_maria", "npcName": "Fish Seller", "context": "offers fresh fish", "offer": {"item": "fish", "price": 2}}
+// NPC buying FROM Maria: {"direction": "buying_from_maria", "npcName": "Don Lorenzo", "context": "seeks to purchase cochineal from Maria", "offer": {"item": "cochineal", "price": 50}}
+
+**service_offer** - NPC offering services TO Maria OR requesting Maria's services:
 {
   "type": "service_offer",
   "npcName": "Water Seller",
+  "npcPortrait": null,
+  "npcRole": "water carrier",
+  "direction": "selling_to_maria",  // "selling_to_maria" (NPC provides service, Maria pays) OR "buying_from_maria" (NPC wants Maria's expertise, NPC pays)
+  "context": "offers fresh water delivery",
   "offer": {
     "item": "water delivery",
     "price": 1,
@@ -577,6 +548,10 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
     "emoji": "💧"
   }
 }
+
+// Examples:
+// NPC selling TO Maria: {"direction": "selling_to_maria", "npcName": "Water Seller", "context": "offers water delivery", "offer": {"item": "water delivery", "price": 3}}
+// NPC buying FROM Maria: {"direction": "buying_from_maria", "npcName": "Toymaker", "context": "needs paint consultation", "offer": {"item": "paint stabilization advice", "price": 10}}
 
 **donation_request** - NPC asking for charity:
 {
@@ -595,11 +570,25 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
   "type": "gamble_opportunity",
   "npcName": "Card Player",
   "gamble": {
-    "gameType": "cards",
+    "gameType": "cards|dice|taba|cockfight|lottery",
     "wager": 5,
     "potentialWin": 10,
-    "odds": "even",
-    "description": "high-low card game"
+    "odds": "even|favorable|unfavorable",
+    "description": "high-low card game",
+    "delayed": false // IMPORTANT: Set to true ONLY for lottery (cathedral drawings have delayed results)
+  }
+}
+// For lottery specifically (church raffles for cathedral funds):
+{
+  "type": "gamble_opportunity",
+  "npcName": "Don Esteban the Lottery Seller",
+  "gamble": {
+    "gameType": "lottery",
+    "wager": 1,
+    "potentialWin": 10,
+    "odds": "unfavorable",
+    "description": "church lottery for cathedral repairs",
+    "delayed": true // Lottery drawings happen later at cathedral steps
   }
 }
 
@@ -638,11 +627,11 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
 **Demographics**: gender (male/female/unknown), age (child/young/adult/middle-aged/elderly), casta (español/criollo/mestizo/mulato/africano/indio), class (elite/middling/common/poor/religious/enslaved/artisan), occupation (short noun).
 
 **CRITICAL - Gender & Class Inference:**
-- **Titles with "Father"** → gender: male, class: religious (e.g., "Father Anselmo", "Reverend Father Superior")
-- **Titles with "Mother"** → gender: female, class: religious (e.g., "Mother Superior")
+- **Titles with "Father"** → gender: male, class: religious (e.g., "Father Anselmo", "Reverend Father Superior de la Cuesta")
+- **Titles with "Mother"** → gender: female, class: religious (e.g., "Mother Superior Burgos")
 - **Titles with "Fray"/"Padre"** → gender: male, class: religious (e.g., "Fray Diego")
-- **Titles with "Doña"** → gender: female (e.g., "Doña Isabel")
-- **Titles with "Don"** → gender: male (e.g., "Don Luis")
+- **Titles with "Doña"** → gender: female 
+- **Titles with "Don"** → gender: male 
 - **Religious occupations**: priest, monk, nun, friar, abbess, abbot (NOT muleteer, merchant, etc.)
 
 **primaryNPC**: Person PHYSICALLY WITH Maria. Complete demographics required. Null if alone.
@@ -729,14 +718,30 @@ function buildConversationHistory(conversationHistory, journal = [], currentTurn
   // PHASE 1 FIX: Process messages sequentially instead of enforcing strict pairing
   // This allows medical events (Q&A, prescriptions, contracts) to be included without breaking
 
-  // PERFORMANCE: Reduced from 20 to 12 messages for faster LLM processing
-  const recentMessages = conversationHistory.slice(-12);
+  // PERFORMANCE: Reduced from 20 to 14 messages for balanced context/speed
+  const recentMessages = conversationHistory.slice(-14);
 
   const history = [];
 
   // Add older journal entries for compressed context (if available)
+  // EXTENDED: Now includes turns 15-30 ago for better long-term memory
   if (journal.length > 5) {
-    const oldJournal = journal.slice(-15, -5); // 6-15 turns ago
+    // Very old events (16-30 turns ago) - compressed summaries
+    const veryOldJournal = journal.slice(-30, -14);
+    if (veryOldJournal.length > 0) {
+      history.push('### Past Events (Brief Summary):');
+      veryOldJournal.forEach(entry => {
+        if (entry?.content) {
+          // Further compress by taking first sentence only
+          const firstSentence = entry.content.split('.')[0] + '.';
+          history.push(firstSentence);
+        }
+      });
+      history.push(''); // Blank line separator
+    }
+
+    // Older events (6-15 turns ago) - standard summaries
+    const oldJournal = journal.slice(-15, -5);
     if (oldJournal.length > 0) {
       history.push('### Earlier Events (Summary):');
       oldJournal.forEach(entry => {
@@ -887,7 +892,7 @@ export async function generateNarrative({
 **Example Response Structure**:
 {
   "narrative": [
-    "Isabel returns to the shop, walking more easily than before. She smiles as she shows you her arm where the wound was.",
+    "Ximena returns to the shop, walking more easily than before. She smiles as she shows you her arm where the wound was.",
     "The redness has faded significantly, and the swelling is nearly gone. She flexes her fingers with only a slight wince. \\"Doña Maria, your treatment worked wonders. The pain is much better.\\""
   ],
   "outcomeStatus": "improving",
@@ -916,7 +921,7 @@ export async function generateNarrative({
         protection_racket: { tone: 'matter-of-fact, casual threat, businesslike', items: 'monthly protection (5r), one-time payment (10r)', vary: 'how explicit the threat is' },
         entertainment_tip: { tone: 'charming, lighthearted, performative', items: 'songs (1r), stories, guitar music', vary: 'how much performed before asking' },
         food_purchase: { tone: 'cheerful, energetic, persuasive', items: 'fish from Xochimilco (2r), milk (1r), fresh tortillas, tamales', vary: 'freshness claims, time of day' },
-        gamble_opportunity: { tone: 'persuasive, friendly, competitive', items: 'dice games (5-10r wager), card games (3-8r), cockfights (8-15r), friendly wagers', vary: 'wager amount, odds fairness, NPC skill level' },
+        gamble_opportunity: { tone: 'persuasive, friendly, competitive', items: 'dice games (5-10r wager), card games (3-8r), cockfights (8-15r), lottery tickets (1-2r, delayed:true ONLY for lottery)', vary: 'wager amount, odds fairness, NPC skill level, delayed flag (true for lottery)' },
         investment_offer: { tone: 'businesslike, persuasive, opportunistic, confident', items: 'Church bonds (50r, low risk, 10%), Cacao shares (75r, 25-50%), Real estate (200r, 35-60%), Manila galleon (150r, high risk, 120-200%), Silver mining (100r, very high risk, 70-200%)', vary: 'investment amount, return estimates, urgency, NPC expertise/connection to opportunity' },
         labor_offer: { tone: 'earnest, humble, eager', items: 'work for food/shelter, apprentice position, temporary help', vary: 'skills offered, desperation' },
         neighbor_complaint: { tone: 'judgmental, indignant, self-righteous', items: 'noise complaints, smell complaints, impropriety accusations', vary: 'severity, specific grievance' },

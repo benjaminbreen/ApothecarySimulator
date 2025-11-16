@@ -71,6 +71,7 @@ import MobileGameLayout from './components/MobileGameLayout';
 // Mobile optimization
 import { MobileLayoutProvider } from '../contexts/MobileLayoutContext';
 import { useScreenSize } from '../hooks';
+import { TooltipProvider } from '../contexts/TooltipContext';
 
 
 
@@ -165,10 +166,13 @@ const GameContent = () => {
     setTradingNPC,
     primaryPortraitFile,
     setPrimaryPortraitFile,
+    primaryNpcName,
+    setPrimaryNpcName,
     pendingContract,
     setPendingContract,
     pendingActionPrompt,
     setPendingActionPrompt,
+    actionPromptLoading,
   } = useNPCs();
 
   const [recentlyCompletedActionPrompt, setRecentlyCompletedActionPrompt] = useState(null);
@@ -804,6 +808,12 @@ const GameContent = () => {
   const [weatherDescription, setWeatherDescription] = useState('Clear');
   const [currentWeather, setCurrentWeather] = useState(null); // Full weather state for narrative integration
 
+  // Stable callback for weather updates (prevents WeatherBackground re-render on every GamePage render)
+  const handleWeatherChange = useCallback((description, weatherState) => {
+    setWeatherDescription(description);
+    setCurrentWeather(weatherState);
+  }, []); // Empty deps - setState functions are stable
+
   // Item action popup state (for drag-drop on portraits)
   const [itemActionPopup, setItemActionPopup] = useState({
     isOpen: false,
@@ -994,7 +1004,7 @@ const GameContent = () => {
   // Load initial narrative on game start AND register EntityList
   useEffect(() => {
     // Register all EntityList entities with EntityManager
-    console.log('[GamePage] Registering EntityList entities:', EntityList.length);
+    // console.log('[GamePage] Registering EntityList entities:', EntityList.length);
     EntityList.forEach(entity => {
       try {
         entityManager.register(entity);
@@ -1115,6 +1125,7 @@ const GameContent = () => {
     setPendingSimpleInteraction, // Simple interaction system
     setPendingRandomEvent, // Random event system
     setPrimaryPortraitFile, // PHASE 1: For LLM-selected portraits
+    setPrimaryNpcName, // Primary NPC name (conversation partner)
     setDynamicChips, // Dynamic action chips from narrative parsing
     setPendingPrescription, // Clear prescription card on next action
     setGameState, // For updating gameState (e.g., status from StateAgent)
@@ -2231,10 +2242,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 gameDate={gameState.date}
                 location={gameState.location}
                 viewMode="standard"
-                onWeatherChange={(description, weatherState) => {
-                  setWeatherDescription(description);
-                  setCurrentWeather(weatherState); // Store full weather state for narrative agent
-                }}
+                onWeatherChange={handleWeatherChange}
                 travelZoom={travelZoomState.isActive ? travelZoomState : null}
                 isWeatherViewActive={backgroundMode === 'weather'}
                 activeEffects={activeEffects}
@@ -2246,7 +2254,6 @@ Be historically accurate, immersive, and concise. Write in third person past ten
               (() => {
                 // Check for visions effect even when weather is disabled
                 const hasVisions = activeEffects?.some(effect => effect.type === 'hallucinating');
-                console.log('[GamePage] Fallback background - hasVisions:', hasVisions, 'activeEffects:', activeEffects);
 
                 if (hasVisions) {
                   return (
@@ -2311,6 +2318,17 @@ Be historically accurate, immersive, and concise. Write in third person past ten
           weatherDescription={weatherDescription}
           onWeatherClick={handleWeatherToggle}
           isWeatherViewActive={backgroundMode === 'weather'}
+          onJournalClick={() => setIsJournalOpen(!isJournalOpen)}
+          isJournalOpen={isJournalOpen}
+          onLocationClick={() => {
+            // If location contains "mexico city", open interactive map (big modal)
+            // Otherwise, open fast travel (world map)
+            if (gameState.location.toLowerCase().includes('mexico city')) {
+              setIsInteractiveMapModalOpen(true);
+            } else {
+              setIsFastTravelOpen(true);
+            }
+          }}
           showCondensedStats={isCharacterCardCollapsed}
           health={gameState.health}
           energy={gameState.energy}
@@ -2458,6 +2476,8 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 pendingActionPrompt={visibleActionPrompt}
                 onProposeAction={handleProposeAction}
                 onDeclineAction={handlers.handleDeclineAction}
+                onDismissAction={handlers.handleDismissAction}
+                actionPromptLoading={actionPromptLoading}
                 // Mixing decision props
                 pendingMixingDecision={pendingMixingDecision}
                 onOpenMixingWorkshop={handlers.handleOpenMixingWorkshop}
@@ -2546,21 +2566,38 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 onActionClick={handleActionClick}
                 recentNPCs={recentNPCs}
                 primaryPortraitFile={primaryPortraitFile} // PHASE 1: LLM-selected portrait
+                primaryNpcName={primaryNpcName} // Primary NPC name (conversation partner)
                 currentNarrative={historyOutput}
                 recentNarrativeTurn={historyOutput} // Most recent narrative turn for LLM analysis
                 scenario={scenarioLoader.getScenario(scenarioId || '1680-mexico-city')}
                 npcs={filteredNPCPositions} // Only show NPCs mentioned in narrative
-                playerPosition={
-                  travelAnimationState?.position
-                    ? { x: travelAnimationState.position[0], y: travelAnimationState.position[1] }
-                    : playerPosition
-                } // Phase 4: Use animated position during travel (convert array to object)
-                playerFacing={travelAnimationState?.direction || playerFacing} // Phase 4: Use animated direction during travel
+                playerPosition={playerPosition}
+                playerFacing={playerFacing}
                 currentMapId={currentMapId} // Pass current map ID to control which map is rendered
                 shopSignHung={gameState.shopSign?.hung || false} // Pass shop sign status
                 setIsLedgerOpen={setIsLedgerOpen} // Open Ledger Modal when Accounts button clicked
                 toggleShopSign={toggleShopSign} // Direct shop sign control
                 toast={toast} // For notifications
+                onSaveToJournal={(content, mode, sourceLabel) => {
+                  // Save context panel content to journal
+                  setJournal(prevJournal => [
+                    ...prevJournal,
+                    {
+                      content,
+                      type: 'ai',
+                      source: sourceLabel,
+                      timestamp: new Date().toISOString(),
+                      metadata: {
+                        time: gameState.time,
+                        date: gameState.date,
+                        location: gameState.location,
+                        weather: gameState.weather || 'Clear',
+                        reputation: reputation
+                      }
+                    }
+                  ]);
+                  toast?.success(`Saved to journal: ${sourceLabel}`);
+                }}
                 entities={currentEntities} // Entities for Wikipedia context panel
                 onBookClick={handleBookClick} // Handle book clicks in Study tab
                 documents={getDocuments()} // Document library from gameState
@@ -2571,8 +2608,8 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                   setIsDocumentModalOpen(true);
                 }}
                 pendingHouseCall={pendingHouseCall} // Phase 3B: House call data (triggers map view)
-                travelPath={travelAnimationState?.path || null} // Phase 4: Travel path for map animation
-                isTraveling={!!pendingHouseCall && !!travelAnimationState} // Phase 4: Whether currently traveling
+                travelPath={travelAnimationState?.path || null}
+                isTraveling={!!travelAnimationState?.isActive}
                 activeTab={activeTab} // FIX #4: Tab context for portrait display
                 activePatient={activePatient} // FIX #4: Patient entity for Patient View tab
                 reputationChange={reputationChange} // Reputation change indicator
@@ -3088,13 +3125,16 @@ function GamePageWithProvider() {
  * PHASE 1.2: Added ModalProvider to manage all modal states
  * PHASE 1.3: Added PlayerProvider to manage player state and skills
  * PHASE 1.4: Added NPCProvider to manage NPC tracking and entity state
+ * PHASE 1.5: Added TooltipProvider to manage helper tooltips for first-time users
  */
 export default function GamePage() {
   return (
     <ToastProvider>
-      <MobileLayoutProvider>
-        <GamePageWithProvider />
-      </MobileLayoutProvider>
+      <TooltipProvider>
+        <MobileLayoutProvider>
+          <GamePageWithProvider />
+        </MobileLayoutProvider>
+      </TooltipProvider>
     </ToastProvider>
   );
 }

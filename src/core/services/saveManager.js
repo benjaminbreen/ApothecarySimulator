@@ -10,8 +10,9 @@
  */
 
 import { safeLocalStorage, setJSON, getJSON } from '../../utils/safeLocalStorage';
+import { initialInventoryData } from '../../initialInventory';
 
-const SAVE_VERSION = '1.1.1';
+const SAVE_VERSION = '1.1.2';
 const SAVE_KEY_PREFIX = 'apothecary_save_slot_';
 const AUTOSAVE_KEY = 'apothecary_autosave';
 const MAX_MANUAL_SLOTS = 3;
@@ -412,6 +413,49 @@ const MIGRATIONS = {
       ...saveData,
       version: '1.1.1',
       calendarNotes
+    };
+  },
+
+  '1.1.2': (saveData) => {
+    console.log('[SaveManager] Migrating save from v1.1.1 to v1.1.2');
+    console.log('[SaveManager] Adding preparationAdvice to inventory items');
+
+    // Create a lookup map for preparation advice by item name
+    const preparationAdviceMap = new Map();
+    initialInventoryData.forEach(item => {
+      if (item.preparationAdvice) {
+        preparationAdviceMap.set(item.name.toLowerCase(), item.preparationAdvice);
+      }
+    });
+
+    // Update inventory items with preparation advice
+    const updatedInventory = (saveData.gameState?.inventory || []).map(item => {
+      const advice = preparationAdviceMap.get(item.name.toLowerCase());
+      if (advice && !item.preparationAdvice) {
+        return { ...item, preparationAdvice: advice };
+      }
+      return item;
+    });
+
+    // Update compounds with preparation advice (if they're also in initial inventory)
+    const updatedCompounds = (saveData.gameState?.compounds || []).map(item => {
+      const advice = preparationAdviceMap.get(item.name.toLowerCase());
+      if (advice && !item.preparationAdvice) {
+        return { ...item, preparationAdvice: advice };
+      }
+      return item;
+    });
+
+    console.log(`[SaveManager] Updated ${updatedInventory.filter(i => i.preparationAdvice).length}/${updatedInventory.length} inventory items with preparation advice`);
+
+    return {
+      ...saveData,
+      version: '1.1.2',
+      gameState: {
+        ...saveData.gameState,
+        inventory: updatedInventory,
+        compounds: updatedCompounds
+      }
     };
   }
 };

@@ -47,13 +47,23 @@ function buildInteractionPayload(npc) {
     context: npc.interaction.context || npc.summary
   };
 
-  const sanitized = sanitizePortraitName(npc.name);
+  // Build portrait candidates list (priority order)
   const portraitCandidates = [];
-  if (sanitized) {
-    portraitCandidates.push(`/portraits/${sanitized}.jpg`);
+
+  // HIGHEST PRIORITY: ID-based portrait (e.g., leonor_mendez.jpg for id='leonor_mendez')
+  if (npc.id) {
+    portraitCandidates.push(`/portraits/${npc.id}.jpg`);
   }
+
+  // MEDIUM PRIORITY: Explicit portrait from config
   if (npc.portrait) {
     portraitCandidates.push(npc.portrait);
+  }
+
+  // LOW PRIORITY: Fallback to sanitized name (for backward compatibility)
+  const sanitized = sanitizePortraitName(npc.name);
+  if (sanitized && sanitized !== npc.id) {
+    portraitCandidates.push(`/portraits/${sanitized}.jpg`);
   }
 
   const payload = {

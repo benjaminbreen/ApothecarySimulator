@@ -250,13 +250,9 @@ export function buildEntityContext(selectedEntity, playerAction = '') {
 - Occupation: ${selectedEntity.occupation || 'unknown'}
 - Symptoms: ${symptomsText}
 
-**Note**: This patient could potentially arrive seeking treatment if it fits the narrative flow. Consider:
-- Current scene context (is Maria waiting for patients? is the shop open?)
-- Time of day and location
-- Whether an organic arrival makes sense
-- They may arrive directly, send an intermediary, or not appear this turn at all
+**CRITICAL**: This patient is seeking treatment for THEMSELVES. They should arrive IN PERSON at Maria's shop with the symptoms listed above. DO NOT have them send an intermediary, emissary, or family member - the patient themselves is the one who needs help and is arriving.
 
-**You have full creative control.** Only introduce this patient if it feels natural and historically appropriate. If the current scene doesn't support a new patient arrival, you may ignore this suggestion entirely.`;
+**Note**: Only introduce this patient if it fits the narrative flow and context (shop open, appropriate time, etc.). If the scene doesn't support a patient arrival, you may skip them this turn.`;
   }
 
   // Detect if player is checking who's at the door / arriving
@@ -274,14 +270,7 @@ export function buildEntityContext(selectedEntity, playerAction = '') {
 ${selectedEntity.name} (${selectedEntity.age || 'adult'}, ${selectedEntity.occupation || 'unknown occupation'})
 ${selectedEntity.description || 'No additional details provided.'}
 
-**Narrative Context**: Maria is inside her shop/home. ${selectedEntity.name} is arriving now - either knocking at the door, calling out, or just appearing at the entrance. They might:
-- Come seeking medicine or a remedy
-- Ask for Maria's help with something
-- Bring news or a message
-- Stop by as a neighbor/friend
-- Be there on some other business
-
-**IMPORTANT**: Position ${selectedEntity.name} at the threshold/doorway, NOT already inside working or settled in. They are just NOW arriving as Maria goes to see who's there.`;
+**IMPORTANT**: ${selectedEntity.name} is arriving for their PRIMARY PURPOSE as a ${selectedEntity.occupation}. Position them at the threshold/doorway, just now arriving.`;
   }
 
   // Default NPC context for other situations

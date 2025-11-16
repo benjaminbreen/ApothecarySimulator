@@ -36,7 +36,7 @@ export function useTradeState(mode = 'market', tradingNPC = null, initialTab = n
     if (initialTab) return initialTab;
 
     // Otherwise fall back to mode-based logic
-    if (mode === 'inventory') return 'full-inventory';
+    if (mode === 'inventory' || tradingNPC?.type === 'inventory') return 'inventory';
     if (mode === 'npc') {
       if (tradingNPC?.type === 'buy') return 'sell-to-npc';
       if (tradingNPC?.type === 'sell') return 'buy-from-npc';

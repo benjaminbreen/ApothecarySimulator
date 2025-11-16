@@ -1,0 +1,998 @@
+{
+  "1": {
+    "name": "Camphor",
+    "primarySystems": [
+      "musculoskeletal",
+      "nervous",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "head"
+    ],
+    "specificConditions": [
+      "headache",
+      "fever",
+      "pain",
+      "inflammation",
+      "burn"
+    ]
+  },
+  "2": {
+    "name": "Chamomile",
+    "primarySystems": [
+      "digestive",
+      "nervous",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach",
+      "eyes"
+    ],
+    "specificConditions": [
+      "inflammation",
+      "anxiety",
+      "colic",
+      "burn"
+    ]
+  },
+  "3": {
+    "name": "Opium",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "nervous"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "pain",
+      "cough",
+      "diarrhea",
+      "burn"
+    ]
+  },
+  "4": {
+    "name": "Powdered millipedes",
+    "primarySystems": [
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "pain",
+      "inflammation",
+      "burn"
+    ]
+  },
+  "5": {
+    "name": "Saffron",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "nervous"
+    ],
+    "organAffinities": [
+      "heart"
+    ],
+    "specificConditions": [
+      "cough",
+      "melancholy"
+    ]
+  },
+  "6": {
+    "name": "White Horehound",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "lungs",
+      "throat"
+    ],
+    "specificConditions": [
+      "cough",
+      "burn"
+    ]
+  },
+  "7": {
+    "name": "Nettle",
+    "primarySystems": [
+      "musculoskeletal",
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "inflammation",
+      "constipation",
+      "dropsy",
+      "scurvy",
+      "burn"
+    ]
+  },
+  "8": {
+    "name": "Powdered crab\\",
+    "primarySystems": [
+      "circulatory",
+      "dermatological",
+      "renal"
+    ],
+    "organAffinities": [
+      "heart",
+      "kidneys"
+    ],
+    "specificConditions": [
+      "stone",
+      "burn"
+    ]
+  },
+  "9": {
+    "name": "Quicksilver",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "skin"
+    ],
+    "specificConditions": []
+  },
+  "10": {
+    "name": "Rose Water",
+    "primarySystems": [
+      "nervous",
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "heart"
+    ],
+    "specificConditions": [
+      "inflammation",
+      "melancholy"
+    ]
+  },
+  "11": {
+    "name": "Senna",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "bowels"
+    ],
+    "specificConditions": [
+      "constipation",
+      "burn"
+    ]
+  },
+  "12": {
+    "name": "Sugar",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "cough",
+      "wound",
+      "burn"
+    ]
+  },
+  "13": {
+    "name": "Honey",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "inflammation",
+      "cough",
+      "wound",
+      "burn"
+    ]
+  },
+  "14": {
+    "name": "Spanish Wine",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "pain",
+      "wound"
+    ]
+  },
+  "15": {
+    "name": "Sal Ammoniac",
+    "primarySystems": [
+      "digestive",
+      "respiratory"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "cough"
+    ]
+  },
+  "16": {
+    "name": "Ginger",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "throat"
+    ],
+    "specificConditions": [
+      "cough",
+      "nausea",
+      "burn"
+    ]
+  },
+  "18": {
+    "name": "Red Coral",
+    "primarySystems": [
+      "nervous",
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "heart"
+    ],
+    "specificConditions": [
+      "bleeding",
+      "anxiety",
+      "melancholy",
+      "burn"
+    ]
+  },
+  "19": {
+    "name": "Mechoacan",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "bowels"
+    ],
+    "specificConditions": [
+      "pain",
+      "colic",
+      "dropsy",
+      "burn"
+    ]
+  },
+  "20": {
+    "name": "Cochineal",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "circulatory"
+    ],
+    "organAffinities": [
+      "throat"
+    ],
+    "specificConditions": [
+      "fever",
+      "diarrhea",
+      "bleeding",
+      "ulcer",
+      "burn"
+    ]
+  },
+  "21": {
+    "name": "Alum",
+    "primarySystems": [
+      "digestive",
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "eyes"
+    ],
+    "specificConditions": [
+      "diarrhea",
+      "wound",
+      "bleeding",
+      "ulcer"
+    ]
+  },
+  "22": {
+    "name": "Dragon\\",
+    "primarySystems": [
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "wound",
+      "bleeding",
+      "ulcer",
+      "burn"
+    ]
+  },
+  "23": {
+    "name": "Crocus Metallorum",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "vomiting",
+      "burn"
+    ]
+  },
+  "24": {
+    "name": "Cinnamon",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "cough",
+      "burn"
+    ]
+  },
+  "25": {
+    "name": "Clove",
+    "primarySystems": [
+      "musculoskeletal",
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach",
+      "teeth"
+    ],
+    "specificConditions": [
+      "pain",
+      "nausea",
+      "burn"
+    ]
+  },
+  "26": {
+    "name": "Nutmeg",
+    "primarySystems": [
+      "digestive",
+      "nervous",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "head",
+      "stomach",
+      "brain"
+    ],
+    "specificConditions": [
+      "burn"
+    ]
+  },
+  "27": {
+    "name": "Amber",
+    "primarySystems": [
+      "nervous",
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "heart"
+    ],
+    "specificConditions": [
+      "burn"
+    ]
+  },
+  "28": {
+    "name": "Guaiacum",
+    "primarySystems": [
+      "circulatory",
+      "dermatological",
+      "dental"
+    ],
+    "organAffinities": [
+      "blood"
+    ],
+    "specificConditions": [
+      "pain",
+      "burn"
+    ]
+  },
+  "29": {
+    "name": "Tobacco",
+    "primarySystems": [
+      "musculoskeletal",
+      "digestive",
+      "respiratory"
+    ],
+    "organAffinities": [
+      "head",
+      "lungs",
+      "teeth"
+    ],
+    "specificConditions": [
+      "pain",
+      "wound",
+      "vomiting",
+      "plague",
+      "burn"
+    ]
+  },
+  "30": {
+    "name": "Copal Resin",
+    "primarySystems": [
+      "nervous",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "inflammation",
+      "wound",
+      "burn"
+    ]
+  },
+  "31": {
+    "name": "Cacao",
+    "primarySystems": [
+      "nervous",
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "heart"
+    ],
+    "specificConditions": [
+      "melancholy",
+      "burn"
+    ]
+  },
+  "32": {
+    "name": "Rue",
+    "primarySystems": [
+      "digestive",
+      "nervous",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "plague",
+      "burn"
+    ]
+  },
+  "33": {
+    "name": "Cinchona Bark",
+    "primarySystems": [
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "fever",
+      "burn"
+    ]
+  },
+  "34": {
+    "name": "Tamarind",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "burn"
+    ]
+  },
+  "35": {
+    "name": "Aloes",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "wound",
+      "burn"
+    ]
+  },
+  "36": {
+    "name": "Turpentine",
+    "primarySystems": [
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "wound",
+      "ulcer",
+      "burn"
+    ]
+  },
+  "37": {
+    "name": "Balsam of Peru",
+    "primarySystems": [
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "heart"
+    ],
+    "specificConditions": [
+      "wound",
+      "ulcer",
+      "burn"
+    ]
+  },
+  "38": {
+    "name": "Sarsaparilla",
+    "primarySystems": [
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "skin",
+      "blood"
+    ],
+    "specificConditions": [
+      "burn"
+    ]
+  },
+  "39": {
+    "name": "Jalap",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "pain",
+      "dropsy",
+      "burn"
+    ]
+  },
+  "40": {
+    "name": "Sassafras",
+    "primarySystems": [
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "burn"
+    ]
+  },
+  "41": {
+    "name": "Balsam of Tolu",
+    "primarySystems": [
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "lungs"
+    ],
+    "specificConditions": [
+      "cough",
+      "wound",
+      "burn"
+    ]
+  },
+  "42": {
+    "name": "Myrrh",
+    "primarySystems": [
+      "dermatological",
+      "reproductive",
+      "dental"
+    ],
+    "organAffinities": [
+      "womb"
+    ],
+    "specificConditions": [
+      "wound",
+      "ulcer",
+      "burn"
+    ]
+  },
+  "43": {
+    "name": "Frankincense",
+    "primarySystems": [
+      "nervous",
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "head",
+      "heart",
+      "brain"
+    ],
+    "specificConditions": [
+      "wound",
+      "burn"
+    ]
+  },
+  "44": {
+    "name": "Mastic",
+    "primarySystems": [
+      "digestive",
+      "dermatological",
+      "dental"
+    ],
+    "organAffinities": [
+      "teeth"
+    ],
+    "specificConditions": [
+      "diarrhea",
+      "burn"
+    ]
+  },
+  "45": {
+    "name": "Castoreum",
+    "primarySystems": [
+      "nervous"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "fever"
+    ]
+  },
+  "46": {
+    "name": "Cassia Fistula",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "burn"
+    ]
+  },
+  "47": {
+    "name": "Anise",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "colic",
+      "burn"
+    ]
+  },
+  "48": {
+    "name": "Rhubarb Root",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "burn"
+    ]
+  },
+  "49": {
+    "name": "Ipecacuanha",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "vomiting",
+      "burn"
+    ]
+  },
+  "50": {
+    "name": "Scammony",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "burn"
+    ]
+  },
+  "51": {
+    "name": "Antimony",
+    "primarySystems": [
+      "digestive"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "vomiting"
+    ]
+  },
+  "52": {
+    "name": "Hartshorn",
+    "primarySystems": [
+      "digestive"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "fever"
+    ]
+  },
+  "53": {
+    "name": "Vitriol",
+    "primarySystems": [
+      "dermatological",
+      "ophthalmological"
+    ],
+    "organAffinities": [
+      "eyes"
+    ],
+    "specificConditions": [
+      "ulcer",
+      "burn"
+    ]
+  },
+  "54": {
+    "name": "Cardamom",
+    "primarySystems": [
+      "digestive",
+      "respiratory",
+      "nervous"
+    ],
+    "organAffinities": [
+      "head",
+      "heart",
+      "stomach"
+    ],
+    "specificConditions": [
+      "headache",
+      "burn"
+    ]
+  },
+  "55": {
+    "name": "Black Pepper",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "constipation",
+      "burn"
+    ]
+  },
+  "56": {
+    "name": "Storax",
+    "primarySystems": [
+      "respiratory",
+      "dermatological",
+      "dental"
+    ],
+    "organAffinities": [
+      "lungs"
+    ],
+    "specificConditions": [
+      "cough",
+      "burn"
+    ]
+  },
+  "57": {
+    "name": "Benzoin",
+    "primarySystems": [
+      "respiratory",
+      "nervous",
+      "circulatory"
+    ],
+    "organAffinities": [
+      "head",
+      "lungs",
+      "brain"
+    ],
+    "specificConditions": [
+      "wound",
+      "burn"
+    ]
+  },
+  "58": {
+    "name": "Gentian",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "burn"
+    ]
+  },
+  "59": {
+    "name": "Valerian",
+    "primarySystems": [
+      "nervous",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "anxiety",
+      "nausea",
+      "burn"
+    ]
+  },
+  "60": {
+    "name": "Wormwood",
+    "primarySystems": [
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "stomach"
+    ],
+    "specificConditions": [
+      "constipation",
+      "burn"
+    ]
+  },
+  "61": {
+    "name": "Liquorice",
+    "primarySystems": [
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "throat"
+    ],
+    "specificConditions": [
+      "pain",
+      "cough",
+      "ulcer",
+      "burn"
+    ]
+  },
+  "62": {
+    "name": "Marshmallow Root",
+    "primarySystems": [
+      "respiratory",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "inflammation",
+      "cough"
+    ]
+  },
+  "63": {
+    "name": "Balsam of Copaiba",
+    "primarySystems": [
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "wound",
+      "ulcer",
+      "burn"
+    ]
+  },
+  "64": {
+    "name": "Contraherva",
+    "primarySystems": [
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "fever",
+      "pain",
+      "plague",
+      "burn"
+    ]
+  },
+  "65": {
+    "name": "Maguey Sap",
+    "primarySystems": [
+      "dermatological"
+    ],
+    "organAffinities": [
+      "skin"
+    ],
+    "specificConditions": [
+      "fever",
+      "inflammation",
+      "wound",
+      "burn"
+    ]
+  },
+  "66": {
+    "name": "Peyote",
+    "primarySystems": [
+      "musculoskeletal",
+      "nervous"
+    ],
+    "organAffinities": [
+      "head",
+      "spine",
+      "back"
+    ],
+    "specificConditions": [
+      "headache",
+      "pain"
+    ]
+  },
+  "67": {
+    "name": "Liquidambar",
+    "primarySystems": [
+      "respiratory",
+      "dermatological",
+      "dental"
+    ],
+    "organAffinities": [
+      "lungs"
+    ],
+    "specificConditions": [
+      "pain",
+      "cough",
+      "wound",
+      "ulcer",
+      "burn"
+    ]
+  },
+  "68": {
+    "name": "Willow Bark",
+    "primarySystems": [
+      "musculoskeletal",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "fever",
+      "pain",
+      "inflammation",
+      "burn"
+    ]
+  },
+  "69": {
+    "name": "Chia Seeds",
+    "primarySystems": [
+      "circulatory",
+      "dermatological"
+    ],
+    "organAffinities": [
+      "heart"
+    ],
+    "specificConditions": [
+      "fever",
+      "burn"
+    ]
+  },
+  "70": {
+    "name": "China Root",
+    "primarySystems": [
+      "musculoskeletal",
+      "digestive",
+      "dermatological"
+    ],
+    "organAffinities": [],
+    "specificConditions": [
+      "pain",
+      "constipation",
+      "colic",
+      "gout",
+      "burn"
+    ]
+  }
+}

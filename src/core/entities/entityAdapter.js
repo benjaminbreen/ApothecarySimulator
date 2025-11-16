@@ -10,6 +10,47 @@
 import { resolvePortrait } from '../services/portraitResolver';
 
 /**
+ * Format family summary from structured family object or string
+ * Handles deduplication and formatting for display
+ * @param {Object} entity - Entity object
+ * @returns {string|null} Formatted family summary
+ */
+function formatFamilySummary(entity) {
+  // If already a valid string, return it (but check for duplicates)
+  if (typeof entity.family === 'string' && entity.family) {
+    // Remove duplicate sentences by splitting and filtering
+    const sentences = entity.family.split('. ').filter((s, i, arr) => {
+      // Keep sentence if it's the first occurrence
+      return arr.indexOf(s) === i && s.trim().length > 0;
+    });
+    return sentences.join('. ').trim();
+  }
+
+  // If structured family object exists in biography
+  if (entity.biography?.family && typeof entity.biography.family === 'object') {
+    const f = entity.biography.family;
+    if (!f.summary) return null;
+
+    const living = f.summary.livingMembers || 0;
+    if (living === 0) return 'No immediate family present in Mexico City.';
+
+    const parts = [];
+    const livingParents = f.parents?.filter(p => p.living) || [];
+    const livingSiblings = f.siblings?.filter(s => s.living) || [];
+    const livingChildren = f.children?.filter(c => c.living) || [];
+
+    if (livingParents.length > 0) parts.push(`${livingParents.length} parent(s)`);
+    if (livingSiblings.length > 0) parts.push(`${livingSiblings.length} sibling(s)`);
+    if (f.spouse?.living) parts.push('spouse');
+    if (livingChildren.length > 0) parts.push(`${livingChildren.length} child(ren)`);
+
+    return `Has ${living} living family member(s) in the region: ${parts.join(', ')}.`;
+  }
+
+  return null;
+}
+
+/**
  * Adapt entity for Patient Modal (converts nested to flat)
  * @param {Object} entity - Entity object (new or old format)
  * @returns {Object} Flat entity object for modal consumption
@@ -17,10 +58,54 @@ import { resolvePortrait } from '../services/portraitResolver';
 export function adaptEntityForPatientModal(entity) {
   if (!entity) return null;
 
+  console.log('[entityAdapter] Adapting patient entity:', {
+    name: entity.name,
+    hasImage: !!entity.image,
+    hasVisualImage: !!entity.visual?.image,
+    hasDiagnosis: !!entity.diagnosis,
+    hasMedicalDiagnosis: !!entity.medical?.diagnosis,
+    hasMedicalRecordDiagnoses: !!entity.medicalRecord?.diagnoses?.length,
+    hasSymptoms: !!entity.symptoms,
+    hasMedicalSymptoms: !!entity.medical?.symptoms
+  });
+
   // If already in flat format, return as-is
   if (entity.age && entity.symptoms && !entity.appearance && !entity.medical) {
     return entity;
   }
+
+  // DIAGNOSIS EXTRACTION: Check multiple locations
+  // 1. Flat field (from DiagnosisPanel submission)
+  // 2. Medical record (from patient Q&A extraction)
+  // 3. Nested medical object (from entity enrichment)
+  let diagnosis = '';
+  if (entity.diagnosis) {
+    diagnosis = entity.diagnosis;
+  } else if (entity.medicalRecord?.diagnoses?.length > 0) {
+    // Get the most recent diagnosis
+    const latestDiagnosis = entity.medicalRecord.diagnoses[entity.medicalRecord.diagnoses.length - 1];
+    diagnosis = latestDiagnosis.diagnosis || '';
+  } else if (entity.medical?.diagnosis) {
+    diagnosis = entity.medical.diagnosis;
+  }
+
+  console.log('[entityAdapter] Extracted diagnosis:', diagnosis);
+
+  // PORTRAIT EXTRACTION: Check multiple locations and ensure proper path format
+  const resolvedPortrait = resolvePortrait(entity);
+  const imageField = entity.visual?.image || entity.image || '';
+
+  // Ensure portrait path starts with /portraits/ if it's just a filename
+  let finalPortrait = resolvedPortrait || imageField;
+  if (finalPortrait && !finalPortrait.startsWith('/') && !finalPortrait.startsWith('http')) {
+    finalPortrait = `/portraits/${finalPortrait}`;
+  }
+
+  console.log('[entityAdapter] Portrait extraction:', {
+    resolvedPortrait,
+    imageField,
+    finalPortrait
+  });
 
   // Convert nested format to flat
   return {
@@ -33,11 +118,11 @@ export function adaptEntityForPatientModal(entity) {
     // Appearance (nested → flat)
     age: entity.appearance?.age || entity.age || 'Unknown',
     gender: entity.appearance?.gender || entity.gender || 'Unknown',
-    portrait: resolvePortrait(entity), // Use new portrait resolver
+    portrait: finalPortrait, // Use resolved portrait
 
     // Medical data (nested → flat)
     symptoms: entity.medical?.symptoms || entity.symptoms || [],
-    diagnosis: entity.medical?.diagnosis || entity.diagnosis || '',
+    diagnosis, // Use extracted diagnosis from multiple sources
     contemporaryTheory: entity.medical?.contemporaryTheory || entity.contemporaryTheory || '',
     urgency: entity.medical?.urgency || entity.urgency || 'Moderate',
     astrologicalSign: entity.medical?.astrologicalSign || entity.astrologicalSign || '',
@@ -50,8 +135,16 @@ export function adaptEntityForPatientModal(entity) {
     birthplace: entity.biography?.birthplace || entity.birthplace || '',
     currentResidence: entity.social?.currentResidence || entity.currentResidence || '',
 
+    // Background fields (for Background tab in NPCPatientModal)
+    family: formatFamilySummary(entity),
+    background: entity.biography?.narrative || entity.background || '',
+    personality: typeof entity.personality === 'string'
+      ? entity.personality
+      : (entity.personality?.description || entity.personality?.traits?.join(', ') || ''),
+    relationships: entity.relationships || '',
+
     // Additional fields
-    image: entity.visual?.image || entity.image || '',
+    image: imageField,
     caption: entity.caption || '',
     secret: entity.biography?.secrets?.[0] || entity.secret || '',
     citation: entity.metadata?.citation || entity.citation || '',

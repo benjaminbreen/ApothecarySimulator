@@ -171,7 +171,7 @@ function parseGiveSellOutcome(rawText, type, fallbackPrice) {
  * @param {Function} params.handleSubmit - Main submit handler for triggering full narrative turns
  * @param {Array} params.conversationHistory - Conversation history for NarrativeAgent context
  * @param {Array} params.journal - Journal entries for NarrativeAgent context
- * @param {Object} params.gameState - DEPRECATED: Use useGameState() instead
+ * @param {Object} params.gameState - Current game state (passed from parent)
  * @param {number} params.turnNumber - Current turn number
  * @param {Object} params.npcTracker - NPC tracker instance
  * @param {Function} params.clearConversationLock - Clears active NPC conversation lock
@@ -213,7 +213,7 @@ export function useCommerceHandlers({
 }) {
   // Context hooks
   const { updateInventory, updateWealth, unlockMethod, addActiveInvestment } = useGameState();
-  const { setPendingContract, setPrimaryPortraitFile } = useNPCs();
+  const { setPendingContract, setPrimaryPortraitFile, setActionPromptLoading } = useNPCs();
 
   /**
    * Handle accepting a sale contract
@@ -418,18 +418,47 @@ export function useCommerceHandlers({
     let journalText = '';
     let reputationChange = 0;
     let xpAmount = 1; // Base XP for simple interactions
+    let actualDonatedItem = null; // Track what was actually donated (for substitutions)
 
     switch (type) {
       case 'service_offer': {
         const { item, price } = interaction.offer;
         if (action === 'buy') {
-          // Deduct wealth
+          // Maria is BUYING a service from NPC
           updateWealth(-price);
-          // Add item to inventory
-          updateInventory(item, 1, `purchased from ${npcName}`);
+          // Add item to inventory (if tangible)
+          if (item) {
+            updateInventory(item, 1, `purchased from ${npcName}`);
+          }
           journalText = `Purchased ${item} from ${npcName} for ${price} reales.`;
           toast.success(`Bought ${item} for ${price} reales`, { duration: 2000 });
           reputationChange = +1; // Small reputation boost for supporting vendors
+        } else if (action === 'sell') {
+          // Maria is SELLING a service to NPC (accepting purchase request)
+          const currentWealthBefore = gameState.wealth || 0;
+          updateWealth(price);
+
+          // Log transaction to ledger (Libro de Cuentas)
+          const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+          transactionManager.logTransaction(
+            'income',
+            TRANSACTION_CATEGORIES.MEDICINE_SALES,
+            `Sold ${item} to ${npcName}`,
+            price,
+            currentWealthBefore, // BEFORE the transaction
+            gameState.date,
+            gameState.time
+          );
+          console.log(`[Ledger] Logged sale of ${item} to ${npcName} for ${price} reales`);
+
+          journalText = `Sold ${item} to ${npcName} for ${price} reales.`;
+          toast.success(`Sold ${item} for ${price} reales`, { duration: 2000 });
+          reputationChange = +2; // Reputation boost for providing service
+          xpAmount = 2; // Extra XP for successful sale
+        } else if (action === 'negotiate') {
+          // Negotiation will be handled by the narrative turn
+          journalText = `Negotiating price with ${npcName} for ${item}.`;
+          toast.info('Negotiating price...', { duration: 1500 });
         } else {
           journalText = `Declined to purchase ${item} from ${npcName}.`;
           toast.info('Purchase declined', { duration: 1500 });
@@ -439,31 +468,68 @@ export function useCommerceHandlers({
       }
 
       case 'donation_request': {
-        const { item, reputationImpact } = interaction.request;
+        const { item: requestedItem, reputationImpact } = interaction.request;
         if (action === 'donate') {
-          const isAbstract = isAbstractDonation(item);
-          let donatedItemName = item;
+          const isAbstract = isAbstractDonation(requestedItem);
+          let donatedItemName = requestedItem;
 
           if (!isAbstract) {
-            donatedItemName = overrideItemName || item;
+            // Fix Bug #1: Explicit check to avoid empty string fallback
+            donatedItemName = (overrideItemName !== null && overrideItemName !== undefined) ? overrideItemName : requestedItem;
 
             if (!donatedItemName) {
               toast.error('Select an item to donate.', { duration: 2500 });
               return;
             }
 
-            const inventoryItem = (gameState.inventory || []).find(inv =>
+            // OPTION C: Always allow substitution - let LLM handle appropriateness
+            // Only validate that the SELECTED item exists (can't give what you don't have)
+            const selectedItem = (gameState.inventory || []).find(inv =>
               inv.name?.toLowerCase() === donatedItemName.toLowerCase()
             );
 
-            if (!inventoryItem || inventoryItem.quantity <= 0) {
+            if (!selectedItem || selectedItem.quantity <= 0) {
               toast.error(`You do not have ${donatedItemName} in your inventory.`, { duration: 3000 });
               return;
             }
 
+            // Remove the SELECTED item from inventory
             updateInventory(donatedItemName, -1, `donated to ${npcName}`);
+
+            // Capture what was actually donated (for Bug #2 fix)
+            actualDonatedItem = donatedItemName;
+
+            // Check if this is a substitution (donated item doesn't match requested item)
+            // NOTE: Treats multi-option requests (e.g., "X or Y") as always being substitutions
+            const isSubstitution = donatedItemName.toLowerCase() !== requestedItem.toLowerCase();
+
+            if (isSubstitution) {
+              // Route through LLM for narrative response to substitution
+              console.log(`[Donation] Substitution detected: ${donatedItemName} instead of ${requestedItem}`);
+
+              // Build action string for LLM with explicit evaluation guidance
+              const substitutionAction = `Offer ${donatedItemName} to ${npcName}, who requested ${requestedItem} for their needs. ${npcName} should react based on whether the substitution is reasonable, useful, bizarre, or insulting.`;
+
+              // Clear the pending interaction immediately to prevent duplicate cards
+              setPendingSimpleInteraction(null);
+
+              // Let LLM handle the response (will evaluate if substitution is good/bad)
+              // LLM will roleplay NPC reaction: grateful, disappointed, confused, angry, etc.
+              await handleSubmit(null, substitutionAction, { skipStoryNpcCheck: true });
+
+              // Journal entry for substitution attempt
+              addJournalEntry({
+                turnNumber: turnNumber,
+                date: gameState.date,
+                entry: `Offered ${donatedItemName} to ${npcName} in place of requested ${requestedItem}.`
+              });
+
+              // Don't show generic success toast - let narrative handle it
+              return; // Exit early - LLM will handle the rest
+            }
           }
 
+          // Exact match or abstract donation - process normally
           reputationChange = reputationImpact.donate;
           journalText = isAbstract
             ? `Offered assistance to ${npcName}. A small act of charity.`
@@ -677,8 +743,34 @@ export function useCommerceHandlers({
             toast.warning(`${npcName} wasn't interested in haggling`, { duration: 2500 });
             reputationChange = -1; // Small reputation hit for failed haggle
           }
+        } else if (action === 'sell') {
+          // Maria is SELLING to NPC (accepting purchase request)
+          const currentWealthBefore = gameState.wealth || 0;
+          updateWealth(price);
+
+          // Log transaction to ledger (Libro de Cuentas)
+          const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+          transactionManager.logTransaction(
+            'income',
+            TRANSACTION_CATEGORIES.MEDICINE_SALES,
+            `Sold ${item} to ${npcName}`,
+            price,
+            currentWealthBefore, // BEFORE the transaction
+            gameState.date,
+            gameState.time
+          );
+          console.log(`[Ledger] Logged sale of ${item} to ${npcName} for ${price} reales`);
+
+          journalText = `Sold ${item} to ${npcName} for ${price} reales.`;
+          toast.success(`Sold ${item} for ${price} reales`, { duration: 2000 });
+          reputationChange = +2; // Reputation boost for providing service
+          xpAmount = 2; // Extra XP for successful sale
+        } else if (action === 'negotiate') {
+          // Negotiation will be handled by the narrative turn
+          journalText = `Negotiating price with ${npcName} for ${item}.`;
+          toast.info('Negotiating price...', { duration: 1500 });
         } else {
-          // Refused to buy
+          // Refused to buy/sell
           journalText = `Declined ${npcName}'s offer to purchase ${item}.`;
           toast.info('Offer declined', { duration: 1500 });
         }
@@ -957,6 +1049,47 @@ export function useCommerceHandlers({
           toast.error(`💔 Lost all winnings! Walked away with nothing.`, { duration: 3500 });
           reputationChange = -2; // Bigger reputation hit for greedy loss
           xpAmount = 0;
+        } else if (action === 'buy_ticket') {
+          // Lottery ticket purchase - delayed result
+          updateWealth(-wager);
+
+          // Log transaction to ledger
+          const transactionManager = getTransactionManager(gameState.scenarioId || '1680-mexico-city');
+          const currentWealth = (gameState.wealth || 0) - wager;
+          transactionManager.logTransaction(
+            'expense',
+            TRANSACTION_CATEGORIES.OTHER,
+            `Purchased lottery ticket from ${npcName}`,
+            wager,
+            currentWealth,
+            gameState.date,
+            gameState.time
+          );
+
+          // Schedule lottery drawing result (3-5 turns later)
+          const drawingTurns = Math.floor(Math.random() * 3) + 3; // 3-5 turns
+          if (!gameState.pendingConsequences) {
+            gameState.pendingConsequences = [];
+          }
+          gameState.pendingConsequences.push({
+            type: 'lottery_result',
+            triggerTurn: turnNumber + drawingTurns,
+            data: {
+              npcName,
+              wager,
+              potentialWin,
+              gameType,
+              turnNumber: turnNumber,
+              drawingTurns
+            }
+          });
+
+          journalText = `Purchased a lottery ticket for ${wager} reales from ${npcName}. He says the drawing will be at the cathedral steps this ${drawingTurns <= 3 ? 'afternoon' : 'evening'}.`;
+          toast.success(`🎫 Lottery ticket purchased! Drawing later today.`, { duration: 3500 });
+          reputationChange = +1; // Supporting church lottery
+          xpAmount = 1;
+
+          console.log(`[Lottery] Scheduled drawing for turn ${turnNumber + drawingTurns} (${drawingTurns} turns from now)`);
         } else if (action === 'walk_away') {
           // Declined to gamble
           journalText = `Declined ${npcName}'s invitation to gamble at ${gameType}. Sometimes discretion is the better part of valor.`;
@@ -1199,13 +1332,29 @@ export function useCommerceHandlers({
     let simulatedAction = '';
     switch (type) {
       case 'service_offer':
-        simulatedAction = action === 'buy'
-          ? `purchase the ${interaction.offer.item} from ${npcName}`
-          : `Not today - send ${npcName} on their way`;
+        // Check direction: selling_to_maria vs buying_from_maria
+        if (interaction.direction === 'buying_from_maria') {
+          // NPC wants to BUY a service from Maria (purchase request)
+          if (action === 'sell') {
+            simulatedAction = `provide ${interaction.offer?.item} to ${npcName} and receive payment of ${interaction.offer?.price} reales`;
+          } else if (action === 'negotiate') {
+            simulatedAction = `attempt to negotiate a better price with ${npcName}`;
+          } else {
+            simulatedAction = `politely decline ${npcName}'s service request`;
+          }
+        } else {
+          // NPC wants to SELL a service to Maria - default behavior
+          if (action === 'buy') {
+            simulatedAction = `purchase the ${interaction.offer?.item} from ${npcName} for ${interaction.offer?.price} reales`;
+          } else {
+            simulatedAction = `Not today - send ${npcName} on their way`;
+          }
+        }
         break;
       case 'donation_request':
+        // Fix Bug #2: Use actual donated item, not requested item
         simulatedAction = action === 'donate'
-          ? `give ${interaction.request.item} to ${npcName}`
+          ? `give ${actualDonatedItem || interaction.request.item} to ${npcName}`
           : `politely decline ${npcName}'s request`;
         break;
       case 'competitive_check':
@@ -1230,12 +1379,25 @@ export function useCommerceHandlers({
         simulatedAction = `spend time with ${npcName}`;
         break;
       case 'vendor_offer':
-        if (action === 'buy') {
-          simulatedAction = `purchase the ${interaction.offer.item} from ${npcName}`;
-        } else if (action === 'haggle') {
-          simulatedAction = `attempt to negotiate a better price with ${npcName}`;
+        // Check direction: selling_to_maria vs buying_from_maria
+        if (interaction.direction === 'buying_from_maria') {
+          // NPC wants to BUY from Maria (purchase request)
+          if (action === 'sell') {
+            simulatedAction = `sell ${interaction.offer?.item} to ${npcName} and receive payment of ${interaction.offer?.price} reales`;
+          } else if (action === 'negotiate') {
+            simulatedAction = `attempt to negotiate a better price with ${npcName}`;
+          } else {
+            simulatedAction = `politely decline ${npcName}'s purchase request`;
+          }
         } else {
-          simulatedAction = `politely decline ${npcName}'s offer`;
+          // NPC wants to SELL to Maria (vendor offer) - default behavior
+          if (action === 'buy') {
+            simulatedAction = `purchase the ${interaction.offer?.item} from ${npcName}`;
+          } else if (action === 'haggle') {
+            simulatedAction = `attempt to negotiate a better price with ${npcName}`;
+          } else {
+            simulatedAction = `politely decline ${npcName}'s offer`;
+          }
         }
         break;
       case 'extortion_demand':
@@ -1252,7 +1414,9 @@ export function useCommerceHandlers({
         }
         break;
       case 'gamble_opportunity':
-        if (action === 'bet_won') {
+        if (action === 'buy_ticket') {
+          simulatedAction = `purchase a lottery ticket from ${npcName}`;
+        } else if (action === 'bet_won') {
           simulatedAction = `win at ${interaction.gamble.gameType} against ${npcName}`;
         } else if (action === 'bet_doubled_won') {
           simulatedAction = `risk it all and WIN the double-or-nothing bet at ${interaction.gamble.gameType} with ${npcName}`;
@@ -1422,9 +1586,9 @@ export function useCommerceHandlers({
 
   /**
    * Handle declining a sale inquiry
-   * Removes inquiry from state
+   * Triggers narrative turn to show NPC's reaction
    */
-  const handleDeclineSale = useCallback((inquiry) => {
+  const handleDeclineSale = useCallback(async (inquiry) => {
     console.log('[SaleInquiry] Declined sale opportunity:', inquiry);
 
     // Log failed transaction attempt
@@ -1440,11 +1604,6 @@ export function useCommerceHandlers({
       gameState.time
     );
 
-    // Log to conversation history
-    setConversationHistory(prev => [...prev,
-      { role: 'system', content: `*[SALE INQUIRY DECLINED] Maria politely declined ${inquiry.offeredBy}'s request.*` }
-    ]);
-
     // Add journal entry
     addJournalEntry({
       turnNumber,
@@ -1452,16 +1611,34 @@ export function useCommerceHandlers({
       entry: `Declined ${inquiry.offeredBy}'s request for a remedy.`
     });
 
-    toast.info('Sale opportunity declined.', { duration: 2000 });
+    // Trigger narrative turn for NPC reaction
+    const declineAction = `politely decline ${inquiry.offeredBy}'s request for a remedy`;
 
-    // Clear the inquiry
-    // setPendingSaleInquiry(null); - This will be handled by parent component
+    const llmInstructions = `
+## CRITICAL: Decline Reaction Protocol
+
+Maria has declined ${inquiry.offeredBy}'s request for medical help. Generate their reaction:
+
+1. **Emotional Response**: Show realistic emotion based on their desperation/need
+2. **Brief Dialogue**: 1-2 sentences expressing disappointment or understanding
+3. **Departure**: ${inquiry.offeredBy} MUST leave after this
+   - Set npcDeparted = true in your response
+4. **No Lingering**: They should not plead further
+
+Example: "${inquiry.offeredBy} nods slowly, clearly disappointed. 'I understand, Doña Maria. I will seek help elsewhere.' They turn and walk back toward the street."`;
+
+    await handleSubmit(null, declineAction, {
+      llmInstructions,
+      actionResultType: 'sale_declined'
+    });
+
+    toast.info('Sale opportunity declined.', { duration: 2000 });
   }, [
-    setConversationHistory,
     addJournalEntry,
     turnNumber,
     gameState,
-    toast
+    toast,
+    handleSubmit
   ]);
 
   /**
@@ -1756,23 +1933,39 @@ Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-
 - ${recipientNameCapitalized} is a realistic 1680s person who expects treatments they've heard of or understand
 - Make their reaction dramatic and realistic - confusion, anger, or walking out in disgust are NORMAL responses to bad medicine`;
 
+      // Set loading state BEFORE clearing card
+      // This replaces ActionPromptCard with loading message
+      setActionPromptLoading({
+        type: 'prescribe',
+        recipientName: recipientNameCapitalized,
+        item: item.name,
+        amount: amount,
+        route: route,
+        price: price
+      });
+
       setPendingActionPrompt(null);
 
-      await handleSubmit(null, cleanStatement, {
-        llmInstructions, // Pass instructions separately so they don't appear in Chronicle
-        actionResultType: 'prescription_offer',
-        pendingPrescription: {
-          recipientName,
-          npcId,
-          item,
-          amount,
-          price,
-          route,
-          includeBloodletting,
-          bloodAmount,
-          ailmentDescription
-        }
-      });
+      try {
+        await handleSubmit(null, cleanStatement, {
+          llmInstructions, // Pass instructions separately so they don't appear in Chronicle
+          actionResultType: 'prescription_offer',
+          pendingPrescription: {
+            recipientName,
+            npcId,
+            item,
+            amount,
+            price,
+            route,
+            includeBloodletting,
+            bloodAmount,
+            ailmentDescription
+          }
+        });
+      } finally {
+        // Always clear loading state, even if handleSubmit fails
+        setActionPromptLoading(null);
+      }
 
       return;
     }
@@ -1982,10 +2175,21 @@ Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-
   ]);
 
   /**
-   * Handle declining action prompt
-   * Just clears the prompt and logs to history
+   * Handle dismissing action prompt without triggering narrative
+   * Silently removes the card from UI with no game consequences
    */
-  const handleDeclineAction = useCallback((actionPrompt = null) => {
+  const handleDismissAction = useCallback((actionPrompt = null) => {
+    console.log('[ActionPrompt] Card dismissed silently (no narrative)');
+
+    // Just clear the prompt - no logging, no narrative, no consequences
+    setPendingActionPrompt(null);
+  }, [setPendingActionPrompt]);
+
+  /**
+   * Handle declining action prompt
+   * Triggers a narrative turn to show NPC's reaction to the decline
+   */
+  const handleDeclineAction = useCallback(async (actionPrompt = null) => {
     console.log('[ActionPrompt] Action declined', actionPrompt);
 
     // Log failed transaction attempt
@@ -2007,20 +2211,43 @@ Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-
       );
     }
 
-    // Log to conversation history
-    setConversationHistory(prev => [...prev,
-      { role: 'system', content: `*[ACTION DECLINED] Maria decides not to proceed with the request.*` }
-    ]);
-
-    // Clear the action prompt
+    // Clear the action prompt BEFORE triggering narrative turn
+    // This prevents the card from reappearing after decline
     setPendingActionPrompt(null);
+
+    // Trigger a narrative turn to show NPC's reaction to the decline
+    // This gives proper closure - NPC reacts (disappointed, angry, understanding) and departs
+    const recipientName = actionPrompt?.recipientName || 'them';
+    const actionType = actionPrompt?.type || 'request';
+
+    const declineAction = `politely decline ${recipientName}'s ${actionType} and explain that I cannot help them at this time`;
+
+    // Add LLM instructions to ensure NPC departs after decline
+    const llmInstructions = `
+## CRITICAL: Decline Reaction Protocol
+
+Maria has declined ${recipientName}'s ${actionType}. Generate their reaction:
+
+1. **Emotional Response**: Show realistic emotion (disappointment, anger, understanding, hurt pride, etc.)
+2. **Brief Dialogue**: 1-2 sentences from ${recipientName} expressing their feelings
+3. **Departure**: ${recipientName} MUST leave after this exchange
+   - Describe them exiting (walking out, turning away, leaving the shop, etc.)
+   - Set npcDeparted = true in your response
+4. **No Lingering**: Do NOT have them stay to negotiate or plead further
+
+Example: "${recipientName} frowns deeply, muttering something about finding help elsewhere. With a curt nod, they turn and stride toward the door, disappearing into the street."`;
+
+    await handleSubmit(null, declineAction, {
+      llmInstructions,
+      actionResultType: 'action_declined'
+    });
 
     toast.info('Request declined', { duration: 2000 });
   }, [
-    setConversationHistory,
     setPendingActionPrompt,
     toast,
-    gameState
+    gameState,
+    handleSubmit
   ]);
 
   return {
@@ -2036,5 +2263,6 @@ Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-
     handleAbandonSaleProposal,
     handleProposeAction,
     handleDeclineAction,
+    handleDismissAction,
   };
 }

@@ -155,7 +155,7 @@ async function openaiChatCompletion(messages, temperature = 1.0, maxTokens = 100
 }
 
 // Unified API - this is what all components should call
-export async function createChatCompletion(messages, temperature = 1.0, maxTokens = 1000, responseFormat = null, metadata = {}) {
+export async function createChatCompletion(messages, temperature = 0.6, maxTokens = 1000, responseFormat = null, metadata = {}) {
   // Extract system and user prompts for logging
   const systemPrompt = messages.find(m => m.role === 'system')?.content || '';
   const userPrompt = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n');

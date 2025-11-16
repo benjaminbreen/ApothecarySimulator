@@ -101,6 +101,15 @@ export function findPortraitByName(npcName) {
     return null;
   }
 
+  // HARD OVERRIDE: João the Kitten always gets joao_kitten.jpg
+  const normalizedName = npcName.toLowerCase().trim();
+  if (normalizedName === 'joão' || normalizedName === 'joao' ||
+      normalizedName === 'joão the kitten' || normalizedName === 'joao the kitten' ||
+      normalizedName === 'joão (the cat)' || normalizedName === 'joao (the cat)') {
+    console.log(`[portraitMatcher] ✓ Hard override for João the Kitten: joao_kitten.jpg`);
+    return 'joao_kitten.jpg';
+  }
+
   // Get all available portrait filenames
   const availablePortraits = getAllPortraitFilenames();
 

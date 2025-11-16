@@ -1068,219 +1068,7 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
     description: "The world begins to warp and twist, colors bleeding into one another. Maria's vision blurs as she falls into a deep trance, the boundaries between reality and dream dissolving."
 },
 
-  // Places
-  
-  {
-    entityType: "place",
-    name: "Generic Home",
-    image: "generichome.jpg",
-    caption: "Inside a home in Mexico City.",
-    description: "The home is modest and simple, with a small altar in the corner and a few chairs around a wooden table. The scent of burning incense fills the air."
-},
-{
-    entityType: "place",
-    name: "Market",
-    image: "market.jpg",
-    caption: "The bustling marketplace.",
-    description: "Vendors call out to passersby, offering a variety of goods from spices to fresh produce. The market is a vibrant and chaotic place, full of life."
-},
-{
-    entityType: "place",
-    name: "Street (Day)",
-    image: "street.jpg",
-    caption: "A city street during the day.",
-    description: "The cobblestone streets of Mexico City are filled with people going about their daily business. The sound of horse hooves clattering and merchants calling out fills the air."
-},
-{
-    entityType: "place",
-    name: "Street (Night)",
-    image: "streetnight.jpg",
-    caption: "A city street at night.",
-    description: "The streets of Mexico City have quieted as night falls. The occasional flicker of torchlight reveals small groups of people hurrying home, shadows cast by the stone buildings loom over the thoroughfare."
-},
-{
-    entityType: "place",
-    name: "Outside Maria's Shop (Day)",
-    image: "outsideday.jpg",
-    caption: "Outside Maria's shop during the day.",
-    description: "The streets outside Maria's shop are bustling with activity. It's hot and humid today, and the sun beats down on the crowded thoroughfare."
-},
-{
-    entityType: "place",
-    name: "Outskirts",
-    image: "outskirts.jpg",
-    caption: "On the outskirts of Mexico City.",
-    description: "A barren landscape just outside Mexico City, with scattered farms and small homes dotting the horizon."
-},
-{
-    entityType: "place",
-    name: "Village",
-    image: "village.jpg",
-    caption: "A rural village near Mexico City.",
-    description: "A small village with adobe houses and dusty streets, where locals gather by a well and share the latest news."
-},
-{
-    entityType: "place",
-    name: "Dockside",
-    image: "dockside.jpg",
-    caption: "Dockside at a nearby river port.",
-    description: "Wooden docks stretch out into the river, where small boats are tied and fishermen sell their catch to passing travelers."
-},
-{
-    entityType: "place",
-    name: "Port",
-    image: "port.jpg",
-    caption: "A bustling port.",
-    description: "Ships docked at the port unload their cargo, while merchants haggle over prices and workers carry heavy crates along the shore."
-},
-{
-    entityType: "place",
-    name: "Hills",
-    image: "hills.jpg",
-    caption: "Rolling hills near Mexico City.",
-    description: "The gentle hills are covered in green grass and dotted with trees, providing a quiet retreat from the bustling city."
-},
-{
-    entityType: "place",
-    name: "Forest",
-    image: "forest.jpg",
-    caption: "A dense forest near the countryside.",
-    description: "Tall trees stretch towards the sky, their branches forming a thick canopy that blocks out most of the sunlight."
-},
-{
-    entityType: "place",
-    name: "Frontier",
-    image: "frontier.jpg",
-    caption: "The frontier near New Spain.",
-    description: "An arid and rugged landscape that marks the edge of Spanish-controlled territory, where the wilderness stretches out into the unknown."
-},
-{
-    entityType: "place",
-    name: "Abandoned Temple",
-    image: "abandonedtemple.jpg",
-    caption: "An abandoned temple deep in the forest.",
-    description: "The ruins of an ancient temple, overgrown with vines and partially buried by time, stand in eerie silence."
-},
-{
-    entityType: "place",
-    name: "Country Church",
-    image: "countrychurch.jpg",
-    caption: "A small country church.",
-    description: "A quaint stone church with a modest bell tower, nestled in the countryside and surrounded by wildflowers."
-},
-{
-    entityType: "place",
-    name: "Canyon",
-    image: "canyon.jpg",
-    caption: "A deep canyon near the outskirts.",
-    description: "A vast canyon carved by a river, with steep cliffs and narrow trails that wind down towards the valley floor."
-},
-{
-    entityType: "place",
-    name: "Outside Maria's Shop (Night)",
-    image: "outsidenight.jpg",
-    caption: "Outside Maria's shop during the evening.",
-    description: "The streets outside Maria's shop have quieted down as night falls. The air is cooler, and the sounds of distant revelry mix with the rustling of leaves."
-},
-{
-    entityType: "place",
-    name: "Shop Interior (Morning)",
-    image: "shopmorning.jpg",
-    caption: "Inside Maria's shop in the morning.",
-    description: "The sun filters in through the windows, illuminating the shelves filled with herbs and tinctures. The shop is quiet, but the day has just begun."
-},
-{
-    entityType: "place",
-    name: "Shop Interior (Afternoon)",
-    image: "shopafternoon.jpg",
-    caption: "Inside Maria's shop in the afternoon.",
-    description: "The shop is filled with a warm, afternoon glow. Maria carefully arranges her herbs and remedies, preparing for the day's patients."
-},
-{
-    entityType: "place",
-    name: "Shop Interior (Night)",
-    image: "shopnight.jpg",
-    caption: "Inside Maria's shop at night.",
-    description: "Maria's shop is dimly lit by a few candles, casting long shadows across the shelves filled with herbs, tinctures, and other remedies. The air is heavy with the scent of dried plants."
-},
-{
-    entityType: "place",
-    name: "Countryside",
-    image: "countryside.jpg",
-    caption: "The open countryside.",
-    description: "Rolling fields and distant mountains stretch out as far as the eye can see. The air is fresh and the landscape is dotted with small farms and wildflowers."
-},
-{
-    entityType: "place",
-    name: "University",
-    image: "university.jpg",
-    caption: "The Royal and Pontifical University of Mexico.",
-    description: "The Royal and Pontifical University of Mexico is a forbidding place, one in which women are typically strictly barred and most studies are devoted to theology and esoteric scholastic disputes."
-},
-{
-    entityType: "place",
-    name: "Library",
-    image: "library.jpg",
-    caption: "A library.",
-    description: "The books inside this library are extraordinarily valuable."
-},
-{
-    entityType: "place",
-    name: "Study",
-    image: "study.jpg",
-    caption: "Maria studies a book.",
-    description: "Maria sits at a wooden table with several open books and scrolls in front of her. The smell of old parchment mixes with the sharp scent of dried herbs."
-},
-{
-    entityType: "place",
-    name: "Codex",
-    image: "codex.jpg",
-    caption: "The Nahuatl Codex.",
-    description: "Maria carefully examines an ancient Nahuatl codex, its pages filled with faded drawings and cryptic symbols. She feels the weight of history as she tries to decipher its meaning."
-},
-{
-    entityType: "place",
-    name: "Herbs",
-    image: "herbs.jpg",
-    caption: "Examining herbs at a market stall.",
-    description: "Bundles of dried herbs hang from an herb stall as a merchant woman sells them."
-},
-{
-    entityType: "place",
-    name: "Farm",
-    image: "farm.jpg",
-    caption: "Riverside farmlands outside Mexico City.",
-    description: "A plot of irrigated farmland with rows of crops stretching towards the horizon along with canals plyed by river boats."
-},
-{
-    entityType: "place",
-    name: "Mushroom",
-    image: "mushroom.jpg",
-    caption: "Encounter with the curandera.",
-    description: "The curandera presents a basket filled with strange, otherworldly mushrooms."
-},
-
-{
-    entityType: "place",
-    name: "Merchant",
-    image: "merchant.jpg",
-    caption: "A merchant's stall in the market.",
-    description: "A merchant stands behind a wooden stall, gesturing animatedly as he tries to sell his wares. The air is filled with the scent of spices and fresh produce."
-},
-{
-    entityType: "place",
-    name: "Priest",
-    image: "priest.jpg",
-    caption: "Inside a church in Mexico City.",
-    description: "The stone church is dimly lit by flickering candles. A priest stands at the altar, reciting prayers in Latin as the scent of incense fills the room."
-},
-{
-    entityType: "place",
-    name: "City (Day)",
-    image: "cityday.jpg",
-    caption: "A bustling city street during the day.",
-    description: "The sun shines brightly over the rooftops of Mexico City. People move through the crowded streets, vendors call out, and carts rumble over the cobblestones."
-},
+ 
 // Place Entries
 
 {
@@ -1743,14 +1531,14 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
 },
   {
     entityType: "npc",
-    name: "João",
+    name: "João the Kitten",
     age: 1,
     birthplace: "Mexico City",
     currentResidence: "Maria's shop",
     casta: "Animal",
     class: "N/A",
     occupation: "Kitten",
-    image: "joao.jpg",
+    image: "joao_kitten.jpg",
     caption: "João, the orange kitten",
     description: "João is a small, orange fluff ball of a cat who spends most of his time napping in the sun or playing with scraps of paper. His presence is a small comfort to Maria amid her daily struggles.",
   secret: "João was abandoned on the streets as a kitten and found his way to Maria’s shop. Though he provides comfort, his skittish behavior hints at the rough life he once led.",
@@ -1911,7 +1699,7 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
 },
 {
   entityType: "npc",
-  name: "Sea Captain [this is a generic class descriptor, invent a contextually appropriate full name that fits this type of person when adding to simulation]",
+  name: "Sea Captain [this is a generic class descriptor, invent a contextually appropriate full name that fits this type of person when adding to simulation. No sea captains in Mexico City!]",
   age: 45,
   casta: "Criollo",
   class: "Upper class",
@@ -1920,6 +1708,18 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   caption: "A sea captain",
   description: "A grizzled sea captain, experienced in navigating the oceans and commanding his crew. He carries the air of authority that comes with years of successful voyages.",
   imgdescription: "The captain stands on the deck of his ship, the sea breeze ruffling his coat. His eyes squint into the distance as he grips the wheel with practiced ease. His face is weathered, and the confidence in his stance reflects a lifetime spent on the water."
+},
+{
+  entityType: "npc",
+  name: "Barge Captain [this is a generic class descriptor, invent a contextually appropriate full name that fits this type of person when adding to simulation. No sea captains in Mexico City!]",
+  age: 40,
+  casta: "Criollo",
+  class: "Middle Class",
+  occupation: "Barge Captain",
+  image: "bargecaptain.jpg",
+  caption: "A barge captain",
+  description: "A  barge captain, experienced in navigating the canals.",
+  imgdescription: "A barge captain in colonial Mexico."
 },
 {
   entityType: "npc",
@@ -2982,7 +2782,7 @@ treatment: "The author advised Pancho to shave his head and wear a cap lined wit
   casta: "india",
   class: "vendor",
   occupation: "milk seller",
-  image: "indigenousfemalevendormiddleaged.jpg",
+  image: "juana_milk_vendor.jpg",
   caption: "Juana, selling fresh milk from her family's cows",
   description: "Juana walks from Tacuba to Mexico City each morning before dawn, carrying clay jugs of fresh milk from her family's small herd. She sells door-to-door to regular customers, offering good quality at fair prices. She's reliable and honest, and her customers depend on her daily visits.",
   personality: {

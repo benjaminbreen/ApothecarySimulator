@@ -26,7 +26,7 @@ import { QUALITY, RARITY } from './core/systems/itemRarity';
 
 const initialInventoryData = [
     {
-        id: 1, 
+        id: 1,
         name: 'Camphor',
         latinName: 'Cinnamomum camphora',
         spanishName: 'Alcanfor',
@@ -38,10 +38,19 @@ const initialInventoryData = [
         emoji: '🌿',
         citation: 'Luís Gomes Ferreira, *Erário Mineral.Lisbon* Lisbon, 1735, pg 38.',
         pdf: 'camphor.pdf',
-        image: camphorImage
+        image: camphorImage,
+        preparationAdvice: {
+            decoction: "Dissolves poorly in water; better decocted in wine for cooling vapors.",
+            distillation: "Sublime easily with gentle heat; yields crystalline spirit for headaches.",
+            calcination: "Not recommended—camphor burns away entirely, leaving no useful ash.",
+            confection: "Powder finely and mix with rose sugar for cooling troches against fevers."
+        },
+    primarySystems: ["musculoskeletal","nervous","dermatological"],
+    organAffinities: ["head"],
+    specificConditions: ["headache","fever","pain","inflammation","burn"]
     },
     {
-        id: 2, 
+        id: 2,
         name: 'Chamomile',
         latinName: 'Matricaria chamomilla',
         spanishName: 'Manzanilla',
@@ -53,8 +62,16 @@ const initialInventoryData = [
         emoji: '🌼',
          citation: 'Curvo Semmedo, João. *bservaçoens medicas doutrinaes de cem casos gravissimos.* Lisbon: 1707, pg 151, available at https://www.google.com/books/edition/Observa%C3%A7oens_medicas_doutrinaes_de_cem/QJ5dAAAAcAAJ?hl=en&gbpv=1&pg=PA151&printsec=frontcover',
         pdf: 'chamomile.pdf',
-        image: chamomileImage
-
+        image: chamomileImage,
+        preparationAdvice: {
+            decoction: "Boil flowers briefly to extract volatile oils; excellent for colic and nervous complaints.",
+            distillation: "Yields sweet azure-colored water; sovereign for eye inflammations and hysteria.",
+            calcination: "Burn to fine ash for mild alkaline salt; useful in antacid powders.",
+            confection: "Dry flowers with sugar for soothing lozenges; calms stomach and nerves."
+        },
+    primarySystems: ["digestive","nervous","dermatological"],
+    organAffinities: ["stomach","eyes"],
+    specificConditions: ["inflammation","anxiety","colic","burn"]
     },
     {
         id: 3,
@@ -70,7 +87,15 @@ const initialInventoryData = [
         citation: 'Benjamin Breen, *The Age of Intoxication* (Penn, 2019)',
         pdf: 'opium.pdf',
         image: opiumImage,
-        quality: QUALITY.HIGH_QUALITY  // High purity Turkish opium
+        quality: QUALITY.HIGH_QUALITY,  // High purity Turkish opium
+        preparationAdvice: {
+            decoction: "Dissolve in wine with saffron for Sydenham's Laudanum; potent anodyne.",
+            distillation: "Not suitable—opium's virtues reside in thick resin, not volatile spirit.",
+            calcination: "Wasteful and dangerous—burning destroys narcotic principles entirely.",
+            confection: "Mix with spices and honey for pills or electuaries; masks bitter taste, eases dosing."
+        },
+    primarySystems: ["digestive","respiratory","nervous"],
+    specificConditions: ["pain","cough","diarrhea","burn"]
     },
     {
         id: 4,
@@ -86,8 +111,15 @@ const initialInventoryData = [
         emoji: '🐛',
         pdf: 'millipedes.pdf',
         citation: 'Henry Banyer, *Pharmacopoeia Pauperum Or, The Hospital Dispensatory* (1718), pg 37',
-        image: millipedeImage
-
+        image: millipedeImage,
+        preparationAdvice: {
+            decoction: "Boil live insects in oil, then strain; apply warm to ears for pain relief.",
+            distillation: "Macerate dried insects in wine, distill for acrid spirit rarely used.",
+            calcination: "Burn to white ash for alkaline powder; mix with oil for ear drops.",
+            confection: "Grind to fine powder, blend with wax and oil for topical ointment."
+        },
+    primarySystems: ["dermatological"],
+    specificConditions: ["pain","inflammation","burn"]
     },
     {
         id: 5,
@@ -103,10 +135,19 @@ const initialInventoryData = [
         emoji: '🌸',
         pdf: 'saffron.pdf',
         citation: 'Henry Banyer, *Pharmacopoeia Pauperum Or, The Hospital Dispensatory* (1718), pg 74',
-        image: saffron
+        image: saffron,
+        preparationAdvice: {
+            decoction: "Infuse threads in warm wine to extract golden tincture; cordial for melancholy.",
+            distillation: "Yields pale spirit with little virtue—too costly for distillation.",
+            calcination: "Wasteful—saffron's virtues are in volatile oils, lost to fire.",
+            confection: "Steep in syrup or honey for cordial; cheers the heart and aids digestion."
+        },
+    primarySystems: ["digestive","respiratory","nervous"],
+    organAffinities: ["heart"],
+    specificConditions: ["cough","melancholy"]
     },
     {
-        id: 6, 
+        id: 6,
         name: 'White Horehound',
         latinName: 'Marrubium vulgare',
         spanishName: 'Marrubio Blanco',
@@ -118,10 +159,19 @@ const initialInventoryData = [
         emoji: '🍥',
         pdf: 'horehound.pdf',
         citation: 'John French, *The London-Distiller* (London, 1667), pg. 19',
-        image: horehound
+        image: horehound,
+        preparationAdvice: {
+            decoction: "Boil leaves in water for bitter syrup; excellent expectorant for tough phlegm.",
+            distillation: "Distill fresh herb in wine for clearing waters; strengthens lungs.",
+            calcination: "Burn to alkaline ash for salt; too harsh for delicate constitutions.",
+            confection: "Mix dried herb with honey to make lozenges; masks bitterness, soothes throat."
+        },
+    primarySystems: ["digestive","respiratory","dermatological"],
+    organAffinities: ["lungs","throat"],
+    specificConditions: ["cough","burn"]
     },
     {
-        id: 7, 
+        id: 7,
         name: 'Nettle',
         latinName: 'Urtica dioica',
         spanishName: 'Ortiga',
@@ -132,10 +182,18 @@ const initialInventoryData = [
         description: 'It stings... but it also heals. Effective when used topically.',
         emoji: '🌾',
         pdf: 'nettle.pdf',
-        image: nettle
+        image: nettle,
+        preparationAdvice: {
+            decoction: "Boil fresh leaves briefly for purging decoction; opens obstructions.",
+            distillation: "Distill young tops for clear water; diuretic for dropsical swellings.",
+            calcination: "Burn to ash for alkaline salt; useful in scorbutic complaints.",
+            confection: "Dry and powder leaves; mix with butter for topical ointment against stiffness."
+        },
+    primarySystems: ["musculoskeletal","digestive","dermatological"],
+    specificConditions: ["inflammation","constipation","dropsy","scurvy","burn"]
     },
     {
-        id: 8, 
+        id: 8,
         name: 'Powdered crab\'s eyes',
         latinName: 'Oculi cancrorum',
         spanishName: 'Ojos de Cangrejo',
@@ -147,7 +205,16 @@ const initialInventoryData = [
         emoji: '🦀',
         pdf: 'crabseyes.pdf',
         citation: 'John French, *The Art of Distillation* (London, 1651), pg. 126',
-        image: crab
+        image: crab,
+        preparationAdvice: {
+            decoction: "Boil powder in barley water for cooling drink; dissolves stones.",
+            distillation: "Not suitable—mineral matter doesn't distill; virtues in fixed salts.",
+            calcination: "Already calcined from burning shells; dissolve in vinegar for antacid.",
+            confection: "Mix powder with sugar for cooling troches; excellent against heartburn."
+        },
+    primarySystems: ["circulatory","dermatological","renal"],
+    organAffinities: ["heart","kidneys"],
+    specificConditions: ["stone","burn"]
     },
     {
         id: 9,
@@ -161,10 +228,18 @@ const initialInventoryData = [
         description: 'Quicksilver, the metal most beloved of alchemists. Commonly used for treating the French Pox.',
         emoji: '⚗️',
         pdf: 'quicksilver.pdf',
-        citation: 'Jean de Renou, *A Medicinal Dispensatory Containing the Whole Body of Physick,* translated by Richard Tomlinson (London, 1657)'
+        citation: 'Jean de Renou, *A Medicinal Dispensatory Containing the Whole Body of Physick,* translated by Richard Tomlinson (London, 1657)',
+        preparationAdvice: {
+            decoction: "Not suitable—mercury doesn't dissolve; prepare as ointment instead.",
+            distillation: "Sublime with salts to make corrosive sublimate; violently purgative, handle with care.",
+            calcination: "Heat with sulfur for cinnabar; grind for vermilion pigment and mercurial ointment.",
+            confection: "Mix crude mercury with lard for grey ointment; rub on chancres for French disease."
+        },
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["skin"]
     },
     {
-        id: 10, 
+        id: 10,
         name: 'Rose Water',
         latinName: 'Aqua Rosae',
         spanishName: 'Agua de Rosas',
@@ -176,7 +251,16 @@ const initialInventoryData = [
         emoji: '🌹',
         pdf: 'rosewater.pdf',
         citation: 'John French, *The Art of Distillation* (London, 1651), pgs. 19-21',
-        image: rose
+        image: rose,
+        preparationAdvice: {
+            decoction: "Already a distilled water—use as base for decocting other herbs.",
+            distillation: "Re-distill fresh rose petals for double rose water; supremely cooling.",
+            calcination: "Not applicable—water cannot be calcined; use petals for ash instead.",
+            confection: "Blend with sugar for rose conserve; strengthens heart and cools inflammation."
+        },
+    primarySystems: ["nervous","circulatory","dermatological"],
+    organAffinities: ["heart"],
+    specificConditions: ["inflammation","melancholy"]
     },
     {
         id: 11, 
@@ -191,7 +275,16 @@ const initialInventoryData = [
         emoji: '🍂',
         pdf: 'senna.pdf',
         citation: 'Jean de Renou, *A Medicinal Dispensatory Containing the Whole Body of Physick,* translated by Richard Tomlinson (London, 1657)',
-        image: senna
+        image: senna,
+        preparationAdvice: {
+            decoction: "Steep leaves in warm water; mild but thorough purgative for bile and choler.",
+            distillation: "Not suitable—senna's virtues reside in fixed salts, not volatile spirits.",
+            calcination: "Burn leaves to ash for harsh purge; too violent for most constitutions.",
+            confection: "Mix powder with figs and tamarind for electuary; sweetens bitter purge."
+        },
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["bowels"],
+    specificConditions: ["constipation","burn"]
     },
     {
         id: 12,
@@ -208,7 +301,15 @@ const initialInventoryData = [
         pdf: 'sugar.pdf',
         citation: 'Jean de Renou, *A Medicinal Dispensatory Containing the Whole Body of Physick,* translated by Richard Tomlinson (London, 1657)',
         image: sugar,
-        quality: QUALITY.EXCEPTIONAL  // Rare refined Madeira sugar
+        quality: QUALITY.EXCEPTIONAL,  // Rare refined Madeira sugar
+        preparationAdvice: {
+            decoction: "Dissolve in decoctions as sweetener and preservative; extends shelf life.",
+            distillation: "Not applicable—sugar caramelizes before distilling; use for syrups instead.",
+            calcination: "Burn to black carbon for filtering waters; loses sweetness entirely.",
+            confection: "Essential base for all confections; blend with drugs to mask unpleasant tastes."
+        },
+    primarySystems: ["digestive","respiratory","dermatological"],
+    specificConditions: ["cough","wound","burn"]
     },
 {
     id: 13,
@@ -224,7 +325,15 @@ const initialInventoryData = [
     emoji: '🍯',
     pdf: 'honey.pdf',
     citation: 'John Woodall, *The Surgion\'s Mate* (1617)',
-    image: honey
+    image: honey,
+    preparationAdvice: {
+        decoction: "Dissolve in decoctions as sweetener and preservative; extends shelf life.",
+        distillation: "Not applicable—sugar caramelizes before distilling; use for syrups instead.",
+        calcination: "Burn to black carbon for filtering waters; loses sweetness entirely.",
+        confection: "Essential base for all confections; blend with drugs to mask unpleasant tastes.",
+    primarySystems: ["digestive","respiratory","dermatological"],
+    specificConditions: ["inflammation","cough","wound","burn"]
+    }
 },
 {
     id: 14,
@@ -240,7 +349,15 @@ const initialInventoryData = [
     emoji: '🍷',
     pdf: 'wine.pdf',
     citation: 'George Bate, Pharmacopœia Bateana (London, 1694)',
-    image: wine
+    image: wine,
+    preparationAdvice: {
+        decoction: "Ideal menstruum for decocting tough roots and barks; extracts more than water.",
+        distillation: "Distill for brandy-wine or aqua vitae; fortifies and preserves tinctures.",
+        calcination: "Not applicable—wine evaporates before calcination; use lees for tartar.",
+        confection: "Mix with spices and sugar for cordial wines; strengthens vital spirits.",
+    primarySystems: ["digestive","dermatological"],
+    specificConditions: ["pain","wound"]
+    }
 },
 {
     id: 15,
@@ -256,7 +373,15 @@ const initialInventoryData = [
     emoji: '🧂',
     pdf: '/assets/pdfs/salammoniacmedicinaluses.pdf',
     citation: 'Nicholas Culpeper, The English Physician Enlarged (1653)',
-    image: sal
+    image: sal,
+    preparationAdvice: {
+        decoction: "Dissolve in hot water for purgative draught; expels thick phlegm.",
+        distillation: "Sublime with quicklime for volatile spirit; powerful but dangerous.",
+        calcination: "Already a purified salt from sublimation; no further calcination needed.",
+        confection: "Dissolve in syrups for pectoral lohochs; loosens stubborn coughs.",
+    primarySystems: ["digestive","respiratory"],
+    specificConditions: ["cough"]
+    }
 },
  {
 id: 16,
@@ -290,7 +415,16 @@ id: 16,
         citation: 'José de Acosta, *Natural and Moral History of the Indies* (1604), p. 293. Link: https://www.google.com/books/edition/The_Natural_Moral_History_of_the_Indies/BXwRAwAAQBAJ?hl=en&gbpv=1&dq=bezoar&pg=PA293&printsec=frontcover',
         image: bezoar,
         quality: QUALITY.STANDARD,
-        rarity: RARITY.RARE
+        rarity: RARITY.RARE,
+        preparationAdvice: {
+            decoction: "Dissolve in decoctions to sweeten and preserve; adds cordial virtue.",
+            distillation: "Not suitable—honey scorches before distilling; better for electuaries.",
+            calcination: "Wasteful—burning destroys therapeutic sugars and wax.",
+            confection: "Perfect vehicle for pills and electuaries; binds powders, soothes throat."
+        },
+    primarySystems: ["digestive","respiratory","dermatological"],
+    organAffinities: ["throat"],
+    specificConditions: ["cough","nausea","burn"]
     },
       {
         id: 18,
@@ -306,7 +440,16 @@ id: 16,
         emoji: '🪸',
         pdf: 'coral.pdf',
         citation: 'Jean de Renou, *A Medicinal Dispensatory Containing the Whole Body of Physick* (1657), pg 55',
-        image: coral
+        image: coral,
+        preparationAdvice: {
+            decoction: "Boil powdered coral in barley water; cooling cordial for palpitations.",
+            distillation: "Not applicable—mineral matter yields no distillate.",
+            calcination: "Burn to white ash for gentle alkaline; less caustic than lime.",
+            confection: "Mix powder with rose conserve for heart-strengthening lohoch."
+        },
+    primarySystems: ["nervous","circulatory","dermatological"],
+    organAffinities: ["heart"],
+    specificConditions: ["bleeding","anxiety","melancholy","burn"]
     },
     {
     id: 19,
@@ -322,7 +465,16 @@ id: 16,
     emoji: '🍠',
     pdf: 'mechoacan.pdf',
     citation: 'Pierre Pomet, *Complete History of Drugs*, London 1748, pg 32, url: https://www.google.com/books/edition/A_Complete_History_of_Drugs_Written_in_F/t2fHVm6UGJ4C?hl=en&gbpv=1&pg=PT1&printsec=frontcover',
-    image: mechoacan
+    image: mechoacan,
+    preparationAdvice: {
+        decoction: "Slice root thinly, infuse in warm water; gentler purge than jalap.",
+        distillation: "Not suitable—purgative resins don't volatile distill well.",
+        calcination: "Wasteful—burning destroys cathartic principles entirely.",
+        confection: "Powder and mix with cinnamon and sugar; masks taste, eases griping.",
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["bowels"],
+    specificConditions: ["pain","colic","dropsy","burn"]
+    }
 },
 {
     id: 20,
@@ -338,7 +490,16 @@ id: 16,
     emoji: '🐞',
     pdf: 'cochineal.pdf',
     citation: 'Pierre Pomet, *omplete History of Drugs*, London 1748, pg 15, url: https://www.google.com/books/edition/A_Complete_History_of_Drugs_Written_in_F/t2fHVm6UGJ4C?hl=en&gbpv=1&pg=PA14&printsec=frontcover',
-    image: cochineal
+    image: cochineal,
+    preparationAdvice: {
+        decoction: "Boil insects in water for crimson tincture; astringent for fluxes.",
+        distillation: "Not recommended—dye and medicine reside in body, not vapors.",
+        calcination: "Burn to ash for red pigment; loses most medicinal virtue.",
+        confection: "Grind to powder, mix with sugar for cordial troches; stops bleeding.",
+    primarySystems: ["digestive","respiratory","circulatory"],
+    organAffinities: ["throat"],
+    specificConditions: ["fever","diarrhea","bleeding","ulcer","burn"]
+    }
 },
 {
     id: 21,
@@ -354,7 +515,16 @@ id: 16,
     emoji: '💎',
     pdf: 'alum.pdf',
     citation: 'Pierre Pomet, *Complete History of Drugs*, London 1748, pg 44, url: https://www.google.com/books/edition/A_Complete_History_of_Drugs_Written_in_F/t2fHVm6UGJ4C?hl=en&gbpv=1&pg=PA44&printsec=frontcover',
-    image: alum
+    image: alum,
+    preparationAdvice: {
+        decoction: "Dissolve crystals in water for astringent gargle; tightens gums, stops flux.",
+        distillation: "Not applicable—mineral salt yields no useful distillate.",
+        calcination: "Already calcined from ore; roasting intensifies astringency.",
+        confection: "Powder finely, mix with honey for topical paste against ulcers.",
+    primarySystems: ["digestive","circulatory","dermatological"],
+    organAffinities: ["eyes"],
+    specificConditions: ["diarrhea","wound","bleeding","ulcer"]
+    }
 },
 {
     id: 22,
@@ -370,7 +540,15 @@ id: 16,
     emoji: '🩸',
     pdf: 'dragonsblood.pdf',
     citation: 'Pierre Pomet, *Complete History of Drugs*, London 1748, pg 191, url: https://www.google.com/books/edition/A_Complete_History_of_Drugs_Written_in_F/t2fHVm6UGJ4C?hl=en&gbpv=1&pg=PA50&printsec=frontcover',
-    image: dragonsblood
+    image: dragonsblood,
+    preparationAdvice: {
+        decoction: "Dissolve resin in wine for red tincture; powerful styptic and vulnerary.",
+        distillation: "Not recommended—resin's virtue resides in fixed matter, not volatile oils.",
+        calcination: "Wasteful—burning destroys astringent resins entirely.",
+        confection: "Melt with wax and oil for wound plaster; seals cuts, stops bleeding.",
+    primarySystems: ["circulatory","dermatological"],
+    specificConditions: ["wound","bleeding","ulcer","burn"]
+    }
 },
 {
     id: 23,
@@ -388,7 +566,15 @@ id: 16,
     citation: 'Nicolas Lémery, A Course of Chymistry (London, 1686), 173-75, url: https://www.google.com/books/edition/A_Course_of_Chymistry/Ibxc-ttw8_oC?hl=en&gbpv=1&pg=PA217&printsec=frontcover',
     image: crocusmetallorum,
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE  // Alchemical preparation - scarce despite low price
+    rarity: RARITY.SCARCE,  // Alchemical preparation - scarce despite low price
+    preparationAdvice: {
+        decoction: "Infuse powder in wine; violent emetic and purgative—use sparingly.",
+        distillation: "Dangerously volatile—produces toxic antimony vapors; avoid.",
+        calcination: "Already calcined from antimony ore; further burning increases toxicity.",
+        confection: "Mix tiny dose with sugar for emetic pills; causes forceful vomiting.",
+    primarySystems: ["digestive","dermatological"],
+    specificConditions: ["vomiting","burn"]
+    }
 },
 {
     id: 24,
@@ -404,7 +590,16 @@ id: 16,
     emoji: '🌰',
     pdf: 'cinnamon.pdf',
     citation: 'Jean de Renou, A Medicinal Dispensatory (1657), pg 89',
-    quality: QUALITY.HIGH_QUALITY  // Ceylon cinnamon, superior to cassia
+    quality: QUALITY.HIGH_QUALITY,  // Ceylon cinnamon, superior to cassia
+    preparationAdvice: {
+        decoction: "Boil bark in water or wine for warming cordial; strengthens stomach.",
+        distillation: "Distill for fragrant spirit; excellent carminative and stomachic.",
+        calcination: "Burn to ash for alkaline salt; destroys aromatic principles.",
+        confection: "Powder and mix with sugar for warming electuary; aids digestion.",
+    primarySystems: ["digestive","respiratory","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["cough","burn"]
+    }
 },
 {
     id: 25,
@@ -420,7 +615,16 @@ id: 16,
     pdf: 'clove.pdf',
     citation: 'Nicholas Culpeper, The English Physician (1653)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE  // Expensive East Indian spice
+    rarity: RARITY.SCARCE,  // Expensive East Indian spice
+    preparationAdvice: {
+        decoction: "Infuse buds in wine for warming tincture; relieves toothache and nausea.",
+        distillation: "Distill for potent essential oil; numbs pain, aids digestion.",
+        calcination: "Burn to ash for mild salt; wastes precious aromatic oils.",
+        confection: "Powder and mix with honey for dental paste; eases tooth pain.",
+    primarySystems: ["musculoskeletal","digestive","dermatological"],
+    organAffinities: ["stomach","teeth"],
+    specificConditions: ["pain","nausea","burn"]
+    }
 },
 {
     id: 26,
@@ -436,7 +640,16 @@ id: 16,
     pdf: 'nutmeg.pdf',
     citation: 'John Parkinson, Theatrum Botanicum (London, 1640), pg 1575',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE  // Monopolized by Dutch East India Company
+    rarity: RARITY.SCARCE,  // Monopolized by Dutch East India Company
+    preparationAdvice: {
+        decoction: "Grate and infuse in warm wine; comforts cold stomach and brain.",
+        distillation: "Distill for concentrated essence; powerful stomachic and cordial.",
+        calcination: "Burn to ash for aromatic salt; most volatile oils lost.",
+        confection: "Powder and mix with sugar for digestive confection; warms vital organs.",
+    primarySystems: ["digestive","nervous","dermatological"],
+    organAffinities: ["head","stomach","brain"],
+    specificConditions: ["burn"]
+    }
 },
 {
     id: 27,
@@ -452,7 +665,16 @@ id: 16,
     pdf: 'amber.pdf',
     citation: 'Robert Boyle, Of the Reconcileableness of Specifick Medicines to the Corpuscular Philosophy (1685)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.RARE  // Exotic Baltic import
+    rarity: RARITY.RARE,  // Exotic Baltic import
+    preparationAdvice: {
+        decoction: "Not suitable—resin melts but doesn't dissolve in water.",
+        distillation: "Yields oil of amber by destructive distillation; intensely aromatic.",
+        calcination: "Burn as incense for fumigation; purifies corrupted air.",
+        confection: "Grind to powder and mix with honey for pills; calms hysteria and convulsions.",
+    primarySystems: ["nervous","circulatory","dermatological"],
+    organAffinities: ["heart"],
+    specificConditions: ["burn"]
+    }
 },
 {
     id: 28,
@@ -468,7 +690,16 @@ id: 16,
     pdf: 'guaiacum.pdf',
     citation: 'Nicolás Monardes, *Historia medicinal de las cosas que se traen de nuestras Indias Occidentales* (Seville, 1574), Lib. II, ch. 1.',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE  // Imported from the Caribbean
+    rarity: RARITY.SCARCE,  // Imported from the Caribbean
+    preparationAdvice: {
+        decoction: "Chip wood and boil for hours; classic sudorific for French disease.",
+        distillation: "Not recommended—virtues reside in woody extract, not volatiles.",
+        calcination: "Burn to alkaline ash for caustic salt; destroys most resinous virtues.",
+        confection: "Powder and mix into bolus with gums; eases administration of this bitter wood.",
+    primarySystems: ["circulatory","dermatological","dental"],
+    organAffinities: ["blood"],
+    specificConditions: ["pain","burn"]
+    }
 },
 {
     id: 29,
@@ -484,7 +715,16 @@ id: 16,
     pdf: 'tobacco.pdf',
     citation: 'Juan de Cárdenas, *Problemas y secretos maravillosos de las Indias* (Mexico, 1591), ch. 21.',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Infuse leaves in water for purgative wash; applied to wounds.",
+        distillation: "Distill leaves for powerful oil; used in tiny doses as emetic.",
+        calcination: "Burn leaves to caustic ash; too harsh for most medicinal uses.",
+        confection: "Dry and powder for snuff or smoking mixture; purges head and chest.",
+    primarySystems: ["musculoskeletal","digestive","respiratory"],
+    organAffinities: ["head","lungs","teeth"],
+    specificConditions: ["pain","wound","vomiting","plague","burn"]
+    }
 },
 {
     id: 30,
@@ -500,7 +740,15 @@ id: 16,
     pdf: 'copal.pdf',
     citation: 'Francisco Hernández, *Historia natural de Nueva España* (1651), Book 4.',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE  // Native resin with ritual value
+    rarity: RARITY.SCARCE,  // Native resin with ritual value
+    preparationAdvice: {
+        decoction: "Dissolve resin in wine or spirits; water alone insufficient.",
+        distillation: "Distill for fragrant oil; used in unguents and sacred incense.",
+        calcination: "Burn as fumigant in brazier; smoke cleanses rooms and temples.",
+        confection: "Melt with wax and oils for soothing plaster; applied to inflammations.",
+    primarySystems: ["nervous","dermatological"],
+    specificConditions: ["inflammation","wound","burn"]
+    }
 },
 {
     id: 31,
@@ -516,7 +764,16 @@ id: 16,
     pdf: 'cacao.pdf',
     citation: 'Antonio Colmenero de Ledesma, *Curioso tratado de la naturaleza y calidad del chocolate* (Madrid, 1631).',
     quality: QUALITY.HIGH_QUALITY,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Roast, grind, and infuse beans in hot water or milk; nourishing beverage.",
+        distillation: "Not suitable—chocolate's virtue resides in fixed oils and butter.",
+        calcination: "Wasteful—burning destroys nutritive and cordial properties.",
+        confection: "Grind with sugar and spices for tablets or drinking chocolate; strengthens heart.",
+    primarySystems: ["nervous","circulatory","dermatological"],
+    organAffinities: ["heart"],
+    specificConditions: ["melancholy","burn"]
+    }
 },
 {
     id: 32,
@@ -532,7 +789,16 @@ id: 16,
     pdf: 'rue.pdf',
     citation: 'John Gerard, *The Herball, or Generall Historie of Plantes* (London, 1633), p. 1063.',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Boil fresh or dried herb in water; bitter purgative and protective tonic.",
+        distillation: "Distill for potent essential water; a few drops suffice for stomach complaints.",
+        calcination: "Burn to acrid ash; too caustic for most uses.",
+        confection: "Dry and powder for pills with honey; easier to dose than decoction.",
+    primarySystems: ["digestive","nervous","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["plague","burn"]
+    }
 },
 {
     id: 33,
@@ -548,7 +814,15 @@ id: 16,
     pdf: 'cinchona.pdf',
     citation: 'Sebastiano Bado, *Anastasis corticis Peruviae* (Genoa, 1663).',
     quality: QUALITY.HIGH_QUALITY,
-    rarity: RARITY.RARE  // Imported via Jesuit networks
+    rarity: RARITY.RARE,  // Imported via Jesuit networks
+    preparationAdvice: {
+        decoction: "Boil bark for hours in water or wine; the classic decoction for tertian fevers.",
+        distillation: "Not recommended—febrifuge alkaloids remain in aqueous extract.",
+        calcination: "Wasteful—burning destroys the precious bark's antipyretic virtues.",
+        confection: "Powder bark and mix with wine or syrup; masks intense bitterness.",
+    primarySystems: ["dermatological"],
+    specificConditions: ["fever","burn"]
+    }
 },
 {
     id: 34,
@@ -564,7 +838,16 @@ id: 16,
     pdf: 'tamarind.pdf',
     citation: 'Cristóbal Acosta, *Tractado de las drogas y medicinas de las Indias orientales* (Burgos, 1578), ch. 29.',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Dissolve pulp in water for cooling purge; gentle on the stomach.",
+        distillation: "Not suitable—acidic fruit doesn't distill well.",
+        calcination: "Wasteful—burning destroys cooling and purgative properties.",
+        confection: "Mix pulp with sugar and spices for electuary; pleasant-tasting laxative.",
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["burn"]
+    }
 },
 {
     id: 35,
@@ -580,7 +863,16 @@ id: 16,
     pdf: 'aloes.pdf',
     citation: 'John Woodall, *The Surgion’s Mate* (London, 1617), ch. “Of Aloes.”',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Infuse dried resin in water; bitter purgative draught.",
+        distillation: "Not recommended—purgative resins don't volatilize well.",
+        calcination: "Burn to ash for caustic powder; destroys most cathartic virtue.",
+        confection: "Mix powder with myrrh and mastic for wound-healing pills.",
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["wound","burn"]
+    }
 },
 {
     id: 36,
@@ -596,7 +888,15 @@ id: 16,
     pdf: 'turpentine.pdf',
     citation: 'Nicholas Culpeper, *Pharmacopoeia Londinensis* (London, 1653).',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Warm gently in water but doesn't truly dissolve; better in spirits.",
+        distillation: "Distill for oil of turpentine; powerful solvent and vulnerary.",
+        calcination: "Not applicable—resin burns away entirely before calcining.",
+        confection: "Mix with wax and oil for drawing plaster; applied to wounds and boils.",
+    primarySystems: ["circulatory","dermatological"],
+    specificConditions: ["wound","ulcer","burn"]
+    }
 },
 {
     id: 37,
@@ -612,7 +912,16 @@ id: 16,
     pdf: 'jesuitsbalsam.pdf',
     citation: 'Pierre Pomet, *Histoire générale des drogues* (Paris, 1694), Book II, “Des Baulmes.”',
     quality: QUALITY.HIGH_QUALITY,
-    rarity: RARITY.RARE
+    rarity: RARITY.RARE,
+    preparationAdvice: {
+        decoction: "Dissolve in wine or spirits; water insufficient for resinous balsam.",
+        distillation: "Distill for concentrated oil; excellent for wound balsams and cordials.",
+        calcination: "Not applicable—liquid balsam burns without calcining.",
+        confection: "Mix with wax and oil for healing salve; applied to ulcers and sores.",
+    primarySystems: ["circulatory","dermatological"],
+    organAffinities: ["heart"],
+    specificConditions: ["wound","ulcer","burn"]
+    }
 },
 {
     id: 38,
@@ -628,7 +937,16 @@ id: 16,
     pdf: 'sarsaparilla.pdf',
     citation: 'Pierre Pomet, Histoire générale des drogues (Paris, 1694), Book I, “De la Salsepareille.”',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Chip root and boil for hours; classic blood cleanser often combined with guaiacum.",
+        distillation: "Not suitable—alterative virtues reside in woody extract.",
+        calcination: "Burn to ash for mild alkali; far less effective than long decoction.",
+        confection: "Powder and mix with sugar for pills; easier than drinking bitter decoction.",
+    primarySystems: ["circulatory","dermatological"],
+    organAffinities: ["skin","blood"],
+    specificConditions: ["burn"]
+    }
 },
 {
     id: 39,
@@ -644,7 +962,15 @@ id: 16,
     pdf: 'jalap.pdf',
     citation: 'Nicolas Lémery, A Course of Chymistry (London, 1686), “Of the Root Jalap.”',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Slice root and infuse in warm water; powerful cathartic draught.",
+        distillation: "Not suitable—purgative resins don't volatile distill.",
+        calcination: "Wasteful—burning destroys cathartic resinous principles.",
+        confection: "Powder and mix with aromatics for purgative pills; masks unpleasant taste.",
+    primarySystems: ["digestive","respiratory","dermatological"],
+    specificConditions: ["pain","dropsy","burn"]
+    }
 },
 {
     id: 40,
@@ -660,7 +986,15 @@ id: 16,
     pdf: 'sassafras.pdf',
     citation: 'John Parkinson, Theatrum Botanicum (London, 1640), “Of Sassafras.”',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Chip wood and bark, boil for hours; sudorific diet drink for venereal complaints.",
+        distillation: "Distill for fragrant essential oil; warming cordial and carminative.",
+        calcination: "Burn to ash for alkali; destroys most aromatic medicinal virtues.",
+        confection: "Powder bark and mix with wine for tincture; alternative to long decoction.",
+    primarySystems: ["dermatological"],
+    specificConditions: ["burn"]
+    }
 },
 {
     id: 41,
@@ -676,7 +1010,16 @@ id: 16,
     pdf: 'balsam_tolu.pdf',
     citation: 'Pierre Pomet, Histoire générale des drogues (Paris, 1694), Book II, “Des Baulmes.”',
     quality: QUALITY.HIGH_QUALITY,
-    rarity: RARITY.RARE
+    rarity: RARITY.RARE,
+    preparationAdvice: {
+        decoction: "Dissolve in wine or milk; water alone insufficient for resinous balsam.",
+        distillation: "Distill for sweet oil; excellent for pectoral syrups and lozenges.",
+        calcination: "Not applicable—liquid balsam burns without calcining.",
+        confection: "Mix with sugar for pectoral lozenges; soothes coughs and chest complaints.",
+    primarySystems: ["respiratory","dermatological"],
+    organAffinities: ["lungs"],
+    specificConditions: ["cough","wound","burn"]
+    }
 },
 {
     id: 42,
@@ -692,7 +1035,16 @@ id: 16,
     pdf: 'myrrh.pdf',
     citation: 'Nicholas Culpeper, The English Physician Enlarged (1653), “Myrrh.”',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Dissolve resin in wine; water insufficient for this bitter gum.",
+        distillation: "Not recommended—astringent virtues reside in fixed resin, not volatiles.",
+        calcination: "Burn to acrid ash; too caustic for internal use.",
+        confection: "Mix powder with honey or wine for pills; fortifies womb and heals ulcers.",
+    primarySystems: ["dermatological","reproductive","dental"],
+    organAffinities: ["womb"],
+    specificConditions: ["wound","ulcer","burn"]
+    }
 },
 {
     id: 43,
@@ -708,7 +1060,16 @@ id: 16,
     pdf: 'frankincense.pdf',
     citation: 'Nicholas Culpeper, Pharmacopoeia Londinensis (London, 1653), “Thus or Olibanum.”',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Dissolve tears in wine; water alone insufficient.",
+        distillation: "Distill for aromatic oil; used in cordial waters and fumigations.",
+        calcination: "Burn as incense in brazier; smoke comforts brain and purifies air.",
+        confection: "Powder and mix with myrrh for pills; strengthens memory and dries catarrhs.",
+    primarySystems: ["nervous","circulatory","dermatological"],
+    organAffinities: ["head","heart","brain"],
+    specificConditions: ["wound","burn"]
+    }
 },
 {
     id: 44,
@@ -724,7 +1085,16 @@ id: 16,
     pdf: 'mastic.pdf',
     citation: 'Jean de Renou, A Medicinal Dispensatory (London, 1657), “Of Mastick.”',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Dissolve tears in wine; water poorly extracts resinous virtues.",
+        distillation: "Distill for oil of mastic; used in varnishes and fine plasters.",
+        calcination: "Burn to ash; destroys most binding and astringent properties.",
+        confection: "Chew tears raw or powder into tooth powders; strengthens gums.",
+    primarySystems: ["digestive","dermatological","dental"],
+    organAffinities: ["teeth"],
+    specificConditions: ["diarrhea","burn"]
+    }
 },
 {
     id: 45,
@@ -740,7 +1110,15 @@ id: 16,
     pdf: 'castoreum.pdf',
     citation: 'Jean de Renou, A Medicinal Dispensatory (London, 1657), “Of Castoreum.”',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.RARE
+    rarity: RARITY.RARE,
+    preparationAdvice: {
+        decoction: "Infuse in wine; water poorly extracts this animal secretion.",
+        distillation: "Distill for intensely aromatic spirit; use sparingly for hysteric fits.",
+        calcination: "Not applicable—animal matter chars rather than calcines.",
+        confection: "Powder and mix with aromatics for antispasmodic pills; tiny doses suffice.",
+    primarySystems: ["nervous"],
+    specificConditions: ["fever"]
+    }
 },
 {
     id: 46,
@@ -756,7 +1134,15 @@ id: 16,
     pdf: 'cassia_fistula.pdf',
     citation: 'Nicholas Culpeper, The English Physician Enlarged (1653), “Cassia Fistula.”',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Dissolve pulp in warm water; gentle purgative syrup.",
+        distillation: "Not suitable—laxative mucilage doesn't volatilize.",
+        calcination: "Wasteful—burning destroys sweet pulp and purgative properties.",
+        confection: "Mix pulp with sugar and senna for pleasant purgative electuary.",
+    primarySystems: ["digestive","dermatological"],
+    specificConditions: ["burn"]
+    }
 },
 {
     id: 47,
@@ -772,7 +1158,16 @@ id: 16,
     pdf: 'anise.pdf',
     citation: 'John Gerard, The Herball (London, 1633), p. 1009, "Of Anise."',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Infuse seeds in hot water for carminative tea; eases wind and colic.",
+        distillation: "Distill for concentrated essential water; powerful stomachic in small doses.",
+        calcination: "Burn to ash; wastes aromatic oils and destroys carminative virtues.",
+        confection: "Coat seeds with sugar for comfits; chew after meals to aid digestion.",
+    primarySystems: ["digestive","respiratory","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["colic","burn"]
+    }
 },
 {
     id: 48,
@@ -788,7 +1183,16 @@ id: 16,
     pdf: 'rhubarb.pdf',
     citation: 'Pharmacopoeia Londinensis (1746), "Radix Rhei, Rhabarbarum"',
     quality: QUALITY.HIGH_QUALITY,
-    rarity: RARITY.RARE
+    rarity: RARITY.RARE,
+    preparationAdvice: {
+        decoction: "Slice root and boil briefly; the gentlest and safest of purges.",
+        distillation: "Not suitable—purgative principles remain in watery extract.",
+        calcination: "Burn to ash for mild alkali; destroys most purgative virtue.",
+        confection: "Powder and mix with aromatics for pills; corrects bitterness.",
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["burn"]
+    }
 },
 {
     id: 49,
@@ -804,7 +1208,16 @@ id: 16,
     pdf: 'ipecacuanha.pdf',
     citation: 'Willem Piso, De Indiae utriusque re naturali et medica (Amsterdam, 1658)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Infuse powdered root in warm water; causes swift and certain vomiting.",
+        distillation: "Not suitable—emetic alkaloids remain in aqueous extract.",
+        calcination: "Wasteful—burning destroys emetic principles.",
+        confection: "Mix tiny dose with sugar for pills; precise dosing crucial.",
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["vomiting","burn"]
+    }
 },
 {
     id: 50,
@@ -820,7 +1233,15 @@ id: 16,
     pdf: 'scammony.pdf',
     citation: 'Dioscorides, De Materia Medica (1st century CE), Book IV, ch. 170',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.RARE
+    rarity: RARITY.RARE,
+    preparationAdvice: {
+        decoction: "Infuse resin briefly in water; violent purgative—use with great caution.",
+        distillation: "Not suitable—cathartic resins don't volatilize.",
+        calcination: "Wasteful—burning destroys purgative principles entirely.",
+        confection: "Powder and mix with gentler drugs to temper; too harsh alone.",
+    primarySystems: ["digestive","respiratory","dermatological"],
+    specificConditions: ["burn"]
+    }
 },
 {
     id: 51,
@@ -836,7 +1257,15 @@ id: 16,
     pdf: 'antimony.pdf',
     citation: 'Basil Valentine, The Triumphal Chariot of Antimony (1604)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Infuse prepared antimony in wine; causes purging and sweating.",
+        distillation: "Sublime with heat for butter of antimony; powerfully caustic and dangerous.",
+        calcination: "Calcine ore to crocus metallorum; emetic and purgative mineral.",
+        confection: "Grind prepared antimony into pills; precise dosing essential to avoid poisoning.",
+    primarySystems: ["digestive"],
+    specificConditions: ["vomiting"]
+    }
 },
 {
     id: 52,
@@ -852,7 +1281,16 @@ id: 16,
     pdf: 'hartshorn.pdf',
     citation: 'Nicholas Culpeper, Pharmacopoeia Londinensis (London, 1653), "Cornu Cervi"',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Boil shavings in water for strengthening broth; cordial for fevers.",
+        distillation: "Dry distill for spirit of hartshorn; volatile alkali for fainting fits.",
+        calcination: "Calcine antler to white powder; gentle alkali for acidic stomachs.",
+        confection: "Mix powdered horn with cordial waters for restorative jellies.",
+    primarySystems: ["digestive"],
+    organAffinities: ["stomach"],
+    specificConditions: ["fever"]
+    }
 },
 {
     id: 53,
@@ -868,7 +1306,16 @@ id: 16,
     pdf: 'vitriol.pdf',
     citation: 'Robert Boyle, Essays of the Strange Subtilty of Effluviums (London, 1673)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Dissolve crystals in water for astringent eyewash; tightens tissues.",
+        distillation: "Distill for oil of vitriol (sulfuric acid); extremely caustic—use with utmost care.",
+        calcination: "Already calcined from ore; roasting intensifies astringency and drying.",
+        confection: "Powder crystals and mix with honey for caustic paste; burns away proud flesh.",
+    primarySystems: ["dermatological","ophthalmological"],
+    organAffinities: ["eyes"],
+    specificConditions: ["ulcer","burn"]
+    }
 },
 {
     id: 54,
@@ -884,7 +1331,16 @@ id: 16,
     pdf: 'cardamom.pdf',
     citation: 'Garcia da Orta, Colloquies on the Simples and Drugs of India (Goa, 1563)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.RARE
+    rarity: RARITY.RARE,
+    preparationAdvice: {
+        decoction: "Bruise seeds and infuse in wine; warming cordial for cold stomach.",
+        distillation: "Distill for powerful essential oil; excellent carminative and cephalic.",
+        calcination: "Burn to ash; wastes precious aromatic oils entirely.",
+        confection: "Coat seeds with sugar for comfits; chew for sweet breath and digestion.",
+    primarySystems: ["digestive","respiratory","nervous"],
+    organAffinities: ["head","heart","stomach"],
+    specificConditions: ["headache","burn"]
+    }
 },
 {
     id: 55,
@@ -900,7 +1356,16 @@ id: 16,
     pdf: 'black_pepper.pdf',
     citation: 'John Parkinson, Theatrum Botanicum (London, 1640), "Of Pepper"',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Infuse crushed peppercorns in wine or water; warming stomachic.",
+        distillation: "Distill for pungent essential oil; powerful rubefacient and stimulant.",
+        calcination: "Burn to caustic ash; destroys aromatic pungency.",
+        confection: "Powder and mix with honey for warming electuary; opens obstructions.",
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["constipation","burn"]
+    }
 },
 {
     id: 56,
@@ -916,7 +1381,16 @@ id: 16,
     pdf: 'storax.pdf',
     citation: 'Dioscorides, De Materia Medica, Book I, ch. 79',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Dissolve resin in wine; water insufficient for this balsamic gum.",
+        distillation: "Distill for oil of storax; pectoral balsam for coughs and catarrhs.",
+        calcination: "Burn as fumigant; aromatic smoke opens lungs and purifies air.",
+        confection: "Mix with wax for pectoral plaster; applied to chest for stubborn coughs.",
+    primarySystems: ["respiratory","dermatological","dental"],
+    organAffinities: ["lungs"],
+    specificConditions: ["cough","burn"]
+    }
 },
 {
     id: 57,
@@ -932,7 +1406,16 @@ id: 16,
     pdf: 'benzoin.pdf',
     citation: 'Garcia da Orta, Colloquies on the Simples and Drugs of India (Goa, 1563)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.RARE
+    rarity: RARITY.RARE,
+    preparationAdvice: {
+        decoction: "Dissolve resin in spirits; water alone insufficient.",
+        distillation: "Distill for fragrant oil; vulnerary for wounds and pectoral complaints.",
+        calcination: "Burn as incense; sweet smoke comforts lungs and brain.",
+        confection: "Dissolve in spirits for wound tincture; applied topically or taken internally.",
+    primarySystems: ["respiratory","nervous","circulatory"],
+    organAffinities: ["head","lungs","brain"],
+    specificConditions: ["wound","burn"]
+    }
 },
 {
     id: 58,
@@ -948,7 +1431,16 @@ id: 16,
     pdf: 'gentian.pdf',
     citation: 'John Gerard, The Herball (London, 1633), "Of Felwoort or Gentian"',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Boil chopped root in water or wine; intensely bitter stomachic tonic.",
+        distillation: "Not suitable—bitter principles remain in aqueous extract.",
+        calcination: "Burn to ash; destroys bitter tonic properties.",
+        confection: "Powder root and mix with aromatics to mask bitterness; for weak stomachs.",
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["burn"]
+    }
 },
 {
     id: 59,
@@ -964,7 +1456,15 @@ id: 16,
     pdf: 'valerian.pdf',
     citation: 'Nicholas Culpeper, The English Physitian (London, 1652), "Valerian"',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Boil root in water; strong-smelling tonic for nervous afflictions.",
+        distillation: "Distill for essential oil; powerful antispasmodic and sedative.",
+        calcination: "Burn to ash; destroys volatile medicinal principles.",
+        confection: "Powder root and mix with honey for pills; calms hysteria and falling sickness.",
+    primarySystems: ["nervous","dermatological"],
+    specificConditions: ["anxiety","nausea","burn"]
+    }
 },
 {
     id: 60,
@@ -980,7 +1480,16 @@ id: 16,
     pdf: 'wormwood.pdf',
     citation: 'John Gerard, The Herball (London, 1633), "Of Common Wormwood"',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Infuse herb in wine or water; intensely bitter vermifuge and stomachic.",
+        distillation: "Distill for essential oil; powerful anthelmintic in tiny doses.",
+        calcination: "Burn to caustic ash; destroys bitter medicinal principles.",
+        confection: "Powder herb and mix with honey for pills; kills worms and strengthens stomach.",
+    primarySystems: ["digestive","dermatological"],
+    organAffinities: ["stomach"],
+    specificConditions: ["constipation","burn"]
+    }
 },
 {
     id: 61,
@@ -996,7 +1505,16 @@ id: 16,
     pdf: 'liquorice.pdf',
     citation: 'Dioscorides, De Materia Medica, Book III, ch. 5',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Boil root in water for sweet demulcent drink; soothes throat and coughs.",
+        distillation: "Not suitable—sweet mucilage doesn't volatilize.",
+        calcination: "Burn to ash; wastes sweet soothing properties entirely.",
+        confection: "Extract juice and boil with sugar for lozenges; excellent for sore throats.",
+    primarySystems: ["respiratory","dermatological"],
+    organAffinities: ["throat"],
+    specificConditions: ["pain","cough","ulcer","burn"]
+    }
 },
 {
     id: 62,
@@ -1012,7 +1530,15 @@ id: 16,
     pdf: 'marshmallow.pdf',
     citation: 'Nicholas Culpeper, The English Physitian (London, 1652), "Marsh-mallows"',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Boil root for hours in water; makes thick slimy drink for dry coughs.",
+        distillation: "Not suitable—slimy virtue resides in fixed mucilage, not volatiles.",
+        calcination: "Wasteful—destroys moistening and softening properties.",
+        confection: "Mix powdered root with honey for soothing paste; applied to irritations.",
+    primarySystems: ["respiratory","dermatological"],
+    specificConditions: ["inflammation","cough"]
+    }
 },
 {
     id: 63,
@@ -1028,7 +1554,15 @@ id: 16,
     pdf: 'copaiba.pdf',
     citation: 'Willem Piso, De Indiae utriusque re naturali et medica (Amsterdam, 1658)',
     quality: QUALITY.HIGH_QUALITY,
-    rarity: RARITY.RARE
+    rarity: RARITY.RARE,
+    preparationAdvice: {
+        decoction: "Mix with milk or mucilage as vehicle; balsam doesn't truly decoct in water.",
+        distillation: "Distill for clear oil; powerful vulnerary for ulcers and venereal complaints.",
+        calcination: "Not applicable—liquid oleoresin burns without calcining.",
+        confection: "Mix with wax and oils for healing salve; excellent for chronic wounds.",
+    primarySystems: ["circulatory","dermatological"],
+    specificConditions: ["wound","ulcer","burn"]
+    }
 },
 {
     id: 64,
@@ -1044,7 +1578,15 @@ id: 16,
     pdf: 'contraherva.pdf',
     citation: 'Nicolás Monardes, Historia medicinal (Seville, 1574), Part II',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Boil root in water or wine; classic alexipharmic against poisons and fevers.",
+        distillation: "Distill for antidotal water; less common than decoction.",
+        calcination: "Burn to ash for antipoisonous salt; some occult virtue remains.",
+        confection: "Powder and mix with Venice treacle for antidote electuary; resist venoms.",
+    primarySystems: ["dermatological"],
+    specificConditions: ["fever","pain","plague","burn"]
+    }
 },
 {
     id: 65,
@@ -1060,7 +1602,16 @@ id: 16,
     pdf: 'maguey.pdf',
     citation: 'Francisco Hernández, Natural History of New Spain (c. 1577)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Boil briefly if needed but usually applied fresh; cooling for burns and inflammations.",
+        distillation: "Distill for weak aqua vitae; better fermented and used fresh.",
+        calcination: "Not applicable—mostly water, evaporates before calcining.",
+        confection: "Mix with wax for cooling salve; soothes inflamed and burned skin.",
+    primarySystems: ["dermatological"],
+    organAffinities: ["skin"],
+    specificConditions: ["fever","inflammation","wound","burn"]
+    }
 },
 {
     id: 66,
@@ -1076,7 +1627,16 @@ id: 16,
     pdf: 'peyote.pdf',
     citation: 'Bernardino de Sahagún, Florentine Codex, Book XI (c. 1580)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.VERY_RARE
+    rarity: RARITY.VERY_RARE,
+    preparationAdvice: {
+        decoction: "Infuse dried buttons in water; narcotic analgesic but causes disturbing visions.",
+        distillation: "Not suitable—visionary alkaloids degrade in distillation heat.",
+        calcination: "Wasteful—burning destroys medicinal and psychotropic principles.",
+        confection: "Dry and powder for pills; precise dosing crucial to avoid madness.",
+    primarySystems: ["musculoskeletal","nervous"],
+    organAffinities: ["head","spine","back"],
+    specificConditions: ["headache","pain"]
+    }
 },
 {
     id: 67,
@@ -1092,7 +1652,16 @@ id: 16,
     pdf: 'liquidambar.pdf',
     citation: 'Francisco Hernández, Natural History of New Spain (c. 1577)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.SCARCE
+    rarity: RARITY.SCARCE,
+    preparationAdvice: {
+        decoction: "Dissolve resin in wine for pectoral tincture; soothes coughs and chest pains.",
+        distillation: "Distill for sweet-smelling oil; used in wound balsams and cordials.",
+        calcination: "Burn as fumigant for corrupted air; fragrant smoke clears infection.",
+        confection: "Mix with wax and oils for healing unguent; applied to ulcers and sores.",
+    primarySystems: ["respiratory","dermatological","dental"],
+    organAffinities: ["lungs"],
+    specificConditions: ["pain","cough","wound","ulcer","burn"]
+    }
 },
 {
     id: 68,
@@ -1108,7 +1677,15 @@ id: 16,
     pdf: 'willow.pdf',
     citation: 'Dioscorides, De Materia Medica, Book I, ch. 104',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Boil bark for hours in water; bitter febrifuge for agues and inflammatory pains.",
+        distillation: "Not recommended—antipyretic salicin resides in watery extract.",
+        calcination: "Burn to alkaline ash for mild salt; less effective than decoction.",
+        confection: "Powder bark and mix with wine for tincture; masks bitterness somewhat.",
+    primarySystems: ["musculoskeletal","dermatological"],
+    specificConditions: ["fever","pain","inflammation","burn"]
+    }
 },
 {
     id: 69,
@@ -1125,7 +1702,16 @@ id: 16,
     pdf: 'chia.pdf',
     citation: 'Bernardino de Sahagún, Florentine Codex, Book XI (c. 1580)',
     quality: QUALITY.STANDARD,
-    rarity: RARITY.COMMON
+    rarity: RARITY.COMMON,
+    preparationAdvice: {
+        decoction: "Soak seeds in water for mucilaginous drink; cooling and moistening for fevers.",
+        distillation: "Not suitable—demulcent virtue resides in slimy mucilage, not volatiles.",
+        calcination: "Wasteful—burning destroys cooling and nourishing properties.",
+        confection: "Mix soaked seeds with fruit juice for refreshing drink; cools internal heat.",
+    primarySystems: ["circulatory","dermatological"],
+    organAffinities: ["heart"],
+    specificConditions: ["fever","burn"]
+    }
 },
 {
     id: 70,
@@ -1160,8 +1746,14 @@ const potentialInventoryItems = {
         medicinalEffects: 'For bruises, internal bleeding, and general healing.',
         description: 'The remains of Egyptian mummies. Potent healing properties. But can it be trusted to be real?',
         emoji: '⚰️',
-        pdf: '/assets/pdfs/BuccaneerEthnography.pdf'
-    },
+        pdf: '/assets/pdfs/BuccaneerEthnography.pdf',
+        preparationAdvice: {
+            decoction: "Grind powder and dissolve in warm wine; uncertain efficacy as corpse dust.",
+            distillation: "Not applicable—solid matter doesn't volatilize.",
+            calcination: "Already calcined by Egyptian embalming; further burning destroys virtue.",
+            confection: "Mix powder with honey for pills; masks ghastly taste of the dead."
+        }
+    }
 };
 
 export { initialInventoryData, potentialInventoryItems };

@@ -113,7 +113,7 @@ export async function migrateNPCs(entityList) {
         description: npc.description || npc.socialContext || '',
 
         // Patient-specific data
-        medical: npc.type === 'patient' ? {
+        medical: npc.entityType === 'patient' ? {
           symptoms: npc.symptoms || [],
           diagnosis: npc.diagnosis || '',
           urgency: npc.urgency || 'moderate',
@@ -124,8 +124,11 @@ export async function migrateNPCs(entityList) {
           chronicConditions: []
         } : undefined,
 
+        // PDF field (critical for named patient detection - gives 15x weight boost)
+        pdf: npc.pdf || null,
+
         // Quest
-        quest: npc.type === 'patient' && npc.ability ? {
+        quest: npc.entityType === 'patient' && npc.ability ? {
           id: `quest_${sanitizeId(npc.name)}`,
           status: 'inactive',
           reward: {

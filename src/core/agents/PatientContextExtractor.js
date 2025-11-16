@@ -33,21 +33,27 @@ export async function extractPatientContext(patient, conversationHistory) {
 Parse the narrative and extract ONLY explicitly stated facts about ${patient.name}. Do not infer, guess, or make assumptions.
 
 **Extract:**
-1. **Family members** - Names and relationships (wife, husband, children, parents, siblings)
-2. **Occupation** - Job title and workplace details
-3. **Symptoms** - Medical symptoms mentioned in the narrative (not from previous patient knowledge)
-4. **Diet** - Foods, drinks, eating habits mentioned
-5. **Social context** - Class, wealth, status, living situation
+1. **Age** - Exact age if stated (e.g., "ten years old" → "10", "fifteen" → "15", "middle-aged" → "middle-aged")
+2. **Gender** - Male, female, or leave null if not stated
+3. **Family members** - Names and relationships (wife, husband, children, parents, siblings)
+4. **Occupation** - Job title and workplace details
+5. **Symptoms** - Medical symptoms mentioned in the narrative (not from previous patient knowledge)
+6. **Diet** - Foods, drinks, eating habits mentioned
+7. **Social context** - Class, wealth, status, living situation
 
 **Critical Rules:**
 - Only extract information explicitly mentioned in the text
 - Use null for fields with no information
 - Do not hallucinate or invent details
+- For age: Extract numbers from phrases like "I am ten years old" → "10", "fifteen years of age" → "15"
+- For gender: Extract from "I am a girl/boy/man/woman" or Spanish equivalents (niña, niño, mujer, hombre)
 - Family members should include relationship, e.g., "Mariana de la Cruz (wife)"
 - Symptoms should be from narrative descriptions, not patient self-reports
 
 **Return Format (MUST be valid JSON):**
 {
+  "age": "10" or "middle-aged" or null,
+  "gender": "male" or "female" or null,
   "familyMembers": ["name (relationship)", "..."] or null,
   "occupation": "job title and workplace" or null,
   "symptoms": ["symptom description", "..."] or null,
@@ -56,17 +62,34 @@ Parse the narrative and extract ONLY explicitly stated facts about ${patient.nam
   "locationContext": "where patient lives/works" or null
 }
 
-**Example:**
-Narrative: "Mariana de la Cruz explains that her husband Don Rafael, a clerk at the Royal Mint, has suffered from cold sweats and fever for three days. He has been eating only light bread and broth."
+**Examples:**
 
+Example 1:
+Narrative: "Mariana de la Cruz explains that her husband Don Rafael, a clerk at the Royal Mint, has suffered from cold sweats and fever for three days. He has been eating only light bread and broth."
 Extract:
 {
+  "age": null,
+  "gender": "male",
   "familyMembers": ["Mariana de la Cruz (wife)"],
   "occupation": "Clerk at the Royal Mint",
   "symptoms": ["cold sweats for 3 days", "fever for 3 days"],
   "diet": "light bread and broth only",
   "socialContext": null,
   "locationContext": "Royal Mint (workplace)"
+}
+
+Example 2:
+Narrative: "I am Isabel, señora. I am only ten years old, though I feel much older now with this sickness upon me. I am a girl."
+Extract:
+{
+  "age": "10",
+  "gender": "female",
+  "familyMembers": null,
+  "occupation": null,
+  "symptoms": null,
+  "diet": null,
+  "socialContext": null,
+  "locationContext": null
 }
 
 Now extract from the narrative below.`;
@@ -102,6 +125,12 @@ Extract the information in JSON format.`;
 
     // Validate and clean context
     const cleanedContext = {
+      age: context.age && context.age !== 'null'
+        ? context.age
+        : null,
+      gender: context.gender && context.gender !== 'null'
+        ? context.gender.toLowerCase() // Normalize to lowercase
+        : null,
       familyMembers: Array.isArray(context.familyMembers) && context.familyMembers.length > 0
         ? context.familyMembers
         : null,

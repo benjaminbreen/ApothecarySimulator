@@ -50,7 +50,7 @@ const CompoundResultCard = ({ compound, onClose }) => {
 
   return (
     <div className={`
-      relative rounded-3xl p-6 border-3 border-double shadow-2xl overflow-y-auto custom-scrollbar max-h-[calc(85vh-140px)]
+      relative rounded-3xl p-6 py-5 border-3 border-double shadow-2xl overflow-y-auto custom-scrollbar max-h-[calc(85vh-140px)]
       ${isSuccess
         ? 'bg-gradient-to-br from-botanical-50 via-emerald-50 to-botanical-100 dark:from-emerald-950/50 dark:via-emerald-900/40 dark:to-emerald-950/50 border-botanical-400 dark:border-emerald-600/50'
         : 'bg-gradient-to-br from-danger-50 via-red-50 to-danger-100 dark:from-red-950/50 dark:via-red-900/40 dark:to-red-950/50 border-danger-400 dark:border-red-600/50'
@@ -71,7 +71,7 @@ const CompoundResultCard = ({ compound, onClose }) => {
           : 'bg-gradient-to-b from-danger-600 to-danger-700 dark:from-red-700 dark:to-red-800 text-white border-danger-800 dark:border-red-900'
         }
       `}>
-        {isSuccess ? '✨ SUCCESS' : '⚠️ FAILED EXPERIMENT'}
+        {isSuccess ? 'SUCCESS' : '⚠️ FAILED EXPERIMENT'}
       </div>
 
       {/* Rarity Badge - Only show for successful compounds - SIMPLIFIED (no pulse) */}
@@ -91,9 +91,9 @@ const CompoundResultCard = ({ compound, onClose }) => {
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row items-start gap-4 md:gap-8 mt-4">
+      <div className="flex flex-col md:flex-row items-start gap-4 md:gap-8 mt-8">
         {/* Left Column: Emoji + Description */}
-        <div className="flex-shrink-0 w-full md:w-48 space-y-6">
+        <div className="flex-shrink-0 w-full md:w-48 space-y-8">
           {/* Compound Emoji */}
           <div className={`
             relative
@@ -114,7 +114,7 @@ const CompoundResultCard = ({ compound, onClose }) => {
           {/* Description Quote */}
           <div className="bg-white/60 dark:bg-slate-900/40 rounded-xl p-5 border-2 border-dashed border-ink-300 dark:border-slate-600 relative">
             <div className="absolute top-2 left-3 text-2xl text-amber-600/30 dark:text-amber-500/30 leading-none">"</div>
-            <p className="text-base text-ink-700 dark:text-amber-200 font-serif italic leading-relaxed px-4">
+            <p className="text-lg text-ink-700 dark:text-amber-200 font-serif italic leading-relaxed px-4">
               {compound.description}
             </p>
             <div className="absolute bottom-1 right-3 text-2xl text-amber-600/30 dark:text-amber-500/30 leading-none">"</div>
@@ -124,12 +124,12 @@ const CompoundResultCard = ({ compound, onClose }) => {
         {/* Right Column: Compound Details */}
         <div className="flex-1 w-full">
           {/* Name */}
-          <h3 className="font-display text-4xl font-bold text-ink-900 dark:text-amber-50 mb-4 drop-shadow-md">
+          <h3 className="font-display text-3xl font-semibold text-ink-900 dark:text-amber-50 mb-4 mt-1 drop-shadow-md">
             {compound.name}
           </h3>
 
           {/* Main Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
             {/* Latin Name */}
             <div className="bg-white/50 dark:bg-slate-800/50 rounded-xl p-4 border border-ink-200 dark:border-slate-600 backdrop-blur-sm">
               <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
@@ -157,7 +157,7 @@ const CompoundResultCard = ({ compound, onClose }) => {
               <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Humoral Qualities
               </span>
-              <p className="font-display text-lg font-bold text-botanical-700 dark:text-emerald-400">
+              <p className="font-display text-md font-semibold text-botanical-700 dark:text-emerald-400">
                 {compound.humoralQualities || 'N/A'}
               </p>
             </div>
@@ -167,7 +167,7 @@ const CompoundResultCard = ({ compound, onClose }) => {
               <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-300/60 font-serif font-semibold mb-1">
                 Market Value
               </span>
-              <p className="font-display text-3xl font-bold text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
+              <p className="font-display text-2xl  text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
                 <span>💰</span>
                 {compound.price} reales
               </p>
@@ -176,7 +176,7 @@ const CompoundResultCard = ({ compound, onClose }) => {
 
           {/* Medicinal Effects */}
           <div className="bg-gradient-to-r from-potion-50/80 via-potion-100/60 to-potion-50/80 dark:from-purple-900/20 dark:via-purple-800/20 dark:to-purple-900/20 rounded-xl p-4 border border-potion-300 dark:border-purple-700/30 mb-4">
-            <span className="block text-sm uppercase tracking-widest text-potion-700 dark:text-purple-300 font-serif font-semibold mb-2">
+            <span className="block text-sm uppercase tracking-widest text-potion-700 dark:text-purple-300 font-serif font-semibold mb-1">
               Medicinal Effects
             </span>
             <p className="text-lg text-ink-800 dark:text-amber-100 font-serif leading-relaxed">
@@ -186,7 +186,7 @@ const CompoundResultCard = ({ compound, onClose }) => {
 
           {/* Citation */}
           <div className="border-t-2 border-ink-200 dark:border-slate-700 pt-4">
-            <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-2">
+            <span className="block text-sm uppercase tracking-widest text-ink-500 dark:text-amber-400/60 font-serif font-semibold mb-1">
               Historical Source
             </span>
             <p className="text-sm text-ink-600 dark:text-amber-300/80 font-serif italic leading-relaxed flex items-start gap-2">

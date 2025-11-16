@@ -13,6 +13,7 @@ import { useDarkMode } from '../hooks/useDarkMode';
 import { isSafari } from '../utils/browserDetection';
 import { safeLocalStorage } from '../utils/safeLocalStorage';
 import { STORY_NPCS } from '../data/storyNpcs';
+import { useTooltipContext } from '../contexts/TooltipContext';
 import TestSuitePanel from './TestSuitePanel';
 import PortraitTestPanel from './PortraitTestPanel';
 import ProfessionTestPanel from './ProfessionTestPanel';
@@ -32,7 +33,7 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
   const [isClosing, setIsClosing] = useState(false);
 
   // Dark mode hook
-  const { isDarkMode, toggle } = useDarkMode();
+  const { isDarkMode, mode, setMode } = useDarkMode();
 
   // Safari performance optimization
   const isSafariBrowser = isSafari();
@@ -184,76 +185,87 @@ export default function SettingsModal_V3({ isOpen, onClose, scenario, gameState,
                 </button>
               </div>
 
-              {/* Dark Mode Toggle */}
+              {/* Theme Mode Selector */}
               <div className="flex items-center gap-2">
-              <span
-                className="hidden sm:inline-block text-xs font-medium transition-colors select-none"
-                style={{
-                  fontFamily: "'Inter', sans-serif",
-                  color: isDarkMode ? '#fbbf24' : '#8b7a6a',
-                  letterSpacing: '0.02em'
-                }}
-              >
-                {isDarkMode ? '🌙 Night Mode' : '☀️ Day Mode'}
-              </span>
-              <button
-                onClick={toggle}
-                className="relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                style={{
-                  background: isDarkMode
-                    ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
-                    : 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-                  border: '2px solid rgba(139, 92, 46, 0.2)',
-                  boxShadow: isDarkMode
-                    ? '0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.1)'
-                    : '0 2px 8px rgba(251, 191, 36, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.5)',
-                  focusRingColor: isDarkMode ? '#fbbf24' : '#8b5c2e'
-                }}
-                aria-label="Toggle dark mode"
-                title={isDarkMode ? 'Switch to Day Mode' : 'Switch to Night Mode'}
-              >
-                {/* Toggle Circle */}
                 <span
-                  className={`inline-block h-5 w-5 transform rounded-full transition-all duration-300 ease-in-out ${
-                    isDarkMode ? 'translate-x-6' : 'translate-x-0.5'
-                  }`}
+                  className="hidden sm:inline-block text-xs font-medium transition-colors select-none"
                   style={{
-                    background: isDarkMode
-                      ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'
-                      : 'white',
-                    boxShadow: isDarkMode
-                      ? '0 2px 6px rgba(251, 191, 36, 0.6), 0 0 12px rgba(251, 191, 36, 0.3)'
-                      : '0 1px 3px rgba(0, 0, 0, 0.3)'
+                    fontFamily: "'Inter', sans-serif",
+                    color: isDarkMode ? '#fbbf24' : '#8b7a6a',
+                    letterSpacing: '0.02em'
                   }}
-                />
+                >
+                  Theme: {mode === 'auto' ? `🌓 Auto (${isDarkMode ? 'Dark' : 'Light'})` : mode === 'light' ? '☀️ Light' : '🌙 Dark'}
+                </span>
 
-                {/* Icon inside toggle - shows opposite mode icon */}
-                <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <span
-                    className={`text-xs transition-all duration-300 ${
-                      isDarkMode ? 'opacity-0' : 'opacity-100'
-                    }`}
+                {/* Three-mode segmented control */}
+                <div className="inline-flex rounded-md shadow-sm" role="group">
+                  <button
+                    onClick={() => setMode('auto')}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-l-md transition-all duration-200"
                     style={{
-                      marginLeft: isDarkMode ? '-12px' : '12px',
-                      color: 'white',
-                      textShadow: '0 1px 2px rgba(0, 0, 0, 0.3)'
+                      fontFamily: "'Inter', sans-serif",
+                      background: mode === 'auto'
+                        ? (isDarkMode ? 'linear-gradient(135deg, #334155 0%, #475569 100%)' : 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)')
+                        : 'transparent',
+                      color: mode === 'auto'
+                        ? '#ffffff'
+                        : (isDarkMode ? '#94a3b8' : '#8b7a6a'),
+                      border: isDarkMode ? '1px solid rgba(251, 191, 36, 0.3)' : '1px solid rgba(139, 92, 46, 0.3)',
+                      borderRight: 'none',
+                      boxShadow: mode === 'auto'
+                        ? (isDarkMode ? '0 2px 4px rgba(0, 0, 0, 0.4)' : '0 2px 4px rgba(217, 119, 6, 0.3)')
+                        : 'none'
                     }}
+                    aria-label="Auto theme"
+                    title="Auto (follows system preference)"
+                  >
+                    🌓
+                  </button>
+                  <button
+                    onClick={() => setMode('light')}
+                    className="px-3 py-1.5 text-xs font-semibold transition-all duration-200"
+                    style={{
+                      fontFamily: "'Inter', sans-serif",
+                      background: mode === 'light'
+                        ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)'
+                        : 'transparent',
+                      color: mode === 'light'
+                        ? '#ffffff'
+                        : (isDarkMode ? '#94a3b8' : '#8b7a6a'),
+                      border: isDarkMode ? '1px solid rgba(251, 191, 36, 0.3)' : '1px solid rgba(139, 92, 46, 0.3)',
+                      borderRight: 'none',
+                      boxShadow: mode === 'light'
+                        ? '0 2px 4px rgba(251, 191, 36, 0.4)'
+                        : 'none'
+                    }}
+                    aria-label="Light theme"
+                    title="Light mode (always)"
                   >
                     ☀️
-                  </span>
-                  <span
-                    className={`text-xs transition-all duration-300 absolute ${
-                      isDarkMode ? 'opacity-100' : 'opacity-0'
-                    }`}
+                  </button>
+                  <button
+                    onClick={() => setMode('dark')}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-r-md transition-all duration-200"
                     style={{
-                      marginLeft: isDarkMode ? '-12px' : '12px',
-                      color: '#fbbf24'
+                      fontFamily: "'Inter', sans-serif",
+                      background: mode === 'dark'
+                        ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
+                        : 'transparent',
+                      color: mode === 'dark'
+                        ? '#fbbf24'
+                        : (isDarkMode ? '#94a3b8' : '#8b7a6a'),
+                      border: isDarkMode ? '1px solid rgba(251, 191, 36, 0.3)' : '1px solid rgba(139, 92, 46, 0.3)',
+                      boxShadow: mode === 'dark'
+                        ? '0 2px 4px rgba(0, 0, 0, 0.4)'
+                        : 'none'
                     }}
+                    aria-label="Dark theme"
+                    title="Dark mode (always)"
                   >
                     🌙
-                  </span>
-                </span>
-              </button>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -474,6 +486,11 @@ function GameSection({ scenario, gameState, health: propsHealth, energy: propsEn
   const { isDarkMode } = useDarkMode();
   const health = propsHealth ?? 100;
   const energy = propsEnergy ?? 100;
+
+  // Calculate story NPC progress
+  const storyNpcStatus = gameState?.storyNpcStatus || {};
+  const totalStoryNpcs = STORY_NPCS.length;
+  const completedStoryNpcs = Object.values(storyNpcStatus).filter(status => status?.state === 'completed').length;
 
   return (
     <div className="space-y-3">
@@ -713,6 +730,8 @@ function ProgressSection({ gameState }) {
 }
 
 function DisplaySection({ textSize, setTextSize, animationsEnabled, setAnimationsEnabled }) {
+  const { tooltipsEnabled, enableTooltips, disableAllTooltips, resetTooltips, seenTooltips } = useTooltipContext();
+
   return (
     <div className="space-y-6">
       <SectionHeader title="Display Preferences" subtitle="Customize your visual experience" />
@@ -775,6 +794,60 @@ function DisplaySection({ textSize, setTextSize, animationsEnabled, setAnimation
               }}
             />
           </button>
+        </div>
+      </SettingCard>
+
+      {/* Helper Tooltips */}
+      <SettingCard title="Helper Tooltips">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.875rem',
+              color: '#5c4a3a'
+            }}>
+              Show helpful hints for new players
+            </p>
+            <button
+              onClick={() => tooltipsEnabled ? disableAllTooltips() : enableTooltips()}
+              className="relative w-14 h-7 rounded-full transition-all"
+              style={{
+                background: tooltipsEnabled
+                  ? 'linear-gradient(135deg, #d97706, #f59e0b)'
+                  : 'rgba(139, 92, 46, 0.2)',
+                border: '1px solid rgba(139, 92, 46, 0.3)',
+                boxShadow: tooltipsEnabled
+                  ? '0 2px 8px rgba(217, 119, 6, 0.3)'
+                  : '0 1px 3px rgba(92, 74, 58, 0.15)'
+              }}
+            >
+              <div className={`absolute top-0.5 ${tooltipsEnabled ? 'left-7' : 'left-0.5'} w-6 h-6 rounded-full transition-all`}
+                style={{
+                  background: 'white',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)'
+                }}
+              />
+            </button>
+          </div>
+
+          {/* Reset Button (only shown when tooltips are enabled) */}
+          {tooltipsEnabled && seenTooltips.size > 0 && (
+            <div className="pt-2 border-t" style={{ borderColor: 'rgba(139, 92, 46, 0.15)' }}>
+              <button
+                onClick={resetTooltips}
+                className="text-sm px-4 py-2 rounded transition-all"
+                style={{
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 600,
+                  color: '#d97706',
+                  background: 'rgba(217, 119, 6, 0.08)',
+                  border: '1px solid rgba(217, 119, 6, 0.2)'
+                }}
+              >
+                💡 Reset tooltips ({seenTooltips.size} seen)
+              </button>
+            </div>
+          )}
         </div>
       </SettingCard>
 

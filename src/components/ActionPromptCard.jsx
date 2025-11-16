@@ -66,6 +66,7 @@ export default function ActionPromptCard({
   inventory = [],
   onPropose,
   onDecline,
+  onDismiss, // Optional: silently dismiss card without triggering narrative
   onMix,
   isDark = false
 }) {
@@ -277,7 +278,38 @@ export default function ActionPromptCard({
 
   return (
     <div className="animate-fade-in mb-3">
-      <div className={containerClasses}>
+      <div className={containerClasses} style={{ position: 'relative' }}>
+        {/* Dismiss X Button - Silent dismiss without narrative */}
+        {onDismiss && (
+          <button
+            onClick={() => onDismiss(actionPrompt)}
+            className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full transition-all duration-200 z-10"
+            style={{
+              backgroundColor: isPrescribe
+                ? (isDark ? 'rgba(147, 51, 234, 0.2)' : 'rgba(147, 51, 234, 0.15)')
+                : 'rgba(255, 255, 255, 0.15)',
+              color: isPrescribe
+                ? (isDark ? '#e9d5ff' : '#7e22ce')
+                : 'white',
+            }}
+            title="Dismiss card (no reaction)"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = isPrescribe
+                ? (isDark ? 'rgba(147, 51, 234, 0.3)' : 'rgba(147, 51, 234, 0.25)')
+                : 'rgba(255, 255, 255, 0.25)';
+              e.currentTarget.style.transform = 'scale(1.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = isPrescribe
+                ? (isDark ? 'rgba(147, 51, 234, 0.2)' : 'rgba(147, 51, 234, 0.15)')
+                : 'rgba(255, 255, 255, 0.15)';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            <span className="text-sm font-bold leading-none" style={{ marginTop: '-1px' }}>×</span>
+          </button>
+        )}
+
         {/* Header Row: Portrait + Info + Drop Zone */}
         <div className="grid grid-cols-[auto_1fr_minmax(180px,240px)] gap-3 mb-2">
           {/* NPC Portrait */}

@@ -5,6 +5,63 @@ import { getProfessionName, getProfessionIcon, PROFESSIONS } from '../../core/sy
 import { RippleIconButton } from '../RippleButton';
 import { formatDuration } from '../../systems/bodyEffects';
 import { isSafari } from '../../utils/browserDetection';
+import { useTooltip } from '../../hooks/useTooltip';
+import HelperTooltip from '../HelperTooltip';
+import { useGameState } from '../../contexts/GameStateContext';
+
+// Tooltip component matching Header/ActionPanel style
+const CharacterTooltip = ({ children, targetRef, show }) => {
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const isDark = document.documentElement.classList.contains('dark');
+
+  useEffect(() => {
+    if (show && targetRef.current) {
+      const rect = targetRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + 8, // 8px below button
+        left: rect.left + rect.width / 2 // center of button
+      });
+    }
+  }, [show, targetRef]);
+
+  if (!show) return null;
+
+  return createPortal(
+    <div
+      className="fixed pointer-events-none z-[9999] transition-opacity duration-200"
+      style={{
+        top: `${position.top}px`,
+        left: `${position.left}px`,
+        transform: 'translate(-50%, 0)',
+        opacity: show ? 1 : 0
+      }}
+    >
+      <div
+        className="px-3 py-2 rounded-lg shadow-2xl whitespace-nowrap border backdrop-blur-sm"
+        style={{
+          background: isDark
+            ? 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%)'
+            : 'linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 252, 247, 0.95) 100%)',
+          borderColor: isDark ? 'rgba(251, 191, 36, 0.3)' : 'rgba(100, 116, 139, 0.3)',
+        }}
+      >
+        <div className="text-xs font-sans text-ink-700 dark:text-parchment-200" style={{ fontWeight: 500 }}>
+          {children}
+        </div>
+        {/* Arrow pointing up */}
+        <div
+          className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0"
+          style={{
+            borderLeft: '6px solid transparent',
+            borderRight: '6px solid transparent',
+            borderBottom: isDark ? '6px solid rgba(15, 23, 42, 0.98)' : '6px solid rgba(255, 255, 255, 0.98)',
+          }}
+        />
+      </div>
+    </div>,
+    document.body
+  );
+};
 
 /**
  * Get profession color theme for badges
@@ -62,6 +119,8 @@ export const CharacterCard = React.memo(function CharacterCard({
   status = 'rested',
   health = 85,
   energy = 62,
+  currentXP = 0, // Current experience points
+  nextLevelXP = 100, // XP needed for next level
   characterName = 'Maria de Lima',
   characterTitle = 'Master Apothecary',
   characterLevel = 8,
@@ -94,18 +153,39 @@ export const CharacterCard = React.memo(function CharacterCard({
   const [prevHealth, setPrevHealth] = useState(health);
   const [prevEnergy, setPrevEnergy] = useState(energy);
   const [prevWealth, setPrevWealth] = useState(wealth);
+  const [prevXP, setPrevXP] = useState(currentXP);
 
   // Animation states
   const [healthFlash, setHealthFlash] = useState(null);
   const [energyFlash, setEnergyFlash] = useState(null);
   const [wealthFlash, setWealthFlash] = useState(null);
+  const [xpFlash, setXpFlash] = useState(null);
   const [ringPulse, setRingPulse] = useState(null); // null, 'mild', 'moderate', 'critical'
 
   // Timers
   const healthTimer = useRef(null);
   const energyTimer = useRef(null);
   const wealthTimer = useRef(null);
+  const xpTimer = useRef(null);
   const ringPulseTimer = useRef(null);
+
+  // Ref for energy bar (for tooltip)
+  const energyBarRef = useRef(null);
+
+  // Get game state for tooltip trigger evaluation
+  const { gameState } = useGameState();
+
+  // TOOLTIP 5: Energy warning - shows when energy < 30 (once per game)
+  const energyTooltip = useTooltip('energy-warning', {
+    content: "Energy is critically low! Use #sleep to rest and restore energy",
+    trigger: 'immediate',
+    gameState: {
+      ...gameState,
+      energy // Pass current energy from props
+    },
+    useTriggerSystem: true,
+    dependencies: [energy]
+  });
 
   // Detect health changes - Safari optimized: removed prevHealth from dependencies to prevent loops
   useEffect(() => {
@@ -145,6 +225,19 @@ export const CharacterCard = React.memo(function CharacterCard({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wealth]); // Only wealth, not prevWealth (prevents dependency loop)
+
+  // Detect XP changes - Safari optimized: removed prevXP from dependencies to prevent loops
+  useEffect(() => {
+    if (currentXP !== prevXP) {
+      const diff = currentXP - prevXP;
+      setXpFlash(diff);
+      setPrevXP(currentXP);
+
+      if (xpTimer.current) clearTimeout(xpTimer.current);
+      xpTimer.current = setTimeout(() => setXpFlash(null), 2000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentXP]); // Only currentXP, not prevXP (prevents dependency loop)
 
   // IMPROVED: Semantic color logic - only show warning/danger when actually critical
   const getStatColor = (value, type) => {
@@ -712,8 +805,14 @@ export const CharacterCard = React.memo(function CharacterCard({
               </span>
             )}
 
-            <span className={`text-xs px-2.5 py-1 ${statusColors.bg} dark:bg-slate-700/50 ${statusColors.text} dark:text-parchment-300 rounded-md font-semibold font-sans capitalize border border-opacity-30 transition-colors duration-300`}>
-              {status}
+            {/* Wealth Pill - Gold/Yellow Color */}
+            <span className="text-xs px-2.5 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md font-semibold font-sans border border-amber-200 dark:border-amber-600/30 transition-colors duration-300">
+              Reales: {wealth}
+              {wealthFlash !== null && (
+                <span className={`ml-1 text-[10px] font-bold ${wealthFlash > 0 ? 'text-success-600' : 'text-danger-600'}`}>
+                  {wealthFlash > 0 ? '+' : ''}{wealthFlash}
+                </span>
+              )}
             </span>
           </div>
 
@@ -762,8 +861,8 @@ export const CharacterCard = React.memo(function CharacterCard({
 
       {/* Primary Stats - collapsible */}
       {!isCollapsed && (
-      <div className="space-y-1.5 -mt-1 nimate-fade-in-up">
-        {/* Health */}
+      <div className="space-y-2 -mt-1 animate-fade-in-up">
+        {/* Health - Full Width */}
         <div className="relative group/stat">
           <div className="flex justify-between items-center mb-0.5">
             <span className="font-sans text-xs text-ink-900  dark:text-parchment-300 uppercase tracking-widest transition-colors duration-300">
@@ -780,11 +879,11 @@ export const CharacterCard = React.memo(function CharacterCard({
           </div>
 
           {/* Tooltip */}
-          <div className="absolute left-0 right-0 -top-16 opacity-0 group-hover/stat:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
+          <div className="absolute left-0 right-0 -top-14 opacity-0 group-hover/stat:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
             <div className="bg-ink-900 dark:bg-slate-800 text-white dark:text-parchment-100 px-3 py-2 rounded-lg shadow-2xl text-xs font-sans border border-slate-700 dark:border-slate-600 transition-colors duration-300">
               <div className="font-bold mb-1">Physical Wellbeing</div>
               <div className="text-ink-200 dark:text-parchment-300">Your vitality and resistance to illness. Low health increases risk of death.</div>
-              <div className="absolute bottom-0 left-8 transform translate-y-1/2 rotate-45 w-2 h-2 bg-ink-900 dark:bg-slate-800"></div>
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-ink-900 dark:bg-slate-800"></div>
             </div>
           </div>
 
@@ -832,8 +931,10 @@ export const CharacterCard = React.memo(function CharacterCard({
           )}
         </div>
 
-        {/* Energy */}
-        <div className="relative group/stat">
+        {/* Energy & Experience - Split 50/50 */}
+        <div className="grid grid-cols-2 gap-2">
+          {/* Energy - Left Half */}
+          <div className="relative group/stat">
           <div className="flex justify-between items-center mb-0.5">
             <span className="font-sans text-xs text-ink-900 dark:text-parchment-300 uppercase tracking-widest transition-colors duration-300">
               Energy
@@ -849,16 +950,16 @@ export const CharacterCard = React.memo(function CharacterCard({
           </div>
 
           {/* Tooltip */}
-          <div className="absolute left-0 right-0 -top-16 opacity-0 group-hover/stat:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
+          <div className="absolute left-0 right-0 -top-14 opacity-0 group-hover/stat:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
             <div className="bg-ink-900 dark:bg-slate-800 text-white dark:text-parchment-100 px-3 py-2 rounded-lg shadow-2xl text-xs font-sans border border-slate-700 dark:border-slate-600 transition-colors duration-300">
               <div className="font-bold mb-1">Physical Stamina</div>
               <div className="text-ink-200 dark:text-parchment-300">Your capacity for work. Actions consume energy. Rest to recover.</div>
-              <div className="absolute bottom-0 left-8 transform translate-y-1/2 rotate-45 w-2 h-2 bg-ink-900 dark:bg-slate-800"></div>
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-ink-900 dark:bg-slate-800"></div>
             </div>
           </div>
 
           {/* Energy bar - Glass purple */}
-          <div className="relative rounded-full overflow-visible transition-colors duration-300" style={{
+          <div ref={energyBarRef} className="relative rounded-full overflow-visible transition-colors duration-300" style={{
             height: '7px',
             borderRadius: '10px',
             background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0%, rgba(0, 0, 0, 0.04) 100%)',
@@ -892,70 +993,73 @@ export const CharacterCard = React.memo(function CharacterCard({
             </div>
           </div>
           {energy < 25 && (
-            <p className="text-xs text-warning-700 dark:text-amber-400 mt-1.5 font-sans italic flex items-center gap-1 transition-colors duration-300">
+            <p className="text-xs text-warning-700 dark:text-amber-400 mt-1 font-sans italic flex items-center gap-1 transition-colors duration-300">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
               {energy < 15 ? 'Too exhausted to work!' : 'You are very tired'}
             </p>
           )}
-        </div>
-
-        {/* Wealth */}
-        <div className="relative group/stat">
-          <div className="flex justify-between items-center mb-0.5">
-            <span className=" font-sans text-xs text-ink-900 dark:text-parchment-300 uppercase tracking-widest transition-colors duration-300">Wealth</span>
-            <span className="font-semibold font-sans text-sm text-ink-700 dark:text-parchment-100 transition-all duration-300">
-              {wealth} reales
-              {wealthFlash !== null && (
-                <span className={`ml-2 text-xs font-bold animate-float-up ${wealthFlash > 0 ? 'text-brass-600' : 'text-danger-600'}`}>
-                  {wealthFlash > 0 ? '+' : ''}{wealthFlash}
-                </span>
-              )}
-            </span>
           </div>
 
-          {/* Tooltip */}
-          <div className="absolute left-0 right-0 -top-16 opacity-0 group-hover/stat:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
-            <div className="bg-ink-900 dark:bg-slate-800 text-white dark:text-parchment-100 px-3 py-2 rounded-lg shadow-2xl text-xs font-sans border border-slate-700 dark:border-slate-600 transition-colors duration-300">
-              <div className="font-bold mb-1">Financial Resources</div>
-              <div className="text-ink-200 dark:text-parchment-300">Your currency in reales. Used to purchase supplies and settle debts.</div>
-              <div className="absolute bottom-0 left-8 transform translate-y-1/2 rotate-45 w-2 h-2 bg-ink-900 dark:bg-slate-800"></div>
+          {/* Experience - Right Half */}
+          <div className="relative group/stat">
+            <div className="flex justify-between items-center mb-0.5">
+              <span className="font-sans text-xs text-ink-900 dark:text-parchment-300 uppercase tracking-widest transition-colors duration-300">
+                XP
+              </span>
+              <span className="font-semibold font-sans text-sm text-ink-700 dark:text-parchment-100 transition-all duration-300">
+                {currentXP}/{nextLevelXP}
+                {xpFlash !== null && (
+                  <span className={`ml-1 text-xs font-bold animate-float-up text-brass-600`}>
+                    +{xpFlash}
+                  </span>
+                )}
+              </span>
             </div>
-          </div>
 
-          {/* Wealth bar - Glass gold */}
-          <div className="relative rounded-full overflow-visible transition-colors duration-300" style={{
-            height: '7px',
-            borderRadius: '19px',
-            background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0%, rgba(0, 0, 0, 0.03) 100%)',
-           boxShadow: `
-                 inset 0 2px 4px rgba(0, 0, 0, 0.05),
-              inset 0 1px 5px rgba(0, 0, 0, 0.05),
-              0 1px 0 rgba(255, 255, 255, 0.55)
-            `,
-            padding: '0px'
-          }}>
-            <div
-              className="h-full relative overflow-hidden group/bar liquid-shimmer-gold"
-              style={{
-                width: `${Math.min(100, (wealth / 100) * 100)}%`,
-                borderRadius: '9px',
-                background: 'linear-gradient(90deg, #fef08a 0%, #fde047 0%, #facc15 72%, #eab308 96%, #d9a109 100%)',
-                boxShadow: `inset 0 1px 1.5px rgba(255, 255, 255, 0.58)`,
-                transition: 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
-                cursor: 'pointer'
-              }}
-            >
-              {/* Glass overlay - base */}
-              <div className="absolute inset-0 rounded-full opacity-80 group-hover/bar:opacity-100 transition-opacity duration-700" style={{
-                background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.01) 40%, transparent 100%)'
-              }}></div>
+            {/* Tooltip */}
+            <div className="absolute left-0 right-0 -top-14 opacity-0 group-hover/stat:opacity-100 transition-opacity duration-200 pointer-events-none z-20">
+              <div className="bg-ink-900 dark:bg-slate-800 text-white dark:text-parchment-100 px-3 py-2 rounded-lg shadow-2xl text-xs font-sans border border-slate-700 dark:border-slate-600 transition-colors duration-300">
+                <div className="font-bold mb-1">Experience Points</div>
+                <div className="text-ink-200 dark:text-parchment-300">Progress toward next level. Gain XP by treating patients and completing tasks.</div>
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-ink-900 dark:bg-slate-800"></div>
+              </div>
+            </div>
 
-              {/* Glass overlay - radial glow on hover */}
-              <div className="absolute inset-0 rounded-full opacity-40 group-hover/bar:opacity-100 transition-opacity duration-700" style={{
-                background: 'radial-gradient(ellipse at top, rgba(255, 255, 255, 0.3) 0%, transparent 60%)'
-              }}></div>
+            {/* XP bar - Glass gold */}
+            <div className="relative rounded-full overflow-visible transition-colors duration-300" style={{
+              height: '7px',
+              borderRadius: '10px',
+              background: 'linear-gradient(180deg, rgba(0, 0, 0, 0.03) 0%, rgba(0, 0, 0, 0.03) 100%)',
+              boxShadow: `
+                inset 0 2px 4px rgba(0, 0, 0, 0.05),
+                inset 0 1px 5px rgba(0, 0, 0, 0.05),
+                0 1px 0 rgba(255, 255, 255, 0.55)
+              `,
+              padding: '0px'
+            }}>
+              <div
+                className="h-full relative overflow-hidden group/bar liquid-shimmer-gold"
+                style={{
+                  width: `${(currentXP / nextLevelXP) * 100}%`,
+                  borderRadius: '9px',
+                  background: 'linear-gradient(90deg, #fef08a 0%, #fde047 0%, #facc15 72%, #eab308 96%, #d9a109 100%)',
+                  boxShadow: `inset 0 1px 1.5px rgba(255, 255, 255, 0.58)`,
+                  transition: 'all 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+                  cursor: 'pointer'
+                }}
+              >
+                {/* Glass overlay - base */}
+                <div className="absolute inset-0 rounded-full opacity-80 group-hover/bar:opacity-100 transition-opacity duration-700" style={{
+                  background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.01) 40%, transparent 100%)'
+                }}></div>
+
+                {/* Glass overlay - radial glow on hover */}
+                <div className="absolute inset-0 rounded-full opacity-40 group-hover/bar:opacity-100 transition-opacity duration-700" style={{
+                  background: 'radial-gradient(ellipse at top, rgba(255, 255, 255, 0.3) 0%, transparent 60%)'
+                }}></div>
+              </div>
             </div>
           </div>
         </div>
@@ -1003,6 +1107,17 @@ export const CharacterCard = React.memo(function CharacterCard({
       </div>,
       document.body
     )}
+
+    {/* Helper Tooltip 5: Energy warning */}
+    <HelperTooltip
+      id="energy-warning"
+      content={energyTooltip.content}
+      targetRef={energyBarRef}
+      show={energyTooltip.show}
+      onDismiss={energyTooltip.dismiss}
+      onDisableAll={energyTooltip.onDisableAll}
+      position={energyTooltip.position}
+    />
     </>
   );
 });

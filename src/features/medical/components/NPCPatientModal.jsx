@@ -21,21 +21,113 @@ export default function NPCPatientModal({
   onClose,
   patient,
   onPrescribe,
-  onDiagnose
+  onDiagnose,
+  medicalRecords = {},
+  playerSkills = null,
+  reputation = {},
+  currentDate = '',
+  currentTime = ''
 }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [isVisible, setIsVisible] = useState(false);
 
   // Adapt entity to flat format
   const adaptedPatient = useMemo(() => {
-    return adaptEntityForPatientModal(patient);
+    if (!patient) return null;
+
+    const adapted = adaptEntityForPatientModal(patient);
+
+    console.log('[NPCPatientModal] Adapted patient:', {
+      name: adapted?.name,
+      hasPortrait: !!adapted?.portrait,
+      portraitPath: adapted?.portrait,
+      hasDiagnosis: !!adapted?.diagnosis,
+      diagnosis: adapted?.diagnosis,
+      symptomsCount: adapted?.symptoms?.length || 0
+    });
+
+    return adapted;
   }, [patient]);
 
-  // Generate treatment history
+  // Get real treatment history from medical records
   const treatmentHistory = useMemo(() => {
-    if (!adaptedPatient) return [];
-    return generateTreatmentHistory(adaptedPatient, 5);
-  }, [adaptedPatient]);
+    if (!patient?.id || !medicalRecords) return [];
+
+    const patientRecord = medicalRecords[patient.id];
+    if (!patientRecord?.sessions) return [];
+
+    // Convert sessions to TreatmentTimeline format
+    return patientRecord.sessions.map(session => {
+      // Determine primary treatment from session
+      const primaryTreatment = session.prescriptions?.[0] || session.procedures?.[0];
+
+      return {
+        date: session.date || currentDate,
+        time: session.time || currentTime,
+
+        // Practitioner info (TreatmentTimeline requires this)
+        practitioner: {
+          name: 'Maria de Lima', // Always the player in this game
+          education: 'Apothecary',
+          isPlayer: true
+        },
+
+        // Treatment info (TreatmentTimeline requires this)
+        treatment: {
+          name: primaryTreatment?.medicine || primaryTreatment?.item || primaryTreatment?.name || primaryTreatment?.type || 'Medical consultation',
+          method: primaryTreatment?.route || session.procedureType || 'Galenic compound',
+          theory: 'Humoral balancing'
+        },
+
+        // Outcome and notes
+        outcome: session.outcome || 'Treatment administered, monitoring progress',
+        notes: session.notes || ''
+      };
+    }).reverse(); // Most recent first
+  }, [patient?.id, medicalRecords, currentDate, currentTime]);
+
+  // Get active treatments (from most recent session)
+  const activeTreatments = useMemo(() => {
+    if (!patient?.id || !medicalRecords) return [];
+
+    const patientRecord = medicalRecords[patient.id];
+    if (!patientRecord?.sessions || patientRecord.sessions.length === 0) return [];
+
+    const mostRecentSession = patientRecord.sessions[patientRecord.sessions.length - 1];
+    const treatments = [];
+
+    // Add prescriptions as active treatments
+    if (mostRecentSession.prescriptions) {
+      mostRecentSession.prescriptions.forEach(prescription => {
+        treatments.push({
+          type: 'prescription',
+          name: prescription.medicine || prescription.item || 'Unknown Medicine',
+          route: prescription.route || 'oral',
+          dosage: prescription.dosage || 'As directed',
+          prescribedDate: mostRecentSession.date,
+          prescribedTime: mostRecentSession.time,
+          status: 'active',
+          effects: prescription.expectedEffects || []
+        });
+      });
+    }
+
+    // Add procedures as active treatments
+    if (mostRecentSession.procedures) {
+      mostRecentSession.procedures.forEach(procedure => {
+        treatments.push({
+          type: 'procedure',
+          name: procedure.name || procedure.type || 'Medical Procedure',
+          prescribedDate: mostRecentSession.date,
+          prescribedTime: mostRecentSession.time,
+          status: procedure.completed ? 'completed' : 'pending',
+          notes: procedure.notes || ''
+        });
+      });
+    }
+
+    return treatments;
+  }, [patient?.id, medicalRecords]);
 
   // Get conversation history from memory
   const conversationHistory = useMemo(() => {
@@ -62,6 +154,70 @@ export default function NPCPatientModal({
       setIsVisible(false);
     }
   }, [isOpen]);
+
+  // Calculate skill requirements for this patient's condition
+  const skillRequirements = useMemo(() => {
+    const patientDiagnosis = adaptedPatient?.diagnosis;
+    if (!patientDiagnosis) return [];
+
+    // Base requirements for all patients
+    const requirements = [
+      { skill: 'diagnosis', required: 2, description: 'Identify symptoms' },
+      { skill: 'pharmacy', required: 2, description: 'Prescribe medicines' }
+    ];
+
+    // Add complexity-based requirements
+    const diagnosisLower = (patientDiagnosis || '').toLowerCase();
+    if (diagnosisLower.includes('fever') || diagnosisLower.includes('infection')) {
+      requirements.push({ skill: 'herbalism', required: 3, description: 'Treat fever/infection' });
+    }
+    if (diagnosisLower.includes('surgery') || diagnosisLower.includes('wound') || diagnosisLower.includes('bleeding')) {
+      requirements.push({ skill: 'surgery', required: 3, description: 'Perform surgical procedures' });
+    }
+    if (diagnosisLower.includes('poison') || diagnosisLower.includes('toxic')) {
+      requirements.push({ skill: 'alchemy', required: 4, description: 'Handle poisonous compounds' });
+    }
+    if (diagnosisLower.includes('rare') || diagnosisLower.includes('complex') || diagnosisLower.includes('mysterious')) {
+      requirements.push({ skill: 'diagnosis', required: 5, description: 'Diagnose rare conditions' });
+    }
+
+    return requirements;
+  }, [adaptedPatient?.diagnosis]);
+
+  // Calculate relationship metrics
+  const relationshipData = useMemo(() => {
+    // Get patient's casta/faction for reputation
+    const casta = patient?.social?.casta || patient?.appearance?.casta || 'commonFolk';
+    const reputationValue = reputation[casta] || reputation.commonFolk || 50;
+
+    // Get patient affinity (from relationship system)
+    const affinity = patient?.relationship?.affinity || 50;
+
+    // Determine relationship status
+    let relationshipStatus = 'Neutral';
+    let relationshipColor = '#94a3b8';
+    if (affinity >= 80) {
+      relationshipStatus = 'Trusted';
+      relationshipColor = '#10b981';
+    } else if (affinity >= 60) {
+      relationshipStatus = 'Friendly';
+      relationshipColor = '#3b82f6';
+    } else if (affinity < 40) {
+      relationshipStatus = 'Wary';
+      relationshipColor = '#ef4444';
+    } else if (affinity < 20) {
+      relationshipStatus = 'Hostile';
+      relationshipColor = '#991b1b';
+    }
+
+    return {
+      affinity,
+      relationshipStatus,
+      relationshipColor,
+      casta,
+      reputationValue
+    };
+  }, [patient, reputation]);
 
   if (!isOpen || !adaptedPatient) return null;
 
@@ -350,6 +506,189 @@ export default function NPCPatientModal({
                 </div>
               </div>
 
+              {/* NEW: Active Treatments Panel */}
+              {activeTreatments.length > 0 && (
+                <div
+                  className="p-5 rounded-xl"
+                  style={{
+                    background: isDark
+                      ? 'rgba(16, 185, 129, 0.1)'
+                      : 'rgba(16, 185, 129, 0.05)',
+                    border: isDark ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(16, 185, 129, 0.2)'
+                  }}
+                >
+                  <h3 className={`font-sans font-bold text-sm uppercase tracking-wider mb-4 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`} style={{ letterSpacing: '0.1em' }}>
+                    💊 Active Treatments ({activeTreatments.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {activeTreatments.map((treatment, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-lg p-3"
+                        style={{
+                          background: isDark ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.6)',
+                          border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)',
+                          borderLeft: `3px solid ${treatment.status === 'active' ? '#10b981' : '#94a3b8'}`
+                        }}
+                      >
+                        <div className="flex items-start justify-between mb-1">
+                          <p className={`font-sans font-bold text-sm ${isDark ? 'text-parchment-100' : 'text-ink-900'}`}>
+                            {treatment.type === 'prescription' ? '🌿' : '⚕️'} {treatment.name}
+                          </p>
+                          <span
+                            className="px-2 py-0.5 text-xs font-sans font-bold uppercase rounded"
+                            style={{
+                              background: treatment.status === 'active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(148, 163, 184, 0.2)',
+                              color: treatment.status === 'active' ? '#10b981' : '#64748b',
+                              fontSize: '0.65rem'
+                            }}
+                          >
+                            {treatment.status}
+                          </span>
+                        </div>
+                        {treatment.route && (
+                          <p className={`text-xs font-sans mb-1 ${isDark ? 'text-slate-400' : 'text-ink-600'}`}>
+                            Route: {treatment.route}  •  {treatment.dosage}
+                          </p>
+                        )}
+                        <p className={`text-xs font-sans ${isDark ? 'text-slate-500' : 'text-ink-500'}`}>
+                          Prescribed: {treatment.prescribedDate} at {treatment.prescribedTime}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* NEW: Relationship & Reputation Panel */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Relationship Status */}
+                <div
+                  className="p-4 rounded-xl"
+                  style={{
+                    background: isDark ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.6)',
+                    border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)'
+                  }}
+                >
+                  <h3 className={`font-sans font-bold text-xs uppercase tracking-wider mb-3 ${isDark ? 'text-slate-400' : 'text-ink-500'}`} style={{ letterSpacing: '0.1em' }}>
+                    Patient Trust
+                  </h3>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex-1">
+                      <div className="h-2 rounded-full overflow-hidden" style={{ background: isDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.3)' }}>
+                        <div
+                          className="h-full transition-all duration-300"
+                          style={{
+                            width: `${relationshipData.affinity}%`,
+                            background: `linear-gradient(to right, ${relationshipData.relationshipColor}, ${relationshipData.relationshipColor}dd)`
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <span className={`text-xs font-sans font-bold ${isDark ? 'text-parchment-200' : 'text-ink-800'}`}>
+                      {relationshipData.affinity}%
+                    </span>
+                  </div>
+                  <p
+                    className="text-sm font-sans font-semibold"
+                    style={{ color: relationshipData.relationshipColor }}
+                  >
+                    {relationshipData.relationshipStatus}
+                  </p>
+                </div>
+
+                {/* Faction Reputation */}
+                <div
+                  className="p-4 rounded-xl"
+                  style={{
+                    background: isDark ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.6)',
+                    border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)'
+                  }}
+                >
+                  <h3 className={`font-sans font-bold text-xs uppercase tracking-wider mb-3 ${isDark ? 'text-slate-400' : 'text-ink-500'}`} style={{ letterSpacing: '0.1em' }}>
+                    Faction Standing
+                  </h3>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex-1">
+                      <div className="h-2 rounded-full overflow-hidden" style={{ background: isDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(209, 213, 219, 0.3)' }}>
+                        <div
+                          className="h-full transition-all duration-300"
+                          style={{
+                            width: `${relationshipData.reputationValue}%`,
+                            background: relationshipData.reputationValue >= 60 ? 'linear-gradient(to right, #10b981, #059669)' :
+                                       relationshipData.reputationValue <= 40 ? 'linear-gradient(to right, #ef4444, #dc2626)' :
+                                       'linear-gradient(to right, #f59e0b, #d97706)'
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <span className={`text-xs font-sans font-bold ${isDark ? 'text-parchment-200' : 'text-ink-800'}`}>
+                      {relationshipData.reputationValue}%
+                    </span>
+                  </div>
+                  <p className={`text-sm font-sans font-semibold capitalize ${isDark ? 'text-parchment-300' : 'text-ink-700'}`}>
+                    {relationshipData.casta}
+                  </p>
+                </div>
+              </div>
+
+              {/* NEW: Skill Requirements Panel */}
+              {playerSkills && skillRequirements.length > 0 && (
+                <div
+                  className="p-5 rounded-xl"
+                  style={{
+                    background: isDark ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.6)',
+                    border: isDark ? '1px solid rgba(71, 85, 105, 0.3)' : '1px solid rgba(209, 213, 219, 0.3)'
+                  }}
+                >
+                  <h3 className={`font-sans font-bold text-sm uppercase tracking-wider mb-4 ${isDark ? 'text-slate-300' : 'text-ink-700'}`} style={{ letterSpacing: '0.1em' }}>
+                    📚 Required Skills
+                  </h3>
+                  <div className="space-y-2">
+                    {skillRequirements.map((req, idx) => {
+                      const playerSkill = playerSkills?.knownSkills?.[req.skill];
+                      const playerLevel = playerSkill?.level || 0;
+                      const meetsRequirement = playerLevel >= req.required;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between py-2 px-3 rounded-lg"
+                          style={{
+                            background: meetsRequirement
+                              ? (isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)')
+                              : (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)'),
+                            border: meetsRequirement
+                              ? '1px solid rgba(16, 185, 129, 0.2)'
+                              : '1px solid rgba(239, 68, 68, 0.2)'
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg">{meetsRequirement ? '✓' : '✗'}</span>
+                            <div>
+                              <p className={`font-sans font-bold text-sm capitalize ${isDark ? 'text-parchment-100' : 'text-ink-900'}`}>
+                                {req.skill}
+                              </p>
+                              <p className={`text-xs font-sans ${isDark ? 'text-slate-400' : 'text-ink-600'}`}>
+                                {req.description}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-sm font-sans font-bold ${meetsRequirement ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-red-300' : 'text-red-700')}`}>
+                              Level {req.required} required
+                            </p>
+                            <p className={`text-xs font-sans ${isDark ? 'text-slate-400' : 'text-ink-600'}`}>
+                              Your level: {playerLevel}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Quick Actions */}
               <div className="grid grid-cols-3 gap-4">
                 <button
@@ -416,7 +755,7 @@ export default function NPCPatientModal({
                       Family & Relationships
                     </h3>
                     <p className={`font-serif text-sm leading-relaxed ${isDark ? 'text-slate-300' : 'text-ink-800'}`}>
-                      {family || relationships || 'No family information available.'}
+                      {renderTextOrFallback(family || relationships, 'No family information available.')}
                     </p>
                   </div>
                 )}
@@ -436,7 +775,7 @@ export default function NPCPatientModal({
                       Occupation
                     </h3>
                     <p className={`font-serif text-sm leading-relaxed ${isDark ? 'text-slate-300' : 'text-ink-800'}`}>
-                      {occupation}
+                      {renderTextOrFallback(occupation, 'No occupation information available.')}
                     </p>
                   </div>
                 )}
@@ -456,7 +795,7 @@ export default function NPCPatientModal({
                       Personality
                     </h3>
                     <p className={`font-serif text-sm leading-relaxed ${isDark ? 'text-slate-300' : 'text-ink-800'}`}>
-                      {personality}
+                      {renderTextOrFallback(personality, 'No personality information available.')}
                     </p>
                   </div>
                 )}
@@ -476,7 +815,7 @@ export default function NPCPatientModal({
                       Background
                     </h3>
                     <p className={`font-serif text-sm leading-relaxed ${isDark ? 'text-slate-300' : 'text-ink-800'}`}>
-                      {background}
+                      {renderTextOrFallback(background, 'No background information available.')}
                     </p>
                   </div>
                 )}
@@ -699,7 +1038,11 @@ export default function NPCPatientModal({
                     Earlier Interactions (Archived)
                   </h3>
                   <p className={`font-serif text-xs leading-relaxed italic ${isDark ? 'text-slate-400' : 'text-ink-700'}`}>
-                    {patient.memory.archivedSummary}
+                    {typeof patient.memory.archivedSummary === 'string'
+                      ? patient.memory.archivedSummary
+                      : patient.memory.archivedSummary
+                      ? JSON.stringify(patient.memory.archivedSummary)
+                      : 'No archived interactions'}
                   </p>
                 </div>
               )}
@@ -713,7 +1056,69 @@ export default function NPCPatientModal({
 
 // Helper functions
 
+/**
+ * Safely renders a value as text, handling objects, strings, and undefined
+ * @param {any} value - The value to render
+ * @param {string} fallback - Fallback text if value is empty/invalid
+ * @returns {string} - Safe string to render
+ */
+function renderTextOrFallback(value, fallback = 'No information available.') {
+  // If value is falsy (null, undefined, empty string, 0), return fallback
+  if (!value) return fallback;
+
+  // If value is a string, return it
+  if (typeof value === 'string') return value;
+
+  // If value is an object (including empty object {}), try to extract meaningful text
+  if (typeof value === 'object') {
+    // Check if it's an empty object
+    if (Object.keys(value).length === 0) return fallback;
+
+    // Try to extract common text fields from objects
+    if (value.text) return value.text;
+    if (value.description) return value.description;
+    if (value.summary) return value.summary;
+    if (value.value) return value.value;
+
+    // Last resort: stringify the object
+    return JSON.stringify(value);
+  }
+
+  // For other types (numbers, booleans), convert to string
+  return String(value);
+}
+
 function parseSymptoms(diagnosis, symptomsArray) {
+  // PRIORITY 1: Use actual symptoms from patient entity if available
+  if (symptomsArray && Array.isArray(symptomsArray) && symptomsArray.length > 0) {
+    console.log('[parseSymptoms] Using real symptoms data:', symptomsArray);
+
+    // Map symptoms to expected format
+    return symptomsArray.map(symptom => {
+      // Handle different symptom formats
+      if (typeof symptom === 'string') {
+        return {
+          name: symptom,
+          severity: 'unknown',
+          description: symptom,
+          duration: 'Unknown'
+        };
+      }
+
+      // Symptom is already an object
+      return {
+        name: symptom.name || symptom.symptom || 'Unknown symptom',
+        severity: symptom.severity || 'moderate',
+        description: symptom.description || symptom.details || symptom.name || '',
+        duration: symptom.duration || 'Unknown',
+        location: symptom.location || symptom.bodyPart || undefined,
+        onset: symptom.onset || undefined
+      };
+    });
+  }
+
+  // PRIORITY 2: Fall back to parsing diagnosis text (legacy behavior)
+  console.log('[parseSymptoms] No symptoms array, parsing from diagnosis:', diagnosis);
   const symptoms = [];
   const diagnosisLower = diagnosis?.toLowerCase() || '';
 

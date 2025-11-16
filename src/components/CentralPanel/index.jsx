@@ -54,6 +54,8 @@ export function CentralPanel({
   pendingActionPrompt,
   onProposeAction,
   onDeclineAction,
+  onDismissAction,
+  actionPromptLoading,
 
   // Mixing decision props
   pendingMixingDecision,
@@ -227,6 +229,8 @@ export function CentralPanel({
               pendingActionPrompt={pendingActionPrompt}
               onProposeAction={onProposeAction}
               onDeclineAction={onDeclineAction}
+              onDismissAction={onDismissAction}
+              actionPromptLoading={actionPromptLoading}
               pendingMixingDecision={pendingMixingDecision}
               onOpenMixingWorkshop={onOpenMixingWorkshop}
               onAbandonMixing={onAbandonMixing}
