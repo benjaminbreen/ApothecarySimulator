@@ -105,7 +105,7 @@ class EntityManager {
       throw new Error('Entity must have id and entityType');
     }
 
-    // Check if already exists
+    // Check if already exists by ID
     if (this.entities.has(entity.id)) {
       // Only log warning once per entity to prevent spam
       if (!this.loggedWarnings.has(entity.id)) {
@@ -113,6 +113,26 @@ class EntityManager {
         this.loggedWarnings.add(entity.id);
       }
       return this.update(entity.id, entity);
+    }
+
+    // CRITICAL: Check if entity with same normalized name already exists
+    // This prevents duplicate entities like "Sergeant Miguel Cordero" and "Miguel Cordero"
+    if (entity.name) {
+      const normalizedName = this.normalizeName(entity.name);
+      const existingByName = this.entitiesByName.get(normalizedName);
+
+      if (existingByName && existingByName.id !== entity.id) {
+        const logKey = `duplicate-name:${normalizedName}`;
+        if (!this.loggedWarnings.has(logKey)) {
+          console.warn(
+            `[EntityManager] Duplicate entity detected! "${entity.name}" matches existing "${existingByName.name}" ` +
+            `(ID: ${existingByName.id}). Updating existing entity instead of creating duplicate.`
+          );
+          this.loggedWarnings.add(logKey);
+        }
+        // Update the existing entity with new data
+        return this.update(existingByName.id, entity);
+      }
     }
 
     // NEW: Flag LLM-provided entities to prevent procedural override
@@ -145,6 +165,27 @@ class EntityManager {
 
     // Clear name regex cache
     this.nameRegexCache.clear();
+
+    // Cache portrait if entity has demographics (for NPCs and patients)
+    // This ensures portraits are resolved once and cached for future lookups
+    if ((entity.entityType === 'npc' || entity.entityType === 'patient') &&
+        (entity.gender || entity.age) &&
+        !entity._portraitPath) {
+      try {
+        const { resolvePortrait } = require('../services/portraitResolver');
+        const portraitPath = resolvePortrait(entity);
+        // resolvePortrait() automatically caches to entity._portraitPath
+        if (portraitPath) {
+          const cacheLogKey = `portrait-cache:${entity.id}`;
+          if (!this.loggedMessages.has(cacheLogKey)) {
+            console.log(`[EntityManager] Cached portrait on registration for ${entity.name}: ${portraitPath}`);
+            this.loggedMessages.add(cacheLogKey);
+          }
+        }
+      } catch (error) {
+        console.warn(`[EntityManager] Could not cache portrait for ${entity.name}:`, error.message);
+      }
+    }
 
     // Only log registration once per entity
     const logKey = `register:${entity.id}`;
@@ -647,6 +688,36 @@ class EntityManager {
 
     // Deep merge updates
     const updated = this.deepMerge(entity, updates);
+
+    // CRITICAL: Always preserve portrait cache from original entity
+    // Non-enumerable properties are lost during deepMerge, so restore them
+    if (entity._portraitPath) {
+      try {
+        Object.defineProperty(updated, '_portraitPath', {
+          value: entity._portraitPath,
+          writable: true,
+          enumerable: false,
+          configurable: true
+        });
+        console.log(`[EntityManager] Preserved portrait cache during update for ${updated.name}: ${entity._portraitPath}`);
+      } catch (error) {
+        console.warn(`[EntityManager] Could not preserve portrait cache for ${updated.name}:`, error.message);
+      }
+    }
+    // If updates object explicitly includes a new portrait path, cache it
+    else if (updates._portraitPath) {
+      try {
+        Object.defineProperty(updated, '_portraitPath', {
+          value: updates._portraitPath,
+          writable: true,
+          enumerable: false,
+          configurable: true
+        });
+        console.log(`[EntityManager] Cached new portrait during update for ${updated.name}: ${updates._portraitPath}`);
+      } catch (error) {
+        console.warn(`[EntityManager] Could not cache new portrait for ${updated.name}:`, error.message);
+      }
+    }
 
     // Update metadata
     updated.metadata = {

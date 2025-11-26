@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 import { useGameState } from '../../contexts/GameStateContext';
 import { useNPCs } from '../../contexts/NPCContext';
 import { entityManager } from '../../core/entities/EntityManager';
+import { findEntityByName } from '../../utils/nameNormalization';
 import { createChatCompletion } from '../../core/services/llmService';
 import { mapNPCFactionToSystemFaction } from '../../core/systems/reputationSystem';
 import { MedicalRecordsManager } from '../../core/systems/medicalRecordsManager';
@@ -1239,8 +1240,8 @@ export function useCommerceHandlers({
 
     // Apply faction-based reputation change
     if (reputationChange !== 0 && npcName) {
-      // Look up NPC entity to get their faction
-      const npcEntity = entityManager.getByName(npcName);
+      // Look up NPC entity to get their faction (with name normalization)
+      const npcEntity = findEntityByName(npcName, entityManager);
 
       if (npcEntity) {
         // Get NPC's casta or faction
@@ -2098,12 +2099,12 @@ Describe ${recipientNameCapitalized}'s reaction to this prescription offer in 2-
     }
 
     if (type === 'sell' && recipientName) {
-      let npcEntity = npcId ? entityManager.getById(npcId) : entityManager.getByName(recipientName);
+      let npcEntity = npcId ? entityManager.getById(npcId) : findEntityByName(recipientName, entityManager);
       if (!npcEntity) {
         const recentNPCs = npcTracker.getRecentNPCs();
         const matchedName = recentNPCs.find(name => name.toLowerCase() === recipientName.toLowerCase());
         if (matchedName) {
-          npcEntity = entityManager.getByName(matchedName);
+          npcEntity = findEntityByName(matchedName, entityManager);
         }
       }
       if (!npcEntity) {

@@ -279,7 +279,7 @@ export const PORTRAIT_LIBRARY = {
     occupation: ['nobleman', 'lord', 'official', 'landowner'],
     tags: ['elite', 'wealthy', 'formal', 'authority']
   },
-  'spanishnoblesolider.jpg': {
+  'spanishnoblesoldier.jpg': {
     gender: 'male',
     age: 'adult',
     casta: ['español', 'criollo'],

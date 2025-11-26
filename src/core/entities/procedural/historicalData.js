@@ -73,12 +73,165 @@ export const MexicoCity1680 = {
     'Guanajuato', 'Veracruz', 'Mérida', 'Durango'
   ],
 
-  // Common chronic conditions (period-accurate)
-  chronicConditions: [
-    'gout', 'consumption', 'falling sickness (epilepsy)', 'dropsy',
-    'scrofula', 'tertian fever', 'quartan fever', 'stone (kidney/bladder)',
-    'catarrh', 'rheumatism', 'poor eyesight', 'deafness', 'toothache'
-  ],
+  // Medical conditions (period-accurate, massively expanded for variety)
+  // Organized by category for easier maintenance, but flattened during selection
+  medicalConditions: {
+    // Acute/Infectious diseases (common illnesses)
+    acute: [
+      'smallpox', 'plague (bubonic)', 'cholera', 'typhoid fever', 'influenza',
+      'measles', 'scarlet fever', 'malaria', 'yellow fever', 'dysentery',
+      'common cold', 'pneumonia', 'whooping cough', 'diphtheria', 'erysipelas (skin infection)',
+      'putrid fever', 'spotted fever', 'ague (fever and chills)', 'bloody flux',
+      'pestilential fever', 'quotidian fever', 'burning fever', 'wasting fever'
+    ],
+
+    // Chronic/Degenerative conditions (long-term ailments)
+    chronic: [
+      'consumption (tuberculosis)', 'gout', 'dropsy (edema)', 'scrofula (lymph node TB)',
+      'rheumatism', 'arthritis', 'catarrh (chronic mucus)', 'kidney stone', 'bladder stone',
+      'gallstone', 'liver complaint', 'spleen disorder', 'chronic cough',
+      'wasting disease', 'chronic ulcer', 'fistula', 'canker', 'chronic headache',
+      'migraine', 'asthma', 'shortness of breath', 'heart palpitations'
+    ],
+
+    // Injuries/Wounds (trauma and accidents)
+    injuries: [
+      'infected wound from rusty nail', 'broken bone (poorly set)', 'fractured skull',
+      'burn (fire accident)', 'burn (chemical)', 'scalding from hot liquid',
+      'animal bite (dog)', 'animal bite (horse kick)', 'snake bite', 'scorpion sting',
+      'knife wound (recent)', 'knife wound (festering)', 'gunshot wound',
+      'severe bruising from fall', 'dislocated shoulder', 'dislocated hip',
+      'head injury with memory loss', 'embedded splinter', 'embedded foreign object',
+      'crushed fingers', 'crushed foot', 'deep laceration', 'glass embedded in flesh',
+      'torn muscle', 'sprained ankle', 'back injury from lifting'
+    ],
+
+    // Mental/Neurological disorders
+    mental: [
+      'melancholia (depression)', 'mania', 'frenzy', 'religious mania',
+      'demonic oppression', 'spiritual affliction', 'visions and voices',
+      'falling sickness (epilepsy)', 'apoplexy (stroke)', 'palsy (tremors)',
+      'memory loss', 'delirium', 'night terrors', 'hysteria',
+      'nervous disorder', 'brain fever', 'lunacy', 'madness',
+      'obsessive thoughts', 'phantom pains', 'paralysis (partial)',
+      'paralysis (complete)', 'speech loss', 'confusion and forgetting'
+    ],
+
+    // Supernatural/Spiritual (period beliefs)
+    supernatural: [
+      'evil eye curse', 'bewitchment', 'hex from jealous rival',
+      'demonic possession', 'spiritual oppression', 'curse from offended saint',
+      'lunar madness', 'astrological misalignment', 'planetary affliction',
+      'punishment for sin', 'divine retribution', 'witch\'s mark',
+      'bad air sickness', 'miasma poisoning', 'enchantment',
+      'love spell gone wrong', 'cursed object affliction'
+    ],
+
+    // Birth Defects/Congenital conditions
+    congenital: [
+      'clubfoot', 'harelip', 'cleft palate', 'extra digit (finger/toe)',
+      'fused digits', 'missing limb from birth', 'shortened limb',
+      'birthmark (large, disfiguring)', 'port-wine stain', 'crossed eyes',
+      'lazy eye', 'spinal curvature', 'hunchback', 'dwarfism',
+      'weak constitution from birth', 'hole in the heart', 'twisted spine',
+      'malformed hand', 'webbed fingers'
+    ],
+
+    // Sensory/Specific organs
+    sensory: [
+      'blindness (one eye)', 'blindness (both eyes)', 'partial vision loss',
+      'cataracts', 'cloudy vision', 'night blindness', 'sudden vision loss',
+      'deafness (one ear)', 'deafness (both ears)', 'partial hearing loss',
+      'ringing in ears', 'ear infection', 'ear discharge',
+      'toothache', 'tooth abscess', 'festering gums', 'loose teeth',
+      'lost teeth', 'jaw pain', 'lockjaw (tetanus)', 'tongue swelling',
+      'loss of smell', 'loss of taste', 'constant bad taste'
+    ],
+
+    // Skin conditions
+    skin: [
+      'leprosy', 'skin rash (unknown cause)', 'weeping sores',
+      'boils', 'carbuncles', 'pustules', 'hives', 'eczema',
+      'scabies', 'ringworm', 'shingles', 'skin ulcers',
+      'gangrene', 'mortification of flesh', 'black spots on skin',
+      'mysterious lesions', 'chronic itch', 'peeling skin',
+      'discolored patches', 'lumps under skin'
+    ],
+
+    // Digestive/Internal organs
+    digestive: [
+      'bloody flux (dysentery)', 'green sickness (chlorosis)', 'worms (intestinal)',
+      'tapeworm', 'roundworm', 'stomach ulcer', 'constant nausea',
+      'vomiting blood', 'vomiting bile', 'inability to keep food down',
+      'chronic constipation', 'bloody stool', 'black stool',
+      'swollen belly', 'liver disease', 'jaundice (yellow skin)',
+      'enlarged spleen', 'internal bleeding', 'stomach pain (severe)',
+      'colic', 'gripes (intestinal pain)'
+    ],
+
+    // Women's health (specific to female patients)
+    womensHealth: [
+      'difficult childbirth complications', 'milk fever', 'childbed fever',
+      'womb displacement', 'falling of the womb', 'excessive monthly bleeding',
+      'irregular courses', 'barrenness', 'miscarriage (recurring)',
+      'breast tumor', 'swollen breasts', 'breast infection',
+      'green sickness (young women)', 'hysteria (womb-related)'
+    ],
+
+    // Respiratory conditions
+    respiratory: [
+      'chronic cough', 'coughing blood', 'chest pain', 'pleurisy',
+      'phlegm obstruction', 'wheezing', 'difficulty breathing',
+      'rattling in chest', 'consumption (lung disease)', 'lung fever',
+      'chest cold (severe)', 'blood in sputum'
+    ],
+
+    // Urinary/Reproductive
+    urinary: [
+      'painful urination', 'bloody urine', 'cloudy urine', 'dark urine',
+      'inability to urinate', 'frequent urination', 'kidney pain',
+      'bladder inflammation', 'urinary blockage', 'gonorrhea',
+      'syphilis (early stage)', 'syphilis (late stage)', 'French pox',
+      'genital sores', 'genital discharge'
+    ],
+
+    // Rare/Mysterious ailments
+    rare: [
+      'saint\'s fire (ergotism)', 'dancing plague', 'sleeping sickness',
+      'petrification of limbs', 'mysterious wasting', 'creeping paralysis',
+      'flesh turning to stone', 'body parts going numb', 'phantom tumor',
+      'swelling that moves', 'blood disease (unknown)', 'bone disease',
+      'joint disease (crippling)', 'muscle wasting', 'unexplained fevers'
+    ],
+
+    // Occupational/Environmental
+    occupational: [
+      'miner\'s lung', 'potter\'s rot', 'baker\'s cough', 'tanner\'s disease',
+      'mercury poisoning (from mirrors/medicine)', 'lead poisoning',
+      'poisoning from bad food', 'poisoning from contaminated water',
+      'heat exhaustion', 'sun sickness', 'frostbite', 'chilblains',
+      'exposure to cold', 'work injury (chronic)', 'repetitive strain'
+    ],
+
+    // Parasites/Infestations
+    parasites: [
+      'lice infestation', 'flea bites (infected)', 'bedbug bites',
+      'tick embedded in skin', 'maggots in wound', 'fly larvae in sore',
+      'guinea worm', 'liver flukes', 'blood parasites'
+    ],
+
+    // Miscellaneous serious conditions
+    miscellaneous: [
+      'tumor (visible)', 'tumor (internal)', 'growth on neck', 'swollen glands',
+      'mysterious lump', 'hardening of arteries', 'weak heart',
+      'irregular heartbeat', 'chest tightness', 'fainting spells',
+      'seizures', 'fits', 'convulsions', 'trembling disease',
+      'muscle spasms', 'lockjaw', 'rigid limbs', 'twisted neck',
+      'swollen joints', 'bone pain', 'growing pains (severe)',
+      'premature aging', 'sudden weakness', 'loss of appetite',
+      'insatiable thirst', 'constant hunger', 'unexplained weight loss'
+    ]
+  },
 
   // Physical features by casta
   features: {

@@ -84,7 +84,8 @@ export function CentralPanel({
   onOpenInventoryTab, // Callback to open inventory tab in left sidebar
   onOpenMixing, // Callback to open mixing modal
   onPrescriptionPending, // Callback when prescription is being processed
-  onPrescriptionComplete, // Callback when prescription outcome is accepted
+  onPatientDismissed, // Callback when patient is dismissed (clears patient state only)
+  onPrescriptionComplete, // Callback when prescription outcome is accepted (clears all state)
   pendingPrescription, // Current pending prescription data
   onOpenPrescriptionDetails, // Callback to open prescription outcome modal
   handleCompleteHouseCall, // House call auto-return handler (Phase 3D)
@@ -279,6 +280,7 @@ export function CentralPanel({
               onOpenInventoryTab={onOpenInventoryTab}
               onOpenMixing={onOpenMixing}
               onPrescriptionPending={onPrescriptionPending}
+              onPatientDismissed={onPatientDismissed}
               onPrescriptionComplete={onPrescriptionComplete}
               handleCompleteHouseCall={handleCompleteHouseCall}
               toast={toast}

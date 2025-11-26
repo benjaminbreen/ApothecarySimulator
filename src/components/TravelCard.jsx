@@ -192,7 +192,9 @@ export function TravelCard({ houseCallData, gameTime, onArrival, onCancel, onTra
   }, [isComplete, onArrival, houseCallData, pathData, currentDirection]);
 
   useEffect(() => {
-    if (pathData && !isAnimating && progress === 0 && !isComplete && pathData.path?.length > 1) {
+    const isAnimationStalled = pathData && !isAnimating && progress === 0 && !isComplete && pathData.path?.length > 1;
+
+    if (isAnimationStalled) {
       const timer = setTimeout(() => {
         console.warn('[TravelCard] Animation stalled at 0%, triggering skip');
         skip();

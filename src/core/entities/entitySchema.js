@@ -125,7 +125,7 @@ export const NPCEntity = {
 
     // Disabilities & conditions
     disabilities: [],         // e.g., 'blind in one eye', 'lame left leg'
-    chronicConditions: []     // e.g., 'gout', 'consumption', 'poor eyesight'
+    chronicConditions: []     // 170+ conditions: injuries, mental, supernatural, acute, chronic, etc.
   },
 
   // Clothing (period-accurate)

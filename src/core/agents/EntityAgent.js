@@ -403,6 +403,15 @@ export function selectContextAwareEntity(context) {
 
   console.log(`[EntityAgent] After patient guards: ${filteredEntities.length} available entities`);
 
+  // DEBUG: Show entity composition BEFORE condition filtering
+  const beforeFiltering = {
+    namedPatients: filteredEntities.filter(e => (e.entityType === 'patient' || e.type === 'patient') && e.pdf && e.pdf.trim().length > 0).length,
+    templatePatients: filteredEntities.filter(e => (e.entityType === 'patient' || e.type === 'patient') && (!e.pdf || e.pdf.trim().length === 0)).length,
+    simpleInteractions: filteredEntities.filter(e => e.simpleInteractionType).length,
+    otherNPCs: filteredEntities.filter(e => e.entityType === 'npc' && !e.simpleInteractionType).length
+  };
+  console.log(`[EntityAgent] 🔍 BEFORE condition filtering:`, beforeFiltering);
+
   // LEGACY: Old scripted events system (commented out, kept for reference)
   // This has been replaced by the condition-based system above
   // for (const event of scriptedEvents) {
@@ -413,9 +422,18 @@ export function selectContextAwareEntity(context) {
   // }
 
   // Filter out NPCs that aren't available yet based on conditions
+  const beforeConditionFilter = filteredEntities.length;
   filteredEntities = filterAvailableNPCs(filteredEntities, gameState);
+  const filteredOutCount = beforeConditionFilter - filteredEntities.length;
 
-  console.log(`[EntityAgent] After condition filtering: ${filteredEntities.length} available entities`);
+  // DEBUG: Show entity composition AFTER condition filtering
+  const afterFiltering = {
+    namedPatients: filteredEntities.filter(e => (e.entityType === 'patient' || e.type === 'patient') && e.pdf && e.pdf.trim().length > 0).length,
+    templatePatients: filteredEntities.filter(e => (e.entityType === 'patient' || e.type === 'patient') && (!e.pdf || e.pdf.trim().length === 0)).length,
+    simpleInteractions: filteredEntities.filter(e => e.simpleInteractionType).length,
+    otherNPCs: filteredEntities.filter(e => e.entityType === 'npc' && !e.simpleInteractionType).length
+  };
+  console.log(`[EntityAgent] 🔍 AFTER condition filtering (${filteredOutCount} filtered out):`, afterFiltering);
 
   // Note: Removed hardcoded turn 1 and turn 5 forcing
   // Entity selection is now organic based on player action and context
@@ -442,10 +460,10 @@ export function selectContextAwareEntity(context) {
       location.toLowerCase().includes(keyword)
     );
     if (isAtWorkplace && (entity.entityType || entity.type) === 'patient') {
-      // Named patients (with PDFs) get massive boost, templates get moderate boost
-      // This ensures hand-crafted patients appear ~40% of time, templates ~25%
+      // Named patients (with PDFs) get boost, templates get moderate boost
+      // Reduced from 10x to 5x to reduce named patient dominance
       const isNamedPatient = entity.pdf && entity.pdf.trim().length > 0;
-      weight *= isNamedPatient ? 15.0 : 3.0; // 5x advantage for named patients
+      weight *= isNamedPatient ? 5.0 : 3.0; // ~1.67x advantage for named patients
     }
 
     // Time-based probability
@@ -511,18 +529,52 @@ export function selectContextAwareEntity(context) {
       }
     }
 
-    // SIMPLE INTERACTION PENALTY: Reduce frequency to ~25% of encounters
-    // Simple interactions (vendors, beggars, etc.) should be less common than patients
-    // Condition weights are 5-6x, penalty brings them to 2.5-3x effective
-    if (entity.simpleInteractionType) {
-      weight *= 0.5; // Reduce simple interaction frequency
-    }
+    // REMOVED: Simple interaction penalty
+    // Simple interactions now use their base condition weights (5-6x) without penalty
+    // This should result in ~25-30% simple interaction frequency at target
 
     return weight;
   });
 
-  // Weighted random selection
+  // DEBUG: Show final weights by entity type
+  const weightBreakdown = {
+    namedPatients: { count: 0, totalWeight: 0, avgWeight: 0 },
+    templatePatients: { count: 0, totalWeight: 0, avgWeight: 0 },
+    simpleInteractions: { count: 0, totalWeight: 0, avgWeight: 0 },
+    otherNPCs: { count: 0, totalWeight: 0, avgWeight: 0 }
+  };
+
+  filteredEntities.forEach((entity, i) => {
+    const w = weights[i];
+    const isPatient = entity.entityType === 'patient' || entity.type === 'patient';
+    const isNamed = entity.pdf && entity.pdf.trim().length > 0;
+
+    if (isPatient && isNamed) {
+      weightBreakdown.namedPatients.count++;
+      weightBreakdown.namedPatients.totalWeight += w;
+    } else if (isPatient) {
+      weightBreakdown.templatePatients.count++;
+      weightBreakdown.templatePatients.totalWeight += w;
+    } else if (entity.simpleInteractionType) {
+      weightBreakdown.simpleInteractions.count++;
+      weightBreakdown.simpleInteractions.totalWeight += w;
+    } else {
+      weightBreakdown.otherNPCs.count++;
+      weightBreakdown.otherNPCs.totalWeight += w;
+    }
+  });
+
+  // Calculate averages and percentages
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  Object.keys(weightBreakdown).forEach(key => {
+    const data = weightBreakdown[key];
+    if (data.count > 0) {
+      data.avgWeight = (data.totalWeight / data.count).toFixed(2);
+      data.percentage = ((data.totalWeight / totalWeight) * 100).toFixed(1) + '%';
+    }
+  });
+
+  console.log(`[EntityAgent] 🎲 FINAL WEIGHTS (totalWeight: ${totalWeight.toFixed(2)}):`, weightBreakdown);
 
   // Intent detection: Does player action suggest they want to encounter someone?
   // Note: Conversation continuation detection is handled by AgentOrchestrator (after entity selection)
@@ -554,6 +606,15 @@ export function selectContextAwareEntity(context) {
     random -= weights[i];
     if (random <= 0) {
       const selectedEntity = filteredEntities[i];
+
+      // DEBUG: Show what was selected and why
+      const isPatient = selectedEntity.entityType === 'patient' || selectedEntity.type === 'patient';
+      const isNamed = selectedEntity.pdf && selectedEntity.pdf.trim().length > 0;
+      const entityCategory = isPatient && isNamed ? 'NAMED PATIENT' :
+                             isPatient ? 'TEMPLATE PATIENT' :
+                             selectedEntity.simpleInteractionType ? 'SIMPLE INTERACTION' :
+                             'OTHER NPC';
+      console.log(`[EntityAgent] ✅ SELECTED: "${selectedEntity.name}" (${entityCategory}, weight: ${weights[i].toFixed(2)})`);
 
       // PHASE 2 CHANGE: No longer generating procedural names
       // Templates are just demographic hints for the LLM

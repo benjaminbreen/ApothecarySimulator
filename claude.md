@@ -792,21 +792,21 @@ A: Rich historical setting (Inquisition, converso identity, colonial tensions, h
 
 ---
 
-## Planned Refactoring
+## Ongoing Refactoring
 
-**UI Modernization & Architecture Refactor** - A comprehensive 6-phase plan to convert all CSS to Tailwind and modularize GamePage.jsx.
+**UI Modernization & Architecture Refactor** - Converting custom CSS to Tailwind and modularizing GamePage.jsx.
 
-📄 **See detailed plan**: [MIGRATION_PLAN.md](./MIGRATION_PLAN.md)
+**Completed**:
+- ✅ Hooks extracted into 7 modular files
+- ✅ Context providers implemented (6 contexts)
+- ✅ LeftSidebar modularized
+- ✅ Dark mode system
+- 🚧 Partial Tailwind conversion
 
-**Objectives**:
-- Convert 10,000+ lines of custom CSS to Tailwind
-- Implement cohesive dark mode
-- Split ~2,467-line GamePage.jsx into modular hooks and components
-- Eliminate prop drilling with Context providers
-- Achieve 100% feature parity (zero breakage)
-
-**Timeline**: 6 phases, 15-21 hours total work
-**Status**: 🚧 In Progress - Hooks extracted, contexts implemented, partial Tailwind conversion
+**Remaining**:
+- Convert remaining custom CSS to Tailwind
+- Further GamePage.jsx modularization
+- Achieve 100% feature parity
 
 ---
 

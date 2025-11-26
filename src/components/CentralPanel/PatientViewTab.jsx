@@ -85,7 +85,8 @@ export function PatientViewTab({
   onOpenInventoryTab,
   onOpenMixing, // New prop for mixing modal
   onPrescriptionPending, // Callback when prescription is being processed
-  onPrescriptionComplete, // Callback when prescription outcome is accepted
+  onPatientDismissed, // Callback when patient is dismissed (clears patient state only)
+  onPrescriptionComplete, // Callback when prescription outcome is accepted (clears all state)
   handleCompleteHouseCall, // House call auto-return handler (Phase 3D)
   toast // Toast notification function
 }) {
@@ -186,9 +187,9 @@ export function PatientViewTab({
     timelineRefs.current = {};
   }, [patient?.id]);
 
-  // Show diagnose button after 3+ questions are answered
+  // Show diagnose button after 2+ questions are answered
   useEffect(() => {
-    if (patientDialogue.length >= 3) {
+    if (patientDialogue.length >= 2) {
       setShowDiagnoseButton(true);
     }
   }, [patientDialogue]);
@@ -444,8 +445,9 @@ export function PatientViewTab({
   };
 
   const quickQuestions = [
-    "When did this start?",
-    "Any other symptoms?",
+    "What ails you?",
+    "When did it start?",
+    "Other symptoms?",
     "Family history?"
   ];
 
@@ -1050,7 +1052,7 @@ export function PatientViewTab({
                 onClick={() => handleQuickQuestion(q)}
                 disabled={isAsking || isPromptRecentlyAsked(q)}
                 title={isPromptRecentlyAsked(q) ? "Already asked recently - wait before asking again" : undefined}
-                className={`group px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                className={`group px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   isPromptRecentlyAsked(q)
                     ? 'bg-amber-50 border border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-700/50 dark:text-amber-300'
                     : 'bg-white hover:bg-emerald-50 border border-ink-200 hover:border-emerald-300 text-ink-600 hover:text-emerald-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600 dark:hover:border-emerald-500/50 dark:hover:text-emerald-300'
@@ -1130,7 +1132,7 @@ export function PatientViewTab({
             <>
               <button
                 onClick={() => setViewMode('diagnose')}
-                disabled={!diagnosisData && patientDialogue.length < 3}
+                disabled={!diagnosisData && patientDialogue.length < 2}
                 className="ml-auto px-4 py-1.5 bg-emerald-600/90 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 border border-emerald-400/50 disabled:border-slate-600 rounded-lg text-white disabled:cursor-not-allowed transition-all text-xs font-semibold flex items-center gap-2 shadow-lg disabled:shadow-none shadow-emerald-500/30"
               >
                 {diagnosisData ? '🩺 Revise Diagnosis' : '🩺 Make Diagnosis'}
@@ -1688,6 +1690,7 @@ export function PatientViewTab({
               transactionManager={transactionManager}
               TRANSACTION_CATEGORIES={TRANSACTION_CATEGORIES}
               onPrescriptionPending={onPrescriptionPending}
+              onPatientDismissed={onPatientDismissed}
               onPrescriptionComplete={onPrescriptionComplete}
               handleCompleteHouseCall={handleCompleteHouseCall}
               toast={toast}
@@ -2264,14 +2267,114 @@ Write one concise paragraph citing specific evidence.`;
     }
   };
 
+  // Check for auto-extracted diagnoses from Q&A
+  const autoExtractedDiagnoses = patient?.medicalRecord?.diagnoses || [];
+  const hasAutoExtractedDiagnosis = autoExtractedDiagnoses.length > 0;
+  const latestAutoExtractedDiagnosis = hasAutoExtractedDiagnosis ? autoExtractedDiagnoses[autoExtractedDiagnoses.length - 1] : null;
+
+  // Check for pre-defined diagnosis from EntityList
+  const hasEntityDiagnosis = patient?.contemporaryTheory || patient?.diagnosis;
+  const contemporaryDiagnosis = patient?.contemporaryTheory; // 1680s version
+  const modernDiagnosis = patient?.diagnosis; // Modern medical term
+
+  // Tooltip state for modern diagnosis
+  const [showModernDiagnosis, setShowModernDiagnosis] = useState(false);
+
   if (!diagnosisData) {
     return (
       <div className="space-y-6">
+        {/* Pre-defined diagnosis from EntityList (prioritize this) */}
+        {hasEntityDiagnosis && (
+          <div
+            className="p-6 rounded-xl border animate-fade-in"
+            style={{
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.08) 100%)',
+              borderColor: 'rgba(96, 165, 250, 0.4)'
+            }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">🔍</span>
+              <div className="flex-1">
+                <div className="text-xs uppercase tracking-wider text-blue-300 font-bold mb-1">Historical Diagnosis (1680s)</div>
+                <div className="text-lg font-bold text-white">{contemporaryDiagnosis || modernDiagnosis}</div>
+              </div>
+              {modernDiagnosis && (
+                <button
+                  onClick={() => setShowModernDiagnosis(!showModernDiagnosis)}
+                  className="flex-shrink-0 text-xs px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 rounded-lg text-blue-300 transition-all flex items-center gap-1.5"
+                  title="See modern medical interpretation"
+                >
+                  <span className="text-sm">ℹ️</span>
+                  {showModernDiagnosis ? 'Hide' : 'Modern'} Context
+                </button>
+              )}
+            </div>
+
+            {showModernDiagnosis && modernDiagnosis && (
+              <div className="mb-4 p-4 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-300 leading-relaxed">
+                <div className="flex items-start gap-2">
+                  <span className="text-slate-500 flex-shrink-0 text-xs mt-0.5">📚</span>
+                  <div>
+                    <strong className="text-blue-300">Modern medical interpretation:</strong> This condition would likely be diagnosed in the 2020s as <strong className="text-white">{modernDiagnosis}</strong>.
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Auto-extracted diagnosis from Q&A (show if no pre-defined diagnosis) */}
+        {!hasEntityDiagnosis && hasAutoExtractedDiagnosis && latestAutoExtractedDiagnosis && (
+          <div
+            className="p-6 rounded-xl border animate-fade-in"
+            style={{
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.08) 100%)',
+              borderColor: 'rgba(96, 165, 250, 0.4)'
+            }}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">🔍</span>
+              <div>
+                <div className="text-xs uppercase tracking-wider text-blue-300 font-bold mb-1">Potential Diagnosis (from examination)</div>
+                <div className="text-lg font-bold text-white">{latestAutoExtractedDiagnosis.diagnosis}</div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 text-xs text-blue-200/70 bg-blue-500/10 rounded-lg p-3 border border-blue-400/20">
+              <span className="flex-shrink-0 mt-0.5">ℹ️</span>
+              <div>
+                Extracted during Q&A at <strong>{latestAutoExtractedDiagnosis.time}</strong> on {latestAutoExtractedDiagnosis.date}.
+                Confidence: <strong className="text-blue-300">{latestAutoExtractedDiagnosis.confidence}</strong>.
+                Use the <strong className="text-emerald-300">Diagnose</strong> button above to submit your formal diagnosis.
+              </div>
+            </div>
+
+            {latestAutoExtractedDiagnosis.evidence && latestAutoExtractedDiagnosis.evidence.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-blue-400/20">
+                <div className="text-xs uppercase tracking-wider text-blue-300 font-bold mb-2">Evidence observed:</div>
+                <div className="grid gap-1.5">
+                  {latestAutoExtractedDiagnosis.evidence.map((symptom, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-sm text-slate-300">
+                      <span className="text-blue-400 flex-shrink-0">•</span>
+                      <span>{symptom.name || symptom}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="text-center py-16 px-6">
           <div className="text-6xl mb-6 opacity-30">🔍</div>
-          <div className="text-xl font-bold text-white mb-3">No Diagnosis Yet</div>
+          <div className="text-xl font-bold text-white mb-3">
+            {(hasEntityDiagnosis || hasAutoExtractedDiagnosis) ? 'Ready to Diagnose' : 'No Diagnosis Yet'}
+          </div>
           <div className="text-sm text-slate-400 max-w-md mx-auto">
-            Gather evidence through examination and questioning, then use the <strong className="text-emerald-300">Diagnose</strong> button in the toolbar to submit your diagnosis.
+            {(hasEntityDiagnosis || hasAutoExtractedDiagnosis)
+              ? 'A historical diagnosis has been identified based on the patient\'s condition. Review the evidence and use the Diagnose button to submit your formal diagnosis.'
+              : 'Gather evidence through examination and questioning, then use the Diagnose button in the toolbar to submit your diagnosis.'
+            }
           </div>
 
           {/* Give me a hint button */}

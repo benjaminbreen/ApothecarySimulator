@@ -1,4 +1,5 @@
 import { createChatCompletion } from '../services/llmService';
+import { parseLLMJSON } from '../../utils/jsonHelpers';
 
 const SYSTEM_PROMPT = `You are the Long-Distance Travel Agent for a historical narrative simulator set in 1680 New Spain.
 
@@ -181,15 +182,16 @@ export async function simulateLongDistanceTravel({
   );
 
   const rawContent = response.choices?.[0]?.message?.content || '';
-  const cleaned = cleanupJSON(rawContent);
 
-  try {
-    const parsed = JSON.parse(cleaned);
-    return parsed;
-  } catch (error) {
-    console.error('[LongDistanceTravelAgent] Failed to parse response:', cleaned, error);
+  // Parse JSON with automatic cleaning and error handling
+  const parsed = parseLLMJSON(rawContent, null);
+
+  if (!parsed) {
+    console.error('[LongDistanceTravelAgent] Failed to parse response:', rawContent);
     throw new Error('Failed to interpret travel narrative.');
   }
+
+  return parsed;
 }
 
 export default {

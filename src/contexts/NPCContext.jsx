@@ -26,9 +26,9 @@ export function NPCProvider({ children }) {
   const [currentEntities, setCurrentEntities] = useState([]);
 
   // Patient State
-  const [activePatient, setActivePatient] = useState(null); // Currently active patient (in examination)
+  const [activePatient, setActivePatient] = useState(null); // Currently active patient (examination/prescription)
   const [patientDialogue, setPatientDialogue] = useState([]); // Dialogue history with active patient
-  const [currentPatient, setCurrentPatient] = useState(null); // Patient being prescribed to
+  // Note: currentPatient removed - use activePatient for all patient interactions (examination AND prescription)
 
   // Entity Selection (for modals)
   const [selectedNPC, setSelectedNPC] = useState(null); // Selected NPC for NPC modal
@@ -91,7 +91,7 @@ export function NPCProvider({ children }) {
   const clearSelections = () => {
     setSelectedNPC(null);
     setSelectedPatient(null);
-    setCurrentPatient(null);
+    // Note: activePatient cleared separately via clearActivePatient()
   };
 
   /**
@@ -128,6 +128,11 @@ export function NPCProvider({ children }) {
     setPrimaryPortraitFile(null);
     // Note: npcTracker and npcPositions are not reset (managed separately)
   };
+
+  // BACKWARD COMPATIBILITY: Alias currentPatient -> activePatient
+  // This maintains existing API while consolidating state
+  const currentPatient = activePatient;
+  const setCurrentPatient = setActivePatient;
 
   // Memoize context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
@@ -188,7 +193,7 @@ export function NPCProvider({ children }) {
     currentEntities,
     activePatient,
     patientDialogue,
-    currentPatient,
+    // Note: currentPatient removed from deps (now alias to activePatient)
     selectedNPC,
     selectedPatient,
     tradingNPC,
@@ -257,13 +262,13 @@ export function useNPCs() {
  * - setCurrentEntities(entities): Set current entities
  *
  * Patient State:
- * - activePatient: Currently active patient (in examination)
+ * - activePatient: Currently active patient (examination/prescription)
  * - setActivePatient(patient): Set active patient
  * - clearActivePatient(): Clear active patient and dialogue
  * - patientDialogue: Array of dialogue history with patient
  * - setPatientDialogue(dialogue): Set patient dialogue
- * - currentPatient: Patient being prescribed to
- * - setCurrentPatient(patient): Set current patient
+ * - currentPatient: [DEPRECATED] Alias to activePatient for backward compatibility
+ * - setCurrentPatient(patient): [DEPRECATED] Alias to setActivePatient
  *
  * Entity Selection (for modals):
  * - selectedNPC: Selected NPC for NPC modal

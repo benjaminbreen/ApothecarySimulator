@@ -12,7 +12,7 @@
 import { safeLocalStorage, setJSON, getJSON } from '../../utils/safeLocalStorage';
 import { initialInventoryData } from '../../initialInventory';
 
-const SAVE_VERSION = '1.1.2';
+const SAVE_VERSION = '1.1.3';
 const SAVE_KEY_PREFIX = 'apothecary_save_slot_';
 const AUTOSAVE_KEY = 'apothecary_autosave';
 const MAX_MANUAL_SLOTS = 3;
@@ -159,14 +159,11 @@ export function loadGame(slotKey) {
  * @returns {boolean} Success status
  */
 export function deleteSave(slotKey) {
-  try {
-    localStorage.removeItem(slotKey);
+  const success = safeLocalStorage.removeItem(slotKey);
+  if (success) {
     console.log(`[SaveManager] Deleted save at ${slotKey}`);
-    return true;
-  } catch (error) {
-    console.error(`[SaveManager] Failed to delete save at ${slotKey}:`, error);
-    return false;
   }
+  return success;
 }
 
 /**
@@ -455,6 +452,22 @@ const MIGRATIONS = {
         ...saveData.gameState,
         inventory: updatedInventory,
         compounds: updatedCompounds
+      }
+    };
+  },
+
+  '1.1.3': (saveData) => {
+    console.log('[SaveManager] Migrating save from v1.1.2 to v1.1.3');
+    console.log('[SaveManager] Adding scheduledFollowUps array to prevent null reference errors');
+
+    // Ensure scheduledFollowUps exists in gameState
+    // This fixes crashes when loading old saves that don't have this field
+    return {
+      ...saveData,
+      version: '1.1.3',
+      gameState: {
+        ...saveData.gameState,
+        scheduledFollowUps: saveData.gameState?.scheduledFollowUps || []
       }
     };
   }

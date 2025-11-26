@@ -6,6 +6,7 @@ import { scenarioLoader } from '../services/scenarioLoader';
 import { getGridSystem } from '../../features/map/services/gridMovementSystem';
 import { isDocumentItem, getDocumentType } from '../../utils/documentDetector';
 import { getFullLocationContext, getLocationDescription } from '../../scenarios/1680-mexico-city/data/streetGrid';
+import { parseLLMJSON } from '../../utils/jsonHelpers';
 
 // PERFORMANCE: Cache state prompt to avoid rebuilding static sections every turn
 // Note: Cache is keyed by scenario ID, invalidates only when scenario changes
@@ -253,6 +254,7 @@ Trust the interactionIntent from NarrativeAgent. Create matching objects:
 - Transaction completes (wealthChange + inventoryChanges present)
 - NPC departs after business (npcDeparted: true + interactionIntent: "none")
 - Player refuses offer
+- **Entity has NO simpleInteractionType** (story NPC, not simple interaction) - use narrative only
 
 **Clear actionPrompt** (set type: "null") when:
 - prescriptionOfferOutcome.occurred = true (prescription was accepted/declined/bargained)
@@ -306,6 +308,21 @@ Intent: medical_diagnosis
 Narrative: "Merchant says 'Silver mine needs 100 reales capital. Returns 120-200 reales in a year.'"
 Intent: vendor_offer
 → simpleInteraction: {type: "investment_offer", investment: {investmentType: "silver_mining", amount: 100, expectedReturn: {min: 120, max: 200}, duration: 365, riskLevel: "high", emoji: "⛏️"}}
+→ contractOffer: {type: "null"}, actionPrompt: {type: "null"}
+
+**Example 7: Story NPC (NO CARD) - Entity has NO simpleInteractionType**
+Narrative: "Tlacaelel, a Nahuatl scribe, unwraps an ancient codex. 'Doña Maria, I require your learned eye for these old drawings of healing herbs.'"
+Intent: vendor_offer (NPC requesting service)
+Entity: simpleInteractionType = NONE (story NPC)
+→ simpleInteraction: {type: "null"} **← NO CARD, this is a story scene**
+→ contractOffer: {type: "null"}, actionPrompt: {type: "null"}
+→ relationshipChanges, journal entries, narrative only
+
+**Example 8: Simple Interaction NPC (YES CARD) - Entity HAS simpleInteractionType**
+Narrative: "Water seller arrives. 'Fresh water from the aqueduct, 3 reales!'"
+Intent: vendor_offer
+Entity: simpleInteractionType = "service_offer"
+→ simpleInteraction: {type: "service_offer", direction: "selling_to_maria", offer: {item: "aqueduct water", price: 3, quantity: 1}}
 → contractOffer: {type: "null"}, actionPrompt: {type: "null"}
 
 ### Additional Notes
@@ -434,6 +451,17 @@ ${availableLocations.map(loc => `- ${loc.fullName}`).join('\n')}
 
 Player Action: ${playerAction}
 
+${selectedEntity ? `
+### Selected Entity Context:
+Name: ${selectedEntity.name}
+Type: ${selectedEntity.entityType || selectedEntity.type || 'unknown'}
+${selectedEntity.simpleInteractionType ? `Simple Interaction Type: ${selectedEntity.simpleInteractionType}` : 'Simple Interaction Type: NONE (this is a story NPC, not a simple interaction)'}
+
+**CRITICAL RULE:** ${selectedEntity.simpleInteractionType
+  ? `This entity HAS simpleInteractionType="${selectedEntity.simpleInteractionType}" → CREATE simpleInteraction card if they request/offer something transactional.`
+  : `This entity has NO simpleInteractionType → DO NOT create simpleInteraction card. This is a story NPC. Use narrative only, set simpleInteraction: {type: "null"}.`}
+` : ''}
+
 ${primaryNPC ? `
 ### Primary NPC (Person Physically Present):
 Name: ${primaryNPC.name}
@@ -532,13 +560,23 @@ The reverse geocoder has determined the player is now at: "${movementData.sugges
 
     const rawResponse = response.choices[0].message.content;
 
-    // Clean markdown-wrapped JSON (LLM sometimes returns ```json ... ```)
-    const cleanedResponse = rawResponse
-      .replace(/^```json\s*\n?/i, '') // Remove opening ```json
-      .replace(/\n?```\s*$/i, '')      // Remove closing ```
-      .trim();
-
-    const stateData = JSON.parse(cleanedResponse);
+    // Parse JSON with automatic cleaning and error handling
+    const stateData = parseLLMJSON(rawResponse, {
+      inventoryChanges: [],
+      compoundChanges: [],
+      wealthChange: 0,
+      timeChange: 0,
+      energyChange: 0,
+      location: null,
+      contractOffer: null,
+      crisisResolution: {
+        status: 'ongoing',
+        gameOver: false,
+        gameOverReason: null,
+        wealthChange: 0,
+        reputationDelta: 0
+      }
+    });
     const originalContractOffer = stateData.contractOffer && stateData.contractOffer.type && stateData.contractOffer.type !== 'null'
       ? { ...stateData.contractOffer }
       : null;

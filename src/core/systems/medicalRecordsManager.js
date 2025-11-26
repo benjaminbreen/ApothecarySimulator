@@ -36,7 +36,7 @@ export class MedicalRecordsManager {
     // Initialize patient record if doesn't exist
     if (!updatedRecords[patientId]) {
       // BUG FIX #3: Resolve portrait before storing in medical records
-      // This ensures PatientRosterModal can display portraits correctly
+      // ENHANCEMENT: Also cache portrait on patient entity for future lookups
       let resolvedPortrait = null;
       if (patient.portrait) {
         // Portrait is already resolved
@@ -44,7 +44,13 @@ export class MedicalRecordsManager {
       } else if (patient.primaryNPC && typeof patient.primaryNPC === 'object') {
         // Portrait needs resolution from primaryNPC object
         resolvedPortrait = resolvePortrait(patient.primaryNPC);
+        // Cache is automatically set by resolvePortrait() on patient.primaryNPC._portraitPath
         console.log(`[MedicalRecords] Resolved portrait for ${patient.name}: ${resolvedPortrait}`);
+      } else if (patient.name && (patient.age || patient.gender)) {
+        // No primaryNPC, resolve from patient demographics directly
+        resolvedPortrait = resolvePortrait(patient);
+        // Cache is automatically set by resolvePortrait() on patient._portraitPath
+        console.log(`[MedicalRecords] Resolved portrait from patient demographics for ${patient.name}: ${resolvedPortrait}`);
       }
 
       updatedRecords[patientId] = {
@@ -62,13 +68,21 @@ export class MedicalRecordsManager {
       updatedRecords[patientId].lastSeen = sessionData.date;
 
       // BUG FIX #7: Also resolve portrait on subsequent visits if it's still missing
+      // ENHANCEMENT: Cache portrait on entity for future lookups
       if (!updatedRecords[patientId].portrait && patient.primaryNPC && typeof patient.primaryNPC === 'object') {
         const resolvedPortrait = resolvePortrait(patient.primaryNPC);
+        // Cache is automatically set by resolvePortrait() on patient.primaryNPC._portraitPath
         updatedRecords[patientId].portrait = resolvedPortrait;
         console.log(`[MedicalRecords] Resolved missing portrait for returning patient ${patient.name}: ${resolvedPortrait}`);
       } else if (!updatedRecords[patientId].portrait && patient.portrait) {
         updatedRecords[patientId].portrait = patient.portrait;
         console.log(`[MedicalRecords] Updated missing portrait for returning patient ${patient.name}: ${patient.portrait}`);
+      } else if (!updatedRecords[patientId].portrait && patient.name && (patient.age || patient.gender)) {
+        // Try resolving from patient demographics
+        const resolvedPortrait = resolvePortrait(patient);
+        // Cache is automatically set by resolvePortrait() on patient._portraitPath
+        updatedRecords[patientId].portrait = resolvedPortrait;
+        console.log(`[MedicalRecords] Resolved portrait from demographics for ${patient.name}: ${resolvedPortrait}`);
       }
     }
 

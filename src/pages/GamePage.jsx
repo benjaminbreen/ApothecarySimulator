@@ -6,7 +6,7 @@ import { useParams } from 'react-router-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { isSafari } from '../utils/browserDetection';
-import { safeLocalStorage } from '../utils/safeLocalStorage';
+import { safeLocalStorage, getJSON, setJSON } from '../utils/safeLocalStorage';
 
 // New UI Components
 import Header from '../components/Header';
@@ -33,6 +33,7 @@ import GameOverModal from '../components/GameOverModal';
 import SimpleInteractionCard from '../components/SimpleInteractionCard';
 import WeatherBackground from '../components/WeatherBackground'; // PHASE 3: Weather system
 import PerformanceMonitor from '../components/PerformanceMonitor'; // Test Mode: Performance monitoring
+import { assessGameplay } from '../shared/components/EndGameAssessment'; // PHASE 1: Assessment system
 
 const ACTION_PROMPT_SUPPRESSION_WINDOW = 60 * 1000; // 1 minute cooldown for repeated prescribe prompts
 import RandomEventCard from '../components/RandomEventCard';
@@ -83,6 +84,7 @@ import { orchestrateTurn } from '../core/agents/AgentOrchestrator';
 import { getEffectFromItem, applyEffect, updateEffectDurations } from '../systems/bodyEffects';
 import { NPCTracker } from '../core/agents/EntityAgent';
 import { entityManager } from '../core/entities/EntityManager';
+import { findEntityByName } from '../utils/nameNormalization';
 import { useNPCPositions } from '../features/map/hooks/useNPCPositions';
 import EntityList from '../EntityList';
 import { parseNarrativeChoices } from '../utils/narrativeParser';
@@ -533,25 +535,23 @@ const GameContent = () => {
     });
   }, [scenario, currentMapId, gameState.location, gameState.worldLocationId, gameState.date, gameState.playthroughSeed, gameState.visitedWorldLocations, playerPosition, toast, longDistanceCard]);
 
-  // Narration settings state (with localStorage persistence)
+  // Narration settings state (with safe localStorage persistence)
   const [narrationFontSize, setNarrationFontSize] = useState(() => {
-    const saved = localStorage.getItem('narrationFontSize');
-    return saved || 'medium'; // Default to medium (20px standard, 22px big screens)
+    return safeLocalStorage.getItem('narrationFontSize') || 'medium'; // Default to medium (20px standard, 22px big screens)
   });
   const [narrationDarkMode, setNarrationDarkMode] = useState(() => {
-    const saved = localStorage.getItem('narrationDarkMode');
-    return saved ? JSON.parse(saved) : false;
+    return getJSON('narrationDarkMode', false);
   });
   const isNarrationSettingsOpen = modals.narrationSettings;
   const setIsNarrationSettingsOpen = (value) => value ? openModal('narrationSettings') : closeModal('narrationSettings');
 
-  // Persist narration settings to localStorage
+  // Persist narration settings to safe localStorage
   useEffect(() => {
-    localStorage.setItem('narrationFontSize', narrationFontSize);
+    safeLocalStorage.setItem('narrationFontSize', narrationFontSize);
   }, [narrationFontSize]);
 
   useEffect(() => {
-    localStorage.setItem('narrationDarkMode', JSON.stringify(narrationDarkMode));
+    setJSON('narrationDarkMode', narrationDarkMode);
   }, [narrationDarkMode]);
 
   // Weather background toggle (default: false on Safari for performance, true on other browsers)
@@ -872,6 +872,123 @@ const GameContent = () => {
     // Cleanup interval on unmount
     return () => clearInterval(clockInterval);
   }, [advanceTime, activeEffects, setActiveEffects]);
+
+  // PHASE 1: Game Over Assessment System
+  // Triggers end-game assessment when game over state is detected
+  useEffect(() => {
+    // Only trigger if game is over and assessment hasn't been triggered yet
+    if (gameState.isGameOver && !gameState.assessmentTriggered && !gameAssessment) {
+      console.log('[Assessment] Game over detected, generating assessment...');
+
+      // Generate assessment asynchronously
+      const generateAssessment = async () => {
+        try {
+          const assessment = await assessGameplay(
+            turnNumber,
+            gameState.wealth,
+            gameState.inventory,
+            journal
+          );
+
+          console.log('[Assessment] Generated assessment:', assessment);
+          setGameAssessment(assessment);
+          setShowEndGamePopup(true);
+
+          // Mark assessment as triggered to prevent re-generation
+          setGameState(prev => ({
+            ...prev,
+            assessmentTriggered: true
+          }));
+        } catch (error) {
+          console.error('[Assessment] Error generating assessment:', error);
+          // Fallback assessment if LLM fails
+          const fallbackAssessment = `
+## Game Over
+
+**Final Statistics:**
+- Turns Played: ${turnNumber}
+- Final Wealth: ${gameState.wealth} reales
+- Inventory Items: ${gameState.inventory.length}
+- Journal Entries: ${journal.length}
+
+${gameState.endQuestResult?.reason || 'Your journey as Maria de Lima has concluded.'}
+
+**Grade: Assessment Unavailable** (Error generating detailed assessment)
+          `;
+          setGameAssessment(fallbackAssessment);
+          setShowEndGamePopup(true);
+
+          setGameState(prev => ({
+            ...prev,
+            assessmentTriggered: true
+          }));
+        }
+      };
+
+      generateAssessment();
+    }
+  }, [gameState.isGameOver, gameState.assessmentTriggered, gameAssessment, turnNumber, gameState.wealth, gameState.inventory, journal, setGameState, setShowEndGamePopup]);
+
+  // PHASE 1: Automatic Game Over Triggers
+  // Monitor health, wealth, and other conditions to trigger game over
+  useEffect(() => {
+    // Skip if game is already over
+    if (gameState.isGameOver) return;
+
+    // TRIGGER 1: Death (health <= 0)
+    if (gameState.health <= 0) {
+      console.log('[GameOver] Triggered by death (health <= 0)');
+      triggerGameOver({
+        type: 'death',
+        reason: 'Maria succumbed to her injuries and illness.',
+        narrative: 'Your health has reached zero. Maria de Lima has died.'
+      });
+      return;
+    }
+
+    // TRIGGER 2: Complete Exhaustion (energy <= 0 for extended period)
+    // Note: This is tracked by consecutiveLowEnergyTurns, triggers warning first
+    if (gameState.energy <= 0 && consecutiveLowEnergyTurns >= 5) {
+      console.log('[GameOver] Triggered by exhaustion (energy <= 0 for 5+ turns)');
+      triggerGameOver({
+        type: 'exhaustion',
+        reason: 'Maria collapsed from complete exhaustion and could not continue.',
+        narrative: 'Unable to rest or recover energy, Maria has collapsed.'
+      });
+      return;
+    }
+
+    // TRIGGER 3: Bankruptcy + Debt Deadline Passed
+    // Check if it's past August 23, 1680 AND wealth < 100 reales
+    try {
+      const debtDeadline = new Date('1680-08-23T20:00:00');
+      const currentDate = new Date(gameState.date + ' ' + gameState.time);
+      const isPastDeadline = currentDate > debtDeadline;
+
+      if (isPastDeadline && gameState.wealth < 100) {
+        console.log('[GameOver] Triggered by bankruptcy (past deadline, wealth < 100)');
+        triggerGameOver({
+          type: 'bankruptcy',
+          reason: 'Don Luis has seized the apothecary for unpaid debts.',
+          narrative: `The debt collector came to claim what was owed. With only ${gameState.wealth} reales, Maria could not pay.`
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn('[GameOver] Could not parse date for debt check:', e);
+    }
+
+    // TRIGGER 4: Inquisition Capture (very low church reputation)
+    if (reputation?.factions?.church < 5) {
+      console.log('[GameOver] Triggered by Inquisition (church reputation < 5)');
+      triggerGameOver({
+        type: 'inquisition',
+        reason: 'The Inquisition has arrested Maria for heresy.',
+        narrative: 'With a reputation of suspicion and doubt, the Holy Office has come for you.'
+      });
+      return;
+    }
+  }, [gameState.health, gameState.energy, gameState.wealth, gameState.date, gameState.time, gameState.isGameOver, reputation, consecutiveLowEnergyTurns, triggerGameOver]);
 
   // Opening animation - mark as complete after animation finishes
   useEffect(() => {
@@ -2071,8 +2188,8 @@ Be historically accurate, immersive, and concise. Write in third person past ten
       setSelectedCitation(book.citation || '');
       setIsPdfOpen(true);
     } else {
-      // Open item modal for the book
-      const entity = entityManager.getByName(book.name) || EntityList.find(e => e.name === book.name);
+      // Open item modal for the book (with name normalization)
+      const entity = findEntityByName(book.name, entityManager) || EntityList.find(e => e.name === book.name);
       if (entity) {
         setSelectedItem(entity);
         setShowItemModal(true);
@@ -2108,12 +2225,43 @@ Be historically accurate, immersive, and concise. Write in third person past ten
     console.log('[PrescriptionOutcome] Received full prescription data:', prescriptionData);
     setPendingPrescription(prescriptionData);
     setActiveTab('chronicle'); // Switch to chronicle tab to show prescription card
-  }, []);
 
-  const handleOpenPrescriptionDetails = useCallback((prescriptionData) => {
-    console.log('[PrescriptionOutcome] Opening outcome modal:', prescriptionData);
+    // ALWAYS auto-open the modal immediately when prescription outcome happens
     setShowPrescriptionOutcomeModal(true);
   }, []);
+
+  const handlePatientDismissed = useCallback(() => {
+    console.log('[PrescriptionOutcome] Patient dismissed - clearing patient state only');
+    setActivePatient(null); // Clear active patient from NPCContext
+    setPendingContract(null); // Clear pending contract from NPCContext
+  }, [setActivePatient, setPendingContract]);
+
+  const handlePrescriptionComplete = useCallback(() => {
+    console.log('[PrescriptionOutcome] Prescription complete - clearing all state');
+    setPendingPrescription(null); // Clear prescription card
+    setActivePatient(null); // Clear active patient from NPCContext
+    setPendingContract(null); // Clear pending contract from NPCContext
+  }, [setActivePatient, setPendingContract]);
+
+  const handleOpenPrescriptionDetails = useCallback((entryIndexOrData) => {
+    console.log('[PrescriptionOutcome] Opening outcome modal:', entryIndexOrData);
+
+    // If passed an index (from NarrativePanel), retrieve prescription data from conversation history
+    if (typeof entryIndexOrData === 'number') {
+      const entry = conversationHistory[entryIndexOrData];
+      if (entry?.card?.type === 'prescription' && entry.card.data) {
+        console.log('[PrescriptionOutcome] Retrieved prescription from history entry', entryIndexOrData, entry.card.data);
+        setPendingPrescription(entry.card.data);
+        setShowPrescriptionOutcomeModal(true);
+      } else {
+        console.error('[PrescriptionOutcome] Entry is not a prescription card:', entry);
+      }
+    } else {
+      // If passed prescription data directly, use it
+      setPendingPrescription(entryIndexOrData);
+      setShowPrescriptionOutcomeModal(true);
+    }
+  }, [conversationHistory]);
 
   useEffect(() => {
     if (!pendingHouseCall) {
@@ -2215,6 +2363,9 @@ Be historically accurate, immersive, and concise. Write in third person past ten
         {(isMobile || isTablet) ? (
           <MobileGameLayout
             handlers={handlers}
+            handlePrescriptionPending={handlePrescriptionPending}
+            handlePatientDismissed={handlePatientDismissed}
+            handlePrescriptionComplete={handlePrescriptionComplete}
             nearbyLocations={nearbyLocations}
             filteredNPCPositions={filteredNPCPositions}
             dynamicChips={dynamicChips}
@@ -2504,11 +2655,9 @@ Be historically accurate, immersive, and concise. Write in third person past ten
                 toggleInventory={toggleInventory}
                 onOpenInventoryTab={() => setLeftSidebarTab('inventory')}
                 onOpenMixing={() => setShowMixingPopup(true)}
-                onPrescriptionPending={(data) => {
-                  setPendingPrescription(data);
-                  setActiveTab('chronicle'); // Switch to chronicle tab to show blue card
-                }}
-                onPrescriptionComplete={() => setPendingPrescription(null)}
+                onPrescriptionPending={handlePrescriptionPending}
+                onPatientDismissed={handlePatientDismissed}
+                onPrescriptionComplete={handlePrescriptionComplete}
                 pendingPrescription={pendingPrescription}
                 onOpenPrescriptionDetails={handleOpenPrescriptionDetails}
                 // House call auto-return handler (Phase 3D)
@@ -2967,16 +3116,43 @@ Be historically accurate, immersive, and concise. Write in third person past ten
         <PrescriptionOutcomeModal
           isOpen={showPrescriptionOutcomeModal}
           patient={pendingPrescription?.patient}
-          prescriptionData={pendingPrescription ? {
-            remedy: pendingPrescription.item?.name,
-            drachms: pendingPrescription.amount,
-            route: pendingPrescription.route,
-            payment: pendingPrescription.price
-          } : null}
+          prescriptionData={pendingPrescription}
           outcome={pendingPrescription?.outcome}
-          onContinue={() => {
+          onClose={() => setShowPrescriptionOutcomeModal(false)}
+          onContinue={async () => {
+            console.log('[PrescriptionOutcome] Continue clicked - generating narrative continuation');
+
+            // Close the modal first
             setShowPrescriptionOutcomeModal(false);
             setPendingPrescription(null); // Clear the prescription card
+
+            // Generate a continuation narrative that progresses time and offers choices
+            const patientName = pendingPrescription?.patient?.name || 'the patient';
+            const treatmentItem = pendingPrescription?.item?.name || 'the medicine';
+            const outcome = pendingPrescription?.outcome || '';
+
+            // Determine the general outcome tone (success/failure) from the outcome text
+            const isPositive = outcome.toLowerCase().includes('improv') ||
+                              outcome.toLowerCase().includes('better') ||
+                              outcome.toLowerCase().includes('recover') ||
+                              outcome.toLowerCase().includes('heal');
+            const isNegative = outcome.toLowerCase().includes('worse') ||
+                              outcome.toLowerCase().includes('died') ||
+                              outcome.toLowerCase().includes('death') ||
+                              outcome.toLowerCase().includes('severe');
+
+            // Create a contextual continuation prompt
+            const continuationPrompt = isNegative
+              ? `After the difficult outcome with ${patientName}'s treatment, what do you do next? Do you reflect on what went wrong, or do you move on to other tasks?`
+              : isPositive
+              ? `After successfully treating ${patientName}, what do you do next? Do you continue seeing patients, or take a moment to rest?`
+              : `After treating ${patientName} with ${treatmentItem}, what do you do next?`;
+
+            // Trigger a new narrative turn with the continuation prompt
+            // This will advance time, progress the narrative, and offer the player choices
+            await handlers.handleSubmit(null, continuationPrompt, {
+              isSystemGenerated: true // Flag to indicate this is an auto-generated continuation
+            });
           }}
           mechanicsBreakdown={pendingPrescription?.mechanicsBreakdown}
         />

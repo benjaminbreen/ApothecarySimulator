@@ -94,17 +94,20 @@ export function adaptEntityForPatientModal(entity) {
   // PORTRAIT EXTRACTION: Check multiple locations and ensure proper path format
   const resolvedPortrait = resolvePortrait(entity);
   const imageField = entity.visual?.image || entity.image || '';
+  const cachedPortrait = entity._portraitPath || '';
 
   // Ensure portrait path starts with /portraits/ if it's just a filename
-  let finalPortrait = resolvedPortrait || imageField;
+  let finalPortrait = resolvedPortrait || cachedPortrait || imageField;
   if (finalPortrait && !finalPortrait.startsWith('/') && !finalPortrait.startsWith('http')) {
     finalPortrait = `/portraits/${finalPortrait}`;
   }
 
-  console.log('[entityAdapter] Portrait extraction:', {
+  console.log('[entityAdapter] Portrait extraction for', entity.name, ':', {
     resolvedPortrait,
+    cachedPortrait,
     imageField,
-    finalPortrait
+    finalPortrait,
+    entityId: entity.id
   });
 
   // Convert nested format to flat

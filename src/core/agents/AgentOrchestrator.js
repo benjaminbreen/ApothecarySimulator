@@ -6,6 +6,7 @@ import { extractGameState, validateGameState } from './StateAgent';
 import { selectContextAwareEntity } from './EntityAgent';
 import { autoGenerateNPCsFromNarrative } from '../entities/autoGenerateNPC';
 import { entityManager } from '../entities/EntityManager';
+import { findEntityByName } from '../../utils/nameNormalization';
 import { buildLocationRegistry } from '../../features/map/services/locationRegistry';
 import { scenarioLoader } from '../services/scenarioLoader';
 
@@ -165,8 +166,8 @@ export async function orchestrateTurn({
       console.log(`[Turn ${turnNumber}] LLM detected ${narrativeResult.entities.length} entities`);
 
       narrativeResult.entities.forEach(entity => {
-        // Check if entity already exists in EntityManager
-        const existing = entityManager.getByName(entity.text);
+        // Check if entity already exists in EntityManager (with name normalization)
+        const existing = findEntityByName(entity.text, entityManager);
 
         if (existing) {
           console.log(`[Entities] "${entity.text}" already registered, skipping`);
@@ -301,6 +302,41 @@ export async function orchestrateTurn({
     const validatedState = validateGameState(stateResult.gameState, gameState);
 
     // Step 6: Return combined result
+    // VALIDATION: Check for narrative/flag mismatch (bug detection)
+    // If narrative says NPC left but npcDeparted flag is false, auto-correct it
+    if (narrativeResult.npcDeparted === false && narrativeResult.narrative) {
+      const fullNarrative = Array.isArray(narrativeResult.narrative)
+        ? narrativeResult.narrative.join(' ')
+        : String(narrativeResult.narrative);
+
+      const narrativeLower = fullNarrative.toLowerCase();
+      const departureIndicators = [
+        'exits', 'exited', 'exiting',
+        'leaves', 'left', 'leaving',
+        'departs', 'departed', 'departing',
+        'walks away', 'walked away',
+        'storms out', 'stormed out',
+        'marches out', 'marched out',
+        'turns and leaves', 'turned and left'
+      ];
+
+      const hasNPCName = narrativeResult.primaryNPC?.name;
+      const npcMentioned = hasNPCName && narrativeLower.includes(hasNPCName.toLowerCase());
+
+      if (npcMentioned) {
+        for (const indicator of departureIndicators) {
+          if (narrativeLower.includes(indicator)) {
+            console.warn(
+              `[AgentOrchestrator] ⚠️ MISMATCH DETECTED: Narrative says "${hasNPCName}" ${indicator}, ` +
+              `but npcDeparted flag is false. Auto-correcting to true.`
+            );
+            narrativeResult.npcDeparted = true;
+            break;
+          }
+        }
+      }
+    }
+
     // Debug: Log the portrait and patient system passthrough
     console.log('[AgentOrchestrator] showPortraitFor from narrative:', narrativeResult.showPortraitFor);
     console.log('[AgentOrchestrator] primaryPortrait from narrative:', narrativeResult.primaryPortrait);

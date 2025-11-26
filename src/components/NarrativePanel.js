@@ -7,6 +7,7 @@ import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { entityManager } from '../core/entities/EntityManager';
+import { findEntityByName } from '../utils/nameNormalization';
 import NPCPatientModal from '../features/medical/components/NPCPatientModal';
 import POIModal from './POIModal';
 import { EntityTooltip, EntityPopup } from './EntityTooltipPopup';
@@ -233,8 +234,8 @@ function MerchantTable({ listType, onMerchantClick, children, ...props }) {
             onClick={() => {
               if (onMerchantClick) {
                 console.log('[MerchantTable] Merchant clicked:', merchantName);
-                // Get merchant from EntityManager
-                const merchant = entityManager.getByName(merchantName);
+                // Get merchant from EntityManager (with name normalization)
+                const merchant = findEntityByName(merchantName, entityManager);
                 if (merchant && merchant.merchantShop) {
                   console.log('[MerchantTable] Opening shop for:', merchant.name);
                   onMerchantClick(merchant);
@@ -405,7 +406,7 @@ function CollapsibleListTable({ content, listType, onMerchantClick }) {
                             key={cellIdx}
                             onClick={() => {
                               if (onMerchantClick) {
-                                const merchant = entityManager.getByName(merchantName);
+                                const merchant = findEntityByName(merchantName, entityManager);
                                 if (merchant && merchant.merchantShop) {
                                   onMerchantClick(merchant);
                                 }
@@ -947,7 +948,7 @@ const NarrativeEntry = React.memo(({
     const foundNPC = npcNames.find(name => content.includes(name));
 
     if (foundNPC) {
-      return entityManager.getByName(foundNPC);
+      return findEntityByName(foundNPC, entityManager);
     }
     return null;
   };
@@ -1871,8 +1872,8 @@ const NarrativePanel = ({
       }
     }
 
-    // Find entity data from EntityManager
-    const entityData = entityManager.getByName(npcName);
+    // Find entity data from EntityManager (with name normalization)
+    const entityData = findEntityByName(npcName, entityManager);
 
     if (!entityData) {
       // Open POI modal even for unknown entities
@@ -2155,16 +2156,22 @@ const NarrativePanel = ({
               {/* Exit Confirmation Card - Amber/Warning
                   LEGACY: Only show if not already embedded in conversation history
                   Cards are now embedded in conversation history for persistence */}
-              {pendingExitConfirmation && onConfirmExit && onCancelExit && !conversationHistory.some(entry => entry.card?.type === 'exit_confirmation') && (
-                <div className="mb-4 animate-fade-in">
-                  <ExitConfirmationCard
-                    exitData={pendingExitConfirmation}
-                    onConfirm={onConfirmExit}
-                    onCancel={onCancelExit}
-                    isDark={isDarkMode}
-                  />
-                </div>
-              )}
+              {(() => {
+                const hasExitHandlers = pendingExitConfirmation && onConfirmExit && onCancelExit;
+                const isNotInHistory = !conversationHistory.some(entry => entry.card?.type === 'exit_confirmation');
+                const shouldShowExitConfirmation = hasExitHandlers && isNotInHistory;
+
+                return shouldShowExitConfirmation && (
+                  <div className="mb-4 animate-fade-in">
+                    <ExitConfirmationCard
+                      exitData={pendingExitConfirmation}
+                      onConfirm={onConfirmExit}
+                      onCancel={onCancelExit}
+                      isDark={isDarkMode}
+                    />
+                  </div>
+                );
+              })()}
 
               {/* Trade Opportunity Cards - DEPRECATED: Replaced by actionPrompt system */}
 

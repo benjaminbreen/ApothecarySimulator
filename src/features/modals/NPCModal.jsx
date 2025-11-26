@@ -1065,58 +1065,64 @@ export default function NPCModal({ isOpen, onClose, npc, primaryPortraitFile = n
               )}
 
               {/* Major Life Events */}
-              {biography && biography.majorEvents && Array.isArray(biography.majorEvents) && biography.majorEvents.length > 0 && (
-                <SectionCard
-                  title="Major Life Events"
-                  icon={FaCalendarAlt}
-                  expanded={expandedSections.events}
-                  onToggle={() => toggleSection('events')}
-                  isDark={isDark}
-                >
-                  <div className="space-y-4">
-                    {biography.majorEvents.map((event, idx) => (
-                      <div
-                        key={idx}
-                        className="pl-6 py-4 rounded-lg transition-colors duration-300"
-                        style={{
-                          background: isDark ? 'rgba(34, 197, 94, 0.1)' : 'rgba(34, 197, 94, 0.06)',
-                          borderLeft: isDark ? '4px solid #10b981' : '4px solid #22c55e'
-                        }}
-                      >
-                        <div className="text-sm text-green-700 dark:text-green-400 font-bold mb-2 uppercase tracking-wide transition-colors duration-300">
-                          {event.year}
+              {(() => {
+                const hasMajorEvents = biography?.majorEvents && Array.isArray(biography.majorEvents) && biography.majorEvents.length > 0;
+                return hasMajorEvents && (
+                  <SectionCard
+                    title="Major Life Events"
+                    icon={FaCalendarAlt}
+                    expanded={expandedSections.events}
+                    onToggle={() => toggleSection('events')}
+                    isDark={isDark}
+                  >
+                    <div className="space-y-4">
+                      {biography.majorEvents.map((event, idx) => (
+                        <div
+                          key={idx}
+                          className="pl-6 py-4 rounded-lg transition-colors duration-300"
+                          style={{
+                            background: isDark ? 'rgba(34, 197, 94, 0.1)' : 'rgba(34, 197, 94, 0.06)',
+                            borderLeft: isDark ? '4px solid #10b981' : '4px solid #22c55e'
+                          }}
+                        >
+                          <div className="text-sm text-green-700 dark:text-green-400 font-bold mb-2 uppercase tracking-wide transition-colors duration-300">
+                            {event.year}
+                          </div>
+                          <div className="text-base text-ink-700 dark:text-slate-300 leading-relaxed transition-colors duration-300">
+                            {event.event}
+                          </div>
                         </div>
-                        <div className="text-base text-ink-700 dark:text-slate-300 leading-relaxed transition-colors duration-300">
-                          {event.event}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </SectionCard>
-              )}
+                      ))}
+                    </div>
+                  </SectionCard>
+                );
+              })()}
 
               {/* Secrets */}
-              {biography && biography.secrets && Array.isArray(biography.secrets) && biography.secrets.length > 0 && (
-                <div className="p-6 rounded-xl shadow-sm transition-colors duration-300"
-                  style={{
-                    background: isDark
-                      ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(217, 119, 6, 0.12) 100%)'
-                      : 'linear-gradient(135deg, rgba(254, 243, 199, 0.7) 0%, rgba(253, 230, 138, 0.5) 100%)',
-                    border: isDark ? '2px solid rgba(245, 158, 11, 0.4)' : '2px solid rgba(245, 158, 11, 0.4)'
-                  }}>
-                  <div className="flex items-center gap-4 mb-4">
-                    <FaLock className="text-3xl text-amber-700 dark:text-amber-400" />
-                    <h3 className="text-xl font-bold text-amber-900 dark:text-amber-300 transition-colors duration-300">
-                      Secret
-                    </h3>
+              {(() => {
+                const hasSecrets = biography?.secrets && Array.isArray(biography.secrets) && biography.secrets.length > 0;
+                return hasSecrets && (
+                  <div className="p-6 rounded-xl shadow-sm transition-colors duration-300"
+                    style={{
+                      background: isDark
+                        ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(217, 119, 6, 0.12) 100%)'
+                        : 'linear-gradient(135deg, rgba(254, 243, 199, 0.7) 0%, rgba(253, 230, 138, 0.5) 100%)',
+                      border: isDark ? '2px solid rgba(245, 158, 11, 0.4)' : '2px solid rgba(245, 158, 11, 0.4)'
+                    }}>
+                    <div className="flex items-center gap-4 mb-4">
+                      <FaLock className="text-3xl text-amber-700 dark:text-amber-400" />
+                      <h3 className="text-xl font-bold text-amber-900 dark:text-amber-300 transition-colors duration-300">
+                        Secret
+                      </h3>
+                    </div>
+                    {biography.secrets.map((secret, idx) => (
+                      <p key={idx} className="text-base text-amber-800 dark:text-amber-200 italic leading-relaxed transition-colors duration-300">
+                        {secret}
+                      </p>
+                    ))}
                   </div>
-                  {biography.secrets.map((secret, idx) => (
-                    <p key={idx} className="text-base text-amber-800 dark:text-amber-200 italic leading-relaxed transition-colors duration-300">
-                      {secret}
-                    </p>
-                  ))}
-                </div>
-              )}
+                );
+              })()}
 
               {/* Procedurally Generated Biography */}
               {generatedBiography?.error ? (

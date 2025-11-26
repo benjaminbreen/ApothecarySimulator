@@ -532,6 +532,21 @@ export function GameModals({
         <EndGamePopup
           assessment={gameAssessment}
           onClose={() => setShowEndGamePopup(false)}
+          gameData={{
+            turnNumber,
+            wealth: currentWealth,
+            health,
+            energy,
+            reputation,
+            inventory: gameState.inventory,
+            journal,
+            conversationHistory,
+            endQuestResult: gameState.endQuestResult,
+            scenarioId: gameState.scenarioId,
+            playerSkills,
+            profession: gameState.profession,
+            relationships: gameState.relationships,
+          }}
         />
       )}
 

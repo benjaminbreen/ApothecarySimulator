@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 import { useGameState } from '../../contexts/GameStateContext';
 import { createChatCompletion } from '../../core/services/llmService';
 import { entityManager } from '../../core/entities/EntityManager';
+import { findEntityByName } from '../../utils/nameNormalization';
 import { relationshipGraph } from '../../core/entities/RelationshipGraph';
 import scenarioLoader from '../../core/services/scenarioLoader';
 
@@ -167,8 +168,8 @@ Respond with ONLY a JSON object in this exact format:
     console.log(`[Item Action] Starting: ${action} ${item.name} to ${npc.name}`);
 
     try {
-      // Get full NPC entity data from EntityManager
-      const npcEntity = entityManager.getByName(npc.name);
+      // Get full NPC entity data from EntityManager (with name normalization)
+      const npcEntity = findEntityByName(npc.name, entityManager);
       console.log('[Item Action] NPC Entity:', npcEntity);
 
       // Get relationship value if available

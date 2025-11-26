@@ -306,18 +306,24 @@ function generateDistinguishingFeatures(occupation, age) {
 }
 
 /**
- * Generate chronic conditions based on age
+ * Generate medical conditions based on age
+ * Now uses expanded medicalConditions list (170+ conditions across all categories)
  */
 function generateChronicConditions(age) {
   const conditions = [];
 
-  // Chance increases with age
-  const baseChance = Math.max(0, (age - 30) / 100); // 0% at 30, 50% at 80
+  // Flatten all medical condition categories into single array
+  const allConditions = Object.values(MexicoCity1680.medicalConditions).flat();
+
+  // Chance increases with age (but younger people can still have conditions)
+  const baseChance = Math.max(0.15, (age - 20) / 100); // 15% at 20, 60% at 80
 
   if (Math.random() < baseChance) {
-    const numConditions = Math.random() > 0.7 ? 2 : 1;
+    // Older/sicker patients may have multiple conditions
+    const numConditions = age > 60 && Math.random() > 0.6 ? 2 : 1;
+
     for (let i = 0; i < numConditions; i++) {
-      const condition = random(MexicoCity1680.chronicConditions);
+      const condition = random(allConditions);
       if (!conditions.includes(condition)) {
         conditions.push(condition);
       }

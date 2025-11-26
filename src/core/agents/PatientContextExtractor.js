@@ -2,6 +2,7 @@
 // Uses LLM to parse natural language and extract structured facts about patients
 
 import { createChatCompletion } from '../services/llmService';
+import { safeJSONParse } from '../../utils/jsonHelpers';
 
 /**
  * Extract patient context from conversation history
@@ -112,13 +113,11 @@ Extract the information in JSON format.`;
       { type: 'json_object' } // Request JSON format
     );
 
-    // Parse JSON response
+    // Parse JSON response with safe error handling
     const content = response.choices[0].message.content;
-    let context;
+    const context = safeJSONParse(content, null);
 
-    try {
-      context = JSON.parse(content);
-    } catch (parseError) {
+    if (!context) {
       console.error('[PatientContextExtractor] Failed to parse JSON:', content);
       return null;
     }

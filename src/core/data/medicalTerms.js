@@ -6,6 +6,7 @@
 
 import { REFERENCE_ENTRIES, getAllEntries } from './medicalReference';
 import { entityManager } from '../entities/EntityManager';
+import { findEntityByName } from '../../utils/nameNormalization';
 
 /**
  * Generate intelligent aliases for a medical term
@@ -141,7 +142,7 @@ export function getMedicalTermEntities() {
  * @returns {boolean} True if term is registered
  */
 export function isMedicalTermRegistered(termName) {
-  const entity = entityManager.getByName(termName);
+  const entity = findEntityByName(termName, entityManager);
   return entity && entity.entityType === 'medical_term';
 }
 
@@ -151,7 +152,7 @@ export function isMedicalTermRegistered(termName) {
  * @returns {string|null} Reference entry ID or null
  */
 export function getReferenceIdForTerm(termName) {
-  const entity = entityManager.getByName(termName);
+  const entity = findEntityByName(termName, entityManager);
   if (entity && entity.entityType === 'medical_term') {
     return entity.referenceId;
   }

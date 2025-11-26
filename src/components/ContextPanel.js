@@ -3,6 +3,7 @@ import ViewportPanel from './ViewportPanel';
 import { entityManager } from '../core/entities/EntityManager';
 import { adaptEntity } from '../core/entities/entityAdapter';
 import { resolvePortrait } from '../core/services/portraitResolver';
+import { findEntityByName } from '../utils/nameNormalization';
 import EntityList from '../EntityList';
 import ActionPanel from './ActionPanel';
 import EntityCard from './EntityCard';
@@ -520,8 +521,8 @@ Example format:
     const lookupName = primaryNpcName || latestNPC;
     if (!lookupName) return null;
 
-    // Try EntityManager first
-    const fromManager = entityManager.getByName(lookupName);
+    // Try EntityManager first (with name normalization for honorifics)
+    const fromManager = findEntityByName(lookupName, entityManager);
     if (fromManager) {
       console.log('[ContextPanel] Found entity in EntityManager:', fromManager.name);
       return fromManager;
@@ -607,10 +608,18 @@ Example format:
         return portraitPath;
       }
 
-      // Otherwise, resolve portrait from demographics
+      // Otherwise, resolve portrait from demographics (with caching)
+      // Check cache first to avoid re-resolution for recurring background NPCs
+      const cachedPortrait = displayEntity._portraitPath;
+      if (cachedPortrait) {
+        console.log('[ContextPanel] ✓ Using cached portrait for background NPC:', cachedPortrait);
+        return cachedPortrait;
+      }
+
       const entityPortrait = resolvePortrait(displayEntity);
+      // resolvePortrait() automatically caches to displayEntity._portraitPath for next time
       if (entityPortrait && !entityPortrait.includes('generic_')) {
-        console.log('[ContextPanel] ✓ Using entity demographic portrait for background NPC:', entityPortrait);
+        console.log('[ContextPanel] ✓ Using entity demographic portrait for background NPC (now cached):', entityPortrait);
         return entityPortrait;
       }
     }

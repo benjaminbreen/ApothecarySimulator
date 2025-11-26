@@ -12,6 +12,8 @@ import { isValidPortrait } from '../config/portraits.config';
 import { buildNPCContext } from '../services/locationContextService'; // Location NPC system
 import { getNarrativeFlags, formatDuration } from '../../systems/bodyEffects';
 import { parseHourFromTimeString } from '../../utils/timeUtils';
+import { parseLLMJSON } from '../../utils/jsonHelpers';
+import { namesMatch } from '../../utils/nameNormalization';
 
 // PERFORMANCE: Cache system prompt to avoid rebuilding every turn
 // Note: Cache is keyed by scenario JSON, so changes to prompts automatically invalidate cache
@@ -138,7 +140,7 @@ function buildWeatherContext(weather, gameState) {
   }
 
   // Atmospheric guidance for LLM
-  parts.push('\n**Use weather naturally (not every turn)**: NPC reactions, sensory details (sounds, smells), practical effects (wet clothes, mud). Summer afternoons in Mexico City often bring thunderstorms.');
+  parts.push('\n**Use weather naturally (not every turn)**: NPC reactions, sensory details (sounds, smells), practical effects (wet clothes, mud). ALSO INCORPORATE TIME OF DAY - interactions, tone, content totally different depending on the time of day. Make it realistic.');
 
   return parts.join('\n');
 }
@@ -388,7 +390,7 @@ Return strict JSON (no markdown fencing, no prose outside the object).
     const interactionIntentSection = `### Interaction Intent (What NPC Asks Maria To DO)
 
 **Medical:**
-- **medical_diagnosis** = Patient present in shop, Maria examines/treats
+- **medical_diagnosis** = Patient present in shop seeking FULL treatment (not just mediciine purchase)
 - **medical_followup** = Patient returns for ongoing treatment
 - **medical_purchase** = "Give me medicine for…" - Maria dispenses remedy, no examination
 - **house_call** = MEDICAL ONLY. Messenger asks Maria to TRAVEL to sick/injured patient
@@ -639,7 +641,8 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
 **Continuity**: Same NPC = same name across turns. But NPCs leave when appropriate.
 
 **Departures & Companions**:
-- npcDeparted: true when NPC exits narrative
+- **CRITICAL**: npcDeparted MUST be true if narrative says NPC "exits", "leaves", "departs", "walks away", "storms out", etc.
+- Set npcDeparted: true when: business concluded (prescription given, purchase made), NPC explicitly leaves, or transaction fails/rejected
 - companions: [{"name","role"}] for NPCs traveling/staying with Maria. Empty array if none (not null).
 - Brief visitors/vendors NOT companions unless explicitly accompanying Maria.
 
@@ -649,7 +652,7 @@ Brief non-medical encounters (≤50 words). If medical (sickness/remedies/sympto
 - You control patient arrivals: requestNewPatient true only when context supports it (shop open, no active consultation).
 - When an emissary only wants to buy or collect medicine, keep them in the shop and use interactionIntent "medical_purchase".
 - interactionIntent "house_call" for situations where Maria must leave the shop to treat or examine someone.
-- npcDeparted true when the NPC would realistically depart the departure in narrative.`;
+- **CRITICAL**: npcDeparted MUST match your narrative. If you write "Pedro exits the shop", you MUST set npcDeparted: true.`;
 
     const historySection = historical.accuracy
       ? `### Historical Accuracy
@@ -1022,10 +1025,63 @@ Generate a BRIEF, VARIED encounter. Don't reuse exact dialogue from previous tur
       ? buildEffectsContext(gameState.activeEffects)
       : '';
 
-    // PHASE 3: Build conversation continuation context
+    // PHASE 3: Build conversation continuation context WITH SMART DEPARTURE DETECTION
     let continuationContext = '';
-    if (continuationNPC) { // Always inject if we have a previous NPC name
-      continuationContext = `
+    if (continuationNPC) {
+      // Detect if NPC should have departed based on recent events
+      const recentMessages = conversationHistory.slice(-3); // Check last 3 messages
+      let shouldHaveDeparted = false;
+      let departureReason = '';
+
+      // CRITICAL FIX: Check ALL recent messages for departure indicators, not just prescription outcomes
+      // Common departure keywords that indicate NPC has left
+      const departureKeywords = [
+        'depart', 'departed', 'departing',
+        'left', 'leaving', 'leaves',
+        'exit', 'exits', 'exited', 'exiting',
+        'walks away', 'walked away', 'walking away',
+        'turns away', 'turned away', 'turning away',
+        'storms out', 'stormed out', 'storming out',
+        'marches out', 'marched out', 'marching out',
+        'hurries away', 'hurried away', 'hurrying away',
+        'disappears', 'disappeared', 'disappearing',
+        'out the door', 'through the door', 'toward the door'
+      ];
+
+      // Check if any recent message mentions NPC departing
+      for (const msg of recentMessages) {
+        if (!msg.content) continue;
+
+        const content = msg.content.toLowerCase();
+        const npcMentioned = content.includes(continuationNPC.toLowerCase());
+
+        // Check if message mentions NPC AND a departure keyword
+        if (npcMentioned) {
+          for (const keyword of departureKeywords) {
+            if (content.includes(keyword)) {
+              shouldHaveDeparted = true;
+              departureReason = `NPC narrative indicates departure (keyword: "${keyword}")`;
+              console.log(`[NarrativeAgent] Detected departure: "${continuationNPC}" - found "${keyword}" in narrative`);
+              break;
+            }
+          }
+          if (shouldHaveDeparted) break;
+        }
+      }
+
+      // Also check for explicit player dismissal
+      const normalizedAction = (playerAction || '').toLowerCase();
+      const wasDismissed = normalizedAction.includes('dismiss') ||
+                          normalizedAction.includes('send away') ||
+                          normalizedAction.includes('tell them to leave');
+
+      if (shouldHaveDeparted || wasDismissed) {
+        // NPC has left - use noEncounterContext instead
+        continuationContext = '';
+        console.log(`[NarrativeAgent] ${continuationNPC} should have departed: ${departureReason || 'player dismissed them'}`);
+      } else {
+        // NPC is still present - continue conversation
+        continuationContext = `
 **CRITICAL - Conversation Continuation:**
 ${continuationNPC} is STILL PRESENT from the previous turn.
 The player is continuing their conversation with them.
@@ -1036,10 +1092,13 @@ DO NOT:
 - Introduce someone new unless the player explicitly mentions another person
 
 DO:
-- Use the EXISTING name: "${continuationNPC}"
+- Use the EXACT FULL NAME from previous turn: "${continuationNPC}" (including titles/ranks like "Sergeant" or "Doña")
 - Continue the ongoing conversation naturally
-- Maintain identity consistency
+- Maintain identity consistency (same name prevents portrait changes)
+
+**HOWEVER**: If the NPC's business is clearly concluded (prescription administered, purchase made, question answered), they should naturally DEPART unless the player explicitly asks them to stay or asks another question. Set npcDeparted: true in your response.
 `;
+      }
     }
 
     // PHASE 3B: Build "no encounter" context when NPCs have departed
@@ -1252,13 +1311,15 @@ ${playerAction}`;
       };
     }
 
-    // Clean markdown-wrapped JSON (LLM sometimes returns ```json ... ```)
-    const cleanedResponse = rawResponse
-      .replace(/^```json\s*\n?/i, '') // Remove opening ```json
-      .replace(/\n?```\s*$/i, '')      // Remove closing ```
-      .trim();
-
-    const narrativeData = JSON.parse(cleanedResponse);
+    // Parse JSON with automatic cleaning and error handling
+    const narrativeData = parseLLMJSON(rawResponse, {
+      success: false,
+      narrative: "Error processing response. Please try again.",
+      primaryPortrait: null,
+      primaryNPC: null,
+      requestNewPatient: false,
+      showPortraitFor: 'player'
+    });
 
     // Debug: Log the portrait and patient system values
     console.log('[NarrativeAgent] LLM returned showPortraitFor:', narrativeData.showPortraitFor);
@@ -1274,7 +1335,8 @@ ${playerAction}`;
     if (primaryNPC) {
       // FIX: Only maintain portrait if BOTH continuation is detected AND the NPC name matches
       // If NPC changed (e.g., muleteer interrupted boy conversation), select new portrait
-      if (isContinuation && primaryNPC.name === continuationNPC && recentPortrait) {
+      // Use namesMatch() to handle honorific variations (e.g., "Sergeant Cordero" vs "Miguel Cordero")
+      if (isContinuation && namesMatch(primaryNPC.name, continuationNPC) && recentPortrait) {
         const normalizedRecentPortrait = normalizePortraitFilename(recentPortrait);
         narrativeData.primaryPortrait = normalizedRecentPortrait;
         console.log(`[NarrativeAgent] 🔄 Continuation: Maintaining portrait ${normalizedRecentPortrait} for ${primaryNPC.name}`);

@@ -3,6 +3,7 @@ import apothecaryImage from '../../../assets/apothecary.jpeg';
 import mariaCoelhoImage from '../../../assets/mariacoelho.jpeg';
 import '../../../PortraitSection.css';
 import { entityManager } from '../../../core/entities/EntityManager';
+import { findEntityByName } from '../../../utils/nameNormalization';
 import { initialInventoryData } from '../../../initialInventory'; // Assuming you have this file as in `HistoryOutput`
 import PDFPopup from '../../../shared/components/PDFPopup';  // Direct import since we're no longer lazy loading
 
@@ -76,9 +77,9 @@ function PortraitSection({ npcImage, npcCaption, npcInfo, pcCaption, portraitIma
     </div>
   );
 
-  // Check if the NPC exists in EntityManager
+  // Check if the NPC exists in EntityManager (with name normalization)
   const getNpcFromEntityList = (npcName) => {
-    return entityManager.getByName(npcName);
+    return findEntityByName(npcName, entityManager);
   };
 
   // Get NPC info or use generated captions/description

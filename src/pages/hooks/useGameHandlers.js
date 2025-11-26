@@ -27,6 +27,7 @@ import { extractPatientContext } from '../../core/agents/PatientContextExtractor
 import { enrichPatientData } from '../../core/entities/PatientEnrichment';
 import { entityManager, sanitizePatientName } from '../../core/entities/EntityManager';
 import { calculateTemperament } from '../../core/entities/entitySchema';
+import { mergeEntityPreservingCache } from '../../core/entities/entityHelpers';
 import { createChatCompletion } from '../../core/services/llmService';
 import { buildSystemPrompt } from '../../prompts/promptModules';
 import { scenarioLoader } from '../../core/services/scenarioLoader';
@@ -47,6 +48,7 @@ import { getDetailImagePathSync } from '../../utils/detailImageResolver';
 import { isDocumentItem, getDocumentType, extractDocumentMetadata, shouldAutoOpenDocument } from '../../utils/documentDetector';
 import { getHouseCallData } from '../../features/medical/services/houseSelector';
 import { getTransactionManager, TRANSACTION_CATEGORIES } from '../../core/systems/transactionManager';
+import { findEntityByName, normalizeNPCName } from '../../utils/nameNormalization';
 import { MedicalRecordsManager } from '../../core/systems/medicalRecordsManager';
 import { interpolatePrompt, getListTypeById } from '../../core/config/listTypes.config';
 import { checkAndTriggerConsequences } from '../../systems/consequenceSystem';
@@ -1030,6 +1032,20 @@ Arrival detail to weave in: ${arrival}
       return;
     }
 
+    // PHASE 1: Voluntary End Game Command
+    // Allows players/instructors to end the game early for assessment
+    if (!actionOverride && (normalizedInput === '#endgame' || normalizedInput === '#finish')) {
+      console.log('[GameOver] Voluntary end game triggered by player');
+      triggerGameOver({
+        type: 'voluntary',
+        reason: 'Player chose to end the game.',
+        narrative: 'You have chosen to conclude your time as Maria de Lima.'
+      });
+      setUserInput('');
+      setIsLoading(false);
+      return;
+    }
+
     // Location-based navigation (e.g., "go to plaza mayor", "walk to cathedral")
     if (!actionOverride) {
       const wasHandled = await navigationHandlers.handleLocationBasedNavigation(originalInput);
@@ -1111,9 +1127,9 @@ Arrival detail to weave in: ${arrival}
         // Match if search term is contained in NPC name OR NPC name is contained in search term
         // This handles "goat", "Manso", "the goat", "goat Manso", etc.
         if (lowerNPCName.includes(lowerSearch) || lowerSearch.includes(lowerNPCName)) {
-          // Find the actual entity from EntityManager or EntityList
+          // Find the actual entity from EntityManager or EntityList (with name normalization)
           const EntityList = require('../../EntityList').default;
-          matchedEntity = entityManager.getByName(npcName) || EntityList.find(e => e.name === npcName);
+          matchedEntity = findEntityByName(npcName, entityManager) || EntityList.find(e => e.name === npcName);
 
           if (matchedEntity) {
             console.log(`[AutoTreat] Found match: ${matchedEntity.name}`);
@@ -1163,8 +1179,9 @@ Arrival detail to weave in: ${arrival}
       // Enrich the entity if needed
       const enrichedEntity = entityManager.getById(matchedEntity.id) || matchedEntity;
 
-      // Set up portrait
+      // Set up portrait and cache it on entity
       const patientPortrait = resolvePortrait(enrichedEntity);
+      // resolvePortrait() automatically caches to enrichedEntity._portraitPath
       if (patientPortrait) {
         const portraitFilename = patientPortrait.replace('/portraits/', '');
         enrichedEntity.image = portraitFilename;
@@ -1173,6 +1190,7 @@ Arrival detail to weave in: ${arrival}
         setPrimaryPortraitFile(portraitFilename);
         recentPortraitRef.current = portraitFilename;
         previousPortraitEntityRef.current = enrichedEntity;
+        console.log('[Patient Portrait] Cached portrait on entity:', patientPortrait);
       }
 
       // Set as active patient
@@ -1208,7 +1226,7 @@ Arrival detail to weave in: ${arrival}
 
       if (!targetEntity && recentNPCs.length > 0) {
         const fallbackName = recentNPCs[recentNPCs.length - 1];
-        targetEntity = entityManager.getByName(fallbackName) || null;
+        targetEntity = findEntityByName(fallbackName, entityManager) || null;
         targetName = fallbackName;
       }
 
@@ -1692,16 +1710,21 @@ Arrival detail to weave in: ${arrival}
                        personalityTraits.some(t => ['calm', 'stable', 'confident'].includes(t)) ? 30 : 50
         };
 
-        // FIXED: Check if entity already exists by name (stable ID without timestamp)
-        const normalizedName = result.primaryNPC.name.toLowerCase().replace(/\s+/g, '_');
-        const existingEntity = entityManager.getByName(result.primaryNPC.name);
+        // FIXED: Check if entity already exists by name (handles title variations like "Sergeant Miguel" vs "Miguel")
+        const existingEntity = findEntityByName(result.primaryNPC.name, entityManager);
+
+        // Generate stable ID using normalized name (without honorifics) to ensure consistency
+        // "Sergeant Miguel Cordero" and "Miguel Cordero" should get the same ID
+        const normalizedNameForId = normalizeNPCName(result.primaryNPC.name).toLowerCase().replace(/\s+/g, '_');
+        const normalizedName = normalizedNameForId;
 
         let npcEntity;
         if (existingEntity) {
-          // Entity exists - update it with new LLM data (preserve ID and portrait)
+          // Entity exists - update it with new LLM data (preserve ID and portrait cache)
           console.log('[Primary NPC] Found existing entity, updating:', existingEntity.name);
-          npcEntity = {
-            ...existingEntity,
+
+          // Use helper to preserve _portraitPath cache (non-enumerable property)
+          npcEntity = mergeEntityPreservingCache(existingEntity, {
             // Update with new LLM-provided data
             description: result.primaryNPC.description,
             age: result.primaryNPC.age,
@@ -1718,18 +1741,7 @@ Arrival detail to weave in: ${arrival}
               occupation: result.primaryNPC.occupation
             },
             llmProvided: true
-          };
-
-          // CRITICAL: Preserve cached portrait (non-enumerable property lost in spread)
-          if (existingEntity._portraitPath) {
-            Object.defineProperty(npcEntity, '_portraitPath', {
-              value: existingEntity._portraitPath,
-              writable: true,
-              enumerable: false,
-              configurable: true
-            });
-            console.log('[Primary NPC] Preserved cached portrait:', existingEntity._portraitPath);
-          }
+          });
         } else {
           // New entity - create with stable ID (no timestamp)
           console.log('[Primary NPC] Creating new entity:', result.primaryNPC.name);
@@ -1905,7 +1917,7 @@ Arrival detail to weave in: ${arrival}
 
         // Link portrait to primaryNPC if available (for modal opening)
         if (result.primaryNPC) {
-          const primaryEntity = entityManager.getByName(result.primaryNPC.name);
+          const primaryEntity = findEntityByName(result.primaryNPC.name, entityManager);
           if (primaryEntity) {
             portraitEntity = primaryEntity;
             console.log('[Portrait] ✓ Linked portrait to primaryNPC:', result.primaryNPC.name);
@@ -1944,7 +1956,7 @@ Arrival detail to weave in: ${arrival}
       }
 
       if (!result.npcDeparted) {
-        const lockedEntity = portraitEntity || (result.primaryNPC?.name ? entityManager.getByName(result.primaryNPC.name) : null);
+        const lockedEntity = portraitEntity || (result.primaryNPC?.name ? findEntityByName(result.primaryNPC.name, entityManager) : null);
         const lockName = lockedEntity?.name || result.primaryNPC?.name || conversationLockRef.current?.name || null;
         if (lockName) {
           conversationLockRef.current = {
@@ -2740,8 +2752,8 @@ Arrival detail to weave in: ${arrival}
         console.log(`[Relationship] Processing ${result.relationshipChanges.length} relationship changes`);
 
         for (const change of result.relationshipChanges) {
-          // Look up NPC by name (more reliable than ID due to kebab-case inconsistencies)
-          const npc = entityManager.getByName(change.npcName);
+          // Look up NPC by name (with normalization for honorifics)
+          const npc = findEntityByName(change.npcName, entityManager);
 
           if (!npc) {
             console.warn(`[Reputation] NPC not found for relationship change: ${change.npcName}`);
@@ -2793,7 +2805,7 @@ Arrival detail to weave in: ${arrival}
           let mostSevere = null;
           for (const change of result.relationshipChanges) {
             if (change.delta < 0 && (!mostSevere || change.delta < mostSevere.delta)) {
-              const npc = entityManager.getByName(change.npcName);
+              const npc = findEntityByName(change.npcName, entityManager);
               mostSevere = { ...change, npc };
             }
           }
@@ -3057,7 +3069,7 @@ Arrival detail to weave in: ${arrival}
           if (lastHouseCallKeyRef.current !== travelKey) {
             lastHouseCallKeyRef.current = travelKey;
 
-            let patientEntity = entityManager.getByName(patientName);
+            let patientEntity = findEntityByName(patientName, entityManager);
 
             if (!patientEntity) {
               patientEntity = entityManager.register({
@@ -3128,13 +3140,13 @@ Arrival detail to weave in: ${arrival}
           );
 
           // Add to medical records (Patient Roster)
-          let npcEntity = entityManager.getByName(outcome.recipientName);
+          let npcEntity = findEntityByName(outcome.recipientName, entityManager);
 
           if (!npcEntity) {
             const recentNPCs = npcTracker.getRecentNPCs();
             const matchedName = recentNPCs.find(name => name.toLowerCase() === outcome.recipientName.toLowerCase());
             if (matchedName) {
-              npcEntity = entityManager.getByName(matchedName);
+              npcEntity = findEntityByName(matchedName, entityManager);
             }
           }
 
@@ -3922,7 +3934,7 @@ Arrival detail to weave in: ${arrival}
     console.log('[GameHandlers] Found detail image:', detailImagePath);
 
     // Get entity data from EntityManager (furniture items should be registered)
-    const entityData = entityManager.getByName(furnitureName);
+    const entityData = findEntityByName(furnitureName, entityManager);
 
     if (entityData) {
       // Use existing entity data

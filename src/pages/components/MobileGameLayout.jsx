@@ -33,6 +33,9 @@ import { useToast } from '../../components/ToastNotification';
  *
  * @param {Object} props
  * @param {Object} props.handlers - All game handlers from useGameHandlers
+ * @param {Function} props.handlePrescriptionPending - Prescription outcome handler (opens modal)
+ * @param {Function} props.handlePatientDismissed - Patient dismissed handler (clears patient state only)
+ * @param {Function} props.handlePrescriptionComplete - Prescription complete handler (clears all state after modal)
  * @param {Array} props.nearbyLocations - Calculated nearby locations
  * @param {Array} props.filteredNPCPositions - Filtered NPC positions
  * @param {Object} props.dynamicChips - Dynamic action chips from narrative
@@ -53,6 +56,9 @@ import { useToast } from '../../components/ToastNotification';
  */
 const MobileGameLayout = ({
   handlers,
+  handlePrescriptionPending,
+  handlePatientDismissed,
+  handlePrescriptionComplete,
   nearbyLocations,
   filteredNPCPositions,
   dynamicChips,
@@ -340,8 +346,9 @@ const MobileGameLayout = ({
                 toggleInventory={toggleInventory}
                 onOpenInventoryTab={() => setLeftSidebarTab('inventory')}
                 onOpenMixing={() => openModal('mixing')}
-                onPrescriptionPending={setPendingPrescription}
-                onPrescriptionComplete={() => setPendingPrescription(null)}
+                onPrescriptionPending={handlePrescriptionPending}
+                onPatientDismissed={handlePatientDismissed}
+                onPrescriptionComplete={handlePrescriptionComplete}
                 pendingPrescription={pendingPrescription}
                 narrationFontSize={narrationFontSize}
                 narrationDarkMode={narrationDarkMode}

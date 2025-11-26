@@ -37,43 +37,107 @@ function levenshteinDistance(str1, str2) {
 
 /**
  * Check if two symptoms are similar enough to be considered the same
+ * Uses name similarity first, then location, and description overlap to detect duplicates
  * @param {Object} symptom1 - First symptom
  * @param {Object} symptom2 - Second symptom
  * @returns {boolean} True if symptoms are similar
  */
 function areSymptomsSimil(symptom1, symptom2) {
-  // Same location is required
-  if (symptom1.location !== symptom2.location) {
-    return false;
-  }
-
-  // Check name similarity
+  // Check name similarity FIRST (lowered threshold to catch "Weakness" vs "Extreme weakness")
   const nameDistance = levenshteinDistance(symptom1.name, symptom2.name);
   const maxLength = Math.max(symptom1.name.length, symptom2.name.length);
   const nameSimilarity = 1 - (nameDistance / maxLength);
 
-  // Consider similar if >70% name match and same location
-  return nameSimilarity > 0.7;
+  // If names are very similar (>80%) or identical, merge regardless of location
+  // This handles cases like "Speech difficulty" in "general" vs "ears"
+  if (nameSimilarity > 0.8) {
+    console.log(`[PatientEnrichment] Strong name match (${(nameSimilarity * 100).toFixed(0)}%): "${symptom1.name}" ≈ "${symptom2.name}" - merging despite different locations`);
+    return true;
+  }
+
+  // For moderate name similarity (60-80%), also check location must match
+  // This prevents merging unrelated symptoms like "Pain" in different body parts
+  if (nameSimilarity > 0.6) {
+    const loc1 = symptom1.location?.toLowerCase() || '';
+    const loc2 = symptom2.location?.toLowerCase() || '';
+
+    if (loc1 === loc2) {
+      console.log(`[PatientEnrichment] Moderate name match (${(nameSimilarity * 100).toFixed(0)}%) with same location: "${symptom1.name}" ≈ "${symptom2.name}"`);
+      return true;
+    }
+  }
+
+  // Fallback: Check description overlap for semantic similarity
+  // Catches cases like "Dryness" vs "Coating" (both describe tongue coating)
+  if (symptom1.description && symptom2.description) {
+    const desc1 = symptom1.description.toLowerCase();
+    const desc2 = symptom2.description.toLowerCase();
+
+    // Extract significant words (>4 chars) for comparison
+    const words1 = desc1.split(/\s+/).filter(w => w.length > 4);
+    const words2 = desc2.split(/\s+/).filter(w => w.length > 4);
+
+    if (words1.length === 0 || words2.length === 0) {
+      return false; // Not enough content to compare
+    }
+
+    // Count common words
+    const commonWords = words1.filter(w => words2.includes(w));
+    const overlapRatio = commonWords.length / Math.min(words1.length, words2.length);
+
+    // If >40% of words overlap, consider it the same symptom
+    if (overlapRatio > 0.4) {
+      console.log(`[PatientEnrichment] Description overlap (${(overlapRatio * 100).toFixed(0)}%): "${symptom1.name}" ≈ "${symptom2.name}"`);
+      console.log(`[PatientEnrichment] Common words:`, commonWords.join(', '));
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
  * Merge new symptom with existing symptom
+ * Combines descriptions intelligently to preserve all details
  * @param {Object} existing - Existing symptom
  * @param {Object} newSymptom - New symptom data
  * @returns {Object} Merged symptom
  */
 function mergeSymptoms(existing, newSymptom) {
+  // Merge descriptions intelligently
+  let mergedDescription = existing.description;
+
+  if (newSymptom.description && newSymptom.description !== existing.description) {
+    // Check if new description adds information (not just rewording)
+    const existingWords = existing.description.toLowerCase().split(/\s+/);
+    const newWords = newSymptom.description.toLowerCase().split(/\s+/);
+    const uniqueNewWords = newWords.filter(w => w.length > 4 && !existingWords.includes(w));
+
+    // If new description has unique information, append it
+    if (uniqueNewWords.length > 2) {
+      mergedDescription = `${existing.description}; ${newSymptom.description}`;
+      console.log(`[PatientEnrichment] Appending additional symptom details for "${existing.name}"`);
+    } else {
+      // Otherwise prefer the longer/more detailed description
+      mergedDescription = (newSymptom.description.length > existing.description.length)
+        ? newSymptom.description
+        : existing.description;
+    }
+  }
+
   return {
     ...existing,
-    // Update fields if new data is more specific
+    // Use more specific name if provided (e.g., "General Weakness" → "Extreme weakness")
+    name: newSymptom.name || existing.name,
+    // Update severity if new one is more severe
     severity: newSymptom.severity || existing.severity,
     type: newSymptom.type || existing.type,
-    description: newSymptom.description || existing.description,
+    description: mergedDescription,
     // Add new fields
     onset: newSymptom.onset || existing.onset,
     trigger: newSymptom.trigger || existing.trigger,
     // Keep or update quote (prefer more recent/detailed)
-    quote: (newSymptom.quote?.length > existing.quote?.length)
+    quote: (newSymptom.quote?.length > (existing.quote?.length || 0))
       ? newSymptom.quote
       : existing.quote,
     // Track update metadata
@@ -87,11 +151,11 @@ function mergeSymptoms(existing, newSymptom) {
  * Avoids duplicates and updates existing symptoms with new information
  * @param {Array} existingSymptoms - Current patient symptoms
  * @param {Array} newSymptoms - New symptoms from dialogue
- * @returns {Array} Merged symptom list
+ * @returns {Object} { symptoms: Array, newSymptoms: Array }
  */
 export function mergeSymptomsIntelligently(existingSymptoms = [], newSymptoms = []) {
   if (!newSymptoms || newSymptoms.length === 0) {
-    return existingSymptoms;
+    return { symptoms: existingSymptoms, newSymptoms: [] };
   }
 
   const merged = [...existingSymptoms];

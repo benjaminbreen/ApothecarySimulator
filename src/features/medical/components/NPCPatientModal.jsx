@@ -15,6 +15,7 @@ import TreatmentTimeline from './TreatmentTimeline';
 import { generateTreatmentHistory } from '../services/treatmentGenerator';
 import { adaptEntityForPatientModal } from '../../../core/entities/entityAdapter';
 import { getMemoryContext } from '../../../core/entities/InteractionMemory';
+import { resolvePortrait } from '../../../core/services/portraitResolver';
 
 export default function NPCPatientModal({
   isOpen,
@@ -229,13 +230,16 @@ export default function NPCPatientModal({
     diagnosis,
     socialContext,
     symptoms = [],
-    portrait,
+    portrait: adaptedPortrait,
     background,
     family,
     occupation,
     personality,
     relationships
   } = adaptedPatient;
+
+  // FALLBACK: If adapter didn't get portrait, resolve it directly from original patient
+  const portrait = adaptedPortrait || resolvePortrait(patient);
 
   const isDark = document.documentElement.classList.contains('dark');
 
@@ -822,17 +826,20 @@ export default function NPCPatientModal({
               </div>
 
               {/* If no background data available */}
-              {!family && !occupation && !personality && !background && !relationships && (
-                <div className="text-center py-16">
-                  <div className="text-6xl mb-4 opacity-20">📋</div>
-                  <p className={`text-base font-sans font-medium ${isDark ? 'text-slate-400' : 'text-ink-500'}`}>
-                    No background information available
-                  </p>
-                  <p className={`text-sm font-sans mt-1 ${isDark ? 'text-slate-500' : 'text-ink-400'}`}>
-                    Continue interactions to learn more about this patient
-                  </p>
-                </div>
-              )}
+              {(() => {
+                const hasNoBackgroundData = !family && !occupation && !personality && !background && !relationships;
+                return hasNoBackgroundData && (
+                  <div className="text-center py-16">
+                    <div className="text-6xl mb-4 opacity-20">📋</div>
+                    <p className={`text-base font-sans font-medium ${isDark ? 'text-slate-400' : 'text-ink-500'}`}>
+                      No background information available
+                    </p>
+                    <p className={`text-sm font-sans mt-1 ${isDark ? 'text-slate-500' : 'text-ink-400'}`}>
+                      Continue interactions to learn more about this patient
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

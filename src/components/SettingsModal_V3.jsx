@@ -691,14 +691,200 @@ function GameSection({ scenario, gameState, health: propsHealth, energy: propsEn
 }
 
 function ProgressSection({ gameState }) {
+  const { isDarkMode } = useDarkMode();
   const storyNpcStatus = gameState?.storyNpcStatus || {};
   const totalStoryNpcs = STORY_NPCS.length;
   const completedStoryNpcs = Object.values(storyNpcStatus).filter(status => status?.state === 'completed').length;
+
+  // Assessment metrics calculation
+  const turnNumber = gameState?.turnNumber || 1;
+  const wealth = gameState?.wealth || 0;
+  const health = gameState?.health || 100;
+  const energy = gameState?.energy || 100;
+  const reputation = gameState?.reputation?.overall || 50;
+  const inventoryCount = gameState?.inventory?.length || 0;
+  const compoundsCreated = gameState?.compounds?.length || 0;
+
+  // Calculate estimated grade based on current performance
+  const calculateCurrentGrade = () => {
+    let score = 0;
+    // Survival (20 points)
+    if (health > 75) score += 20;
+    else if (health > 50) score += 15;
+    else if (health > 25) score += 10;
+    else score += 5;
+
+    // Economic success (20 points)
+    if (wealth > 200) score += 20;
+    else if (wealth > 100) score += 15;
+    else if (wealth > 50) score += 10;
+    else if (wealth >= 0) score += 5;
+
+    // Social standing (20 points)
+    if (reputation > 75) score += 20;
+    else if (reputation > 50) score += 15;
+    else if (reputation > 25) score += 10;
+    else score += 5;
+
+    // Engagement (20 points)
+    const engagementScore = Math.min(turnNumber * 0.4, 20);
+    score += engagementScore;
+
+    // Crafting & medicine (20 points)
+    const methodsScore = ((gameState?.unlockedMethods?.length || 2) / 6) * 10;
+    const compoundsScore = Math.min(compoundsCreated, 10);
+    score += methodsScore + compoundsScore;
+
+    return Math.round(score);
+  };
+
+  const currentGrade = calculateCurrentGrade();
+  const getGradeLetter = (score) => {
+    if (score >= 90) return 'A';
+    if (score >= 80) return 'B';
+    if (score >= 70) return 'C';
+    if (score >= 60) return 'D';
+    return 'F';
+  };
+
+  const exportProgressData = () => {
+    const timestamp = new Date().toISOString();
+    const filename = `apothecary-progress-${turnNumber}-turns-${timestamp}.json`;
+
+    const progressData = {
+      meta: {
+        exportedAt: timestamp,
+        gameVersion: '1.0.0',
+        scenario: gameState.scenarioId || '1680-mexico-city',
+        isCompleted: gameState.isGameOver || false,
+      },
+      currentStats: {
+        turnNumber,
+        wealth,
+        health,
+        energy,
+        reputation,
+        currentGrade,
+        gradeLetter: getGradeLetter(currentGrade),
+      },
+      progress: {
+        methodsUnlocked: gameState?.unlockedMethods?.length || 2,
+        totalMethods: 6,
+        storyEncounters: completedStoryNpcs,
+        totalStoryNpcs,
+        inventoryCount,
+        compoundsCreated,
+      },
+      gameState: gameState,
+    };
+
+    const blob = new Blob([JSON.stringify(progressData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    console.log('[Export] Progress data exported:', filename);
+  };
 
   return (
     <div className="space-y-6">
       <SectionHeader title="Progress Tracking" subtitle="Your journey through history" />
 
+      {/* Current Assessment Grade */}
+      <div className="rounded-lg p-6"
+        style={{
+          background: isDarkMode
+            ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.9))'
+            : 'linear-gradient(135deg, rgba(250, 245, 235, 0.95), rgba(245, 238, 223, 0.9))',
+          border: isDarkMode ? '1px solid rgba(251, 191, 36, 0.3)' : '1px solid rgba(217, 119, 6, 0.25)',
+          boxShadow: isDarkMode
+            ? '0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(251, 191, 36, 0.1)'
+            : '0 4px 12px rgba(92, 74, 58, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.5)'
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold" style={{
+            fontFamily: "'Cormorant Garamond', Georgia, serif",
+            color: isDarkMode ? '#fbbf24' : '#3d2f24'
+          }}>
+            📊 Current Assessment
+          </h3>
+          <button
+            onClick={exportProgressData}
+            className="px-4 py-2 rounded-md transition-all"
+            style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: 'white',
+              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+              border: '1px solid #2563eb',
+              boxShadow: '0 2px 6px rgba(59, 130, 246, 0.3)'
+            }}
+          >
+            💾 Export Data
+          </button>
+        </div>
+
+        <div className="flex items-center gap-6">
+          <div className="flex items-center justify-center w-32 h-32 rounded-full"
+            style={{
+              background: isDarkMode
+                ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.15))'
+                : 'linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(245, 158, 11, 0.1))',
+              border: isDarkMode ? '3px solid rgba(251, 191, 36, 0.4)' : '3px solid rgba(217, 119, 6, 0.3)',
+              boxShadow: isDarkMode
+                ? '0 4px 16px rgba(251, 191, 36, 0.25)'
+                : '0 4px 16px rgba(217, 119, 6, 0.15)'
+            }}
+          >
+            <div className="text-center">
+              <div className="text-4xl font-bold" style={{
+                fontFamily: "'Cormorant Garamond', Georgia, serif",
+                color: isDarkMode ? '#fbbf24' : '#d97706'
+              }}>
+                {getGradeLetter(currentGrade)}
+              </div>
+              <div className="text-sm mt-1" style={{
+                fontFamily: "'Inter', sans-serif",
+                color: isDarkMode ? '#94a3b8' : '#6b5d52',
+                fontWeight: 500
+              }}>
+                {currentGrade}/100
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-2">
+            <div style={{
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.875rem',
+              color: isDarkMode ? '#cbd5e1' : '#5c4a3a',
+              lineHeight: 1.6
+            }}>
+              <p className="mb-2"><strong>Live Assessment Estimate</strong></p>
+              <p className="text-sm opacity-80">
+                This grade reflects your current performance across survival, economic success,
+                social standing, engagement, and medical practice. Final assessment will be
+                generated when you complete or end the game.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mt-4">
+              <AssessmentMetric label="Survival" value={`${health}%`} color={health > 50 ? '#10b981' : '#ef4444'} />
+              <AssessmentMetric label="Wealth" value={`${wealth}r`} color={wealth > 100 ? '#10b981' : '#f59e0b'} />
+              <AssessmentMetric label="Reputation" value={`${reputation}/100`} color={reputation > 50 ? '#10b981' : '#f59e0b'} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress Cards */}
       <div className="grid grid-cols-2 gap-4">
         <ProgressCard
           title="Methods Unlocked"
@@ -713,18 +899,147 @@ function ProgressSection({ gameState }) {
           description="Major NPC arcs resolved"
         />
         <ProgressCard
-          title="Patients Treated"
-          current={0}
-          max={50}
-          description="Medical interventions performed"
+          title="Compounds Created"
+          current={compoundsCreated}
+          max={20}
+          description="Medicines and mixtures crafted"
         />
         <ProgressCard
-          title="Story Progress"
-          current={Math.min((gameState?.turnNumber || 1) * 2, 100)}
+          title="Game Progress"
+          current={Math.min(turnNumber, 100)}
           max={100}
-          description="Narrative completion percentage"
+          description={`Turn ${turnNumber} of your journey`}
         />
       </div>
+
+      {/* Detailed Assessment Breakdown */}
+      <div className="rounded-lg p-5"
+        style={{
+          background: isDarkMode
+            ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.9))'
+            : 'linear-gradient(135deg, rgba(250, 245, 235, 0.95), rgba(245, 238, 223, 0.9))',
+          border: isDarkMode ? '1px solid rgba(251, 191, 36, 0.2)' : '1px solid rgba(139, 92, 46, 0.2)',
+          boxShadow: isDarkMode
+            ? '0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(251, 191, 36, 0.1)'
+            : '0 4px 12px rgba(92, 74, 58, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.5)'
+        }}
+      >
+        <h3 className="text-lg mb-4 font-bold" style={{
+          fontFamily: "'Cormorant Garamond', Georgia, serif",
+          color: isDarkMode ? '#fbbf24' : '#3d2f24'
+        }}>
+          Assessment Criteria
+        </h3>
+
+        <div className="space-y-3">
+          <AssessmentCriteria
+            label="Health & Survival"
+            score={health > 75 ? 20 : health > 50 ? 15 : health > 25 ? 10 : 5}
+            max={20}
+            description={`Current health: ${health}%. Maintain above 75% for full points.`}
+          />
+          <AssessmentCriteria
+            label="Economic Management"
+            score={wealth > 200 ? 20 : wealth > 100 ? 15 : wealth > 50 ? 10 : wealth >= 0 ? 5 : 0}
+            max={20}
+            description={`Wealth: ${wealth} reales. Target: 200+ reales for full points.`}
+          />
+          <AssessmentCriteria
+            label="Social Navigation"
+            score={reputation > 75 ? 20 : reputation > 50 ? 15 : reputation > 25 ? 10 : 5}
+            max={20}
+            description={`Reputation: ${reputation}/100. Maintain relationships with all factions.`}
+          />
+          <AssessmentCriteria
+            label="Engagement & Persistence"
+            score={Math.min(turnNumber * 0.4, 20)}
+            max={20}
+            description={`Turns played: ${turnNumber}. Complete 50+ turns for full points.`}
+          />
+          <AssessmentCriteria
+            label="Medical Practice"
+            score={((gameState?.unlockedMethods?.length || 2) / 6) * 10 + Math.min(compoundsCreated, 10)}
+            max={20}
+            description={`${gameState?.unlockedMethods?.length || 2}/6 methods, ${compoundsCreated} compounds created.`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Helper component for assessment metrics
+function AssessmentMetric({ label, value, color }) {
+  const { isDarkMode } = useDarkMode();
+  return (
+    <div className="text-center p-3 rounded"
+      style={{
+        background: isDarkMode ? 'rgba(30, 41, 59, 0.5)' : 'rgba(245, 238, 223, 0.5)',
+        border: isDarkMode ? '1px solid rgba(251, 191, 36, 0.15)' : '1px solid rgba(139, 92, 46, 0.15)'
+      }}
+    >
+      <div className="text-xs mb-1" style={{
+        fontFamily: "'Inter', sans-serif",
+        color: isDarkMode ? '#94a3b8' : '#6b5d52',
+        fontWeight: 500
+      }}>
+        {label}
+      </div>
+      <div className="text-lg font-bold" style={{
+        fontFamily: "'IBM Plex Mono', monospace",
+        color: color
+      }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+// Helper component for assessment criteria breakdown
+function AssessmentCriteria({ label, score, max, description }) {
+  const { isDarkMode } = useDarkMode();
+  const percentage = (score / max) * 100;
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-2">
+        <span style={{
+          fontFamily: "'Inter', sans-serif",
+          fontSize: '0.875rem',
+          fontWeight: 600,
+          color: isDarkMode ? '#cbd5e1' : '#3d2f24'
+        }}>
+          {label}
+        </span>
+        <span style={{
+          fontFamily: "'IBM Plex Mono', monospace",
+          fontSize: '0.875rem',
+          fontWeight: 600,
+          color: isDarkMode ? '#fbbf24' : '#d97706'
+        }}>
+          {Math.round(score)}/{max}
+        </span>
+      </div>
+      <div className="w-full h-2 rounded-full overflow-hidden mb-1"
+        style={{
+          background: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : 'rgba(139, 92, 46, 0.15)'
+        }}
+      >
+        <div className="h-full transition-all duration-300"
+          style={{
+            width: `${percentage}%`,
+            background: percentage > 75 ? '#10b981' : percentage > 50 ? '#f59e0b' : '#ef4444'
+          }}
+        />
+      </div>
+      <p style={{
+        fontFamily: "'Inter', sans-serif",
+        fontSize: '0.75rem',
+        color: isDarkMode ? '#94a3b8' : '#6b5d52',
+        opacity: 0.8
+      }}>
+        {description}
+      </p>
     </div>
   );
 }

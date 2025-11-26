@@ -73,6 +73,48 @@ function extractOutcomeStatus(narrative) {
   return null; // Uncertain
 }
 
+/**
+ * Parse patient outcome from prescription narrative
+ * Detects if patient died, departed, or stayed for follow-up
+ * @param {string} outcomeText - Full prescription outcome narrative
+ * @returns {Object} { deceased: boolean, departed: boolean, reason: string|null }
+ */
+function parsePatientOutcome(outcomeText) {
+  if (!outcomeText || typeof outcomeText !== 'string') {
+    return { deceased: false, departed: true, reason: null };
+  }
+
+  const text = outcomeText.toLowerCase();
+
+  // Check for death
+  const deceased = /died|death|fatal|deceased|passed away|perished|succumbed|breathed (?:her|his) last|expired/i.test(outcomeText);
+
+  // Check for explicit staying (patient lingers, waits, remains for observation)
+  const staysExplicit = /remained|stayed|lingered|waiting for|sits waiting|still present|refuses to leave|won't leave/i.test(outcomeText);
+
+  // Check for explicit departure (patient left, departed, returned home)
+  const departedExplicit = /departed|left|returned home|made (?:her|his) way|walked (?:out|away)|exited|hurried (?:out|away)|rushed (?:out|home)/i.test(outcomeText);
+
+  // Default logic: if not staying explicitly and not dead, assume departed
+  const departed = !deceased && !staysExplicit;
+
+  console.log('[PrescribePanelIntegrated] Patient outcome parsed:', {
+    deceased,
+    departed,
+    staysExplicit,
+    departedExplicit
+  });
+
+  return {
+    deceased,
+    departed,
+    reason: deceased ? 'Patient died from treatment complications' :
+            staysExplicit ? 'Patient remained for observation/follow-up' :
+            departed ? 'Patient departed after receiving treatment' :
+            null
+  };
+}
+
 function PrescribePanelIntegrated({
   gameState = {},
   updateInventory,
@@ -86,7 +128,8 @@ function PrescribePanelIntegrated({
   currentWealth,
   prescriptionType = 'treatment',
   handlePrescriptionOutcome,
-  onPrescriptionComplete, // Called when user accepts outcome and returns to narrative
+  onPatientDismissed, // Called immediately when patient dies/departs (clears patient state only)
+  onPrescriptionComplete, // Called when user accepts outcome and returns to narrative (clears all state)
   onPrescriptionPending, // Called when prescription starts processing
   advanceTime,
   theme = 'light',
@@ -388,19 +431,20 @@ function PrescribePanelIntegrated({
     try {
       setIsLoading(true);
 
-      // Notify parent immediately to trigger tab switch (without outcome data yet)
-      if (onPrescriptionPending) {
-        onPrescriptionPending({
-          patient: currentPatient,
-          item,
-          amount,
-          price,
-          route
-        });
-      }
+      // FIX: Removed premature tab switch - it was hiding the modal before it could open
+      // The second onPrescriptionPending call (with full outcome) will handle the notification
+      // if (onPrescriptionPending) {
+      //   onPrescriptionPending({
+      //     patient: currentPatient,
+      //     item,
+      //     amount,
+      //     price,
+      //     route
+      //   });
+      // }
 
-      // Small delay to allow tab transition to complete before generating
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Small delay removed - no longer needed without tab transition
+      // await new Promise(resolve => setTimeout(resolve, 300));
 
       const messages = [
         ...(conversationHistory || []),
@@ -410,6 +454,10 @@ function PrescribePanelIntegrated({
       const data = await createChatCompletion(messages, 0.8);
       const simulatedOutput = data.choices[0].message.content;
       setSimulatedOutput(simulatedOutput);
+
+      // Parse patient outcome to determine if they died, left, or stayed
+      const patientOutcome = parsePatientOutcome(simulatedOutput);
+      console.log('[PrescribePanelIntegrated] Patient outcome:', patientOutcome);
 
       // Don't add to conversation history yet - wait for summary below
       // (The detailed simulatedOutput will be shown in modal, but we'll add a clean summary to history instead)
@@ -423,6 +471,22 @@ function PrescribePanelIntegrated({
       // Update inventory
       updateInventory(item.name, -amount);
 
+      // Strip metadata from simulatedOutput before creating summary
+      // Remove "*Now Maria has X silver coins...*" line that's meant for game state, not narrative
+      let cleanedOutput = simulatedOutput;
+      const metadataPatterns = [
+        /\*\s*Now Maria has \d+[^*]+\*/gi,  // *Now Maria has 30 silver coins...*
+        /Now Maria has \d+[^.]+\./gi,       // Now Maria has 30 silver coins. (plain)
+        /Prescription Score:\s*$/gim         // Orphaned "Prescription Score:" label
+      ];
+
+      for (const pattern of metadataPatterns) {
+        cleanedOutput = cleanedOutput.replace(pattern, '').trim();
+      }
+
+      // Clean up multiple line breaks
+      cleanedOutput = cleanedOutput.replace(/\n\n\n+/g, '\n\n').trim();
+
       // Generate journal summary with structured format
       const summaryPrompt = `
       Please summarize the following prescription outcome in this EXACT format:
@@ -433,6 +497,7 @@ function PrescribePanelIntegrated({
       [One vivid sentence describing what happened - be specific about the outcome/complications]
 
       CRITICAL: Use ONLY ONE emoji at the start of the headline. Do not add any other emojis anywhere in the headline.
+      CRITICAL: Do NOT include any game state information like "Now Maria has X silver coins" or reputation/time updates - only describe the medical outcome.
 
       Pick the single best emoji:
       💀 death | 🩸 bleeding | 🤢 nausea | 😐 ineffective | 💸 expensive waste | ✓ success | ✨ miraculous
@@ -449,7 +514,7 @@ function PrescribePanelIntegrated({
       DO NOT write two emojis. DO NOT write emojis in the middle of the headline. Only ONE emoji at the very start.
 
       Now summarize this prescription outcome:
-      ${simulatedOutput}
+      ${cleanedOutput}
     `;
 
       const summaryMessages = [{ role: 'user', content: summaryPrompt }];
@@ -483,8 +548,22 @@ function PrescribePanelIntegrated({
           outcome: simulatedOutput,  // Full detailed narrative
           journalSummary: journalSummary,
           timestamp: gameState.time,
-          mechanicsBreakdown: breakdown // Add mechanics breakdown to prescription data
+          mechanicsBreakdown: breakdown, // Add mechanics breakdown to prescription data
+          patientOutcome: patientOutcome // Add patient status (deceased/departed/staying)
         });
+      }
+
+      // CRITICAL: Clear active patient immediately if they died or departed
+      // Don't wait for modal dismissal - this prevents continuity errors
+      if (patientOutcome.deceased || patientOutcome.departed) {
+        console.log(`[PrescribePanelIntegrated] ${patientOutcome.deceased ? 'Patient died' : 'Patient departed'} - clearing active patient immediately`);
+
+        // Clear the active patient from parent state (but keep prescription data for modal)
+        if (onPatientDismissed) {
+          onPatientDismissed(); // Only clears patient state, not prescription data
+        }
+      } else {
+        console.log('[PrescribePanelIntegrated] Patient staying - keeping as active patient');
       }
 
       // Add comprehensive summary to conversation history so NarrativeAgent knows what happened
@@ -518,10 +597,9 @@ function PrescribePanelIntegrated({
 PRESCRIPTION EVENT:
 ${comprehensiveSummary}
 
-Write 2-3 sentences describing the immediate aftermath. Focus on:
-- Patient's emotional reaction to diagnosis/prescription (hopeful/worried/grateful/skeptical based on their personality)
-- How they pay (readily/reluctantly/haggling - based on their social class)
-- What they do next (depart quickly/linger to ask questions/express gratitude/remain doubtful)
+PATIENT STATUS: ${patientOutcome.deceased ? 'Patient died from treatment' : patientOutcome.departed ? 'Patient departed after treatment' : 'Patient remained for observation'}
+
+Write 2-3 sentences describing the immediate aftermath. ${patientOutcome.deceased ? 'Focus on the tragic moment of death and Maria\'s reaction.' : patientOutcome.departed ? 'Focus on:\n- Patient\'s emotional reaction to diagnosis/prescription (hopeful/worried/grateful/skeptical)\n- How they pay (readily/reluctantly/haggling - based on social class)\n- Their departure (quick/lingering/grateful/doubtful)' : 'Focus on why the patient stayed and what happens next.'}
 
 Patient: ${npcName}
 Social class: ${patientClass}
@@ -677,7 +755,7 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
     }
   };
 
-  const handleOutcomeModalContinue = () => {
+  const handleOutcomeModalContinue = async () => {
     // FIX #3: Detect death/fatal outcomes and update patient entity
     const outcomeText = simulatedOutput || '';
     const outcomeTextLower = outcomeText.toLowerCase();
@@ -875,6 +953,77 @@ Keep it brief, vivid, and period-appropriate (1680s Mexico City). Show character
           console.error('[PrescribePanelIntegrated] Auto-return failed:', error);
         }
       }, 100);
+
+      // Don't generate narrative continuation for house calls - auto-return handles it
+      return;
+    }
+
+    // NARRATIVE CONTINUATION: Generate follow-up narrative after prescription
+    console.log('[PrescribePanelIntegrated] Generating narrative continuation after prescription');
+
+    const patientName = currentPatient?.name || 'the patient';
+    const treatmentItem = prescriptionData?.item?.name || 'the medicine';
+
+    // Determine outcome tone
+    const isPositive = outcomeTextLower.includes('improv') ||
+                      outcomeTextLower.includes('better') ||
+                      outcomeTextLower.includes('recover') ||
+                      outcomeTextLower.includes('heal') ||
+                      outcomeTextLower.includes('effective') ||
+                      /\b([7-9]|10)\/10\b/.test(outcomeTextLower);
+
+    const isNegative = isFatal ||
+                      outcomeTextLower.includes('worse') ||
+                      outcomeTextLower.includes('severe') ||
+                      outcomeTextLower.includes('complications') ||
+                      /\b([1-4])\/10\b/.test(outcomeTextLower);
+
+    // Create contextual continuation prompt
+    const continuationPrompt = isFatal
+      ? `After the tragic death of ${patientName} from the treatment, what do you do? Do you try to cover up what happened, or face the consequences honestly?`
+      : isNegative
+      ? `After the difficult outcome with ${patientName}'s treatment, what do you do next? Do you reflect on what went wrong, or do you move on to other tasks?`
+      : isPositive
+      ? `After successfully treating ${patientName} with ${treatmentItem}, what do you do next? Do you continue seeing patients, or take a moment to rest?`
+      : `After treating ${patientName} with ${treatmentItem}, what do you do next?`;
+
+    // Generate continuation narrative via LLM
+    try {
+      const messages = [
+        ...conversationHistory,
+        { role: 'user', content: continuationPrompt }
+      ];
+
+      const data = await createChatCompletion(messages, 0.7);
+      const continuationNarrative = data.choices[0].message.content;
+
+      // Add to conversation history
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: continuationPrompt },
+        { role: 'assistant', content: continuationNarrative }
+      ]);
+
+      // Update history output
+      setHistoryOutput(continuationNarrative);
+
+      // Increment turn number
+      setTurnNumber(t => t + 1);
+
+      console.log('[PrescribePanelIntegrated] Narrative continuation generated successfully');
+    } catch (error) {
+      console.error('[PrescribePanelIntegrated] Failed to generate narrative continuation:', error);
+      // Fallback to simple continuation
+      const fallbackNarrative = isFatal
+        ? `The death of ${patientName} weighs heavily on your conscience. You must decide how to proceed.`
+        : `You complete the treatment of ${patientName} and return to your duties.`;
+
+      setHistoryOutput(fallbackNarrative);
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'assistant', content: fallbackNarrative }
+      ]);
+      setTurnNumber(t => t + 1);
     }
 
     // Clear the pending prescription state (removes blue card)

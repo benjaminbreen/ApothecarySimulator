@@ -12,7 +12,8 @@ import { resolvePortrait } from '../../../core/services/portraitResolver';
 /**
  * Parse the LLM's score out of 10 from the outcome text
  * Looks for patterns like "Score: 8/10" or "**8/10**"
- * Returns both the score and the text with score removed
+ * Also removes metadata lines like "Now Maria has X silver coins..."
+ * Returns both the score and the text with score/metadata removed
  */
 function parseOutcomeScore(outcomeText) {
   if (!outcomeText) return { score: null, cleanedText: outcomeText };
@@ -20,14 +21,16 @@ function parseOutcomeScore(outcomeText) {
   // Match patterns like:
   // "Score: 8/10" or "**Score: 8/10**" or "Rating: 8/10"
   // "8/10" or "**8/10**"
+  // "Prescription Score:" (label without the actual score)
   const scorePatterns = [
-    /(?:Score|Rating):\s*\*{0,2}(\d+)\/10\*{0,2}/gi,
+    /(?:Prescription\s+)?(?:Score|Rating):\s*\*{0,2}(\d+)\/10\*{0,2}/gi,
     /\*{0,2}(\d+)\/10\*{0,2}/g,
   ];
 
   let score = null;
   let cleanedText = outcomeText;
 
+  // Extract score
   for (const pattern of scorePatterns) {
     const match = outcomeText.match(pattern);
     if (match && !score) {
@@ -38,12 +41,27 @@ function parseOutcomeScore(outcomeText) {
           score = parsedScore;
           // Remove the score text from the narrative
           cleanedText = cleanedText.replace(pattern, '').trim();
-          // Clean up any double line breaks left behind
-          cleanedText = cleanedText.replace(/\n\n\n+/g, '\n\n');
         }
       }
     }
   }
+
+  // Remove the metadata line pattern: "*Now Maria has X silver coins...*" or "Now Maria has X silver coins..."
+  // This line contains wealth/status/time info that shouldn't be in the modal
+  const metadataPatterns = [
+    /\*\s*Now Maria has \d+[^*]+\*/gi,  // Matches *Now Maria has 30 silver coins...*
+    /Now Maria has \d+[^.]+\./gi,       // Matches Now Maria has 30 silver coins. (without italics)
+    /Prescription Score:\s*$/gim        // Remove orphaned "Prescription Score:" label
+  ];
+
+  for (const pattern of metadataPatterns) {
+    cleanedText = cleanedText.replace(pattern, '').trim();
+  }
+
+  // Clean up multiple line breaks left behind
+  cleanedText = cleanedText.replace(/\n\n\n+/g, '\n\n');
+  // Clean up trailing/leading whitespace
+  cleanedText = cleanedText.trim();
 
   return { score, cleanedText };
 }
@@ -178,12 +196,21 @@ function PrescriptionOutcomeModal({
     return null;
   }
 
-  // Debug logging only when modal is actually rendering
-  // console.log('[PrescriptionOutcomeModal] Rendering with', {
-  //   patient: patient.name,
-  //   prescriptionData,
-  //   outcomeLength: outcome?.length
-  // });
+  // Extract patient outcome status if available
+  const patientOutcome = prescriptionData?.patientOutcome;
+
+  // Debug logging to check prescription data structure
+  console.log('[PrescriptionOutcomeModal] Rendering with', {
+    patient: patient.name,
+    prescriptionData,
+    hasItem: !!prescriptionData.item,
+    itemName: prescriptionData.item?.name,
+    amount: prescriptionData.amount,
+    route: prescriptionData.route,
+    price: prescriptionData.price,
+    outcomeLength: outcome?.length,
+    patientOutcome
+  });
 
   const portraitUrl = resolvePortrait(patient);
 
@@ -204,11 +231,11 @@ function PrescriptionOutcomeModal({
   // Render modal using portal to ensure it appears above everything
   const modalContent = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-lg animate-fade-in">
-      <div className="relative w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-2xl bg-white dark:bg-slate-800 border border-ink-200 dark:border-slate-700 shadow-2xl dark:shadow-dark-elevation-4 transition-colors duration-300">
+      <div className="relative w-full max-w-6xl max-h-[92vh] overflow-hidden rounded-2xl bg-white dark:bg-slate-800 border border-ink-200 dark:border-slate-700 shadow-2xl dark:shadow-dark-elevation-4 transition-colors duration-300">
         {/* Header - Dynamic Color */}
-        <div className={`flex items-center justify-between p-4 border-b border-ink-100 dark:border-slate-700 bg-gradient-to-r ${theme.headerGradient} transition-colors duration-300`}>
-          <div className="flex items-center gap-2.5">
-            <div className={`w-8 h-8 rounded-full ${theme.iconBg} flex items-center justify-center text-white text-lg`}>
+        <div className={`flex items-center justify-between p-0 border-b border-ink-100 dark:border-slate-700 bg-gradient-to-r ${theme.headerGradient} transition-colors duration-300`}>
+          <div className="flex items-center mt-3 gap-2.5">
+            <div className={`w-10 h-10 rounded-full ${theme.iconBg} flex items-center justify-center text-white text-2xl`}>
               {theme.emoji}
             </div>
             <div>
@@ -231,9 +258,9 @@ function PrescriptionOutcomeModal({
         </div>
 
         {/* Two Column Layout */}
-        <div className="flex h-[calc(90vh-10rem)] overflow-hidden">
+        <div className="flex h-[calc(92vh-10rem)] overflow-hidden">
           {/* Left Column - Patient & Prescription Info */}
-          <div className="w-1/3 border-r border-ink-100 dark:border-slate-700 overflow-y-auto custom-scrollbar bg-parchment-50 dark:bg-slate-900/30 p-4 space-y-3 transition-colors duration-300">
+          <div className="w-1/3 border-r border-ink-100 dark:border-slate-700 overflow-y-auto custom-scrollbar bg-parchment-50 dark:bg-slate-900/30 p-3 space-y-3 transition-colors duration-300">
             {/* Patient Card - Compact with Dynamic Color */}
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-ink-100 dark:border-slate-700 overflow-hidden shadow-sm transition-colors duration-300">
               <div className={`p-3 bg-gradient-to-br ${theme.patientGradient}`}>
@@ -490,10 +517,10 @@ function PrescriptionOutcomeModal({
           </div>
 
           {/* Right Column - Outcome Narrative */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-white dark:bg-slate-800/50 transition-colors duration-300">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 bg-white dark:bg-slate-800/50 transition-colors duration-300">
             {/* Score Header - Enhanced with Stars and Progress Bar */}
             {outcomeScore !== null && (
-              <div className={`mb-6 rounded-xl p-6 border-2 bg-gradient-to-br ${theme.headerGradient} transition-all duration-300 shadow-lg`}
+              <div className={`mb-3 rounded-xl p-6 border-2 bg-gradient-to-br ${theme.headerGradient} transition-all duration-300 shadow-lg`}
                 style={{
                   borderColor: outcomeScore <= 3 ? '#991b1b' :
                               outcomeScore <= 5 ? '#d97706' :
@@ -501,7 +528,7 @@ function PrescriptionOutcomeModal({
                               outcomeScore <= 8 ? '#15803d' : '#059669'
                 }}
               >
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {/* Top Row - Emoji, Score, Label */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -594,17 +621,13 @@ function PrescriptionOutcomeModal({
               </div>
             )}
 
+
             {/* Narrative Text - Enhanced with Section Headers */}
             <div className="space-y-4">
               {/* Section Header */}
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gradient-to-r from-transparent via-ink-200 dark:via-slate-600 to-transparent"></div>
-                <h3 className="text-sm uppercase tracking-widest font-bold text-ink-600 dark:text-slate-400 flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Treatment Report
-                </h3>
+               
                 <div className="flex-1 h-px bg-gradient-to-r from-transparent via-ink-200 dark:via-slate-600 to-transparent"></div>
               </div>
 

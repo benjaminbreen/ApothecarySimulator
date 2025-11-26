@@ -2,12 +2,13 @@
 // Handles: Symptom discovery, family history, medical history, vital signs
 
 import { createChatCompletion } from '../services/llmService';
+import { safeJSONParse } from '../../utils/jsonHelpers';
 
 /**
  * Valid anatomical locations for symptom mapping
  */
 const VALID_LOCATIONS = [
-  'head', 'eyes', 'ears', 'nose', 'mouth', 'throat', 'neck',
+  'head', 'face', 'eyes', 'ears', 'nose', 'mouth', 'throat', 'neck',
   'chest', 'heart', 'lungs', 'back', 'shoulders',
   'stomach', 'abdomen', 'intestines', 'liver', 'kidneys',
   'arms', 'hands', 'wrists', 'fingers',
@@ -39,13 +40,18 @@ const VALID_SEVERITIES = ['mild', 'moderate', 'severe', 'critical'];
  */
 function buildPatientDialoguePrompt(patient, narrativeContext = null, isExaminationAction = false) {
   // ANIMAL MODE: Detect if patient is an animal
+  const occupationLower = patient.occupation?.toLowerCase() || '';
+  const animalKeywords = ['animal', 'goat', 'dog', 'cat', 'horse', 'mule', 'donkey', 'pig', 'sheep', 'cow', 'chicken', 'hen', 'rooster', 'bird', 'parrot'];
+
   const isAnimal =
     patient.entityType === 'animal' ||
     patient.type === 'animal' ||
     patient.appearance?.gender === 'animal' ||
     patient.gender === 'animal' ||
     patient.class === 'animal' ||
-    patient.social?.class === 'animal';
+    patient.social?.class === 'animal' ||
+    // Check occupation field (e.g., "Farm Animal", "Goat", "Dog", etc.)
+    animalKeywords.some(keyword => occupationLower.includes(keyword));
 
   // ANIMAL PATIENT MODE: Describe behavior and body language instead of dialogue
   if (isAnimal) {
@@ -158,13 +164,33 @@ You must describe what Maria observes during the examination in **bold text** as
 3. If uncertain, choose the closest match from the allowed values - DO NOT invent new values
 4. If examining multiple vitals, extract ALL relevant fields
 
-## Diagnosis Detection:
-If Maria's action contains diagnostic language (e.g., "diagnose", "you have", "this is", "suffering from"), extract:
-- The diagnosed condition
-- Maria's certainty level based on:
-  - HIGH: Definitive language ("definitely", "clearly", "certainly")
-  - MEDIUM: Reasonably confident ("likely", "appears to be", "seems like")
-  - LOW: Uncertain ("possibly", "might be", "could be")
+## Diagnosis Detection (CRITICAL - Use 1680s Medical Framework):
+If Maria's action contains diagnostic language (e.g., "diagnose", "you have", "this is", "suffering from"), extract the diagnosis using **ONLY 17th-century Galenic medical epistemology**:
+
+**REQUIRED FRAMEWORK - Use these concepts:**
+- **Humoral imbalances**: Excess or deficiency of blood, yellow bile, black bile, or phlegm
+- **Spiritual/religious**: Demonic possession, divine punishment, witchcraft, spiritual affliction
+- **Environmental**: Miasma, bad air, planetary influences, astrological misalignment
+- **Lifestyle**: Dietary excess, sexual excess, lack of exercise, improper sleep
+- **Period terms**: Melancholia, choler, phlegmatic obstruction, sanguine fever, putrid fever, pestilence, consumption, falling sickness, apoplexy, dropsy, mania, frenzy
+
+**FORBIDDEN - Do NOT use modern terms:**
+- ❌ Schizophrenia, bipolar disorder, depression, anxiety, PTSD
+- ❌ Cancer, diabetes, tuberculosis, malaria, typhoid
+- ❌ Bacterial/viral infections, pathogens, microbes
+- ❌ Any diagnosis unknown in 1680
+
+**Examples of correct 1680s diagnoses:**
+- "Excess of black bile causing melancholic delusions"
+- "Demonic oppression manifesting as auditory visions"
+- "Phlegmatic obstruction of the lungs with putrid fever"
+- "Sanguine fever from excess blood and hot humors"
+- "Choleric imbalance with violent mania"
+
+**Confidence levels:**
+- HIGH: Definitive language ("definitely", "clearly", "certainly")
+- MEDIUM: Reasonably confident ("likely", "appears to be", "seems like")
+- LOW: Uncertain ("possibly", "might be", "could be")
 
 ## Response Format (JSON):
 {
@@ -172,7 +198,7 @@ If Maria's action contains diagnostic language (e.g., "diagnose", "you have", "t
   "patientDataUpdates": {
     "vitals": {"pulse": "rapid", "temperature": "hot", "respiration": "labored", "urine": "cloudy", "tongue": "yellow-coated"},
     "symptoms": [{"name": "...", "location": "...", "severity": "...", "type": "...", "description": "..."}],
-    "diagnosis": "diagnosed condition (only if Maria states a diagnosis)",
+    "diagnosis": "diagnosed condition in 1680s Galenic/religious framework (only if Maria states a diagnosis)",
     "confidence": "low | medium | high (only if Maria states a diagnosis)"
   }
 }
@@ -326,7 +352,7 @@ In 1680s Mexico City, personal honor, religious orthodoxy, and social standing m
     "symptoms": [
       {
         "name": "symptom name",
-        "location": "anatomical location (${VALID_LOCATIONS.join(', ')})",
+        "location": "anatomical location - BE SPECIFIC! Use specific body parts over generic ones",
         "severity": "mild | moderate | severe | critical",
         "type": "${VALID_TYPES.join(' | ')}",
         "description": "medical description",
@@ -339,7 +365,7 @@ In 1680s Mexico City, personal honor, religious orthodoxy, and social standing m
     "medicalHistory": "past illnesses or treatments if mentioned",
     "occupation": "occupation if mentioned",
     "occupationDetail": "details about occupation if relevant",
-    "diagnosis": "diagnosed condition (only if Maria states a diagnosis like 'I diagnose you with...', 'You have...', 'This appears to be...')",
+    "diagnosis": "diagnosed condition using ONLY 1680s Galenic/religious framework (only if Maria states a diagnosis like 'I diagnose you with...', 'You have...', 'This appears to be...'). Use humoral imbalances, spiritual afflictions, or period terms like melancholia, mania, demonic oppression. NEVER use modern medical terms like schizophrenia, bipolar disorder, depression, etc.",
     "confidence": "low | medium | high (only if Maria states a diagnosis - based on her language: definitive=high, reasonably confident=medium, uncertain=low)",
     "humors": {
       "temperature": "hot | cold | neutral (only if patient describes feeling hot/cold by nature)",
@@ -359,11 +385,20 @@ In 1680s Mexico City, personal honor, religious orthodoxy, and social standing m
 ### Medical Data (Be Conservative):
 1. **Only include symptoms that the patient mentions in THIS response**
 2. **Do not hallucinate symptoms** - only report what the patient actually says
-3. **Validate locations** - use only anatomical locations from the list above
-4. **Patient quotes** should be verbatim from your dialogue
+3. **Avoid duplicate symptoms** - if you already told Maria about "weakness", don't create a new symptom called "extreme weakness" or "general weakness" - these are the same symptom with more detail
+   - Example: If "Flux" already exists, don't add "Flux/Dysentery" - just update the existing symptom
+   - Example: If "Weakness and Pallor" exists, don't add "General Weakness" - it's the same symptom
+4. **BE SPECIFIC with anatomical locations** - avoid generic locations when a specific body part is clearly affected:
+   - ✅ GOOD: "Pallor and dark circles" → location: "eyes" or "face" (NOT "skin")
+   - ✅ GOOD: "Shortness of breath" → location: "lungs" or "chest" (NOT "whole body")
+   - ✅ GOOD: "Facial rash" → location: "face" (NOT "skin")
+   - ✅ GOOD: "Hand tremor" → location: "hands" (NOT "whole body")
+   - ⚠️ USE GENERIC ONLY when truly systemic: "Fever affecting entire body" → "whole body", "Generalized weakness with no focal point" → "general"
+   - Valid locations: ${VALID_LOCATIONS.join(', ')}
+5. **Patient quotes** should be verbatim from your dialogue
 
 ### Biographical Data (Be Creative):
-5. **When asked about personal details** (name, birthday, childhood, family, occupation, diet, habits, beliefs):
+6. **When asked about personal details** (name, birthday, childhood, family, occupation, diet, habits, beliefs):
    - **Make up plausible, period-appropriate answers** based on your character's age, class, and background
    - **Be specific and creative** - don't say "I don't know" or refuse to answer
    - **For names**: If asked for your name, provide a period-appropriate Spanish name matching your gender and class
@@ -489,14 +524,68 @@ Now roleplay as ${patient.name} and respond to the apothecary's question.`;
 }
 
 /**
+ * Auto-correct symptom location based on description keywords
+ * Fixes overly generic locations when specific body parts are mentioned
+ * @param {Object} symptom - Symptom to analyze
+ * @returns {Object} Symptom with corrected location if needed
+ */
+function correctSymptomLocation(symptom) {
+  const { name, description, location } = symptom;
+  const text = `${name} ${description}`.toLowerCase();
+
+  // Only auto-correct if current location is too generic
+  const genericLocations = ['skin', 'whole body', 'general'];
+  if (!genericLocations.includes(location?.toLowerCase())) {
+    return symptom; // Already specific, don't change
+  }
+
+  // Location correction rules based on keywords
+  const locationKeywords = {
+    'eyes': ['eye', 'vision', 'sight', 'pupil', 'eyelid', 'dark circles', 'shadows beneath eyes'],
+    'face': ['face', 'facial', 'complexion', 'cheek', 'jaw', 'pallor', 'flushed', 'pale'],
+    'head': ['head', 'headache', 'skull', 'scalp', 'temple'],
+    'chest': ['chest', 'breast', 'ribcage', 'tightness in chest'],
+    'lungs': ['breath', 'breathing', 'respiratory', 'wheez', 'cough'],
+    'stomach': ['stomach', 'belly', 'nausea', 'appetite'],
+    'abdomen': ['abdomen', 'abdominal', 'bowel', 'intestin'],
+    'hands': ['hand', 'finger', 'palm', 'wrist', 'tremor in hand'],
+    'arms': ['arm', 'elbow', 'shoulder'],
+    'legs': ['leg', 'thigh', 'calf', 'shin'],
+    'feet': ['foot', 'feet', 'ankle', 'toe'],
+    'back': ['back', 'spine', 'lumbar'],
+    'throat': ['throat', 'swallow', 'neck', 'glands'],
+    'mouth': ['mouth', 'lips', 'tongue', 'teeth', 'gums'],
+    'ears': ['ear', 'hearing', 'deaf']
+  };
+
+  // Check for keyword matches
+  for (const [specificLocation, keywords] of Object.entries(locationKeywords)) {
+    for (const keyword of keywords) {
+      if (text.includes(keyword)) {
+        console.log(`[PatientDialogueAgent] Auto-corrected location: "${location}" → "${specificLocation}" (found keyword: "${keyword}")`);
+        return {
+          ...symptom,
+          location: specificLocation
+        };
+      }
+    }
+  }
+
+  return symptom; // No correction needed
+}
+
+/**
  * Validate extracted symptom data
  * @param {Object} symptom - Extracted symptom
  * @returns {Object} Validated symptom with corrections
  */
 function validateSymptom(symptom) {
-  const validated = { ...symptom };
+  let validated = { ...symptom };
 
-  // Validate location
+  // Auto-correct location if too generic
+  validated = correctSymptomLocation(validated);
+
+  // Validate location (after correction)
   if (!VALID_LOCATIONS.includes(validated.location?.toLowerCase())) {
     console.warn(`[PatientDialogueAgent] Invalid location "${validated.location}", defaulting to "general"`);
     validated.location = 'general';
@@ -564,15 +653,15 @@ export async function processPatientDialogue({ patient, question, isExaminationA
       { type: 'json_object' } // Request JSON format
     );
 
-    // Parse JSON response
+    // Parse JSON response with safe error handling
     const content = response.choices[0].message.content;
-    let parsed;
+    const parsed = safeJSONParse(content, {
+      dialogue: content,
+      patientDataUpdates: null
+    });
 
-    try {
-      parsed = JSON.parse(content);
-    } catch (parseError) {
+    if (!parsed) {
       console.error('[PatientDialogueAgent] Failed to parse JSON response:', content);
-      // Fallback: return dialogue without structured data
       return {
         dialogue: content,
         patientDataUpdates: null

@@ -9,6 +9,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { entityManager } from '../core/entities/EntityManager';
+import { findEntityByName } from '../utils/nameNormalization';
 import { createChatCompletion } from '../core/services/llmService';
 import { useTooltip } from '../hooks/useTooltip';
 import HelperTooltip from './HelperTooltip';
@@ -122,9 +123,9 @@ function ContractOfferModal({
 
   // Handle treatment contract acceptance
   const handleAcceptTreatment = () => {
-    // Find or create the patient entity
+    // Find or create the patient entity (with name normalization for honorifics)
     console.log('[ContractModal] Looking for patient entity with name:', offer.patientName);
-    let patientEntity = entityManager.getByName(offer.patientName);
+    let patientEntity = findEntityByName(offer.patientName, entityManager);
 
     if (!patientEntity) {
       console.log('[ContractModal] Patient not found, searching for match...');
