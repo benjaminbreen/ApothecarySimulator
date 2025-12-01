@@ -849,11 +849,165 @@ class EntityManager {
     // Remove from name index
     this.entitiesByName.delete(this.normalizeName(entity.name));
 
-    // Clear cache
+    // Remove from tier index
+    if (entity.tier) {
+      const tierList = this.entitiesByTier.get(entity.tier);
+      if (tierList) {
+        const filtered = tierList.filter(e => e.id !== id);
+        this.entitiesByTier.set(entity.tier, filtered);
+      }
+    }
+
+    // Remove from enrichment cache
+    this.enrichedEntities.delete(id);
+
+    // Clear regex cache
     this.nameRegexCache.clear();
 
     console.log(`[EntityManager] Deleted ${id}`);
     return true;
+  }
+
+  /**
+   * Unregister entity (alias for delete with additional cleanup)
+   * Use this when removing transient NPCs to free memory
+   * @param {string} id - Entity ID
+   * @returns {boolean} Success
+   */
+  unregister(id) {
+    return this.delete(id);
+  }
+
+  /**
+   * Prune transient entities that are no longer needed
+   * Removes NPCs that:
+   * - Are not story-critical (tier !== 'story-critical')
+   * - Have no significant relationship with player
+   * - Were created more than maxAge turns ago
+   *
+   * This helps prevent memory bloat during long play sessions.
+   *
+   * @param {Object} options - Pruning options
+   * @param {number} options.currentTurn - Current turn number
+   * @param {Object} options.relationshipGraph - RelationshipGraph instance (optional)
+   * @param {number} options.maxAge - Maximum age in turns before pruning (default: 50)
+   * @param {number} options.relationshipThreshold - Min relationship score to keep (default: 20)
+   * @returns {{pruned: number, kept: number, details: Array}} Pruning results
+   */
+  pruneTransientEntities({
+    currentTurn,
+    relationshipGraph = null,
+    maxAge = 50,
+    relationshipThreshold = 20
+  } = {}) {
+    if (typeof currentTurn !== 'number') {
+      console.warn('[EntityManager] pruneTransientEntities requires currentTurn');
+      return { pruned: 0, kept: 0, details: [] };
+    }
+
+    const results = {
+      pruned: 0,
+      kept: 0,
+      details: []
+    };
+
+    // Collect IDs to prune (don't modify while iterating)
+    const toPrune = [];
+
+    for (const [id, entity] of this.entities) {
+      // Skip non-NPC entities
+      if (entity.entityType !== 'npc' && entity.entityType !== 'patient') {
+        continue;
+      }
+
+      // Never prune story-critical NPCs
+      if (entity.tier === 'story-critical') {
+        results.details.push({ id, name: entity.name, reason: 'story-critical', action: 'kept' });
+        results.kept++;
+        continue;
+      }
+
+      // Never prune recurring NPCs (they appear multiple times)
+      if (entity.tier === 'recurring') {
+        results.details.push({ id, name: entity.name, reason: 'recurring', action: 'kept' });
+        results.kept++;
+        continue;
+      }
+
+      // Check relationship if graph provided
+      if (relationshipGraph) {
+        try {
+          const relationship = relationshipGraph.getRelationship('player', id);
+          const relationshipScore = relationship?.value || 0;
+
+          // Keep NPCs with significant relationships (positive or negative)
+          if (Math.abs(relationshipScore) >= relationshipThreshold) {
+            results.details.push({
+              id,
+              name: entity.name,
+              reason: `relationship: ${relationshipScore}`,
+              action: 'kept'
+            });
+            results.kept++;
+            continue;
+          }
+        } catch (e) {
+          // Relationship lookup failed, continue with age check
+        }
+      }
+
+      // Check age
+      const createdAtTurn = entity.metadata?.createdAtTurn || entity.createdAtTurn || 0;
+      const age = currentTurn - createdAtTurn;
+
+      if (age > maxAge) {
+        toPrune.push(id);
+        results.details.push({
+          id,
+          name: entity.name,
+          reason: `age: ${age} turns`,
+          action: 'pruned'
+        });
+      } else {
+        results.details.push({
+          id,
+          name: entity.name,
+          reason: `age: ${age} turns (< ${maxAge})`,
+          action: 'kept'
+        });
+        results.kept++;
+      }
+    }
+
+    // Perform pruning
+    for (const id of toPrune) {
+      this.delete(id);
+      results.pruned++;
+    }
+
+    if (results.pruned > 0) {
+      console.log(`[EntityManager] Pruned ${results.pruned} transient entities, kept ${results.kept}`);
+    }
+
+    return results;
+  }
+
+  /**
+   * Get memory statistics for debugging
+   * @returns {Object} Memory stats
+   */
+  getMemoryStats() {
+    return {
+      totalEntities: this.entities.size,
+      enrichedEntities: this.enrichedEntities.size,
+      cachedRegexes: this.nameRegexCache.size,
+      byType: Object.fromEntries(
+        Array.from(this.entitiesByType.entries()).map(([k, v]) => [k, v.length])
+      ),
+      byTier: Object.fromEntries(
+        Array.from(this.entitiesByTier.entries()).map(([k, v]) => [k, v.length])
+      )
+    };
   }
 
   /**

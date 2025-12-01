@@ -266,6 +266,29 @@ export function mapNPCFactionToSystemFaction(npcFaction) {
 }
 
 /**
+ * Calculate scaled faction delta based on relationship change magnitude
+ * Uses tiered scaling to prevent small interactions from causing massive reputation swings
+ * while still allowing extreme actions to have significant impact.
+ *
+ * @param {number} relationshipDelta - Change in relationship value (-100 to +100)
+ * @returns {number} Scaled faction delta
+ */
+function calculateScaledFactionDelta(relationshipDelta) {
+  const abs = Math.abs(relationshipDelta);
+  const sign = Math.sign(relationshipDelta);
+
+  // Tiered scaling based on magnitude of relationship change
+  // Minor interactions (<=10): 1:1 ratio - casual conversations, small favors
+  // Moderate interactions (<=25): 1.5x - successful treatments, helpful actions
+  // Significant interactions (<=50): 2x - major help/harm, important events
+  // Extreme interactions (>50): 3x - life-saving, grievous insults, crimes
+  if (abs <= 10) return sign * Math.round(abs * 1.0);
+  if (abs <= 25) return sign * Math.round(abs * 1.5);
+  if (abs <= 50) return sign * Math.round(abs * 2.0);
+  return sign * Math.round(abs * 3.0);
+}
+
+/**
  * Update faction reputation based on NPC interaction
  * Use this when player interacts with an NPC to update both relationship AND faction rep
  *
@@ -280,8 +303,8 @@ export function updateFactionFromNPCInteraction(reputation, npc, relationshipDel
   const npcFaction = npc?.social?.faction || npc?.faction;
   if (!npcFaction) {
     // Fallback: Update overall reputation directly if NPC has no faction
-    // Scale: -15 relationship = -5 overall, -30 = -10 overall
-    const overallDelta = Math.round(relationshipDelta / 3.0);
+    // Use tiered scaling for overall as well
+    const overallDelta = Math.round(calculateScaledFactionDelta(relationshipDelta) / 3.0);
     const newOverall = Math.max(0, Math.min(100, reputation.overall + overallDelta));
     console.log(`[Reputation] NPC has no faction - updating overall directly: ${reputation.overall} → ${newOverall} (${overallDelta > 0 ? '+' : ''}${overallDelta}) - ${reason}`);
 
@@ -298,11 +321,10 @@ export function updateFactionFromNPCInteraction(reputation, npc, relationshipDel
     return reputation;
   }
 
-  // Scale relationship delta to faction reputation change
-  // Individual relationships are -100 to +100, and we want SIGNIFICANT faction changes
-  // Extreme actions (like defecating on someone) should cause massive reputation loss
-  // A -20 relationship change should result in ~-60 faction change (→ -10 overall across 6 factions)
-  const factionDelta = Math.round(relationshipDelta * 3.0);
+  // Scale relationship delta to faction reputation change using tiered scaling
+  // This prevents small interactions from causing massive reputation swings
+  // while still allowing extreme actions (crimes, life-saving) to have big impact
+  const factionDelta = calculateScaledFactionDelta(relationshipDelta);
 
   console.log(`[Reputation] ${reason}: ${npc.name} (${FACTION_INFO[systemFaction].name}) ${factionDelta > 0 ? '+' : ''}${factionDelta}`);
 
@@ -384,7 +406,8 @@ export function handleNPCInteraction({
     const systemFaction = mapNPCFactionToSystemFaction(npcFaction);
 
     if (systemFaction) {
-      const factionDelta = Math.round(relationshipDelta * 3.0);
+      // Use tiered scaling for spillover calculation as well
+      const factionDelta = calculateScaledFactionDelta(relationshipDelta);
       const spillovers = getSpilloverEffects(systemFaction, factionDelta);
 
       spillovers.forEach(({ faction, delta }) => {

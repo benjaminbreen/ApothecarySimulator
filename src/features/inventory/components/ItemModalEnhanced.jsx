@@ -18,6 +18,9 @@ import { createChatCompletion } from '../../../core/services/llmService';
 import ReactMarkdown from 'react-markdown';
 import { toTitleCase } from '../../../utils/textUtils';
 import { initialInventoryData } from '../../../initialInventory';
+import SourceIcon, { useHasSources } from '../../education/components/SourceIcon';
+import PrimarySourceModal from '../../../components/PrimarySourceModal';
+import { getSourcesForEntity } from '../../../core/services/primarySourceService';
 
 // Cache for generated sources (persists during playthrough, cleared on page refresh)
 const sourcesCache = new Map();
@@ -49,7 +52,7 @@ const COMMON_SYMPTOMS = [
   { name: 'inflammation', description: 'Hot condition (excess heat)' }
 ];
 
-export default function ItemModalEnhanced({ isOpen, onClose, item, initialTab = 'overview', onOpenLedger }) {
+export default function ItemModalEnhanced({ isOpen, onClose, item, initialTab = 'overview', onOpenLedger, inventory = [], onSelectItem }) {
   // Safety check: Ensure item has preparationAdvice by looking it up from initialInventoryData
   const itemWithAdvice = useMemo(() => {
     if (!item) return null;
@@ -89,8 +92,13 @@ export default function ItemModalEnhanced({ isOpen, onClose, item, initialTab = 
   const [generatedSources, setGeneratedSources] = useState(null); // Stores LLM-generated source suggestions
   const [hoveredBadge, setHoveredBadge] = useState(null); // 'rarity' or 'quality'
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const [primarySourceModalOpen, setPrimarySourceModalOpen] = useState(false);
+  const [primarySources, setPrimarySources] = useState([]);
   const rarityBadgeRef = useRef(null);
   const qualityBadgeRef = useRef(null);
+
+  // Check if item has associated primary sources
+  const hasSources = useHasSources(itemWithAdvice?.name);
 
   // Calculate tooltip position when hovering
   useEffect(() => {
@@ -106,16 +114,34 @@ export default function ItemModalEnhanced({ isOpen, onClose, item, initialTab = 
     }
   }, [hoveredBadge]);
 
-  // Handle ESC key to close
+  // Handle keyboard navigation (ESC to close, arrows to cycle through inventory)
   React.useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape' && isOpen) {
+    const handleKeyDown = (e) => {
+      if (!isOpen) return;
+
+      if (e.key === 'Escape') {
         onClose();
+      } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && inventory.length > 1 && onSelectItem && item) {
+        // Find current item index in inventory
+        const currentIndex = inventory.findIndex(inv =>
+          inv.name.toLowerCase() === item.name.toLowerCase()
+        );
+
+        if (currentIndex === -1) return;
+
+        let newIndex;
+        if (e.key === 'ArrowLeft') {
+          newIndex = currentIndex > 0 ? currentIndex - 1 : inventory.length - 1;
+        } else {
+          newIndex = currentIndex < inventory.length - 1 ? currentIndex + 1 : 0;
+        }
+
+        onSelectItem(inventory[newIndex]);
       }
     };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, inventory, onSelectItem, item]);
 
   // Load cached sources when item changes
   React.useEffect(() => {
@@ -214,6 +240,12 @@ export default function ItemModalEnhanced({ isOpen, onClose, item, initialTab = 
   // Get item icon for decorative background
   const itemIconPath = `/icons/${itemWithAdvice.name.toLowerCase().replace(/[']/g, '').replace(/\s+/g, '_')}_icon.png`;
 
+  // Handle opening primary source modal
+  const handleOpenPrimarySources = (sources) => {
+    setPrimarySources(sources);
+    setPrimarySourceModalOpen(true);
+  };
+
   const handleGenerateSources = async () => {
     setGeneratingSources(true);
 
@@ -311,20 +343,39 @@ Format as markdown. Be specific but concise - aim for 200-300 words total. Only 
           />
         </div>
 
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-2 right-2 z-50 p-2 rounded-lg transition-all duration-150 hover:bg-ink-100"
-          style={{
-            background: 'rgba(255, 255, 255, 0.8)',
-            border: '1px solid rgba(209, 213, 219, 0.3)',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)'
-          }}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="#3d2817" viewBox="0 0 24 24" strokeWidth="2.5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        {/* Close Button and Navigation Indicator */}
+        <div className="absolute top-2 right-2 z-50 flex items-center gap-2">
+          {/* Inventory position indicator */}
+          {inventory.length > 1 && onSelectItem && item && (
+            <div
+              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium"
+              style={{
+                background: 'rgba(255, 255, 255, 0.9)',
+                border: '1px solid rgba(209, 213, 219, 0.3)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                color: '#5c4a3a'
+              }}
+            >
+              <span className="opacity-60">←→</span>
+              <span>
+                {(inventory.findIndex(inv => inv.name.toLowerCase() === item.name.toLowerCase()) + 1)} / {inventory.length}
+              </span>
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg transition-all duration-150 hover:bg-ink-100"
+            style={{
+              background: 'rgba(255, 255, 255, 0.8)',
+              border: '1px solid rgba(209, 213, 219, 0.3)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)'
+            }}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="#3d2817" viewBox="0 0 24 24" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
         {/* Tab Navigation */}
         <div className="flex-shrink-0 flex border-b relative z-10" style={{
@@ -427,6 +478,17 @@ Format as markdown. Be specific but concise - aim for 200-300 words total. Only 
                       >
                         In Stock: {itemWithAdvice.quantity}
                       </span>
+                    )}
+                    {/* Primary Source Icon */}
+                    {hasSources && (
+                      <SourceIcon
+                        entityName={itemWithAdvice.name}
+                        onClick={handleOpenPrimarySources}
+                        size="medium"
+                        showCount={true}
+                        variant="button"
+                        tooltip="View historical primary sources"
+                      />
                     )}
                   </div>
 
@@ -1176,6 +1238,14 @@ Format as markdown. Be specific but concise - aim for 200-300 words total. Only 
         </div>,
         document.body
       )}
+
+      {/* Primary Source Modal */}
+      <PrimarySourceModal
+        isOpen={primarySourceModalOpen}
+        onClose={() => setPrimarySourceModalOpen(false)}
+        sources={primarySources}
+        initialIndex={0}
+      />
     </div>
   );
 }

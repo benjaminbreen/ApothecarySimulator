@@ -5,6 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { REFERENCE_CATEGORIES, getAllEntries } from '../../core/data/medicalReference';
 import { searchAll, getEnhancedEntry, getRelatedEntries } from '../../core/services/referenceService';
+import { getSourceById } from '../../core/services/primarySourceService';
 
 export function ReferenceTab({ initialSelectedEntry = null }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -358,6 +359,14 @@ function EntryDetailView({ entry, onBack, onSelectRelated, isLoading }) {
   const category = Object.values(REFERENCE_CATEGORIES).find(c => c.id === entry.category);
   const relatedEntries = getRelatedEntries(entry.id);
 
+  // Get linked primary sources if any
+  const linkedPrimarySources = useMemo(() => {
+    if (!entry.primarySourceIds || entry.primarySourceIds.length === 0) return [];
+    return entry.primarySourceIds
+      .map(id => getSourceById(id))
+      .filter(Boolean);
+  }, [entry.primarySourceIds]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -446,6 +455,82 @@ function EntryDetailView({ entry, onBack, onSelectRelated, isLoading }) {
                     <span className="font-semibold">Translation:</span> "{entry.historicalSource.translation}"
                   </p>
                 )}
+
+                {/* Verification status badge */}
+                {entry.historicalSource.verified !== undefined && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      entry.historicalSource.verified
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                        : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
+                    }`}>
+                      {entry.historicalSource.verified ? '✓ Verified Quote' : '⚠ Paraphrase'}
+                    </span>
+                    {entry.historicalSource.translator && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 italic">
+                        {entry.historicalSource.translator}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* Linked Primary Sources */}
+          {linkedPrimarySources.length > 0 && (
+            <section className="bg-amber-50/50 dark:bg-amber-900/10 rounded-xl p-5 border-2 border-amber-100 dark:border-amber-900">
+              <h3 className="text-lg font-bold text-amber-800 dark:text-amber-400 font-serif mb-3 flex items-center gap-2">
+                📚 Related Primary Sources
+              </h3>
+              <div className="space-y-4">
+                {linkedPrimarySources.map((source) => (
+                  <div key={source.id} className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
+                    <div className="font-serif text-amber-900 dark:text-amber-300 mb-2">
+                      <div className="font-semibold">{source.title}</div>
+                      <div className="text-sm text-amber-700 dark:text-amber-400">
+                        {source.author}, <em>{source.work}</em> ({source.year})
+                      </div>
+                    </div>
+
+                    {source.text && (
+                      <blockquote className="border-l-3 border-amber-300 dark:border-amber-600 pl-3 py-1 text-sm italic text-amber-800 dark:text-amber-200 font-serif mb-2">
+                        "{source.text.length > 200 ? source.text.substring(0, 200) + '...' : source.text}"
+                      </blockquote>
+                    )}
+
+                    {source.translation && (
+                      <p className="text-sm text-amber-700 dark:text-amber-300 font-serif">
+                        <span className="font-medium">Translation:</span> "{source.translation.length > 200 ? source.translation.substring(0, 200) + '...' : source.translation}"
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        source.verified
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                          : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                      }`}>
+                        {source.verified ? '✓ Verified' : '⚠ Paraphrase'}
+                      </span>
+                      {source.translator && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 italic">
+                          {source.translator}
+                        </span>
+                      )}
+                      {source.sourceUrl && (
+                        <a
+                          href={source.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          View Source →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
           )}

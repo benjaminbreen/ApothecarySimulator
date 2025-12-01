@@ -611,6 +611,8 @@ export function GameModals({
         item={selectedItem}
         initialTab={itemModalInitialTab}
         onOpenLedger={() => setIsLedgerOpen(true)}
+        inventory={gameState?.inventory || []}
+        onSelectItem={setSelectedItem}
       />
 
       {/* Equipment Modal */}

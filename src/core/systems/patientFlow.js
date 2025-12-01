@@ -7,6 +7,7 @@
  * - Shop sign visibility
  * - Time of day
  * - Reputation
+ * - Cooldown (prevents patient spam)
  *
  * Uses simple multipliers instead of complex probability distributions.
  */
@@ -25,6 +26,69 @@ const TIME_MULTIPLIERS = {
 };
 
 /**
+ * Location multipliers for patient appearance
+ * Different locations have different foot traffic
+ */
+const LOCATION_MULTIPLIERS = {
+  'botica de la amargura': 1.0,      // Home base - standard
+  'la merced market': 1.4,            // High foot traffic
+  'plaza mayor': 1.3,                 // Central location
+  'hospital real de los naturales': 0.5,  // They have their own doctors
+  'chapultepec forest': 0.2,          // Remote
+  'the alameda': 0.6,                 // Park, some encounters
+  'metropolitan cathedral': 0.4,      // Religious site, few seek medical help
+  'portal mercedes': 1.2,             // Market area
+  'calle de tacuba': 0.9,             // Street, moderate traffic
+  'inquisition palace': 0.1           // Dangerous, avoid attention
+};
+
+/**
+ * Get location multiplier with partial matching
+ * Handles cases like "Botica de la Amargura, Mexico City" matching "botica de la amargura"
+ * @param {string} location - Current location string
+ * @returns {number} Location multiplier
+ */
+function getLocationMultiplier(location) {
+  if (!location) return 0.8;
+
+  const locationLower = location.toLowerCase();
+
+  // Direct match first (most efficient)
+  if (LOCATION_MULTIPLIERS[locationLower]) {
+    return LOCATION_MULTIPLIERS[locationLower];
+  }
+
+  // Partial match - check if location contains any known location key
+  for (const [key, mult] of Object.entries(LOCATION_MULTIPLIERS)) {
+    if (locationLower.includes(key) || key.includes(locationLower)) {
+      return mult;
+    }
+  }
+
+  // Default multiplier for unknown locations
+  return 0.8;
+}
+
+/**
+ * Calculate cooldown multiplier based on turns since last patient
+ * Prevents patient spam by reducing probability immediately after seeing a patient
+ * @param {number} turnsSinceLastPatient - Number of turns since last patient encounter
+ * @returns {{multiplier: number, description: string}}
+ */
+function calculateCooldownMultiplier(turnsSinceLastPatient) {
+  if (turnsSinceLastPatient === 0) {
+    return { multiplier: 0.0, description: 'Same turn as last patient (0x)' };
+  }
+  if (turnsSinceLastPatient === 1) {
+    return { multiplier: 0.3, description: '1 turn since last patient (0.3x)' };
+  }
+  if (turnsSinceLastPatient === 2) {
+    return { multiplier: 0.7, description: '2 turns since last patient (0.7x)' };
+  }
+  return { multiplier: 1.0, description: 'No cooldown active (1.0x)' };
+}
+
+/**
  * Calculate patient flow probability
  * @param {Object} gameState - Current game state
  * @returns {{active: boolean, chance: number, shouldSeekPatient: boolean, factors: Object}}
@@ -35,7 +99,8 @@ export function calculatePatientFlow(gameState) {
     shopSign = {},
     reputation = {},
     time = '',
-    turnNumber = 0
+    turnNumber = 0,
+    lastPatientTurn = -999  // Track when last patient appeared
   } = gameState;
 
   // Extract time of day from time string (e.g., "8:00 AM" -> "Morning")
@@ -70,6 +135,11 @@ export function calculatePatientFlow(gameState) {
   baseChance *= timeMultiplier;
   factors.timeOfDay = `${timeOfDay} (${timeMultiplier}x)`;
 
+  // Apply location multiplier (uses partial matching)
+  const locationMultiplier = getLocationMultiplier(location);
+  baseChance *= locationMultiplier;
+  factors.locationMult = `Location modifier (${locationMultiplier}x)`;
+
   // Apply reputation modifier
   const overallRep = reputation.overall || 50;
   const medicalRep = reputation.medical || 50;
@@ -90,6 +160,14 @@ export function calculatePatientFlow(gameState) {
   if (turnNumber < 5) {
     baseChance *= 1.3;
     factors.earlyGame = "Early game boost (+1.3x)";
+  }
+
+  // Apply cooldown to prevent patient spam
+  const turnsSinceLastPatient = turnNumber - lastPatientTurn;
+  const cooldown = calculateCooldownMultiplier(turnsSinceLastPatient);
+  baseChance *= cooldown.multiplier;
+  if (cooldown.multiplier < 1.0) {
+    factors.cooldown = cooldown.description;
   }
 
   // Cap at 90% to maintain some randomness

@@ -80,18 +80,22 @@ export const REFERENCE_ENTRIES = {
     ],
 
     historicalSource: {
-      author: 'Nicolás Monardes',
-      work: 'Historia Medicinal de las Cosas que se Traen de Nuestras Indias Occidentales',
-      year: 1574,
-      excerpt: '"El opio es muy frío y seco en cuarto grado, causando sueño profundo y alivio del dolor más terrible. Mas es veneno si se excede la medida, y puede causar la muerte con gran facilidad."',
-      translation: '"Opium is very cold and dry in the fourth degree, causing deep sleep and relief from the most terrible pain. But it is poison if one exceeds the measure, and can cause death with great ease."',
-      location: 'Seville, Spain'
+      author: 'Thomas Sydenham',
+      work: 'Observationes Medicae',
+      year: 1676,
+      // VERIFIED: Famous quote from the "English Hippocrates"
+      excerpt: '"Of all the remedies it has pleased almighty God to give man to relieve his suffering, none is so universal and so efficacious as opium."',
+      translation: null, // Original is in Latin, this is the standard English translation
+      location: 'London, England',
+      verified: true,
+      sourceUrl: 'https://www.goodreads.com/quotes/8657845'
     },
 
     modernNote: 'Opium contains morphine and codeine alkaloids. Highly addictive. Medical use is strictly controlled. Understanding of addiction would not develop until the 19th century.',
 
     wikipediaQuery: 'Opium',
-    relatedEntries: ['pain', 'sleep-disorders', 'humoral-theory-cold-dry', 'poison']
+    relatedEntries: ['pain', 'sleep-disorders', 'humoral-theory-cold-dry', 'poison'],
+    primarySourceIds: ['sydenham-laudanum', 'avicenna-opium']
   },
 
   'peruvian-bark': {
@@ -126,15 +130,19 @@ export const REFERENCE_ENTRIES = {
       author: 'Sebastián Bado',
       work: 'Anastasis Corticis Peruvia',
       year: 1663,
+      // PARAPHRASE: Based on Bado's treatise; exact wording not verified from original
       excerpt: '"La corteza de este árbol del Perú obra milagros contra las fiebres tercianas, que ninguna otra medicina puede igualar. Los naturales la llaman quina-quina."',
       translation: '"The bark of this Peruvian tree works miracles against tertian fevers, which no other medicine can equal. The natives call it quina-quina."',
-      location: 'Genoa, Italy'
+      location: 'Genoa, Italy',
+      verified: false,
+      translator: 'Reconstruction by Claude Opus 4.5'
     },
 
     modernNote: 'Contains quinine, the first effective antimalarial drug. Its discovery revolutionized tropical medicine. Mechanism of action (interfering with parasite metabolism) was unknown until the 20th century.',
 
     wikipediaQuery: 'Cinchona',
-    relatedEntries: ['malaria', 'fever', 'humoral-theory-cold-dry']
+    relatedEntries: ['malaria', 'fever', 'humoral-theory-cold-dry'],
+    primarySourceIds: ['acosta-cinchona']
   },
 
   'bloodletting': {
@@ -173,15 +181,19 @@ export const REFERENCE_ENTRIES = {
       author: 'Galen of Pergamon',
       work: 'On the Therapeutic Method',
       year: 'c. 180 CE',
+      // PARAPHRASE: Based on Galen's general teachings on venesection
       excerpt: '"When the vessels are too full of blood, and disease threatens, we must evacuate by opening a vein. This is the most certain method of preventing putrefaction and restoring balance to the humors."',
       translation: 'Original in Greek, translated to Latin in medieval period',
-      location: 'Rome'
+      location: 'Rome',
+      verified: false,
+      translator: 'Paraphrase by Claude Opus 4.5'
     },
 
     modernNote: 'Bloodletting is medically harmful in most cases, causing weakness and increased mortality. It persisted as standard treatment until the mid-19th century despite mounting evidence of ineffectiveness. Only useful for specific conditions like polycythemia or hemochromatosis.',
 
     wikipediaQuery: 'Bloodletting',
-    relatedEntries: ['humoral-theory', 'fever', 'plethora', 'blood-humor']
+    relatedEntries: ['humoral-theory', 'fever', 'plethora', 'blood-humor'],
+    primarySourceIds: ['galen-humors', 'galen-bloodletting']
   },
 
   // HUMORAL THEORY
@@ -247,15 +259,19 @@ export const REFERENCE_ENTRIES = {
       author: 'Hippocrates',
       work: 'On the Nature of Man',
       year: 'c. 400 BCE',
+      // PARAPHRASE: Based on Hippocratic Corpus; standard scholarly summary
       excerpt: '"The body of man has in itself blood, phlegm, yellow bile, and black bile; these make up the nature of the body, and through these he feels pain or enjoys health. He is particularly healthy when these are in proper proportion to one another."',
       translation: 'From ancient Greek',
-      location: 'Kos, Greece'
+      location: 'Kos, Greece',
+      verified: false,
+      translator: 'Paraphrase by Claude Opus 4.5 based on scholarly sources'
     },
 
     modernNote: 'Humoral theory dominated medicine for 2,000 years but is medically incorrect. Modern medicine understands disease through germ theory, cellular biology, and biochemistry. However, humoral theory represented an early attempt at systematic pathology.',
 
     wikipediaQuery: 'Humorism',
-    relatedEntries: ['blood-humor', 'phlegm-humor', 'yellow-bile-humor', 'black-bile-humor', 'diagnosis']
+    relatedEntries: ['blood-humor', 'phlegm-humor', 'yellow-bile-humor', 'black-bile-humor', 'diagnosis'],
+    primarySourceIds: ['galen-humors', 'hippocrates-airs-waters']
   },
 
   // DISEASES

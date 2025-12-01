@@ -17,8 +17,12 @@ import SimpleInteractionCard from './SimpleInteractionCard';
 import RandomEventCard from './RandomEventCard';
 import ExitConfirmationCard from './ExitConfirmationCard';
 import { parseListResponse } from '../utils/narrativeParser';
-import { FaListUl, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaListUl, FaChevronDown, FaChevronUp, FaBook } from 'react-icons/fa';
 import { getListTypeLabel } from '../core/config/listTypes.config';
+import { SourceIndicator, SourcePopup } from './SourceIndicator';
+import PrimarySourceModal from './PrimarySourceModal';
+import { getSourcesForEntity, hasSourcesForEntity, getRelatedSources } from '../core/services/primarySourceService';
+import { PRIORITY_SOURCE_TERMS } from '../utils/sourceHighlighter';
 
 /**
  * Parse prescription outcome score from narrative text
@@ -711,15 +715,17 @@ function styleSystemLabels(content) {
 
 /**
  * Core function that processes text and highlights entity names
+ * Also adds source icons for terms that have associated primary sources
  * This is used by all text-containing components (text, strong, em, p, etc.)
  */
-function highlightEntitiesInText(text, sortedNPCs) {
+function highlightEntitiesInText(text, sortedNPCs, onSourceClick) {
   if (typeof text !== 'string') return text;
 
   let parts = [text];
 
   // Running counter to ensure unique keys across all entity spans
   let entityCounter = 0;
+  let sourceCounter = 0;
 
   // Split text by each entity name, replacing matches with clickable spans
   sortedNPCs.forEach((npcName) => {
@@ -761,6 +767,10 @@ function highlightEntitiesInText(text, sortedNPCs) {
           // Get icon for medical terms
           const icon = entityType === 'medical_term' ? npcData?.icon : null;
 
+          // Check if this entity has primary sources
+          const sources = getSourcesForEntity(segment);
+          const hasSources = sources && sources.length > 0;
+
           // Use running counter for truly unique keys
           newParts.push(
             <span
@@ -769,8 +779,85 @@ function highlightEntitiesInText(text, sortedNPCs) {
               data-npc-name={segment}
               data-description={description}
               data-icon={icon || ''}
+              data-has-sources={hasSources ? 'true' : 'false'}
             >
               {segment}
+              {hasSources && (
+                <button
+                  key={`source-btn-${sourceCounter++}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSourceClick?.(segment, sources);
+                  }}
+                  className="inline-flex items-center justify-center w-4 h-4 ml-0.5 -mt-0.5
+                    rounded-sm bg-amber-100/80 dark:bg-amber-900/40
+                    text-amber-700 dark:text-amber-400
+                    hover:bg-amber-200 dark:hover:bg-amber-800/60
+                    hover:scale-110 transition-all duration-150
+                    cursor-pointer align-middle"
+                  title={`${sources.length} primary source${sources.length > 1 ? 's' : ''}`}
+                  aria-label={`View sources for ${segment}`}
+                >
+                  <FaBook className="w-2.5 h-2.5" />
+                </button>
+              )}
+            </span>
+          );
+        }
+      });
+    });
+    parts = newParts;
+  });
+
+  // Second pass: Check for priority source terms that aren't already highlighted
+  const priorityTermsArray = Array.from(PRIORITY_SOURCE_TERMS).sort((a, b) => b.length - a.length);
+
+  priorityTermsArray.forEach((term) => {
+    const newParts = [];
+    parts.forEach(part => {
+      if (typeof part !== 'string') {
+        newParts.push(part);
+        return;
+      }
+
+      // Only match if we have sources for this term
+      const sources = getSourcesForEntity(term);
+      if (!sources || sources.length === 0) {
+        newParts.push(part);
+        return;
+      }
+
+      const regex = new RegExp(`\\b(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
+      const segments = part.split(regex);
+
+      segments.forEach((segment, i) => {
+        if (i % 2 === 0) {
+          if (segment) newParts.push(segment);
+        } else {
+          // Priority term match - add source icon
+          newParts.push(
+            <span
+              key={`source-term-${term}-${sourceCounter++}`}
+              className="source-term"
+              data-source-term={segment}
+            >
+              {segment}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSourceClick?.(segment, sources);
+                }}
+                className="inline-flex items-center justify-center w-4 h-4 ml-0.5 -mt-0.5
+                  rounded-sm bg-amber-100/80 dark:bg-amber-900/40
+                  text-amber-700 dark:text-amber-400
+                  hover:bg-amber-200 dark:hover:bg-amber-800/60
+                  hover:scale-110 transition-all duration-150
+                  cursor-pointer align-middle"
+                title={`${sources.length} primary source${sources.length > 1 ? 's' : ''}`}
+                aria-label={`View sources for ${segment}`}
+              >
+                <FaBook className="w-2.5 h-2.5" />
+              </button>
             </span>
           );
         }
@@ -787,7 +874,7 @@ function highlightEntitiesInText(text, sortedNPCs) {
  * This creates wrappers for all text-containing elements so highlighting works
  * even when text is inside bold, italic, or other formatting
  */
-function createEntityHighlightingComponents(recentNPCs = []) {
+function createEntityHighlightingComponents(recentNPCs = [], onSourceClick = null) {
   // Get all entities from EntityManager, filter to NPCs, patients, locations, items, and medical terms
   // Medical terms enable clickable references to the Reference Tab
   const allEntities = entityManager.getAll();
@@ -819,14 +906,14 @@ function createEntityHighlightingComponents(recentNPCs = []) {
     // Bare text nodes
     text: ({ children }) => {
       if (typeof children !== 'string') return children;
-      return highlightEntitiesInText(children, sortedNPCs);
+      return highlightEntitiesInText(children, sortedNPCs, onSourceClick);
     },
 
     // Bold text (from **text** or __text__)
     strong: ({ children, ...props }) => {
       const processedChildren = React.Children.map(children, child => {
         if (typeof child === 'string') {
-          return highlightEntitiesInText(child, sortedNPCs);
+          return highlightEntitiesInText(child, sortedNPCs, onSourceClick);
         }
         return child;
       });
@@ -846,7 +933,7 @@ function createEntityHighlightingComponents(recentNPCs = []) {
     em: ({ children, ...props }) => {
       const processedChildren = React.Children.map(children, child => {
         if (typeof child === 'string') {
-          return highlightEntitiesInText(child, sortedNPCs);
+          return highlightEntitiesInText(child, sortedNPCs, onSourceClick);
         }
         return child;
       });
@@ -857,7 +944,7 @@ function createEntityHighlightingComponents(recentNPCs = []) {
     p: ({ children, ...props }) => {
       const processedChildren = React.Children.map(children, child => {
         if (typeof child === 'string') {
-          return highlightEntitiesInText(child, sortedNPCs);
+          return highlightEntitiesInText(child, sortedNPCs, onSourceClick);
         }
         return child;
       });
@@ -1767,6 +1854,16 @@ const NarrativePanel = ({
   const [showEntityPopup, setShowEntityPopup] = useState(false);
   const [popupEntity, setPopupEntity] = useState(null);
 
+  // Primary source popup state
+  const [showSourcePopup, setShowSourcePopup] = useState(false);
+  const [sourcePopupTerm, setSourcePopupTerm] = useState(null);
+  const [sourcePopupSources, setSourcePopupSources] = useState([]);
+
+  // Primary source modal state (full source viewer)
+  const [showSourceModal, setShowSourceModal] = useState(false);
+  const [selectedSource, setSelectedSource] = useState(null);
+  const [relatedSourcesList, setRelatedSourcesList] = useState([]);
+
   // Sound effect state
   const [activeSoundEffect, setActiveSoundEffect] = useState(null);
 
@@ -1779,10 +1876,18 @@ const NarrativePanel = ({
     return recentNPCs || [];
   }, [JSON.stringify(recentNPCs)]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handler for when user clicks a source icon in the narrative text
+  const handleSourceClick = useCallback((term, sources) => {
+    console.log('[NarrativePanel] Source clicked:', term, sources.length, 'sources');
+    setSourcePopupTerm(term);
+    setSourcePopupSources(sources);
+    setShowSourcePopup(true);
+  }, []);
+
   // Memoize entity highlighting components - only recreate when recentNPCs content actually changes
   const entityComponents = useMemo(() => {
-    return createEntityHighlightingComponents(stableRecentNPCs);
-  }, [stableRecentNPCs]);
+    return createEntityHighlightingComponents(stableRecentNPCs, handleSourceClick);
+  }, [stableRecentNPCs, handleSourceClick]);
 
   // Toggle bookmark for a message
   const handleToggleBookmark = (index) => {
@@ -2577,6 +2682,36 @@ const NarrativePanel = ({
         description={popupEntity?.description || 'No additional information available.'}
         onLookCloser={handleLookCloser}
         onAddNote={handleAddNote}
+      />
+
+      {/* Primary Source Popup - shows when clicking source icon */}
+      <SourcePopup
+        isOpen={showSourcePopup}
+        onClose={() => setShowSourcePopup(false)}
+        term={sourcePopupTerm}
+        sources={sourcePopupSources}
+        onViewSource={(source) => {
+          console.log('[NarrativePanel] View full source:', source.id);
+          setSelectedSource(source);
+          setRelatedSourcesList(getRelatedSources(source.id, 5));
+          setShowSourcePopup(false);
+          setShowSourceModal(true);
+        }}
+      />
+
+      {/* Primary Source Modal - full source viewer */}
+      <PrimarySourceModal
+        isOpen={showSourceModal}
+        onClose={() => {
+          setShowSourceModal(false);
+          setSelectedSource(null);
+        }}
+        source={selectedSource}
+        relatedSources={relatedSourcesList}
+        onNavigateToSource={(source) => {
+          setSelectedSource(source);
+          setRelatedSourcesList(getRelatedSources(source.id, 5));
+        }}
       />
 
       {/* Sound Effect Display - fighting game style animated sound effects */}

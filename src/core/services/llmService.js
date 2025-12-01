@@ -8,6 +8,27 @@ const isDevelopment = window.location.hostname === 'localhost' || window.locatio
 const llmCallHistory = [];
 const MAX_STORED_CALLS = 10; // Keep last 10 calls in memory
 
+// Request deduplication - prevents duplicate LLM calls from double-clicks or re-renders
+const pendingRequests = new Map();
+
+// Retry configuration
+const RETRY_CONFIG = {
+  maxAttempts: 3,
+  baseDelayMs: 1000,
+  maxDelayMs: 10000,
+  retryableErrors: [
+    'rate limit',
+    'timeout',
+    '503',
+    '502',
+    '429',
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'network',
+    'fetch failed'
+  ]
+};
+
 function recordLLMCall(callData) {
   llmCallHistory.push({
     id: Date.now() + Math.random(), // Unique ID
@@ -27,6 +48,78 @@ export function getLLMCallHistory() {
 
 export function clearLLMCallHistory() {
   llmCallHistory.length = 0;
+}
+
+/**
+ * Check if an error is retryable based on error message
+ * @param {Error} error - The error to check
+ * @returns {boolean} Whether the error is retryable
+ */
+function isRetryableError(error) {
+  const errorMessage = (error.message || '').toLowerCase();
+  return RETRY_CONFIG.retryableErrors.some(pattern =>
+    errorMessage.includes(pattern.toLowerCase())
+  );
+}
+
+/**
+ * Sleep for a specified duration
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise<void>}
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Execute a function with exponential backoff retry logic
+ * @param {Function} fn - Async function to execute
+ * @param {string} operationName - Name for logging
+ * @returns {Promise<any>} Result of the function
+ */
+async function withRetry(fn, operationName = 'LLM call') {
+  let lastError;
+
+  for (let attempt = 1; attempt <= RETRY_CONFIG.maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      // Check if error is retryable
+      if (!isRetryableError(error) || attempt === RETRY_CONFIG.maxAttempts) {
+        console.error(`[LLM] ${operationName} failed (attempt ${attempt}/${RETRY_CONFIG.maxAttempts}):`, error.message);
+        throw error;
+      }
+
+      // Calculate delay with exponential backoff + jitter
+      const baseDelay = RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt - 1);
+      const jitter = Math.random() * 500; // Add up to 500ms of jitter
+      const delay = Math.min(baseDelay + jitter, RETRY_CONFIG.maxDelayMs);
+
+      console.warn(
+        `[LLM] ${operationName} failed (attempt ${attempt}/${RETRY_CONFIG.maxAttempts}), ` +
+        `retrying in ${Math.round(delay)}ms: ${error.message}`
+      );
+
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Generate a hash for request deduplication
+ * @param {Array} messages - Chat messages
+ * @param {number} temperature - Temperature setting
+ * @param {number} maxTokens - Max tokens setting
+ * @returns {string} Hash string
+ */
+function generateRequestHash(messages, temperature, maxTokens) {
+  // Create a simplified hash based on message content
+  const contentHash = messages.map(m => `${m.role}:${m.content?.substring(0, 100)}`).join('|');
+  return `${contentHash}|t:${temperature}|m:${maxTokens}`;
 }
 
 // Gemini implementation - routes through API in production, direct call in dev
@@ -167,38 +260,60 @@ export async function createChatCompletion(messages, temperature = 0.6, maxToken
     total: Math.ceil((systemPrompt.length + userPrompt.length) / 4)
   };
 
-  // You can add logic here to choose provider based on config, user preference, etc.
-  const provider = AI_PROVIDER;
+  // Request deduplication - prevent duplicate calls from double-clicks or re-renders
+  const requestHash = generateRequestHash(messages, temperature, maxTokens);
 
-  let response;
-  switch (provider) {
-    case 'gemini':
-      response = await geminiChatCompletion(messages, temperature, maxTokens, responseFormat);
-      break;
-    case 'openai':
-      response = await openaiChatCompletion(messages, temperature, maxTokens, responseFormat);
-      break;
-    default:
-      // Default to Gemini
-      response = await geminiChatCompletion(messages, temperature, maxTokens, responseFormat);
+  // Check if this exact request is already in flight
+  if (pendingRequests.has(requestHash)) {
+    console.log('[LLM] Returning cached pending request (deduplication)');
+    return pendingRequests.get(requestHash);
   }
 
-  // Record the call for transparency view
-  recordLLMCall({
-    agent: metadata.agent || 'Unknown',
-    turnNumber: metadata.turnNumber || 0,
-    input: {
-      system: systemPrompt,
-      user: userPrompt
-    },
-    output: response.choices[0].message.content,
-    temperature,
-    maxTokens,
-    estimatedTokens,
-    provider
-  });
+  // You can add logic here to choose provider based on config, user preference, etc.
+  const provider = AI_PROVIDER;
+  const operationName = `${metadata.agent || 'Unknown'} (${provider})`;
 
-  return response;
+  // Create the request promise with retry logic
+  const requestPromise = (async () => {
+    try {
+      const response = await withRetry(async () => {
+        switch (provider) {
+          case 'gemini':
+            return await geminiChatCompletion(messages, temperature, maxTokens, responseFormat);
+          case 'openai':
+            return await openaiChatCompletion(messages, temperature, maxTokens, responseFormat);
+          default:
+            // Default to Gemini
+            return await geminiChatCompletion(messages, temperature, maxTokens, responseFormat);
+        }
+      }, operationName);
+
+      // Record the call for transparency view
+      recordLLMCall({
+        agent: metadata.agent || 'Unknown',
+        turnNumber: metadata.turnNumber || 0,
+        input: {
+          system: systemPrompt,
+          user: userPrompt
+        },
+        output: response.choices[0].message.content,
+        temperature,
+        maxTokens,
+        estimatedTokens,
+        provider
+      });
+
+      return response;
+    } finally {
+      // Clean up pending request after completion (success or failure)
+      pendingRequests.delete(requestHash);
+    }
+  })();
+
+  // Store the pending request for deduplication
+  pendingRequests.set(requestHash, requestPromise);
+
+  return requestPromise;
 }
 
 // Image generation service
