@@ -113,12 +113,13 @@ export function useUIHandlers({
   /**
    * Toggle modals
    */
-  const toggleJournal = () => setIsJournalOpen(prev => !prev);
-  const toggleInventory = () => setIsInventoryOpen(prev => !prev);
-  const toggleHistory = () => setIsHistoryOpen(prev => !prev);
-  const toggleAbout = () => setIsAboutOpen(prev => !prev);
-  const toggleMap = () => setIsMapOpen(prev => !prev);
-  const toggleDiagnose = () => setIsDiagnoseOpen(prev => !prev);
+  // Modal toggles must use ModalContext toggler (setters here are open/close shims, not React setters)
+  const toggleJournal = () => toggleModal('journal');
+  const toggleInventory = () => toggleModal('inventory');
+  const toggleHistory = () => toggleModal('history');
+  const toggleAbout = () => toggleModal('about');
+  const toggleMap = () => toggleModal('map');
+  const toggleDiagnose = () => toggleModal('diagnose');
   const toggleMixingPopup = () => toggleModal('mixing'); // Fixed: use modal context toggle
 
   /**

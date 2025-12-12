@@ -153,6 +153,7 @@ export function GameModals({
   setIsFastTravelOpen,
   setIsBloodlettingOpen,
   setIsPatientRosterOpen,
+  setJournal,
 
   // Callbacks and state setters
   addJournalEntry,
@@ -349,7 +350,9 @@ export function GameModals({
         journal={journal}
         onAddEntry={(entry) => {
           // Directly add the full entry object with all metadata
-          setJournal(prevJournal => [...prevJournal, entry]);
+          if (setJournal) {
+            setJournal(prevJournal => [...prevJournal, entry]);
+          }
         }}
         currentTime={gameState.time}
         currentDate={gameState.date}

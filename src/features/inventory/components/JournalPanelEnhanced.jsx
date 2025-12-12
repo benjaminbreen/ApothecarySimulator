@@ -129,12 +129,26 @@ const JournalPanelEnhanced = ({
   const repInfo = getReputationLabel(reputation);
 
   return (
-    <div
-      className={`fixed top-0 right-0 h-full transition-all duration-500 ease-in-out z-[2000] ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
-      }`}
-      style={{ width: 'min(500px, 100vw)' }}
-    >
+    <>
+      {/* Backdrop to allow clicking outside to close */}
+      <div
+        className={`fixed inset-0 z-[1999] transition-opacity duration-500 ${
+          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{
+          background: 'rgba(0, 0, 0, 0.35)',
+          backdropFilter: 'blur(2px)'
+        }}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <div
+        className={`fixed top-0 right-0 h-full transition-all duration-500 ease-in-out z-[2000] ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        style={{ width: 'min(500px, 100vw)' }}
+      >
       {/* Glassomorphic container */}
       <div
         className="h-full flex flex-col"
@@ -410,6 +424,7 @@ const JournalPanelEnhanced = ({
         `}</style>
       </div>
     </div>
+    </>
   );
 };
 

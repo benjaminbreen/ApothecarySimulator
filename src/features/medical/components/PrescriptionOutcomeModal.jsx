@@ -198,6 +198,8 @@ function PrescriptionOutcomeModal({
 
   // Extract patient outcome status if available
   const patientOutcome = prescriptionData?.patientOutcome;
+  const humoralNote = prescriptionData?.humoralNote;
+  const examNote = prescriptionData?.examNote;
 
   // Debug logging to check prescription data structure
   console.log('[PrescriptionOutcomeModal] Rendering with', {
@@ -389,15 +391,39 @@ function PrescriptionOutcomeModal({
                     </div>
                   </div>
                 </div>
+            </div>
+          </div>
+
+          {/* Humoral & Exam Notes */}
+          {(humoralNote || examNote) && (
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-ink-100 dark:border-slate-700 overflow-hidden shadow-sm transition-colors duration-300">
+              <div className="p-2.5 border-b border-ink-100 dark:border-slate-700 flex items-center gap-2">
+                <span className="text-lg">🜍</span>
+                <h4 className="text-md font-bold text-ink-900 dark:text-parchment-100 font-serif">Treatment Rationale</h4>
+              </div>
+              <div className="p-3 space-y-2 text-sm text-ink-800 dark:text-slate-200">
+                {humoralNote && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-purple-600 dark:text-purple-300 text-base">⚖️</span>
+                    <p className="leading-snug">{humoralNote}</p>
+                  </div>
+                )}
+                {examNote && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-blue-600 dark:text-blue-300 text-base">🩺</span>
+                    <p className="leading-snug">{examNote}</p>
+                  </div>
+                )}
               </div>
             </div>
+          )}
 
-            {/* Mechanics Breakdown (if available) - Compact */}
-            {mechanicsBreakdown && (
-              <details className="bg-white dark:bg-slate-800 rounded-lg border border-ink-100 dark:border-slate-700 overflow-hidden shadow-sm transition-colors duration-300">
-                <summary className="p-2.5 cursor-pointer hover:bg-parchment-50 dark:hover:bg-slate-700/50 transition-colors">
-                  <h4 className="text-md font-bold text-ink-900 dark:text-parchment-100 inline-flex items-center gap-1.5">
-                    <span className="text-base">⚗️</span>
+          {/* Mechanics Breakdown (if available) - Compact */}
+          {mechanicsBreakdown && (
+            <details className="bg-white dark:bg-slate-800 rounded-lg border border-ink-100 dark:border-slate-700 overflow-hidden shadow-sm transition-colors duration-300">
+              <summary className="p-2.5 cursor-pointer hover:bg-parchment-50 dark:hover:bg-slate-700/50 transition-colors">
+                <h4 className="text-md font-bold text-ink-900 dark:text-parchment-100 inline-flex items-center gap-1.5">
+                  <span className="text-base">⚗️</span>
                     Mechanics Breakdown
                     <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{
                       background: mechanicsBreakdown.effectiveness >= 75

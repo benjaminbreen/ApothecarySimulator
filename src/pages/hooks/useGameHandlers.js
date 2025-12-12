@@ -2970,6 +2970,18 @@ Arrival detail to weave in: ${arrival}
         setPendingSimpleInteraction(null);
       }
 
+      // Guard: prevent duplicate treatment cards for the current active patient after a prescription outcome
+      const normalizeName = (name) => (name || '').trim().toLowerCase();
+      const activePatientName = normalizeName(activePatient?.name);
+      const contractPatientName = normalizeName(result.contractOffer?.patientName);
+      if (activePatientName &&
+          contractPatientName &&
+          activePatientName === contractPatientName &&
+          result.contractOffer?.type === 'treatment') {
+        console.log('[Contract] Suppressing duplicate treatment contract for active patient:', activePatientName);
+        result.contractOffer = { type: 'null' };
+      }
+
       // Handle contract offers (treatment or sale)
       // Store contract offer but DON'T auto-open modal
       // Player will see a clickable card in NarrativePanel

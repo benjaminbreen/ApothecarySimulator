@@ -96,6 +96,19 @@ import { WORLD_LOCATIONS } from '../features/map/data/worldLocations';
 
 const PDFPopup = lazy(() => import('../shared/components/PDFPopup'));
 
+// Minimal exam requirements for gentle guidance by diagnosis keyword
+const EXAM_REQUIREMENTS = {
+  fever: ['pulse', 'tongue'],
+  ague: ['pulse'],
+  melancholia: ['urine', 'tongue'],
+  melancholy: ['urine', 'tongue'],
+  flux: ['urine'],
+  diarrhea: ['urine'],
+  cough: ['pulse'],
+  pleurisy: ['pulse', 'urine'],
+  consumption: ['pulse', 'urine']
+};
+
 const GameContent = () => {
   const toast = useToast();
   const { scenarioId } = useParams(); // Get scenarioId from URL
@@ -2220,15 +2233,86 @@ Be historically accurate, immersive, and concise. Write in third person past ten
     setIsDiagnoseOpen(true);
   }, []);
 
+  // Track simple exam actions the player performed recently based on user inputs
+  const detectPerformedExams = useCallback(() => {
+    const performed = new Set();
+    const recentUserEntries = conversationHistory
+      .filter(entry => entry?.role === 'user' && typeof entry.content === 'string')
+      .slice(-12); // only check the last handful of user actions
+
+    recentUserEntries.forEach(entry => {
+      const text = entry.content.toLowerCase();
+      if (/\bpulse\b|take.*pulse|feel.*pulse/.test(text)) performed.add('pulse');
+      if (/\btongue\b/.test(text)) performed.add('tongue');
+      if (/\burine\b|urinal|chamber pot|pee\b/.test(text)) performed.add('urine');
+    });
+
+    return performed;
+  }, [conversationHistory]);
+
+  // Build a short note about exams completed/missing for the current diagnosis
+  const buildExamNote = useCallback((diagnosisRaw) => {
+    if (!diagnosisRaw) return null;
+
+    const diagnosis = diagnosisRaw.toLowerCase();
+    const requirementKey = Object.keys(EXAM_REQUIREMENTS).find(key => diagnosis.includes(key));
+    if (!requirementKey) return null;
+
+    const required = EXAM_REQUIREMENTS[requirementKey];
+    if (!required || required.length === 0) return null;
+
+    const performed = detectPerformedExams();
+    const completed = required.filter(req => performed.has(req));
+
+    // Only surface a note when we can positively confirm exams (avoid false warnings when exams were done via UI buttons)
+    if (completed.length === required.length) {
+      return `Exams completed: ${required.join(', ')}.`;
+    }
+
+    // If we didn't detect them, stay silent rather than warn (UI buttons may not produce text commands)
+    return null;
+  }, [detectPerformedExams]);
+
+  // Build a brief humoral note to display alongside prescription outcomes
+  const buildHumoralNote = useCallback((prescriptionData) => {
+    if (!prescriptionData) return null;
+
+    const breakdown = prescriptionData?.mechanicsBreakdown?.breakdown;
+    if (breakdown?.humoralExplanations?.length > 0) {
+      return breakdown.humoralExplanations[0];
+    }
+
+    const qualities = prescriptionData?.item?.humoralQualities;
+    const diagnosis = prescriptionData?.patient?.diagnosis;
+
+    if (qualities && diagnosis) {
+      return `${qualities} qualities of ${prescriptionData.item.name} were chosen to ease ${diagnosis.toLowerCase()}.`;
+    }
+
+    if (qualities) {
+      return `${qualities} qualities of ${prescriptionData.item.name} were used to balance the humors.`;
+    }
+
+    return null;
+  }, []);
+
   // Prescription outcome handlers
   const handlePrescriptionPending = useCallback((prescriptionData) => {
     console.log('[PrescriptionOutcome] Received full prescription data:', prescriptionData);
-    setPendingPrescription(prescriptionData);
+    // Build optional notes for humoral reasoning and exams performed
+    const humoralNote = buildHumoralNote(prescriptionData);
+    const examNote = buildExamNote(prescriptionData?.patient?.diagnosis);
+
+    setPendingPrescription({
+      ...prescriptionData,
+      humoralNote,
+      examNote
+    });
     setActiveTab('chronicle'); // Switch to chronicle tab to show prescription card
 
     // ALWAYS auto-open the modal immediately when prescription outcome happens
     setShowPrescriptionOutcomeModal(true);
-  }, []);
+  }, [buildExamNote, buildHumoralNote]);
 
   const handlePatientDismissed = useCallback(() => {
     console.log('[PrescriptionOutcome] Patient dismissed - clearing patient state only');
@@ -2906,6 +2990,7 @@ Be historically accurate, immersive, and concise. Write in third person past ten
 
           // Callbacks and state setters
           addJournalEntry={addJournalEntry}
+          setJournal={setJournal}
           addCompoundToInventory={addCompoundToInventory}
           updateInventory={updateInventory}
           advanceTime={advanceTime}
